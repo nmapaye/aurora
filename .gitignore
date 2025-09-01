@@ -19,3 +19,9 @@ android/app/build/
 # Metro/TypeScript
 *.map
 *.tsbuildinfo
+
+# secrets
+**/id_ed25519*
+**/*.pem
+**/*.key
+**/.ssh/
