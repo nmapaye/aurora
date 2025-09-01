@@ -1,0 +1,1 @@
+export const fmtMg=(x:number)=>`${Math.round(x)} mg`;

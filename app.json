@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "AURORA",
+    "slug": "aurora",
+    "scheme": "aurora",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icons/app-icon.png",
+    "splash": {
+      "image": "./assets/icons/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1020"
+    },
+    "jsEngine": "hermes",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.aurora"
+    },
+    "android": {
+      "package": "com.example.aurora"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_ME"
+      }
+    }
+  }
+}

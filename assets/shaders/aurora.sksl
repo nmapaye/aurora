@@ -1,0 +1,10 @@
+uniform float2 iResolution;
+uniform float iTime;
+
+half4 main(float2 fragCoord){
+  float2 uv = fragCoord / iResolution.xy;
+  float y = uv.y + 0.05*sin(uv.x*10.0+iTime*0.2);
+  float g = smoothstep(0.0,1.0,y);
+  return half4(0.05, 0.2*g+0.05, 0.35*g+0.1, 1.0);
+}
+  

@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+coverage/
+*.log
+*.tmp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env*
+.DS_Store
+# iOS/Android build artifacts
+ios/build/
+ios/Pods/
+android/.gradle/
+android/app/build/
+# Metro/TypeScript
+*.map
+*.tsbuildinfo
