@@ -23,6 +23,9 @@
     "android": {
       "package": "com.example.aurora"
     },
+    "plugins": [
+      ["./plugins/with-healthkit", { "shareMessage": "Aurora reads sleep to tailor your caffeine plan." }]
+    ],
     "extra": {
       "eas": {
         "projectId": "REPLACE_ME"

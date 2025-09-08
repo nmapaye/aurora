@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
 
-type Dose = { id:string; timestamp:number; mg:number; source?:string };
+type Dose = { id:string; timestamp:number; mg:number; source?:string; note?: string };
 type Sleep = { id:string; start:number; end:number; type:'sleep'|'nap' };
 type Prefs = { halfLife:number; targetSleep:number; tz?:string };
 

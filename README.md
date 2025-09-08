@@ -1,6 +1,3 @@
 # AURORA
 
-Caffeine + sleep tracker
-
-Better description TBA
-  
+Caffeine + sleep tracker with a computed alertness score and aurora background.

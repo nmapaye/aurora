@@ -1,14 +1,140 @@
-import React from 'react';
-import { ScrollView, View, Text, Pressable, useColorScheme } from 'react-native';
-import Card from '~/components/Card';
-import DoseQuickButtons from '~/components/DoseQuickButtons';
-import MgActiveBadge from '~/components/MgActiveBadge';
-import SleepSessionItem from '~/components/SleepSessionItem';
+import React, { useMemo } from 'react';
+import { ScrollView, View, Text, Pressable, useColorScheme, PlatformColor } from 'react-native';
+import { useStore } from '~/state/store';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useNextDip from '~/hooks/useNextDip';
-import * as cutoffHook from '~/hooks/useCaffeineCutoff';
+import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 
 const CONTENT_MAX_WIDTH = 560;
+const HIT_TARGET = 44;
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <Text
+      accessibilityRole="header"
+      style={{
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '600',
+        color: PlatformColor('label'),
+        marginBottom: 8,
+      }}
+    >
+      {title}
+    </Text>
+  );
+}
+
+function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: PlatformColor('secondarySystemBackground'),
+          borderRadius: 16,
+          padding: 16,
+          borderWidth: 1,
+          borderColor: PlatformColor('separator'),
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+function MetricTile({ title, value, right }: { title: string; value: string; right?: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        minHeight: HIT_TARGET,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: PlatformColor('tertiarySystemBackground'),
+        borderWidth: 1,
+        borderColor: PlatformColor('separator'),
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>{title}</Text>
+          <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{value}</Text>
+        </View>
+        {right}
+      </View>
+    </View>
+  );
+}
+
+function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number) => void; onCustom: () => void }) {
+  const presets = [40, 80, 120, 200];
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+      {presets.map((mg) => (
+        <Pressable
+          key={mg}
+          onPress={() => onAdd(mg)}
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${mg} milligrams`}
+          hitSlop={12}
+          style={{
+            minHeight: HIT_TARGET,
+            minWidth: 88,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: PlatformColor('secondarySystemBackground'),
+            borderWidth: 1,
+            borderColor: PlatformColor('separator'),
+          }}
+        >
+          <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{mg} mg</Text>
+        </Pressable>
+      ))}
+      <Pressable
+        onPress={onCustom}
+        accessibilityRole="button"
+        accessibilityLabel="Custom add"
+        hitSlop={12}
+        style={{
+          minHeight: HIT_TARGET,
+          minWidth: 88,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          borderRadius: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: PlatformColor('secondarySystemBackground'),
+          borderWidth: 1,
+          borderColor: PlatformColor('separator'),
+        }}
+      >
+        <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>Custom…</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function TimelineItem({ amount, source, time }: { amount: string; source?: string; time: string }) {
+  const label = `${amount}${source ? ` ${source}` : ''} at ${time}`;
+  return (
+    <View
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={label}
+      style={{ paddingVertical: 10, minHeight: HIT_TARGET }}
+    >
+      <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>{amount}</Text>
+      <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+        {source ? `${source} • ${time}` : time}
+      </Text>
+    </View>
+  );
+}
 
 const fmtTime = (ts: unknown) => {
   const d =
@@ -24,129 +150,143 @@ const fmtTime = (ts: unknown) => {
 };
 
 export default function DashboardScreen() {
-  const { nowScore, mgActiveNow: mgActive, series } = (useAlertnessSeries() as any) || {};
-
-  // useNextDip export can be default or not; guard the call
-  const _useNextDip: any = (useNextDip as any);
-  const nextDip: number | undefined = typeof _useNextDip === 'function' ? _useNextDip() : undefined;
-
-  // useCaffeineCutoff may export a hook or a function; guard
-  const cutoffResult: any = (cutoffHook as any)?.useCaffeineCutoff
-    ? (cutoffHook as any).useCaffeineCutoff()
-    : typeof (cutoffHook as any) === 'function'
-    ? (cutoffHook as any)()
-    : undefined;
-  const cutoff: number | undefined = cutoffResult?.cutoff;
-
   const scheme = useColorScheme();
-  const buttonTextColor = scheme === 'dark' ? '#ffffff' : '#0a0a0a';
-  const buttonBorderColor = scheme === 'dark' ? '#4a4a4a' : '#cccccc';
+  const { nowScore, mgActiveNow: mgActive, series } = (useAlertnessSeries() as any) || {};
+  const nextDip: number | undefined = (useNextDip as any)?.() as any;
+  const cutoff = useCaffeineCutoff();
+
+  const doses = useStore((s) => s.doses);
+  const addDose = useStore((s) => s.addDose);
+
+  const { todayTotal, yesterdayTotal, deltaText, todayDoses } = useMemo(() => {
+    const now = new Date();
+    const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
+    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+
+    const todayKey = key(now);
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    const yKey = key(y);
+
+    let tTotal = 0; let yTotal = 0;
+    const tDoses: { mg: number; source?: string; ts: number }[] = [];
+    for (const d of doses) {
+      const dt = new Date(d.timestamp);
+      const k = key(dt);
+      if (k === todayKey) { tTotal += d.mg; tDoses.push({ mg: d.mg, source: d.source, ts: d.timestamp }); }
+      else if (k === yKey) { yTotal += d.mg; }
+    }
+    tDoses.sort((a, b) => b.ts - a.ts);
+    const delta = tTotal - yTotal;
+    const deltaText = `${delta >= 0 ? '+' : ''}${delta} vs yesterday`;
+    return { todayTotal: tTotal, yesterdayTotal: yTotal, deltaText, todayDoses: tDoses };
+  }, [doses]);
+
+  const addDoseQuick = (mg: number) => {
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    addDose({ id, timestamp: Date.now(), mg });
+  };
+
+  const openCustom = () => {
+    // TODO: navigate to custom add screen
+  };
+
+  // Derive a simple 1-word energy descriptor from the alertness score
+  const energyWord = useMemo(() => {
+    const s = Math.round(nowScore ?? 0);
+    if (s >= 67) return 'High';
+    if (s >= 34) return 'Medium';
+    return 'Low';
+  }, [nowScore]);
 
   return (
     <ScrollView
-      contentContainerStyle={{
-        paddingTop: 16,
-        paddingBottom: 24,
-        paddingHorizontal: 16,
-        alignItems: 'center',
-      }}
+      contentInsetAdjustmentBehavior="automatic"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingTop: 12, paddingBottom: 24, paddingHorizontal: 16, alignItems: 'center' }}
     >
-      <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 12 }}>
-        {/* 1) Status strip */}
-        <Card>
-          <View style={{ alignItems: 'center', gap: 8 }}>
-            <MgActiveBadge />
-            <Text>
-              Next dip: {fmtTime(nextDip)} • Cutoff: {fmtTime(cutoff)}
+      <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
+        {/* Hero card */}
+        <Panel>
+          <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel'), marginBottom: 6 }}>
+            Today’s caffeine
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+            <Text style={{ fontSize: 34, lineHeight: 41, fontWeight: '600', color: PlatformColor('label') }}>
+              {Math.round(todayTotal)}
+            </Text>
+            <Text style={{ fontSize: 22, lineHeight: 28, color: PlatformColor('secondaryLabel') }}>mg</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
+              {fmtTime(cutoff?.nextCutoff)}
             </Text>
           </View>
-        </Card>
-
-        {/* 2) Primary gauge */}
-        <Card>
-          <View style={{ alignItems: 'center', gap: 12 }}>
-            {/* <AlertnessRing value={nowScore ?? 0} trend={computeTrend(series)} /> */}
-            <Text style={{ fontSize: 18, fontWeight: '600' }}>Alertness now: {Math.round(nowScore ?? 0)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>{deltaText}</Text>
           </View>
-        </Card>
+        </Panel>
 
-        {/* 3) Projection graph */}
-        <Card>
-          <View style={{ alignItems: 'center' }}>
-            {/* <TimelineGraph series={series ?? []} markers={{ now: Date.now(), nextDip, cutoff }} /> */}
-            <Text>Projection: 12-hour timeline</Text>
-          </View>
-        </Card>
+        {/* Secondary metrics */}
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <MetricTile title="Alertness" value={`${Math.round(nowScore ?? 0)} ${energyWord}`} />
+          <MetricTile title="Cutoff" value={fmtTime(cutoff?.nextBedtime)} />
+        </View>
 
-        {/* 4) Quick actions */}
-        <Card>
-          <View style={{ alignItems: 'center' }}>
-            <DoseQuickButtons />
-            <View style={{ height: 13 }} />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Pressable style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: buttonBorderColor }}>
-                <Text style={{ color: buttonTextColor }}>Custom dose…</Text>
-              </Pressable>
-              <Pressable style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: buttonBorderColor }}>
-                <Text style={{ color: buttonTextColor }}>Start nap</Text>
-              </Pressable>
-              <Pressable style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: buttonBorderColor }}>
-                <Text style={{ color: buttonTextColor }}>Start sleep</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Card>
+        {/* Quick add */}
+        <View>
+          <SectionHeader title="Quick Add" />
+          <QuickAddGrid onAdd={addDoseQuick} onCustom={openCustom} />
+        </View>
 
-        {/* 5) Recent activity */}
-        <Card>
-          <View style={{ gap: 10 }}>
-            <Text style={{ fontWeight: '600', textAlign: 'center' }}>Recent activity</Text>
-            {/* Replace placeholders with real rows from store */}
-            <View style={{ opacity: 0.7 }}>
-              <Text>45 mg • Espresso • 14:05</Text>
-            </View>
-            <SleepSessionItem
-              // @ts-ignore placeholder props; replace with real session data
-              session={{ id: 'demo', start: new Date().toISOString(), end: new Date().toISOString(), kind: 'nap' }}
-            />
-            <Pressable style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 8 }}>
-              <Text>View all →</Text>
+        {/* Timeline */}
+        <View>
+          <SectionHeader title="Today" />
+          <Panel style={{ paddingVertical: 8 }}>
+            {todayDoses.length === 0 ? (
+              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
+                No doses yet. Add your first dose.
+              </Text>
+            ) : (
+              todayDoses.map((d, idx) => (
+                <View key={d.ts} style={{ borderTopWidth: idx === 0 ? 0 : 1, borderColor: PlatformColor('separator') }}>
+                  <TimelineItem
+                    amount={`${d.mg} mg`}
+                    source={d.source}
+                    time={fmtTime(d.ts)}
+                  />
+                </View>
+              ))
+            )}
+            <Pressable
+              onPress={() => {}}
+              accessibilityRole="button"
+              style={{ alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12, minHeight: HIT_TARGET }}
+            >
+              <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('tint') }}>View all →</Text>
             </Pressable>
-          </View>
-        </Card>
+          </Panel>
+        </View>
 
-        {/* 6) Daily budget */}
-        <Card>
-          <View style={{ alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontWeight: '600' }}>Daily budget</Text>
-            <Text>{Math.round(mgActive ?? 0)} mg active • 200 mg budget</Text>
-            <View style={{ height: 8, width: '100%', backgroundColor: '#eee', borderRadius: 999 }}>
-              <View
-                style={{
-                  height: 8,
-                  width: `${Math.min(100, Math.round(((mgActive ?? 0) / 200) * 100))}%`,
-                  backgroundColor: '#0a84ff',
-                  borderRadius: 999,
-                }}
-              />
-            </View>
-          </View>
-        </Card>
+        {/* Insights */}
+        <View>
+          <SectionHeader title="Insights" />
+          <Panel>
+            <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>
+              Best window for focus: 10:00–12:00
+            </Text>
+            <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel'), marginTop: 4 }}>
+              Based on your recent intake and sleep.
+            </Text>
+          </Panel>
+        </View>
 
-        {/* 7) Warnings */}
-        {cutoff && cutoff < Date.now() ? (
-          <Card>
-            <Text style={{ color: '#b00020', textAlign: 'center' }}>Caffeine past cutoff</Text>
-          </Card>
-        ) : null}
-
-        {/* 8) First-run tips */}
-        {!series?.length ? (
-          <>
-            <Card>
-              <Text style={{ textAlign: 'center' }}>Log your first dose to unlock projections.</Text>
-            </Card>
-          </>
+        {/* Warning after cutoff */}
+        {cutoff?.shouldWarn ? (
+          <Panel>
+            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('systemRed'), textAlign: 'center' }}>
+              Caffeine past cutoff may impact sleep
+            </Text>
+          </Panel>
         ) : null}
       </View>
     </ScrollView>
