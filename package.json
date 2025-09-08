@@ -8,6 +8,9 @@
     "ios": "expo run:ios",
     "android": "expo run:android",
     "web": "expo start --web",
+    "contrib:grid": "node scripts/starry-night-grid.js",
+    "contrib:plan": "node scripts/starry-night-grid.js plan",
+    "contrib:paint": "node scripts/paint-contribs.js",
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
