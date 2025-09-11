@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View, Text, Pressable, PlatformColor } from 'react-native';
+import { View, Text, Pressable, PlatformColor, Share } from 'react-native';
+import ScreenContainer from '~/components/ScreenContainer';
 import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine } from 'react-native-svg';
 import { useStore } from '~/state/store';
+import useSleepGuidance from '~/hooks/useSleepGuidance';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -135,17 +137,34 @@ function TrendChart({ data, daysTs, height = 160, strokeWidth = 2 }: { data: num
 export default function InsightsScreen() {
   const doses = useStore((s) => s.doses);
   const sleeps = useStore((s) => s.sleeps);
+  const dailyLimit = useStore((s) => s.prefs.dailyLimitMg ?? 400);
+  const halfLife = useStore((s) => s.prefs.halfLife);
+  const sleepGuidance = useSleepGuidance();
 
   const [range, setRange] = useState<RangeKey>('7');
+  // Custom range state (inclusive of both start/end days)
+  const [customStart, setCustomStart] = useState<number>(() => {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - 6); // default last 7 days
+    start.setHours(0,0,0,0);
+    return start.getTime();
+  });
+  const [customEnd, setCustomEnd] = useState<number>(() => {
+    const end = new Date();
+    end.setHours(23,59,59,999);
+    return end.getTime();
+  });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string[] | null>(null); // null = all
   const [weekdayFilter, setWeekdayFilter] = useState<number[] | null>(null); // 0=Sun...6=Sat, null = all
 
-  const DAYS = useMemo(() => (range === '7' ? 7 : range === '14' ? 14 : range === '30' ? 30 : 7), [range]);
-  const DAILY_LIMIT = 400; // default if no user limit present
-
+  // Date helpers (must be defined before use in hooks below)
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+
+  const DAYS = useMemo(() => (range === '7' ? 7 : range === '14' ? 14 : range === '30' ? 30 : Math.max(1, Math.round((endOfDay(new Date(customEnd)) - startOfDay(new Date(customStart))) / 86400000) + 1)), [range, customStart, customEnd]);
+  const DAILY_LIMIT = dailyLimit; // user-configurable limit
 
   // Filter helpers
   const doseInFilters = (ts: number, source?: string) => {
@@ -159,34 +178,52 @@ export default function InsightsScreen() {
 
   // Build daily totals for current and previous window
   const { days, totals, prevTotals } = useMemo(() => {
-    const now = new Date();
     const daysArr: number[] = [];
     const tot: number[] = [];
     const prev: number[] = [];
-    for (let i = DAYS - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const s = startOfDay(d), e = endOfDay(d);
-      daysArr.push(s);
-      let sum = 0;
-      for (const x of doses) {
-        if (x.timestamp >= s && x.timestamp <= e && doseInFilters(x.timestamp, x.source)) sum += x.mg;
+
+    const buildTotalsForRange = (startMs: number, endMs: number) => {
+      const arr: number[] = [];
+      const daysList: number[] = [];
+      const start = startOfDay(new Date(startMs));
+      const end = endOfDay(new Date(endMs));
+      const nDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
+      for (let i = 0; i < nDays; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const s = startOfDay(d), e = endOfDay(d);
+        let sum = 0;
+        for (const x of doses) {
+          if (x.timestamp >= s && x.timestamp <= e && doseInFilters(x.timestamp, x.source)) sum += x.mg;
+        }
+        arr.push(sum);
+        daysList.push(s);
       }
-      tot.push(sum);
+      return { arr, daysList };
+    };
+
+    if (range === 'custom') {
+      const { arr, daysList } = buildTotalsForRange(customStart, customEnd);
+      // previous window: same number of days ending the day before customStart
+      const prevEnd = startOfDay(new Date(customStart - 1));
+      const prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - (arr.length - 1));
+      const { arr: prevArr } = buildTotalsForRange(prevStart.getTime(), prevEnd);
+      return { days: daysList, totals: arr, prevTotals: prevArr };
+    } else {
+      // rolling window ending today
+      const today = new Date();
+      const end = endOfDay(today);
+      const start = new Date(end);
+      start.setDate(start.getDate() - (DAYS - 1));
+      const { arr, daysList } = buildTotalsForRange(start.getTime(), end);
+      const prevEnd = startOfDay(new Date(start.getTime() - 1));
+      const prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - (DAYS - 1));
+      const { arr: prevArr } = buildTotalsForRange(prevStart.getTime(), prevEnd);
+      return { days: daysList, totals: arr, prevTotals: prevArr };
     }
-    // Previous window
-    for (let i = DAYS - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - DAYS - i);
-      const s = startOfDay(d), e = endOfDay(d);
-      let sum = 0;
-      for (const x of doses) {
-        if (x.timestamp >= s && x.timestamp <= e && doseInFilters(x.timestamp, x.source)) sum += x.mg;
-      }
-      prev.push(sum);
-    }
-    return { days: daysArr, totals: tot, prevTotals: prev };
-  }, [doses, DAYS, sourceFilter, weekdayFilter]);
+  }, [doses, DAYS, sourceFilter, weekdayFilter, range, customStart, customEnd]);
 
   // Weekly average (with ≥5 days requirement)
   const { weeklyAvg, weeklyAvgCaption, deltaPctRounded } = useMemo(() => {
@@ -304,15 +341,15 @@ export default function InsightsScreen() {
     };
   }, [sleeps, doses, sourceFilter, weekdayFilter]);
 
-  // Guidance text (descriptive nudge)
+  // Guidance: suggest bedtime based on half-life + current mg, and wake time on 90m cycles
   const guidance = useMemo(() => {
-    if (lastDoseStats.n >= 5 && lastDoseStats.medianDeltaMin < 180) {
-      const needed = 180 - lastDoseStats.medianDeltaMin;
-      const mins = Math.max(15, Math.round(needed / 15) * 15);
-      return `Move last dose earlier by ~${mins} min to reduce overlap with bedtime window.`;
-    }
-    return 'Keep spacing doses and aim to finish caffeine well before quiet hours.';
-  }, [lastDoseStats]);
+    const fmt = (ts: number) => {
+      try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(ts)); }
+      catch { return new Date(ts).toLocaleTimeString(); }
+    };
+    return `Suggested bedtime: ${fmt(sleepGuidance.bedtime)} (≈${sleepGuidance.mgAtBed} mg active).
+Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7am).`;
+  }, [sleepGuidance]);
 
   // Mode of daily totals for compressed summaries on larger ranges
   const modeMg = useMemo(() => {
@@ -352,10 +389,7 @@ export default function InsightsScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={{ paddingTop: 12, paddingBottom: 24, paddingHorizontal: 16, alignItems: 'center' }}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScreenContainer center>
       <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
         {/* Range + Filters */}
         <Panel>
@@ -375,8 +409,77 @@ export default function InsightsScreen() {
               <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>Filter</Text>
             </Pressable>
           </View>
+          {range === 'custom' ? (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Custom Range</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Text style={{ width: 56, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Start</Text>
+                <Pressable
+                  onPress={() => setCustomStart((t) => { const d = new Date(t); d.setDate(d.getDate() - 1); d.setHours(0,0,0,0); return d.getTime(); })}
+                  accessibilityRole="button"
+                  hitSlop={12}
+                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                >
+                  <Text style={{ color: PlatformColor('label') }}>{'<'}</Text>
+                </Pressable>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{fmtDay(customStart)}</Text>
+                <Pressable
+                  onPress={() => setCustomStart((t) => {
+                    const next = new Date(t); next.setDate(next.getDate() + 1); next.setHours(0,0,0,0);
+                    // ensure start <= end
+                    const end = new Date(customEnd); end.setHours(23,59,59,999);
+                    if (next.getTime() <= end.getTime()) return next.getTime();
+                    return t;
+                  })}
+                  accessibilityRole="button"
+                  hitSlop={12}
+                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                >
+                  <Text style={{ color: PlatformColor('label') }}>{'>'}</Text>
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Text style={{ width: 56, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>End</Text>
+                <Pressable
+                  onPress={() => setCustomEnd((t) => {
+                    const prev = new Date(t); prev.setDate(prev.getDate() - 1); prev.setHours(23,59,59,999);
+                    const start = new Date(customStart); start.setHours(0,0,0,0);
+                    if (prev.getTime() >= start.getTime()) return prev.getTime();
+                    return t;
+                  })}
+                  accessibilityRole="button"
+                  hitSlop={12}
+                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                >
+                  <Text style={{ color: PlatformColor('label') }}>{'<'}</Text>
+                </Pressable>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{fmtDay(customEnd)}</Text>
+                <Pressable
+                  onPress={() => setCustomEnd((t) => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(23,59,59,999); return d.getTime(); })}
+                  accessibilityRole="button"
+                  hitSlop={12}
+                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                >
+                  <Text style={{ color: PlatformColor('label') }}>{'>'}</Text>
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable
+                  onPress={() => {
+                    const end = new Date(); end.setHours(23,59,59,999);
+                    const start = new Date(end); start.setDate(end.getDate() - 6); start.setHours(0,0,0,0);
+                    setCustomStart(start.getTime()); setCustomEnd(end.getTime());
+                  }}
+                  accessibilityRole="button"
+                  style={{ minHeight: 36, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('systemFill') }}
+                >
+                  <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('label') }}>Reset 7d</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
           {filtersOpen ? (
-            <View style={{ marginTop: 12, gap: 8 }} accessible accessibilityRole="form">
+            <View style={{ marginTop: 12, gap: 8 }} accessible accessibilityRole="summary">
               <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Filters</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {['Espresso', 'Drip', 'Cold Brew', 'Tea', 'Matcha', 'Energy', 'Pills', 'Other'].map((s) => {
@@ -398,6 +501,37 @@ export default function InsightsScreen() {
                     </Pressable>
                   );
                 })}
+              </View>
+              <View style={{ height: 8 }} />
+              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Weekdays</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((label, idx) => {
+                  const active = weekdayFilter ? weekdayFilter.includes(idx) : false;
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => {
+                        setWeekdayFilter((curr) => {
+                          if (!curr) return [idx];
+                          return curr.includes(idx) ? curr.filter((x) => x !== idx) : [...curr, idx];
+                        });
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: active ? PlatformColor('systemFill') : PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                    >
+                      <Text style={{ color: PlatformColor('label') }}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+                <View style={{ width: 8 }} />
+                <Pressable
+                  onPress={() => { setSourceFilter(null); setWeekdayFilter(null); }}
+                  accessibilityRole="button"
+                  style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                >
+                  <Text style={{ color: PlatformColor('label') }}>Clear</Text>
+                </Pressable>
               </View>
             </View>
           ) : null}
@@ -422,9 +556,20 @@ export default function InsightsScreen() {
           </Panel>
         </View>
 
+        {/* Guidance */}
+        <View>
+          <SectionHeader title="Guidance" />
+          <Panel>
+            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{guidance}</Text>
+            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+              Descriptive only. Correlation does not imply causation. All computations on-device.
+            </Text>
+          </Panel>
+        </View>
+
         {/* Trend line chart with % change */}
         <View>
-          <SectionHeader title={`${DAYS}-Day Trend`} />
+          <SectionHeader title={range === 'custom' ? 'Custom Trend' : `${DAYS}-Day Trend`} />
           <Panel>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
@@ -491,31 +636,7 @@ export default function InsightsScreen() {
 
         {/* Calendar Heatmap removed per request */}
 
-        {/* Last Dose vs Sleep (hide if insufficient) */}
-        {lastDoseStats.n >= 1 ? (
-          <View>
-            <SectionHeader title="Last Dose vs Sleep" />
-            <Panel>
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>
-                Median: {Math.round(lastDoseStats.medianDeltaMin)} min before sleep (P10 {lastDoseStats.p10} / P90 {lastDoseStats.p90})
-              </Text>
-              {!lastDoseStats.showCorrelation ? (
-                <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                  Not enough nights for correlation (need ≥14).
-                </Text>
-              ) : null}
-            </Panel>
-          </View>
-        ) : (
-          <View>
-            <SectionHeader title="Sleep Impact" />
-            <Panel>
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-                Connect Health data to see sleep correlations.
-              </Text>
-            </Panel>
-          </View>
-        )}
+        {/* (Sleep impact moved to Sleep screen) */}
 
         {/* Source Mix */}
         <View>
@@ -537,28 +658,40 @@ export default function InsightsScreen() {
           </Panel>
         </View>
 
-        {/* Guidance */}
-        <View>
-          <SectionHeader title="Guidance" />
-          <Panel>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{guidance}</Text>
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-              Descriptive only. Correlation does not imply causation. All computations on-device.
-            </Text>
-          </Panel>
-        </View>
-
         {/* Share (placeholder) */}
         <Panel>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Export monthly summary</Text>
             <View style={{ flex: 1 }} />
-            <Pressable accessibilityRole="button" hitSlop={12} style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tintColor') }} onPress={() => {}}>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={12}
+              style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tintColor') }}
+              onPress={async () => {
+                try {
+                  const startStr = fmtDay(days[0] ?? Date.now());
+                  const endStr = fmtDay(days[days.length - 1] ?? Date.now());
+                  const total = totals.reduce((a, b) => a + b, 0);
+                  const avg = totals.length ? Math.round(total / totals.length) : 0;
+                  const parts = [
+                    `AURORA Summary ${startStr} – ${endStr}`,
+                    `Total: ${total} mg`,
+                    `Average: ${avg} mg/day`,
+                    `Adherence: ${adherencePct}% (streak ${latestStreak}d)`,
+                    `Dayparts: [05–11:${Math.round(daypart[0])} mg, 11–17:${Math.round(daypart[1])} mg, 17–21:${Math.round(daypart[2])} mg, 21–05:${Math.round(daypart[3])} mg]`,
+                    `Sources: ${sourceMix.map((s) => `${s.k} ${s.mg}mg (${s.pct}%)`).join(', ') || '—'}`,
+                  ];
+                  await Share.share({ message: parts.join('\n') });
+                } catch (e) {
+                  // no-op
+                }
+              }}
+            >
               <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: '#FFFFFF' }}>Share</Text>
             </Pressable>
           </View>
         </Panel>
       </View>
-    </ScrollView>
+    </ScreenContainer>
   );
 }

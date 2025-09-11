@@ -26,7 +26,7 @@ export default function useCaffeineCutoff(): CaffeineCutoff {
 
   return useMemo(() => {
     const now = Date.now();
-    const cutoffHour = 16;   // TODO: read from user prefs when available
+    const cutoffHour = Math.max(0, Math.min(23, prefs.cutoffHour ?? 16));
     const bedtimeHour = 23;  // heuristic checkpoint for sleep
     
     // Build today's cutoff in local time

@@ -3,7 +3,7 @@ import 'react-native-reanimated';
 
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, StatusBar, Text, View, useColorScheme, LogBox } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme, Theme, LinkingOptions } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Linking as RNLinking } from 'react-native';
@@ -12,6 +12,7 @@ import { navigationRef } from '~/navigation';
 import RootTabs from '~/navigation/RootTabs';
 import { useAppInit } from '~/hooks/useAppInit';
 import type { RootTabParamList } from '~/navigation/types';
+import linking from '~/navigation/linking';
 import * as perf from '~/instrumentation/perf';
 
 // Enable react-native-screens if available (perf/memory). Use dynamic require to avoid runtime errors if missing.
@@ -62,28 +63,7 @@ const DarkNavTheme: Theme = {
   colors: { ...DarkTheme.colors, background: '#000000', card: '#0B0B0B', text: '#FFFFFF', border: '#1F1F1F' },
 };
 
-// Deep linking config for tabs using React Native Linking (no expo-linking dependency)
-const linking: LinkingOptions<RootTabParamList> = {
-  prefixes: [] as string[],
-  config: {
-    initialRouteName: 'Home' as keyof RootTabParamList,
-    screens: {
-      Home: 'home',
-      Log: 'log',
-      Sleep: 'sleep',
-      Insights: 'insights',
-      Settings: 'settings',
-    } as const,
-  },
-  async getInitialURL() {
-    const url = await RNLinking.getInitialURL();
-    return url ?? undefined;
-  },
-  subscribe(listener: (url: string) => void) {
-    const sub = RNLinking.addEventListener('url', ({ url }) => listener(url));
-    return () => sub.remove();
-  },
-};
+// Linking config centralized in navigation/linking
 
 function BootGate() {
   return (

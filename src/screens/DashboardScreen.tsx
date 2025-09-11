@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
-import { ScrollView, View, Text, Pressable, useColorScheme, PlatformColor } from 'react-native';
+import { View, Text, Pressable, useColorScheme, PlatformColor } from 'react-native';
 import { useStore } from '~/state/store';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useNextDip from '~/hooks/useNextDip';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
+import useSleepGuidance from '~/hooks/useSleepGuidance';
+import ScreenContainer from '~/components/ScreenContainer';
+import { navigate } from '~/navigation';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -68,16 +71,22 @@ function MetricTile({ title, value, right }: { title: string; value: string; rig
   );
 }
 
-function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number) => void; onCustom: () => void }) {
-  const presets = [40, 80, 120, 200];
+function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number, source?: string) => void; onCustom: () => void }) {
+  const drinks: { label: string; mg: number }[] = [
+    { label: 'Soda', mg: 40 },
+    { label: 'Espresso', mg: 60 },
+    { label: 'Matcha', mg: 70 },
+    { label: 'Drip Coffee', mg: 95 },
+    { label: 'Energy Drink', mg: 160 },
+  ];
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-      {presets.map((mg) => (
+      {drinks.map((d) => (
         <Pressable
-          key={mg}
-          onPress={() => onAdd(mg)}
+          key={d.label}
+          onPress={() => onAdd(d.mg, d.label)}
           accessibilityRole="button"
-          accessibilityLabel={`Add ${mg} milligrams`}
+          accessibilityLabel={`Add ${d.label}`}
           hitSlop={12}
           style={{
             minHeight: HIT_TARGET,
@@ -92,7 +101,7 @@ function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number) => void; onCust
             borderColor: PlatformColor('separator'),
           }}
         >
-          <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{mg} mg</Text>
+          <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{d.label}</Text>
         </Pressable>
       ))}
       <Pressable
@@ -119,7 +128,7 @@ function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number) => void; onCust
   );
 }
 
-function TimelineItem({ amount, source, time }: { amount: string; source?: string; time: string }) {
+function TimelineItem({ amount, source, time, right }: { amount: string; source?: string; time: string; right?: React.ReactNode }) {
   const label = `${amount}${source ? ` ${source}` : ''} at ${time}`;
   return (
     <View
@@ -128,10 +137,15 @@ function TimelineItem({ amount, source, time }: { amount: string; source?: strin
       accessibilityLabel={label}
       style={{ paddingVertical: 10, minHeight: HIT_TARGET }}
     >
-      <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>{amount}</Text>
-      <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-        {source ? `${source} • ${time}` : time}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>{amount}</Text>
+          <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+            {source ? `${source} • ${time}` : time}
+          </Text>
+        </View>
+        {right}
+      </View>
     </View>
   );
 }
@@ -154,9 +168,11 @@ export default function DashboardScreen() {
   const { nowScore, mgActiveNow: mgActive, series } = (useAlertnessSeries() as any) || {};
   const nextDip: number | undefined = (useNextDip as any)?.() as any;
   const cutoff = useCaffeineCutoff();
+  const sleepGuidance = useSleepGuidance();
 
   const doses = useStore((s) => s.doses);
   const addDose = useStore((s) => s.addDose);
+  const removeDose = useStore((s) => (s as any).removeDose);
 
   const { todayTotal, yesterdayTotal, deltaText, todayDoses } = useMemo(() => {
     const now = new Date();
@@ -169,11 +185,11 @@ export default function DashboardScreen() {
     const yKey = key(y);
 
     let tTotal = 0; let yTotal = 0;
-    const tDoses: { mg: number; source?: string; ts: number }[] = [];
+    const tDoses: { id?: string; mg: number; source?: string; ts: number }[] = [];
     for (const d of doses) {
       const dt = new Date(d.timestamp);
       const k = key(dt);
-      if (k === todayKey) { tTotal += d.mg; tDoses.push({ mg: d.mg, source: d.source, ts: d.timestamp }); }
+      if (k === todayKey) { tTotal += d.mg; tDoses.push({ id: (d as any).id, mg: d.mg, source: d.source, ts: d.timestamp }); }
       else if (k === yKey) { yTotal += d.mg; }
     }
     tDoses.sort((a, b) => b.ts - a.ts);
@@ -182,13 +198,13 @@ export default function DashboardScreen() {
     return { todayTotal: tTotal, yesterdayTotal: yTotal, deltaText, todayDoses: tDoses };
   }, [doses]);
 
-  const addDoseQuick = (mg: number) => {
+  const addDoseQuick = (mg: number, source?: string) => {
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    addDose({ id, timestamp: Date.now(), mg });
+    addDose({ id, timestamp: Date.now(), mg, source });
   };
 
   const openCustom = () => {
-    // TODO: navigate to custom add screen
+    navigate('Log');
   };
 
   // Derive a simple 1-word energy descriptor from the alertness score
@@ -200,11 +216,7 @@ export default function DashboardScreen() {
   }, [nowScore]);
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingTop: 12, paddingBottom: 24, paddingHorizontal: 16, alignItems: 'center' }}
-    >
+    <ScreenContainer center>
       <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
         {/* Hero card */}
         <Panel>
@@ -229,7 +241,21 @@ export default function DashboardScreen() {
         {/* Secondary metrics */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <MetricTile title="Alertness" value={`${Math.round(nowScore ?? 0)} ${energyWord}`} />
-          <MetricTile title="Cutoff" value={fmtTime(cutoff?.nextBedtime)} />
+          <MetricTile
+            title="Bedtime"
+            value={fmtTime(sleepGuidance?.bedtime)}
+            right={
+              <Pressable
+                onPress={() => navigate('Insights')}
+                accessibilityRole="button"
+                accessibilityLabel="Why bedtime?"
+                hitSlop={8}
+                style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: PlatformColor('systemFill'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+              >
+                <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('label') }}>Why?</Text>
+              </Pressable>
+            }
+          />
         </View>
 
         {/* Quick add */}
@@ -253,16 +279,27 @@ export default function DashboardScreen() {
                     amount={`${d.mg} mg`}
                     source={d.source}
                     time={fmtTime(d.ts)}
+                    right={
+                      <Pressable
+                        onPress={() => { if (d.id) removeDose?.(d.id); }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete dose"
+                        hitSlop={12}
+                        style={{ minHeight: 32, paddingHorizontal: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('systemFill'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                      >
+                        <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('label') }}>Delete</Text>
+                      </Pressable>
+                    }
                   />
                 </View>
               ))
             )}
             <Pressable
-              onPress={() => {}}
+              onPress={() => navigate('History')}
               accessibilityRole="button"
               style={{ alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12, minHeight: HIT_TARGET }}
             >
-              <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('tint') }}>View all →</Text>
+              <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('tintColor') }}>View all →</Text>
             </Pressable>
           </Panel>
         </View>
@@ -288,8 +325,9 @@ export default function DashboardScreen() {
             </Text>
           </Panel>
         ) : null}
+
       </View>
-    </ScrollView>
+    </ScreenContainer>
   );
 }
 

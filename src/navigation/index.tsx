@@ -10,8 +10,8 @@ export function navigate<RouteName extends keyof RootTabParamList>(
   params?: RootTabParamList[RouteName]
 ) {
   if (!navigationRef.isReady()) return;
-  // React Navigation uses variadic tuple overloads; cast is expected here
-  navigationRef.navigate(name as never, params as never);
+  // React Navigation uses variadic tuple overloads; cast through any to avoid TS tuple inference issues
+  (navigationRef as any).navigate(name as any, params as any);
 }
 
 export { default as RootNavigator } from './RootNavigator';

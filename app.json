@@ -16,13 +16,15 @@
     "experiments": {
       "typedRoutes": true
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.example.aurora"
-    },
-    "android": {
-      "package": "com.example.aurora"
-    },
+  "ios": {
+    "supportsTablet": true,
+      "bundleIdentifier": "com.example.aurora",
+      "newArchEnabled": true
+  },
+  "android": {
+      "package": "com.example.aurora",
+      "newArchEnabled": true
+  },
     "plugins": [
       ["./plugins/with-healthkit", { "shareMessage": "Aurora reads sleep to tailor your caffeine plan." }]
     ],

@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, PlatformColor, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Pressable, PlatformColor, ActivityIndicator, Platform } from 'react-native';
+import ScreenContainer from '~/components/ScreenContainer';
+import { Ionicons } from '@expo/vector-icons';
+import AppleHealth from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 
 const HIT_TARGET = 44;
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, icon }: { title: string; icon?: string }) {
   return (
-    <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label'), marginBottom: 8 }}>
-      {title}
-    </Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      {icon ? <Ionicons name={icon as any} size={18} color={PlatformColor('secondaryLabel') as any} /> : null}
+      <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
+        {title}
+      </Text>
+    </View>
   );
 }
 
@@ -128,28 +134,26 @@ export default function SleepScreen() {
     setLoading(true);
     try {
       if (Platform.OS !== 'ios') { throw new Error('Health is only available on iOS.'); }
-      let api: any = optionalRequire('react-native-health');
-      if (!api) { api = optionalRequire('react-native-apple-healthkit'); }
-      if (!api){
-        setError('Health integration not installed. Add a HealthKit library to enable import.');
+      const available = await AppleHealth.isAvailable();
+      if (!available) {
+        setError('HealthKit not available on this device.');
         setHealthAuthorized(false);
         return;
       }
-      // Request permissions and read last 3 days of sleep
-      setHealthAuthorized(true); // optimistic until read succeeds
-      const end = new Date();
-      const start = new Date(Date.now() - 3*24*3600*1000);
-      // Try common API shapes
-      let samples: any[] = [];
-      if (api.getSleepSamples) {
-        samples = await new Promise<any[]>((res, rej)=> api.getSleepSamples({ startDate: start.toISOString(), endDate: end.toISOString() }, (err: any, data: any[])=> err? rej(err): res(data)));
-      } else if (api.getSleepSamplesForRange) {
-        samples = await api.getSleepSamplesForRange({ startDate: start.toISOString(), endDate: end.toISOString() });
+      const ok = await AppleHealth.requestAuthorization();
+      if (!ok) {
+        setError('Authorization was not granted.');
+        setHealthAuthorized(false);
+        return;
       }
-      const mapped: SleepSample[] = (samples||[])
-        .map((s:any)=>({ start: +new Date(s.startDate||s.start||s.startTime), end: +new Date(s.endDate||s.end||s.endTime), type: (s.value||s.stage) }))
-        .filter(s=> Number.isFinite(s.start) && Number.isFinite(s.end))
-        .sort((a,b)=> b.end - a.end);
+      setHealthAuthorized(true);
+      const end = Date.now();
+      const start = end - 3 * 24 * 3600 * 1000;
+      const samples = await AppleHealth.getSleepSamples(start, end);
+      const mapped: SleepSample[] = (samples || [])
+        .map((s: any) => ({ start: +s.start, end: +s.end, type: s.label }))
+        .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end))
+        .sort((a, b) => b.end - a.end);
       const last = mapped[0];
       setSleepSamples(mapped);
       setLastSleep(last);
@@ -196,12 +200,41 @@ export default function SleepScreen() {
     addDose({ id, timestamp: Date.now(), mg, source: 'Plan' });
   };
 
+  // Sleep impact: last dose timing vs sleep onset for imported samples
+  const sleepImpact = useMemo(() => {
+    const pairs: { deltaMin: number; sleepMin: number }[] = [];
+    for (const s of sleepSamples) {
+      const sleepStart = s.start;
+      const windowStart = sleepStart - 12 * 3600000;
+      let last: number | undefined;
+      for (const d of doses) {
+        if (d.timestamp <= sleepStart && d.timestamp >= windowStart) {
+          if (!last || d.timestamp > last) last = d.timestamp;
+        }
+      }
+      if (last) {
+        const deltaMin = Math.round((sleepStart - last) / 60000);
+        const sleepMin = Math.round((s.end - s.start) / 60000);
+        pairs.push({ deltaMin, sleepMin });
+      }
+    }
+    const n = pairs.length;
+    const med = (arr: number[]) => { const a = [...arr].sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
+    const p = (arr: number[], q: number) => { const a = [...arr].sort((x, y) => x - y); const i = Math.max(0, Math.min(a.length - 1, Math.round(q * (a.length - 1)))); return a[i] || 0; };
+    const deltas = pairs.map((p2) => p2.deltaMin);
+    const sleepDur = pairs.map((p2) => p2.sleepMin);
+    return {
+      n,
+      medianDeltaMin: med(deltas),
+      p10: p(deltas, 0.1),
+      p90: p(deltas, 0.9),
+      showCorrelation: n >= 14,
+      medianSleepMin: med(sleepDur),
+    };
+  }, [sleepSamples, doses]);
+
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal:16, paddingVertical:12, paddingBottom:32 }}
-    >
+    <ScreenContainer horizontalPadding={16} topPadding={12} bottomPadding={32}>
       <View style={{ gap:16 }}>
         {/* Health connection */}
         <Panel>
@@ -231,7 +264,7 @@ export default function SleepScreen() {
 
         {/* Last sleep summary */}
         <View>
-          <SectionHeader title="Last Sleep" />
+          <SectionHeader title="Sleep History" icon="moon" />
           <Panel>
             {lastSleep ? (
               <>
@@ -253,9 +286,35 @@ export default function SleepScreen() {
           </Panel>
         </View>
 
+        {/* Sleep Impact */}
+        <View>
+          <SectionHeader title="Caffeine Impact" icon="pulse-outline" />
+          <Panel>
+            {sleepImpact.n >= 1 ? (
+              <>
+                <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>
+                  Last dose timing: {Math.round(sleepImpact.medianDeltaMin)} min before sleep
+                </Text>
+                <Text style={{ marginTop: 4, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
+                  P10 {sleepImpact.p10} • P90 {sleepImpact.p90}
+                </Text>
+                {!sleepImpact.showCorrelation ? (
+                  <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                    Not enough nights for correlation (need ≥14).
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
+                Not connected yet. Connect to Health to import recent sleep.
+              </Text>
+            )}
+          </Panel>
+        </View>
+
         {/* Recommended plan */}
         <View>
-          <SectionHeader title="Recommended Plan" />
+          <SectionHeader title="Recommended Plan" icon="timer-outline" />
           <Panel>
             {(!wakeTime || plan.length===0) ? (
               <Text style={{ fontSize:15, lineHeight:20, color: PlatformColor('secondaryLabel') }}>
@@ -285,6 +344,6 @@ export default function SleepScreen() {
           </Panel>
         </View>
       </View>
-    </ScrollView>
+    </ScreenContainer>
   );
 }

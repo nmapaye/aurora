@@ -4,4 +4,5 @@ export type RootTabParamList = {
     Sleep: undefined;
     Insights: undefined;
     Settings: undefined;
+    History: undefined;
   };

@@ -1,25 +1,8 @@
 // src/navigation/RootNavigator.tsx
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import type { RootTabParamList } from './types';
-import DashboardScreen from '~/screens/DashboardScreen';
-import LogIntakeScreen from '~/screens/LogIntakeScreen';
-import SleepScreen from '~/screens/SleepScreen';
-import InsightsScreen from '~/screens/InsightsScreen';
-import SettingsScreen from '~/screens/SettingsScreen';
-
-const Tab = createBottomTabNavigator<RootTabParamList>();
+// Simplified RootNavigator to avoid duplicating NavigationContainer
+// Prefer using App.tsx as the root container.
+import RootTabs from './RootTabs';
 
 export default function RootNavigator(){
-  return (
-    <NavigationContainer>
-      <Tab.Navigator screenOptions={{ headerShown:false }}>
-        <Tab.Screen name="Home" component={DashboardScreen}/>
-        <Tab.Screen name="Log" component={LogIntakeScreen}/>
-        <Tab.Screen name="Sleep" component={SleepScreen}/>
-        <Tab.Screen name="Insights" component={InsightsScreen}/>
-        <Tab.Screen name="Settings" component={SettingsScreen}/>
-      </Tab.Navigator>
-    </NavigationContainer>
-  );
+  return <RootTabs />;
 }

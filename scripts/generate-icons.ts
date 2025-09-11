@@ -15,10 +15,11 @@ import path from 'path';
 
 async function dynamicImportSharp() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = await import('sharp');
-    // @ts-ignore
-    return mod.default ?? mod;
+    // Use eval(require) to avoid TypeScript module resolution during type-check
+    // eslint-disable-next-line no-eval
+    const rq: any = eval('require');
+    const mod = rq('sharp');
+    return (mod && mod.default) ? mod.default : mod;
   } catch (err) {
     console.error('Missing peer dependency: sharp');
     console.error('Install with: npm i -D sharp');

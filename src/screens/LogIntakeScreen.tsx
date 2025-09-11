@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, PlatformColor, ScrollView } from 'react-native';
+import { View, Text, Pressable, TextInput, PlatformColor } from 'react-native';
+import ScreenContainer from '~/components/ScreenContainer';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '~/state/store';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
@@ -146,18 +147,12 @@ export default function LogIntakeScreen() {
   };
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 32 }}
-      style={{ flex: 1 }}
-    >
+    <ScreenContainer keyboardShouldPersistTaps="handled">
       <View style={{ gap: 16 }}>
         {/* Hero / Status */}
         <Panel>
           <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Log intake</Text>
-          <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>Cutoff date not reached, reach desired performance.</Text>
+          <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>Labor omnia vincit.</Text>
           {cutoff?.isAfterCutoff ? (
             <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('systemRed') }}>
               After cutoff, consider sleep impact before drinking.
@@ -341,7 +336,8 @@ export default function LogIntakeScreen() {
             </View>
           </Panel>
         </View>
+
       </View>
-    </ScrollView>
+    </ScreenContainer>
   );
 }
