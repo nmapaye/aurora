@@ -1,7 +1,8 @@
 // Minimal Expo config plugin to enable HealthKit and add Info.plist messages
 // Usage (app.json):
 //   "plugins": [["./plugins/with-healthkit", { "shareMessage": "Reads sleep to tailor plans." }]]
-const { withInfoPlist, withEntitlementsPlist, createRunOncePlugin } = require('@expo/config-plugins');
+// Prefer importing config-plugins via the expo package per Expo SDK guidance
+const { withInfoPlist, withEntitlementsPlist, createRunOncePlugin } = require('expo/config-plugins');
 
 const pkg = { name: 'with-healthkit', version: '1.0.0' };
 
@@ -27,4 +28,3 @@ const withHealthKit = (config, props = {}) => {
 };
 
 module.exports = createRunOncePlugin(withHealthKit, pkg.name, pkg.version);
-
