@@ -16,6 +16,7 @@
     "experiments": {
       "typedRoutes": true
     },
+    "runtimeVersion": { "policy": "sdkVersion" },
   "ios": {
     "supportsTablet": true,
       "bundleIdentifier": "com.example.aurora",
