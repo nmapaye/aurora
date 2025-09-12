@@ -1,4 +1,4 @@
-# Aurora - Caffeine + sleep tracker with a computed alertness score
+# AURORA - Another Unwise Refill? O.K, Reconsider Alertness
 
 Setup Tutorial
 
