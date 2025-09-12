@@ -78,7 +78,7 @@ xcode-select -p
 
 	•	On Expo SDK upgrades or native plugin changes, regenerate native projects (see “Native Sync” below).
 
-Native Sync (Prebuild) — Option A
+Native Sync (Prebuild) 
 
 This repo commits ios/ and android/ folders. When native folders exist, Expo/EAS will not automatically sync native config from app.json on build. After changing any native-related fields in app.json (e.g., icon, splash, ios, android, plugins), re-generate native projects locally and commit the changes.
 
