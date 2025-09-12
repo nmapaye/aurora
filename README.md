@@ -19,7 +19,7 @@ npm install
 
 2) Initialize local environment
 
-# verify environment
+# Verify environment
 npx expo-doctor
 
 # iOS pods
@@ -58,16 +58,16 @@ eas build -p android --profile preview
 
 Troubleshooting
 
-# clear Metro cache
+# Clear Metro cache
 npx expo start -c
 
-# reset iOS pods
+# Reset iOS pods
 rm -rf ios/Pods ios/Podfile.lock && npx pod-install
 
-# reset watchman (macOS)
+# Reset watchman (macOS)
 watchman watch-del-all || true
 
-# verify Xcode and Java paths
+# Verify Xcode and Java paths
 xcode-select -p
 /usr/libexec/java_home -V
 
