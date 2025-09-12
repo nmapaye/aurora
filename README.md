@@ -2,10 +2,6 @@
 
 Caffeine + sleep tracker with a computed alertness score
 
-## Contribution graph "Starry Night" 
-
-Generate a 7×52 pixel grid inspired by Starry Night and paints GitHub contribution graph using backdated commits
-
 ## Native Sync (Prebuild) — Option A
 
 This repo commits `ios/` and `android/` folders. When native folders exist, Expo/EAS will not automatically sync native config from `app.json` on build. After changing any native-related fields in `app.json` (e.g., `icon`, `splash`, `ios`, `android`, `plugins`), re-generate native projects locally and commit the changes.
