@@ -1,6 +1,4 @@
-AURORA
-
-Caffeine + sleep tracker with a computed alertness score
+# Aurora - Caffeine + sleep tracker with a computed alertness score
 
 Setup Tutorial
 
