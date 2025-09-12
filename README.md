@@ -88,5 +88,3 @@ Typical flow:
 2. Run `npm run sync:native`.
 3. Review and commit changes under `ios/` and `android/`.
 4. Build locally or with EAS.
-
-Note: If you prefer Config‑Driven builds (no native folders), delete `ios/` and `android/` and let EAS prebuild on the server each build instead.
