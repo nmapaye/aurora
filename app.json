@@ -16,18 +16,26 @@
     "experiments": {
       "typedRoutes": true
     },
-    "runtimeVersion": { "policy": "sdkVersion" },
-  "ios": {
-    "supportsTablet": true,
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "ios": {
+      "supportsTablet": true,
       "bundleIdentifier": "com.example.aurora",
       "newArchEnabled": true
-  },
-  "android": {
+    },
+    "android": {
       "package": "com.example.aurora",
       "newArchEnabled": true
-  },
+    },
     "plugins": [
-      ["./plugins/with-healthkit", { "shareMessage": "Aurora reads sleep to tailor your caffeine plan." }]
+      [
+        "./plugins/with-healthkit",
+        {
+          "shareMessage": "Aurora reads sleep to tailor your caffeine plan."
+        }
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {
