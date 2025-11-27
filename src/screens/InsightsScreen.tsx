@@ -594,11 +594,6 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
               <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtDay(days[days.length-1] ?? Date.now())}</Text>
             </View>
             <View accessible accessibilityRole="summary" style={{ marginTop: 8 }}>
-              {range === '7' && days.map((d, i) => (
-                <Text key={d} style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                  {fmtDay(d)}: {totals[i]} mg
-                </Text>
-              ))}
               {range === '14' && weeklySummaries.slice(-2).map((g) => (
                 <Text key={`${g.start}`} style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
                   {fmtDay(g.start)} – {fmtDay(g.end)} — {g.mode} mg (mode)

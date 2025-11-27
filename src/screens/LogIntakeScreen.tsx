@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, PlatformColor } from 'react-native';
+import { View, Text, Pressable, TextInput, PlatformColor, Platform, Modal } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '~/state/store';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const HIT_TARGET = 44;
 
@@ -120,6 +121,8 @@ export default function LogIntakeScreen() {
   const [note, setNote] = useState('');
   const [ts, setTs] = useState<number>(Date.now());
   const [justSaved, setJustSaved] = useState(false);
+  const [iosPickerVisible, setIOSPickerVisible] = useState(false);
+  const [iosPendingTime, setIOSPendingTime] = useState<Date>(new Date());
 
   const canSave = useMemo(() => Number.isFinite(mg) && mg > 0 && mg < 2000, [mg]);
   const fmtTime = (t: number) => {
@@ -145,6 +148,30 @@ export default function LogIntakeScreen() {
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 1500);
   };
+  const openTimePicker = () => {
+    if (Platform.OS === 'ios') {
+      setIOSPendingTime(new Date(ts));
+      setIOSPickerVisible(true);
+      return;
+    }
+    DateTimePickerAndroid.open({
+      mode: 'time',
+      value: new Date(ts),
+      onChange: (event, date) => {
+        if (event.type === 'set' && date) {
+          setTs(date.getTime());
+        }
+      },
+    });
+  };
+  const onIOSPickerChange = (_event: DateTimePickerEvent, date?: Date) => {
+    if (date) setIOSPendingTime(date);
+  };
+  const confirmIOSPicker = () => {
+    setTs(iosPendingTime.getTime());
+    setIOSPickerVisible(false);
+  };
+  const closeIOSPicker = () => setIOSPickerVisible(false);
 
   return (
     <ScreenContainer keyboardShouldPersistTaps="handled">
@@ -241,23 +268,23 @@ export default function LogIntakeScreen() {
               <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Time</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Pressable
-                  onPress={() => setTs((t) => t - 15 * 60 * 1000)}
-                  accessibilityLabel="Minus fifteen minutes"
+                  onPress={openTimePicker}
+                  accessibilityLabel="Change logged time"
                   accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                  style={{
+                    flex: 1,
+                    minHeight: HIT_TARGET,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    justifyContent: 'center',
+                    backgroundColor: PlatformColor('tertiarySystemBackground'),
+                    borderWidth: 1,
+                    borderColor: PlatformColor('separator'),
+                  }}
                 >
-                  <Text style={{ fontSize: 20, color: PlatformColor('label') }}>−15</Text>
-                </Pressable>
-                <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{fmtTime(ts)}</Text>
-                <Pressable
-                  onPress={() => setTs((t) => t + 15 * 60 * 1000)}
-                  accessibilityLabel="Plus fifteen minutes"
-                  accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ fontSize: 20, color: PlatformColor('label') }}>+15</Text>
+                  <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>{fmtTime(ts)}</Text>
+                  <Text style={{ marginTop: 2, fontSize: 13, lineHeight: 18, color: PlatformColor('tertiaryLabel') }}>Tap to change</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setTs(Date.now())}
@@ -338,6 +365,50 @@ export default function LogIntakeScreen() {
         </View>
 
       </View>
+      {Platform.OS === 'ios' && iosPickerVisible ? (
+        <Modal
+          transparent
+          animationType="slide"
+          presentationStyle="overFullScreen"
+          onRequestClose={closeIOSPicker}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' }}>
+            <Pressable
+              style={{ flex: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss time picker"
+              onPress={closeIOSPicker}
+            />
+            <View
+              style={{
+                backgroundColor: PlatformColor('systemBackground'),
+                paddingBottom: 24,
+                paddingTop: 8,
+                paddingHorizontal: 16,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                borderTopWidth: 1,
+                borderColor: PlatformColor('separator'),
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Pressable onPress={closeIOSPicker} accessibilityRole="button" accessibilityLabel="Cancel time selection" hitSlop={12}>
+                  <Text style={{ fontSize: 17, color: PlatformColor('secondaryLabel') }}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={confirmIOSPicker} accessibilityRole="button" accessibilityLabel="Confirm time selection" hitSlop={12}>
+                  <Text style={{ fontSize: 17, fontWeight: '600', color: PlatformColor('tintColor') }}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                mode="time"
+                display="spinner"
+                value={iosPendingTime}
+                onChange={onIOSPickerChange}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </ScreenContainer>
   );
 }
