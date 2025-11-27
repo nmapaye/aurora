@@ -71,7 +71,7 @@ function MetricTile({ title, value, right }: { title: string; value: string; rig
   );
 }
 
-function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number, source?: string) => void; onCustom: () => void }) {
+function QuickAddGrid({ onAdd }: { onAdd: (mg: number, source?: string) => void }) {
   const drinks: { label: string; mg: number }[] = [
     { label: 'Soda', mg: 40 },
     { label: 'Espresso', mg: 60 },
@@ -104,26 +104,6 @@ function QuickAddGrid({ onAdd, onCustom }: { onAdd: (mg: number, source?: string
           <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{d.label}</Text>
         </Pressable>
       ))}
-      <Pressable
-        onPress={onCustom}
-        accessibilityRole="button"
-        accessibilityLabel="Custom add"
-        hitSlop={12}
-        style={{
-          minHeight: HIT_TARGET,
-          minWidth: 88,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderWidth: 1,
-          borderColor: PlatformColor('separator'),
-        }}
-      >
-        <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>Custom…</Text>
-      </Pressable>
     </View>
   );
 }
@@ -260,8 +240,30 @@ export default function DashboardScreen() {
 
         {/* Quick add */}
         <View>
-          <SectionHeader title="Quick Add" />
-          <QuickAddGrid onAdd={addDoseQuick} onCustom={openCustom} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <SectionHeader title="Quick Add" />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={openCustom}
+              accessibilityRole="button"
+              accessibilityLabel="Custom add"
+              hitSlop={12}
+              style={{
+                minHeight: 32,
+                minWidth: 32,
+                borderRadius: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: PlatformColor('tertiarySystemBackground'),
+                borderWidth: 1,
+                borderColor: PlatformColor('separator'),
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ fontSize: 20, lineHeight: 22, color: PlatformColor('label') }}>+</Text>
+            </Pressable>
+          </View>
+          <QuickAddGrid onAdd={addDoseQuick} />
         </View>
 
         {/* Timeline */}
@@ -304,15 +306,15 @@ export default function DashboardScreen() {
           </Panel>
         </View>
 
-        {/* Insights */}
+        {/* Quick Insights */}
         <View>
-          <SectionHeader title="Insights" />
+          <SectionHeader title="Quick Insights" />
           <Panel>
             <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>
-              Best window for focus: 10:00–12:00
+              Best consumption window for focus: 10:00–12:00
             </Text>
             <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel'), marginTop: 4 }}>
-              Based on your recent intake and sleep.
+              Based on recent intake and sleep patterns.
             </Text>
           </Panel>
         </View>
