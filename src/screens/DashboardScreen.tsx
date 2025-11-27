@@ -276,7 +276,7 @@ export default function DashboardScreen() {
               </Text>
             ) : (
               todayDoses.map((d, idx) => (
-                <View key={d.ts} style={{ borderTopWidth: idx === 0 ? 0 : 1, borderColor: PlatformColor('separator') }}>
+                <View key={d.id ?? `${d.ts}-${idx}`} style={{ borderTopWidth: idx === 0 ? 0 : 1, borderColor: PlatformColor('separator') }}>
                   <TimelineItem
                     amount={`${d.mg} mg`}
                     source={d.source}

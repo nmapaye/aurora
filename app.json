@@ -35,6 +35,7 @@
           "shareMessage": "Aurora reads sleep to tailor your caffeine plan."
         }
       ],
+      "expo-font",
       "expo-asset"
     ],
     "extra": {

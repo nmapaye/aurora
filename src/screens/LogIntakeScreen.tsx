@@ -396,7 +396,7 @@ export default function LogIntakeScreen() {
                   <Text style={{ fontSize: 17, color: PlatformColor('secondaryLabel') }}>Cancel</Text>
                 </Pressable>
                 <Pressable onPress={confirmIOSPicker} accessibilityRole="button" accessibilityLabel="Confirm time selection" hitSlop={12}>
-                  <Text style={{ fontSize: 17, fontWeight: '600', color: PlatformColor('tintColor') }}>Done</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '600', color: PlatformColor('secondaryLabel') }}>Done</Text>
                 </Pressable>
               </View>
               <DateTimePicker
