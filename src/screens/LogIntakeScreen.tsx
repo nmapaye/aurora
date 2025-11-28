@@ -176,20 +176,6 @@ export default function LogIntakeScreen() {
   return (
     <ScreenContainer keyboardShouldPersistTaps="handled">
       <View style={{ gap: 16 }}>
-        {/* Hero / Status */}
-        <Panel>
-          <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Log intake</Text>
-          <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>Labor omnia vincit.</Text>
-          {cutoff?.isAfterCutoff ? (
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('systemRed') }}>
-              After cutoff, consider sleep impact before drinking.
-            </Text>
-          ) : null}
-          {justSaved ? (
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('systemGreen') }}>Saved ✓</Text>
-          ) : null}
-        </Panel>
-
         {/* Quick Add */}
         <View>
           <SectionHeader title="Quick Add" />

@@ -7,6 +7,7 @@ import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import ScreenContainer from '~/components/ScreenContainer';
 import { navigate } from '~/navigation';
+import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -237,6 +238,11 @@ export default function DashboardScreen() {
             }
           />
         </View>
+
+        {/* Today caffeine level graph */}
+        <Panel>
+          <CaffeineTodayGraph />
+        </Panel>
 
         {/* Quick add */}
         <View>

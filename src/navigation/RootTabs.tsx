@@ -49,8 +49,8 @@ export default function RootTabs(){
       })}
     >
       <Tab.Screen name="Home" component={DashboardScreen}/>
-      <Tab.Screen name="Log" component={LogIntakeScreen}/>
       <Tab.Screen name="Sleep" component={SleepScreen}/>
+      <Tab.Screen name="Log" component={LogIntakeScreen}/>
       <Tab.Screen name="Insights" component={InsightsScreen}/>
       <Tab.Screen
         name="History"

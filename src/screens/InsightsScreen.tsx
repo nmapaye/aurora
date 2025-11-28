@@ -4,6 +4,7 @@ import ScreenContainer from '~/components/ScreenContainer';
 import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine } from 'react-native-svg';
 import { useStore } from '~/state/store';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
+import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -555,6 +556,10 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
             <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>Streak {latestStreak}d</Text>
           </Panel>
         </View>
+
+        <Panel>
+          <CaffeineTodayGraph />
+        </Panel>
 
         {/* Guidance */}
         <View>
