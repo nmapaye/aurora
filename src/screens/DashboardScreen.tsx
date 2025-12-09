@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, useColorScheme, PlatformColor } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '~/state/store';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useNextDip from '~/hooks/useNextDip';
@@ -30,15 +31,22 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
+  const scheme = useColorScheme();
+  const glassBg = scheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)';
+  const glassBorder = scheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.2)';
   return (
     <View
       style={[
         {
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderRadius: 16,
+          backgroundColor: glassBg,
+          borderRadius: 18,
           padding: 16,
           borderWidth: 1,
-          borderColor: PlatformColor('separator'),
+          borderColor: glassBorder,
+          shadowColor: '#000',
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
         },
         style,
       ]}
@@ -49,16 +57,17 @@ function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
 }
 
 function MetricTile({ title, value, right }: { title: string; value: string; right?: React.ReactNode }) {
+  const scheme = useColorScheme();
+  const bg = scheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.9)';
   return (
     <View
       style={{
         flex: 1,
         minHeight: HIT_TARGET,
         padding: 12,
-        borderRadius: 12,
-        backgroundColor: PlatformColor('tertiarySystemBackground'),
-        borderWidth: 1,
-        borderColor: PlatformColor('separator'),
+        borderRadius: 14,
+        backgroundColor: bg,
+        borderWidth: 0,
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -91,15 +100,14 @@ function QuickAddGrid({ onAdd }: { onAdd: (mg: number, source?: string) => void 
           hitSlop={12}
           style={{
             minHeight: HIT_TARGET,
-            minWidth: 88,
-            paddingHorizontal: 14,
+            minWidth: 96,
+            paddingHorizontal: 18,
             paddingVertical: 10,
-            borderRadius: 12,
+            borderRadius: 999,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: PlatformColor('secondarySystemBackground'),
-            borderWidth: 1,
-            borderColor: PlatformColor('separator'),
+            backgroundColor: PlatformColor('systemFill'),
+            borderWidth: 0,
           }}
         >
           <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>{d.label}</Text>
@@ -196,28 +204,45 @@ export default function DashboardScreen() {
     return 'Low';
   }, [nowScore]);
 
+  const gradient = scheme === 'dark'
+    ? ['#0b0f1c', '#0e1c2c', '#0c2536']
+    : ['#f9f7ff', '#f0f6ff', '#e5f7f9'];
+
   return (
-    <ScreenContainer center>
-      <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
-        {/* Hero card */}
-        <Panel>
-          <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel'), marginBottom: 6 }}>
-            Today’s caffeine
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
-            <Text style={{ fontSize: 34, lineHeight: 41, fontWeight: '600', color: PlatformColor('label') }}>
-              {Math.round(todayTotal)}
+    <View style={{ flex: 1 }}>
+      <LinearGradient colors={gradient} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      <ScreenContainer center contentStyle={{ paddingTop: 20, paddingBottom: 40 }}>
+        <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
+          {/* Hero card */}
+          <Panel style={{ padding: 18 }}>
+            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel'), marginBottom: 8 }}>
+              Today’s caffeine
             </Text>
-            <Text style={{ fontSize: 22, lineHeight: 28, color: PlatformColor('secondaryLabel') }}>mg</Text>
-            <View style={{ flex: 1 }} />
-            <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
-              {fmtTime(cutoff?.nextCutoff)}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>{deltaText}</Text>
-          </View>
-        </Panel>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+              <View>
+                <Text style={{ fontSize: 42, lineHeight: 48, fontWeight: '700', color: PlatformColor('label') }}>
+                  {Math.round(todayTotal)}
+                </Text>
+                <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel'), marginTop: 2 }}>{deltaText}</Text>
+              </View>
+              <Text style={{ fontSize: 20, lineHeight: 24, color: PlatformColor('secondaryLabel') }}>mg</Text>
+              <View style={{ flex: 1 }} />
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 14, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>Cutoff</Text>
+                <Text style={{ fontSize: 18, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
+                  {fmtTime(cutoff?.nextCutoff)}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: PlatformColor('systemFill') }}>
+                <Text style={{ color: PlatformColor('label'), fontSize: 13, lineHeight: 18 }}>Active: {Math.round(mgActive)} mg</Text>
+              </View>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: PlatformColor('systemFill') }}>
+                <Text style={{ color: PlatformColor('label'), fontSize: 13, lineHeight: 18 }}>Energy: {energyWord}</Text>
+              </View>
+            </View>
+          </Panel>
 
         {/* Secondary metrics */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -231,7 +256,7 @@ export default function DashboardScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Why bedtime?"
                 hitSlop={8}
-                style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: PlatformColor('systemFill'), borderWidth: 1, borderColor: PlatformColor('separator') }}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: PlatformColor('systemFill'), borderWidth: 0 }}
               >
                 <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('label') }}>Why?</Text>
               </Pressable>
@@ -246,7 +271,7 @@ export default function DashboardScreen() {
 
         {/* Quick add */}
         <View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
             <SectionHeader title="Quick Add" />
             <View style={{ flex: 1 }} />
             <Pressable
@@ -255,18 +280,15 @@ export default function DashboardScreen() {
               accessibilityLabel="Custom add"
               hitSlop={12}
               style={{
-                minHeight: 32,
-                minWidth: 32,
-                borderRadius: 16,
+                minHeight: 36,
+                paddingHorizontal: 14,
+                borderRadius: 999,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: PlatformColor('tertiarySystemBackground'),
-                borderWidth: 1,
-                borderColor: PlatformColor('separator'),
-                marginBottom: 8,
+                backgroundColor: PlatformColor('tintColor'),
               }}
             >
-              <Text style={{ fontSize: 20, lineHeight: 22, color: PlatformColor('label') }}>+</Text>
+              <Text style={{ fontSize: 15, lineHeight: 20, color: '#FFFFFF', fontWeight: '600' }}>Custom</Text>
             </Pressable>
           </View>
           <QuickAddGrid onAdd={addDoseQuick} />
@@ -336,6 +358,7 @@ export default function DashboardScreen() {
 
       </View>
     </ScreenContainer>
+    </View>
   );
 }
 
