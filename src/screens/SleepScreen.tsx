@@ -1,80 +1,65 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, PlatformColor, ActivityIndicator, Platform, useColorScheme } from 'react-native';
-import ScreenContainer from '~/components/ScreenContainer';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+
+import AppScreen from '~/components/AppScreen';
+import Button from '~/components/Button';
+import { InlineStatus, ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
+import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import AppleHealth from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
-import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
-import { getPrimaryButtonColors } from '~/theme/colors';
-
-const HIT_TARGET = 44;
-
-function SectionHeader({ title, icon }: { title: string; icon?: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      {icon ? <Ionicons name={icon as any} size={18} color={PlatformColor('secondaryLabel') as any} /> : null}
-      <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
-        {title}
-      </Text>
-    </View>
-  );
-}
-
-function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderRadius: 16,
-          padding: 16,
-          borderWidth: 1,
-          borderColor: PlatformColor('separator'),
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-}
+import { getAppPalette } from '~/theme/colors';
 
 type SleepSample = { start: number; end: number; type?: string };
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
-  try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(ts)); }
-  catch { return new Date(ts).toLocaleTimeString(); }
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(ts));
+  } catch {
+    return new Date(ts).toLocaleTimeString();
+  }
 }
+
 function fmtDate(ts?: number) {
   if (!ts) return '—';
-  try { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(ts)); }
-  catch { return new Date(ts).toDateString(); }
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(ts));
+  } catch {
+    return new Date(ts).toDateString();
+  }
 }
-function fmtDuration(ms: number){
-  const h = Math.floor(ms/3600000), m = Math.round((ms%3600000)/60000);
-  return `${h}h ${m}m`;
+
+function fmtDuration(ms: number) {
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.round((ms % 3_600_000) / 60_000);
+  return `${hours}h ${minutes}m`;
 }
 
 export default function SleepScreen() {
   const scheme = useColorScheme();
-  const doses = useStore(s=>s.doses);
-  const addDose = useStore(s=>s.addDose);
-  const onboarding = useStore((s) => s.onboarding);
-  const setOnboarding = useStore((s) => s.setOnboarding);
-  const upsertSleepSessions = useStore((s) => s.upsertSleepSessions);
+  const palette = getAppPalette(scheme);
+  const doses = useStore((state) => state.doses);
+  const addDose = useStore((state) => state.addDose);
+  const onboarding = useStore((state) => state.onboarding);
+  const setOnboarding = useStore((state) => state.setOnboarding);
+  const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
   const cutoff = useCaffeineCutoff();
 
   const [healthAvailable, setHealthAvailable] = useState(false);
-  const [healthAuthorized, setHealthAuthorized] = useState<boolean|undefined>(undefined);
+  const [healthAuthorized, setHealthAuthorized] = useState<boolean | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  const [lastSleep, setLastSleep] = useState<SleepSample|undefined>();
+  const [lastSleep, setLastSleep] = useState<SleepSample | undefined>();
   const [sleepSamples, setSleepSamples] = useState<SleepSample[]>([]);
-  const [wakeTime, setWakeTime] = useState<number|undefined>();
-  const [error, setError] = useState<string|undefined>();
-  const primaryButton = getPrimaryButtonColors(scheme, loading || !healthAvailable);
+  const [wakeTime, setWakeTime] = useState<number | undefined>();
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(()=>{
+  useEffect(() => {
     let active = true;
     AppleHealth.isAvailable().then((available) => {
       if (active) {
@@ -86,55 +71,61 @@ export default function SleepScreen() {
     };
   }, []);
 
-  const todayTotals = useMemo(()=>{
+  const todayTotals = useMemo(() => {
     const now = new Date();
-    const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const key = (date: Date) =>
+      `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
     const todayKey = key(now);
     let total = 0;
-    for (const d of doses){
-      const k = key(new Date(d.timestamp));
-      if (k===todayKey) total += d.mg;
+    for (const dose of doses) {
+      if (key(new Date(dose.timestamp)) === todayKey) {
+        total += dose.mg;
+      }
     }
     return total;
   }, [doses]);
 
-  // Simple recommendation engine: propose spaced doses until cutoff under a soft 200mg budget
-  const plan = useMemo(()=>{
-    const BUDGET = 200;
-    if (!wakeTime || !cutoff?.nextCutoff) return [] as { t:number; mg:number; label:string }[];
-    const start = Math.max(wakeTime + 30*60*1000, Date.now()); // first dose ~30m after wake, not in past
+  const plan = useMemo(() => {
+    const budget = 200;
+    if (!wakeTime || !cutoff?.nextCutoff) return [] as { t: number; mg: number; label: string }[];
+    const start = Math.max(wakeTime + 30 * 60 * 1000, Date.now());
     const end = cutoff.nextCutoff;
     if (end <= start) return [];
-    const windowH = (end - start)/3600000;
-    const slots = Math.max(1, Math.min(3, Math.floor(windowH/3.5)+1));
+    const windowHours = (end - start) / 3_600_000;
+    const slots = Math.max(1, Math.min(3, Math.floor(windowHours / 3.5) + 1));
     const base = [80, 80, 40];
     const times: number[] = [];
-    for (let i=0;i<slots;i++){
-      const t = start + i*3.5*3600000;
-      if (t < end) times.push(t);
+    for (let index = 0; index < slots; index += 1) {
+      const time = start + index * 3.5 * 3_600_000;
+      if (time < end) times.push(time);
     }
-    const remaining = Math.max(0, BUDGET - todayTotals);
-    const recs: { t:number; mg:number; label:string }[] = [];
+    const remaining = Math.max(0, budget - todayTotals);
+    const recommendations: { t: number; mg: number; label: string }[] = [];
     let used = 0;
-    for(let i=0;i<times.length;i++){
-      let mg = base[i] ?? 40;
-      if (used + mg > remaining) mg = Math.max(0, remaining - used);
-      if (mg < 20) break; // too small to suggest
+    for (let index = 0; index < times.length; index += 1) {
+      let mg = base[index] ?? 40;
+      if (used + mg > remaining) {
+        mg = Math.max(0, remaining - used);
+      }
+      if (mg < 20) break;
       used += mg;
-      recs.push({ t: times[i], mg, label: i===0? 'Kickstart' : i===1? 'Sustain' : 'Top‑up' });
+      recommendations.push({
+        t: times[index],
+        mg,
+        label: index === 0 ? 'Kickstart' : index === 1 ? 'Sustain' : 'Top-up',
+      });
       if (used >= remaining) break;
     }
-    return recs;
-  }, [wakeTime, cutoff?.nextCutoff, todayTotals]);
+    return recommendations;
+  }, [cutoff?.nextCutoff, todayTotals, wakeTime]);
 
-  const connectHealth = async()=>{
+  const connectHealth = async () => {
     setError(undefined);
     setLoading(true);
     try {
-      if (Platform.OS !== 'ios') { throw new Error('Health is only available on iOS.'); }
       const available = await AppleHealth.isAvailable();
       if (!available) {
-        setError('HealthKit not available on this device.');
+        setError('Health import is unavailable on this device.');
         setHealthAuthorized(false);
         return;
       }
@@ -146,11 +137,15 @@ export default function SleepScreen() {
       }
       setHealthAuthorized(true);
       const end = Date.now();
-      const start = end - 3 * 24 * 3600 * 1000;
+      const start = end - 3 * 24 * 3_600_000;
       const samples = await AppleHealth.getSleepSamples(start, end);
       const mapped: SleepSample[] = (samples || [])
-        .map((s: any) => ({ start: +s.start, end: +s.end, type: s.label }))
-        .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end))
+        .map((sample: any) => ({
+          start: Number(sample.start),
+          end: Number(sample.end),
+          type: sample.label,
+        }))
+        .filter((sample) => Number.isFinite(sample.start) && Number.isFinite(sample.end))
         .sort((a, b) => b.end - a.end);
       upsertSleepSessions(
         mapped.map((sample) => ({
@@ -160,13 +155,13 @@ export default function SleepScreen() {
           type: 'sleep' as const,
         }))
       );
-      const last = mapped[0];
+      const latest = mapped[0];
       setSleepSamples(mapped);
-      setLastSleep(last);
-      setWakeTime(last?.end);
+      setLastSleep(latest);
+      setWakeTime(latest?.end);
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
-    } catch (e: any) {
-      setError(e?.message || 'Failed to read sleep data.');
+    } catch (nextError: any) {
+      setError(nextError?.message || 'Failed to read sleep data.');
       setHealthAuthorized(false);
       setOnboarding({ permissionStatus: 'denied' });
     } finally {
@@ -174,198 +169,310 @@ export default function SleepScreen() {
     }
   };
 
-  // Compute last night's total asleep (aggregate stages) in a 6pm–noon window
-  const lastNightTotalMs = useMemo(()=>{
+  const lastNightTotalMs = useMemo(() => {
     if (!sleepSamples.length) return 0;
-    const refEnd = (lastSleep?.end ?? sleepSamples[0]?.end);
-    if (!refEnd) return 0;
-    const windowEnd = new Date(refEnd);
-    // End window at local noon of the wake day
-    windowEnd.setHours(12,0,0,0);
-    // If wake was after noon, still use noon; overlap function will cap
+    const referenceEnd = lastSleep?.end ?? sleepSamples[0]?.end;
+    if (!referenceEnd) return 0;
+    const windowEnd = new Date(referenceEnd);
+    windowEnd.setHours(12, 0, 0, 0);
     const windowStart = new Date(windowEnd);
-    windowStart.setDate(windowStart.getDate()-1);
-    windowStart.setHours(18,0,0,0);
+    windowStart.setDate(windowStart.getDate() - 1);
+    windowStart.setHours(18, 0, 0, 0);
     const startMs = windowStart.getTime();
     const endMs = windowEnd.getTime();
-    const isAsleep = (t?: string) => {
-      if (!t) return false;
-      const v = String(t).toUpperCase();
-      return v.includes('ASLEEP') || v === 'SLEEP' || v === 'ASLEEP';
+    const isAsleep = (value?: string) => {
+      if (!value) return false;
+      const normalized = String(value).toUpperCase();
+      return normalized.includes('ASLEEP') || normalized === 'SLEEP';
     };
     let total = 0;
-    for (const s of sleepSamples){
-      if (!isAsleep(s.type)) continue;
-      const a = Math.max(s.start, startMs);
-      const b = Math.min(s.end, endMs);
-      if (b > a) total += (b - a);
+    for (const sample of sleepSamples) {
+      if (!isAsleep(sample.type)) continue;
+      const start = Math.max(sample.start, startMs);
+      const end = Math.min(sample.end, endMs);
+      if (end > start) total += end - start;
     }
     return total;
-  }, [sleepSamples, lastSleep?.end]);
+  }, [lastSleep?.end, sleepSamples]);
 
-  const addNow = (mg:number)=>{
-    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    addDose({ id, timestamp: Date.now(), mg, source: 'Plan' });
-  };
-
-  // Sleep impact: last dose timing vs sleep onset for imported samples
   const sleepImpact = useMemo(() => {
     const pairs: { deltaMin: number; sleepMin: number }[] = [];
-    for (const s of sleepSamples) {
-      const sleepStart = s.start;
-      const windowStart = sleepStart - 12 * 3600000;
-      let last: number | undefined;
-      for (const d of doses) {
-        if (d.timestamp <= sleepStart && d.timestamp >= windowStart) {
-          if (!last || d.timestamp > last) last = d.timestamp;
+    for (const sample of sleepSamples) {
+      const sleepStart = sample.start;
+      const windowStart = sleepStart - 12 * 3_600_000;
+      let latestDose: number | undefined;
+      for (const dose of doses) {
+        if (dose.timestamp <= sleepStart && dose.timestamp >= windowStart) {
+          if (!latestDose || dose.timestamp > latestDose) {
+            latestDose = dose.timestamp;
+          }
         }
       }
-      if (last) {
-        const deltaMin = Math.round((sleepStart - last) / 60000);
-        const sleepMin = Math.round((s.end - s.start) / 60000);
-        pairs.push({ deltaMin, sleepMin });
+      if (latestDose) {
+        pairs.push({
+          deltaMin: Math.round((sleepStart - latestDose) / 60_000),
+          sleepMin: Math.round((sample.end - sample.start) / 60_000),
+        });
       }
     }
-    const n = pairs.length;
-    const med = (arr: number[]) => { const a = [...arr].sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
-    const p = (arr: number[], q: number) => { const a = [...arr].sort((x, y) => x - y); const i = Math.max(0, Math.min(a.length - 1, Math.round(q * (a.length - 1)))); return a[i] || 0; };
-    const deltas = pairs.map((p2) => p2.deltaMin);
-    const sleepDur = pairs.map((p2) => p2.sleepMin);
-    return {
-      n,
-      medianDeltaMin: med(deltas),
-      p10: p(deltas, 0.1),
-      p90: p(deltas, 0.9),
-      showCorrelation: n >= 14,
-      medianSleepMin: med(sleepDur),
+
+    const median = (values: number[]) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
     };
-  }, [sleepSamples, doses]);
+    const percentile = (values: number[], q: number) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      const index = Math.max(
+        0,
+        Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1)))
+      );
+      return sorted[index] || 0;
+    };
+
+    const deltas = pairs.map((pair) => pair.deltaMin);
+    const sleepDurations = pairs.map((pair) => pair.sleepMin);
+    return {
+      n: pairs.length,
+      medianDeltaMin: median(deltas),
+      p10: percentile(deltas, 0.1),
+      p90: percentile(deltas, 0.9),
+      showCorrelation: pairs.length >= 14,
+      medianSleepMin: median(sleepDurations),
+    };
+  }, [doses, sleepSamples]);
+
+  const addNow = (mg: number) => {
+    addDose({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+      timestamp: Date.now(),
+      mg,
+      source: 'Plan',
+    });
+  };
+
+  const healthStatus =
+    loading
+      ? 'Syncing'
+      : healthAuthorized
+      ? 'Connected'
+      : onboarding.source === 'manual'
+      ? 'Manual mode'
+      : healthAvailable
+      ? 'Not connected'
+      : 'Unavailable';
+
+  const healthTone =
+    error
+      ? 'error'
+      : healthAuthorized
+      ? 'success'
+      : onboarding.source === 'manual'
+      ? 'neutral'
+      : healthAvailable
+      ? 'warning'
+      : 'neutral';
 
   return (
-    <ScreenContainer horizontalPadding={16} topPadding={12} bottomPadding={32}>
-      <View style={{ gap:16 }}>
-        {/* Health connection */}
-        <Panel>
-          <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>Sleep</Text>
-          <Text style={{ marginTop: 4, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
+    <AppScreen
+      title="Sleep"
+      subtitle="Connect Health, review last night, and keep your caffeine plan inside your recovery window."
+    >
+      <View style={{ gap: 16 }}>
+        <SectionTitle>Connection</SectionTitle>
+        <SectionCard>
+          <InlineStatus tone={healthTone} text={healthStatus} />
+          <Text
+            style={{
+              fontSize: 15,
+              lineHeight: 20,
+              color: palette.textSecondary,
+            }}
+          >
             {onboarding.source === 'manual'
-              ? 'Aurora is currently using manual logging only. Connect Health any time to import sleep.'
-              : 'Import sleep from the Health app to tailor your caffeine plan.'}
+              ? 'Aurora is currently using manual logging only. Connect Health any time to import sleep automatically.'
+              : 'Aurora reads recent sleep from Health so wake time and guidance stay grounded in actual recovery.'}
           </Text>
-          <View style={{ height: 12 }} />
           {loading ? (
-            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-              <ActivityIndicator />
-              <Text style={{ color: PlatformColor('secondaryLabel') }}>Connecting…</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <ActivityIndicator color={palette.tint} />
+              <Text
+                style={{
+                  fontSize: 15,
+                  lineHeight: 20,
+                  color: palette.textSecondary,
+                }}
+              >
+                Syncing recent sleep…
+              </Text>
             </View>
           ) : (
-            <Pressable
+            <Button
+              title={healthAuthorized ? 'Refresh sleep' : 'Connect to Health'}
               onPress={connectHealth}
-              accessibilityRole="button"
-              disabled={loading || !healthAvailable}
-              style={{
-                minHeight: HIT_TARGET,
-                borderRadius: 12,
-                alignItems:'center',
-                justifyContent:'center',
-                backgroundColor: primaryButton.backgroundColor,
-              }}
-            >
-              <Text style={{ fontSize:17, lineHeight:22, fontWeight:'600', color: primaryButton.color }}>
-                {healthAuthorized ? 'Refresh Sleep' : 'Connect to Health'}
-              </Text>
-            </Pressable>
+              disabled={!healthAvailable}
+            />
           )}
           {!healthAvailable && !loading ? (
-            <Text style={{ marginTop:8, color: PlatformColor('secondaryLabel') }}>
-              Health import is unavailable on this device right now.
+            <Text
+              style={{
+                fontSize: 13,
+                lineHeight: 18,
+                color: palette.textTertiary,
+              }}
+            >
+              Health import is currently available on iPhone only.
             </Text>
           ) : null}
-          {error ? <Text style={{ marginTop:8, color: PlatformColor('systemRed') }}>{error}</Text> : null}
-        </Panel>
+          {error ? (
+            <Text
+              style={{
+                fontSize: 13,
+                lineHeight: 18,
+                color: palette.destructive,
+              }}
+            >
+              {error}
+            </Text>
+          ) : null}
+        </SectionCard>
 
-        {/* Last sleep summary */}
-        <View>
-          <SectionHeader title="Sleep History" icon="moon" />
-          <Panel>
-            {lastSleep ? (
-              <>
-                <Text style={{ fontSize:17, lineHeight:22, color: PlatformColor('label') }}>
-                  {fmtDate(lastSleep.start)} · {fmtTime(lastSleep.start)} – {fmtTime(lastSleep.end)} ({fmtDuration(lastSleep.end - lastSleep.start)})
-                </Text>
-                <Text style={{ marginTop:4, fontSize:15, lineHeight:20, color: PlatformColor('secondaryLabel') }}>
-                  Total asleep last night: {fmtDuration(lastNightTotalMs)}
-                </Text>
-                <Text style={{ marginTop:4, fontSize:13, lineHeight:18, color: PlatformColor('secondaryLabel') }}>
-                  Woke at {fmtTime(lastSleep.end)}
-                </Text>
-              </>
-            ) : (
-              <Text style={{ fontSize:15, lineHeight:20, color: PlatformColor('secondaryLabel') }}>
-                Not connected yet. Connect to Health to import recent sleep.
-              </Text>
-            )}
-          </Panel>
-        </View>
+        <SectionTitle>Last night</SectionTitle>
+        {lastSleep ? (
+          <>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <StatTile
+                label="Sleep window"
+                value={fmtDuration(lastSleep.end - lastSleep.start)}
+                detail={`${fmtTime(lastSleep.start)} – ${fmtTime(lastSleep.end)}`}
+              />
+              <StatTile
+                label="Total asleep"
+                value={fmtDuration(lastNightTotalMs)}
+                detail={`Wake time ${fmtTime(lastSleep.end)}`}
+              />
+            </View>
+            <SectionCard>
+              <ListRow
+                title="Imported night"
+                subtitle="Most recent Health session"
+                value={fmtDate(lastSleep.start)}
+              />
+              <ListRow
+                title="Wake time"
+                subtitle="Used to anchor your plan"
+                value={fmtTime(lastSleep.end)}
+              />
+            </SectionCard>
+          </>
+        ) : (
+          <SectionCard>
+            <Text
+              style={{
+                fontSize: 15,
+                lineHeight: 20,
+                color: palette.textSecondary,
+              }}
+            >
+              Connect Health to bring in recent sleep. Aurora will then show your latest wake time and tailor the suggested caffeine plan below.
+            </Text>
+          </SectionCard>
+        )}
 
-        {/* Sleep Impact */}
-        <View>
-          <SectionHeader title="Caffeine Impact" icon="pulse-outline" />
-          <Panel>
-            {sleepImpact.n >= 1 ? (
-              <>
-                <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>
-                  Last dose timing: {Math.round(sleepImpact.medianDeltaMin)} min before sleep
+        <SectionTitle>Caffeine impact</SectionTitle>
+        <SectionCard>
+          {sleepImpact.n >= 1 ? (
+            <>
+              <ListRow
+                title="Last-dose timing"
+                subtitle="Median time between final dose and sleep"
+                value={`${Math.round(sleepImpact.medianDeltaMin)} min`}
+              />
+              <ListRow
+                title="Typical range"
+                subtitle="10th to 90th percentile"
+                value={`${sleepImpact.p10}–${sleepImpact.p90} min`}
+              />
+              <ListRow
+                title="Median sleep span"
+                subtitle="Across nights with dose timing data"
+                value={`${Math.round(sleepImpact.medianSleepMin / 60)}h`}
+              />
+              {!sleepImpact.showCorrelation ? (
+                <Text
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: palette.textTertiary,
+                  }}
+                >
+                  Keep logging for at least 14 nights before reading this as a pattern.
                 </Text>
-                <Text style={{ marginTop: 4, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-                  P10 {sleepImpact.p10} • P90 {sleepImpact.p90}
-                </Text>
-                {!sleepImpact.showCorrelation ? (
-                  <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                    Not enough nights for correlation (need ≥14).
-                  </Text>
-                ) : null}
-              </>
-            ) : (
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-                Not connected yet. Connect to Health to import recent sleep.
-              </Text>
-            )}
-          </Panel>
-        </View>
+              ) : null}
+            </>
+          ) : (
+            <Text
+              style={{
+                fontSize: 15,
+                lineHeight: 20,
+                color: palette.textSecondary,
+              }}
+            >
+              Once Aurora has sleep history and nearby dose timing, this section will summarize how close your final dose tends to land before bed.
+            </Text>
+          )}
+        </SectionCard>
 
-        {/* Recommended plan */}
-        <View>
-          <SectionHeader title="Recommended Plan" icon="timer-outline" />
-          <Panel>
-            {(!wakeTime || plan.length===0) ? (
-              <Text style={{ fontSize:15, lineHeight:20, color: PlatformColor('secondaryLabel') }}>
-                A plan will appear after importing your latest wake time and before today’s cutoff.
+        <SectionTitle>Suggested plan</SectionTitle>
+        <SectionCard>
+          {!wakeTime || plan.length === 0 ? (
+            <Text
+              style={{
+                fontSize: 15,
+                lineHeight: 20,
+                color: palette.textSecondary,
+              }}
+            >
+              A plan appears after Aurora has a wake time and there is still room before today’s cutoff.
+            </Text>
+          ) : (
+            <>
+              {plan.map((item, index) => (
+                <View
+                  key={item.t}
+                  style={{
+                    gap: 10,
+                    paddingTop: index === 0 ? 0 : 12,
+                    borderTopWidth: index === 0 ? 0 : 1,
+                    borderColor: palette.separator,
+                  }}
+                >
+                  <ListRow
+                    title={item.label}
+                    subtitle={`Recommended at ${fmtTime(item.t)}`}
+                    value={`${item.mg} mg`}
+                  />
+                  {index === 0 ? (
+                    <Button
+                      title="Log first dose now"
+                      variant="secondary"
+                      onPress={() => addNow(item.mg)}
+                    />
+                  ) : null}
+                </View>
+              ))}
+              <Text
+                style={{
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: palette.textTertiary,
+                }}
+              >
+                Based on a soft 200 mg budget and the time between your latest wake point and cutoff.
               </Text>
-            ) : (
-              <>
-                {plan.map((p, idx)=> (
-                  <View key={p.t} style={{ paddingVertical:10, borderTopWidth: idx===0?0:1, borderColor: PlatformColor('separator') }}>
-                    <Text style={{ fontSize:17, lineHeight:22, color: PlatformColor('label') }}>{p.label}: {p.mg} mg at {fmtTime(p.t)}</Text>
-                    {idx===0 ? (
-                      <Pressable
-                        onPress={()=> addNow(p.mg)}
-                        accessibilityRole="button"
-                        style={{ marginTop:8, alignSelf:'flex-start', minHeight:36, paddingHorizontal:12, borderRadius:8, alignItems:'center', justifyContent:'center', backgroundColor: PlatformColor('systemFill') }}
-                      >
-                        <Text style={{ fontSize:13, lineHeight:18, color: PlatformColor('label') }}>Log first dose now</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                ))}
-                <Text style={{ marginTop:8, fontSize:13, lineHeight:18, color: PlatformColor('tertiaryLabel') }}>
-                  Based on a soft 200 mg daily budget and your wake → cutoff window.
-                </Text>
-              </>
-            )}
-          </Panel>
-        </View>
+            </>
+          )}
+        </SectionCard>
       </View>
-    </ScreenContainer>
+    </AppScreen>
   );
 }

@@ -15,6 +15,7 @@ import type { RootStackParamList } from '~/navigation/types';
 import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
+import { getAppPalette } from '~/theme/colors';
 
 // Enable react-native-screens if available (perf/memory). Use dynamic require to avoid runtime errors if missing.
 try {
@@ -53,16 +54,6 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
   }
 }
 
-// Navigation themes
-const LightNavTheme: Theme = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: '#FFFFFF', card: '#FFFFFF', text: '#0A0A0A', border: '#E6E6E6' },
-};
-const DarkNavTheme: Theme = {
-  ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: '#000000', card: '#0B0B0B', text: '#FFFFFF', border: '#1F1F1F' },
-};
-
 // Linking config centralized in navigation/linking
 
 function BootGate() {
@@ -78,7 +69,22 @@ export default function App() {
   const ready = useAppInit();
   const scheme = useColorScheme();
   const onboardingComplete = useStore((s) => s.onboarding.completed);
-  const theme = useMemo<Theme>(() => (scheme === 'dark' ? DarkNavTheme : LightNavTheme), [scheme]);
+  const theme = useMemo<Theme>(() => {
+    const palette = getAppPalette(scheme);
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        background: palette.groupedBackground,
+        card: palette.card,
+        text: palette.textPrimary,
+        border: palette.cardBorder,
+        primary: palette.tint,
+        notification: palette.destructive,
+      },
+    };
+  }, [scheme]);
 
   useEffect(() => {
     try {

@@ -10,9 +10,14 @@ import {
   TextStyle,
   useColorScheme,
 } from 'react-native';
-import { getAppPalette } from '../theme/colors';
+import {
+  getAppPalette,
+  getNeutralButtonColors,
+  getPrimaryButtonColors,
+  getSecondaryButtonColors,
+} from '../theme/colors';
 
-type Variant = 'primary' | 'glass' | 'outline';
+type Variant = 'primary' | 'secondary' | 'plain' | 'outline' | 'glass';
 
 type Props = {
   title: string;
@@ -43,14 +48,43 @@ export default function Button({
 }: Props) {
   const scheme = useColorScheme();
   const palette = getAppPalette(scheme);
+  const primary = getPrimaryButtonColors(scheme, disabled || loading);
+  const secondary = getSecondaryButtonColors(scheme);
+  const neutral = getNeutralButtonColors(scheme);
   const containerVariantStyle =
     variant === 'primary'
-      ? { backgroundColor: palette.primaryButton, borderColor: 'transparent' }
+      ? {
+          backgroundColor: primary.backgroundColor,
+          borderColor: 'transparent',
+        }
+      : variant === 'secondary'
+      ? {
+          backgroundColor: secondary.backgroundColor,
+          borderColor: secondary.borderColor,
+        }
+      : variant === 'plain'
+      ? {
+          backgroundColor: 'transparent',
+          borderColor: 'transparent',
+        }
       : variant === 'outline'
-      ? { backgroundColor: 'transparent', borderColor: palette.neutralButtonBorder }
-      : { backgroundColor: palette.card, borderColor: palette.cardBorder };
+      ? {
+          backgroundColor: palette.card,
+          borderColor: neutral.borderColor,
+        }
+      : {
+          backgroundColor: palette.cardMuted,
+          borderColor: palette.cardBorder,
+        };
 
-  const textColor = variant === 'primary' ? palette.primaryButtonText : palette.textPrimary;
+  const textColor =
+    variant === 'primary'
+      ? primary.color
+      : variant === 'secondary'
+      ? secondary.color
+      : variant === 'plain'
+      ? palette.plainButtonText
+      : neutral.color;
 
   return (
     <Pressable
@@ -82,15 +116,15 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
   },
-  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  pressed: { transform: [{ scale: 0.985 }], opacity: 0.92 },
   disabled: { opacity: 0.5 },
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   icon: { marginRight: 8 },
@@ -98,6 +132,7 @@ const styles = StyleSheet.create({
   spinner: { marginLeft: 8 },
   text: {
     fontSize: 16,
+    lineHeight: 20,
     fontWeight: '600', // If you loaded Inter fonts, you can use: fontFamily: 'Inter-SemiBold'
   },
 });

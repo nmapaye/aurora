@@ -1,5 +1,8 @@
 import React from 'react';
-import { Pressable, Text, View, PlatformColor } from 'react-native';
+import { Pressable, Text, View, useColorScheme } from 'react-native';
+
+import { SectionCard, SectionTitle, StepperField } from '~/components/ui';
+import { getAppPalette } from '~/theme/colors';
 
 type Props = {
   targetSleep: number;
@@ -7,91 +10,87 @@ type Props = {
 };
 
 export default function StepSleepTarget({ targetSleep, onChange }: Props) {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const presets = [7, 8, 9];
 
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 8 }}>
-        <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '700', color: PlatformColor('label') }}>
+        <Text
+          style={{
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: '700',
+            letterSpacing: -0.4,
+            color: palette.textPrimary,
+          }}
+        >
           Sleep target
         </Text>
-        <Text style={{ fontSize: 16, lineHeight: 22, color: PlatformColor('secondaryLabel') }}>
-          Set the amount of sleep Aurora should protect when it recommends your caffeine cutoff.
-        </Text>
-      </View>
-
-      <View
-        style={{
-          padding: 20,
-          borderRadius: 20,
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderWidth: 1,
-          borderColor: PlatformColor('separator'),
-        }}
-      >
-        <Text style={{ fontSize: 44, lineHeight: 50, fontWeight: '700', color: PlatformColor('label') }}>
-          {targetSleep.toFixed(1)}h
-        </Text>
-        <Text style={{ marginTop: 6, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-          You can fine-tune this later in Settings.
-        </Text>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Pressable
-          onPress={() => onChange(Math.max(5, Math.round((targetSleep - 0.5) * 2) / 2))}
-          accessibilityRole="button"
+        <Text
           style={{
-            minWidth: 56,
-            minHeight: 56,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 16,
-            backgroundColor: PlatformColor('tertiarySystemBackground'),
+            fontSize: 16,
+            lineHeight: 22,
+            color: palette.textSecondary,
           }}
         >
-          <Text style={{ fontSize: 24, color: PlatformColor('label') }}>−</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onChange(Math.min(10, Math.round((targetSleep + 0.5) * 2) / 2))}
-          accessibilityRole="button"
-          style={{
-            minWidth: 56,
-            minHeight: 56,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 16,
-            backgroundColor: PlatformColor('tertiarySystemBackground'),
-          }}
-        >
-          <Text style={{ fontSize: 24, color: PlatformColor('label') }}>+</Text>
-        </Pressable>
+          Set the amount of sleep Aurora should protect when it calculates your caffeine cutoff and bedtime guidance.
+        </Text>
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-        {presets.map((preset) => {
-          const selected = preset === Math.round(targetSleep);
-          return (
-            <Pressable
-              key={preset}
-              onPress={() => onChange(preset)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              style={{
-                minHeight: 44,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: selected ? PlatformColor('systemFill') : PlatformColor('tertiarySystemBackground'),
-                borderWidth: 1,
-                borderColor: PlatformColor('separator'),
-              }}
-            >
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{preset} hours</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <StepperField
+        label="Target sleep"
+        value={targetSleep}
+        step={0.5}
+        min={5}
+        max={10}
+        formatValue={(value) => `${value.toFixed(1)} h`}
+        footer="You can change this later in Settings."
+        onChange={(value) => onChange(Math.round(value * 2) / 2)}
+      />
+
+      <SectionCard>
+        <SectionTitle>Common targets</SectionTitle>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {presets.map((preset) => {
+            const selected = preset === Math.round(targetSleep);
+            return (
+              <Pressable
+                key={preset}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => onChange(preset)}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: selected ? palette.tint : palette.cardBorder,
+                  backgroundColor: selected
+                    ? palette.cardMuted
+                    : pressed
+                    ? palette.pressed
+                    : palette.card,
+                  paddingHorizontal: 14,
+                  paddingVertical: 16,
+                })}
+              >
+                <Text
+                  style={{
+                    fontSize: 17,
+                    lineHeight: 22,
+                    fontWeight: '600',
+                    color: palette.textPrimary,
+                    textAlign: 'center',
+                  }}
+                >
+                  {preset}h
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </SectionCard>
     </View>
   );
 }

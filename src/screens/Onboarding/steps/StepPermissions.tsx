@@ -1,7 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, Text, View, PlatformColor } from 'react-native';
+import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
 
+import Button from '~/components/Button';
+import { InlineStatus, SectionCard } from '~/components/ui';
 import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
+import { getAppPalette } from '~/theme/colors';
 
 type Props = {
   source: OnboardingSource;
@@ -18,72 +21,89 @@ export default function StepPermissions({
   busy = false,
   onRequest,
 }: Props) {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
   const stateLabel =
     permissionStatus === 'granted'
       ? 'Connected'
       : permissionStatus === 'denied'
-        ? 'Not granted'
-        : permissionStatus === 'unsupported'
-          ? 'Unavailable'
-          : 'Pending';
+      ? 'Not granted'
+      : permissionStatus === 'unsupported'
+      ? 'Unavailable'
+      : 'Pending';
+
+  const statusTone =
+    permissionStatus === 'granted'
+      ? 'success'
+      : permissionStatus === 'denied'
+      ? 'error'
+      : permissionStatus === 'unsupported'
+      ? 'neutral'
+      : 'warning';
 
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 8 }}>
-        <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '700', color: PlatformColor('label') }}>
-          Permissions
-        </Text>
-        <Text style={{ fontSize: 16, lineHeight: 22, color: PlatformColor('secondaryLabel') }}>
-          {isManual
-            ? 'Manual mode is ready. You can finish setup now and start logging doses immediately.'
-            : 'Grant Health access so Aurora can import recent sleep and tailor your guidance.'}
-        </Text>
-      </View>
-
-      <View
-        style={{
-          padding: 18,
-          borderRadius: 20,
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderWidth: 1,
-          borderColor: PlatformColor('separator'),
-          gap: 10,
-        }}
-      >
-        <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label') }}>
-          Status: {stateLabel}
-        </Text>
-        <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-          {message ??
-            (isManual
-              ? 'Aurora will use manual caffeine logs until you connect Health.'
-              : 'Aurora reads sleep only. It does not write data back into Health.' )}
-        </Text>
-      </View>
-
-      {!isManual ? (
-        <Pressable
-          onPress={onRequest}
-          accessibilityRole="button"
-          disabled={busy}
+        <Text
           style={{
-            minHeight: 52,
-            borderRadius: 16,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: PlatformColor('tintColor'),
-            opacity: busy ? 0.7 : 1,
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: '700',
+            letterSpacing: -0.4,
+            color: palette.textPrimary,
           }}
         >
-          {busy ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: '600', color: '#FFFFFF' }}>
-              Allow Health access
-            </Text>
-          )}
-        </Pressable>
+          Permissions
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            lineHeight: 22,
+            color: palette.textSecondary,
+          }}
+        >
+          {isManual
+            ? 'Manual mode is ready. Finish setup now and start logging doses immediately.'
+            : 'Grant Health access so Aurora can import recent sleep and tailor guidance to your actual recovery.'}
+        </Text>
+      </View>
+
+      <SectionCard>
+        <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
+        <Text
+          style={{
+            fontSize: 15,
+            lineHeight: 20,
+            color: palette.textSecondary,
+          }}
+        >
+          {message ??
+            (isManual
+              ? 'Aurora will use manual caffeine logs until you connect Health later.'
+              : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
+        </Text>
+      </SectionCard>
+
+      {!isManual ? (
+        busy ? (
+          <SectionCard>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <ActivityIndicator color={palette.tint} />
+              <Text
+                style={{
+                  fontSize: 15,
+                  lineHeight: 20,
+                  color: palette.textSecondary,
+                }}
+              >
+                Requesting Health access…
+              </Text>
+            </View>
+          </SectionCard>
+        ) : (
+          <Button title="Allow Health access" onPress={onRequest} />
+        )
       ) : null}
     </View>
   );

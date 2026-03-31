@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RootTabs from './RootTabs';
 import type { RootStackParamList } from './types';
 import VigilanceTestScreen from '~/screens/VigilanceTestScreen';
+import SettingsScreen from '~/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -15,6 +16,11 @@ export default function RootNavigator() {
         name="VigilanceTest"
         component={VigilanceTestScreen}
         options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
       />
     </Stack.Navigator>
   );

@@ -9,6 +9,7 @@ function loadStories() {
   try { require('./stories/TimelineGraph.stories'); } catch {}
   try { require('./stories/Chip.stories'); } catch {}
   try { require('./stories/EmptyState.stories'); } catch {}
+  try { require('./stories/UIKit.stories'); } catch {}
   // Add more lines here as you create new *.stories.tsx files.
 }
 

@@ -13,11 +13,10 @@ const linking: LinkingOptions<RootStackParamList> = {
           Log: 'log',
           Sleep: 'sleep',
           Insights: 'insights',
-          History: 'history',
-          Settings: 'settings',
         },
       },
       VigilanceTest: 'vigilance',
+      Settings: 'settings',
     },
   },
   async getInitialURL() {

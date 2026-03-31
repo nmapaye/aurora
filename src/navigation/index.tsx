@@ -16,8 +16,8 @@ export function navigate<RouteName extends AppRouteName>(
     : never
 ) {
   if (!navigationRef.isReady()) return;
-  if (name === 'VigilanceTest') {
-    (navigationRef as any).navigate('VigilanceTest', params as any);
+  if (name === 'VigilanceTest' || name === 'Settings') {
+    (navigationRef as any).navigate(name as any, params as any);
     return;
   }
   (navigationRef as any).navigate('Tabs', { screen: name as keyof RootTabParamList, params });

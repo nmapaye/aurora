@@ -4,12 +4,11 @@ export type RootTabParamList = {
   Home: undefined;
   Log: undefined;
   Sleep: undefined;
-  Insights: undefined;
-  Settings: undefined;
-  History: undefined;
+  Insights: { section?: 'summary' | 'trends' | 'history' } | undefined;
 };
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<RootTabParamList> | undefined;
   VigilanceTest: undefined;
+  Settings: undefined;
 };

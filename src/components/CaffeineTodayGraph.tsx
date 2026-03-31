@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, PlatformColor } from 'react-native';
+import { View, Text, useColorScheme } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
 import { useTodayCaffeineSeries } from '~/hooks/useTodayCaffeineSeries';
+import { getAppPalette } from '~/theme/colors';
 
 export default function CaffeineTodayGraph() {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const { series, start, end } = useTodayCaffeineSeries();
   const [width, setWidth] = useState(0);
   const height = 180;
   const padding = { top: 12, right: 14, bottom: 28, left: 44 };
-  const accent = '#FFFFFF';
+  const accent = palette.tint;
   const domain = Math.max(1, end - start);
 
   const { linePath, areaPath, points, nowX, yTicks } = useMemo(() => {
@@ -90,7 +93,7 @@ export default function CaffeineTodayGraph() {
             {/* Grid */}
             {Array.from({ length: 3 }).map((_, i) => {
               const y = padding.top + (i / 2) * (height - padding.top - padding.bottom);
-              return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#8E8E93" strokeOpacity={0.18} strokeDasharray={[3, 6]} strokeWidth={1} />;
+              return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={palette.separator} strokeDasharray={[3, 6]} strokeWidth={1} />;
             })}
 
             {/* Now marker */}
@@ -116,7 +119,7 @@ export default function CaffeineTodayGraph() {
 
             {/* Points only where a dose exists */}
             {series.map((p, i) => p.hasDose ? (
-              <Circle key={`pt-${i}`} cx={points[i]?.x ?? 0} cy={points[i]?.y ?? 0} r={4} fill={accent as string} stroke="#ffffff" strokeWidth={1.5} />
+              <Circle key={`pt-${i}`} cx={points[i]?.x ?? 0} cy={points[i]?.y ?? 0} r={4} fill={accent as string} stroke={palette.card} strokeWidth={1.5} />
             ) : null)}
           </Svg>
         ) : null}
@@ -127,7 +130,7 @@ export default function CaffeineTodayGraph() {
               return (
                 <Text
                   key={`tick-${i}-${t.value}`}
-                  style={{ position: 'absolute', left: 4, top: y - 8, fontSize: 12, lineHeight: 16, color: PlatformColor('secondaryLabel') }}
+                  style={{ position: 'absolute', left: 4, top: y - 8, fontSize: 12, lineHeight: 16, color: palette.textSecondary }}
                 >
                   {Math.round(t.value)} mg
                 </Text>
@@ -137,11 +140,11 @@ export default function CaffeineTodayGraph() {
         ) : null}
       </View>
       <View style={{ flexDirection: 'row', marginTop: 6 }}>
-        <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtHour(firstTs)}</Text>
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtHour(midTs)}</Text>
-        <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtHour(lastTs)}</Text>
+        <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(firstTs)}</Text>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(midTs)}</Text>
+        <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(lastTs)}</Text>
       </View>
-      <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+      <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
         Active caffeine (mg) projected hourly based on your doses and half-life.
       </Text>
     </View>

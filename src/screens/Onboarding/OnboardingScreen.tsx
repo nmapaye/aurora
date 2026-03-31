@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { PlatformColor, Pressable, Text, View } from 'react-native';
+import { Text, View, useColorScheme } from 'react-native';
 
+import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import ScreenContainer from '~/components/ScreenContainer';
 import StepPermissions from '~/screens/Onboarding/steps/StepPermissions';
 import StepSleepTarget from '~/screens/Onboarding/steps/StepSleepTarget';
 import StepSources from '~/screens/Onboarding/steps/StepSources';
 import AppleHealth from '~/services/platform/health/appleHealth';
 import { requestHealthPermissions } from '~/services/permissions';
 import { useStore } from '~/state/store';
+import { getAppPalette } from '~/theme/colors';
 
 const TOTAL_STEPS = 3;
 
@@ -17,26 +18,24 @@ function toSleepSessionId(start: number, end: number) {
 }
 
 export default function OnboardingScreen() {
-  const targetSleep = useStore((s) => s.prefs.targetSleep);
-  const setPrefs = useStore((s) => s.setPrefs);
-  const onboarding = useStore((s) => s.onboarding);
-  const setOnboarding = useStore((s) => s.setOnboarding);
-  const completeOnboarding = useStore((s) => s.completeOnboarding);
-  const upsertSleepSessions = useStore((s) => s.upsertSleepSessions);
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
+  const targetSleep = useStore((state) => state.prefs.targetSleep);
+  const setPrefs = useStore((state) => state.setPrefs);
+  const onboarding = useStore((state) => state.onboarding);
+  const setOnboarding = useStore((state) => state.setOnboarding);
+  const completeOnboarding = useStore((state) => state.completeOnboarding);
+  const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
 
   const [step, setStep] = useState(0);
   const [permissionMessage, setPermissionMessage] = useState<string>();
   const [requestingPermission, setRequestingPermission] = useState(false);
 
   const canAdvance = useMemo(() => {
-    if (step < 2) {
-      return true;
-    }
-    if (onboarding.source === 'manual') {
-      return true;
-    }
+    if (step < TOTAL_STEPS - 1) return true;
+    if (onboarding.source === 'manual') return true;
     return onboarding.permissionStatus !== 'idle';
-  }, [step, onboarding.permissionStatus, onboarding.source]);
+  }, [onboarding.permissionStatus, onboarding.source, step]);
 
   const handleRequestPermission = async () => {
     setRequestingPermission(true);
@@ -77,11 +76,24 @@ export default function OnboardingScreen() {
   const back = () => setStep((current) => Math.max(0, current - 1));
 
   return (
-    <ScreenContainer topPadding={24} bottomPadding={32}>
-      <View style={{ width: '100%', maxWidth: 560, gap: 24 }}>
+    <AppScreen
+      title="Set up Aurora"
+      subtitle={`Step ${step + 1} of ${TOTAL_STEPS}`}
+      trailing={<View style={{ width: 36, height: 36 }} />}
+      topInset={24}
+    >
+      <View style={{ gap: 20 }}>
         <View style={{ gap: 10 }}>
-          <Text style={{ fontSize: 13, lineHeight: 18, fontWeight: '600', color: PlatformColor('secondaryLabel') }}>
-            AURORA SETUP
+          <Text
+            style={{
+              fontSize: 13,
+              lineHeight: 18,
+              fontWeight: '600',
+              color: palette.textSecondary,
+              textTransform: 'uppercase',
+            }}
+          >
+            iPhone-first setup
           </Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
@@ -92,7 +104,7 @@ export default function OnboardingScreen() {
                   height: 6,
                   borderRadius: 999,
                   backgroundColor:
-                    index <= step ? PlatformColor('tintColor') : PlatformColor('tertiarySystemBackground'),
+                    index <= step ? palette.tint : palette.cardMuted,
                 }}
               />
             ))}
@@ -128,34 +140,20 @@ export default function OnboardingScreen() {
           />
         ) : null}
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
           {step > 0 ? (
-            <Pressable
-              onPress={back}
-              accessibilityRole="button"
-              style={{
-                minHeight: 44,
-                paddingHorizontal: 16,
-                borderRadius: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: PlatformColor('tertiarySystemBackground'),
-              }}
-            >
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>Back</Text>
-            </Pressable>
-          ) : null}
-
+            <Button title="Back" variant="secondary" onPress={back} />
+          ) : (
+            <View style={{ width: 88 }} />
+          )}
           <View style={{ flex: 1 }} />
-
           <Button
             title={step === TOTAL_STEPS - 1 ? 'Finish setup' : 'Continue'}
-            variant="primary"
             onPress={next}
             disabled={!canAdvance}
           />
         </View>
       </View>
-    </ScreenContainer>
+    </AppScreen>
   );
 }

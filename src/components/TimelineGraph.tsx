@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { View, PlatformColor } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
+import { getAppPalette } from '~/theme/colors';
 
 export default function TimelineGraph() {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const { series = [] } = useAlertnessSeries() || {};
   const [width, setWidth] = useState(0);
   const height = 140;
@@ -53,7 +56,7 @@ export default function TimelineGraph() {
     return { linePath: d, areaPath: a, points: pts };
   }, [series, width]);
 
-  const accent = PlatformColor ? PlatformColor('tintColor') : '#4e91ff';
+  const accent = palette.tint;
 
   return (
     <View style={{ width: '100%', height }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
@@ -69,7 +72,7 @@ export default function TimelineGraph() {
           {/* Subtle grid */}
           {Array.from({ length: 3 }).map((_, i) => {
             const y = padding.top + (i / 2) * (height - padding.top - padding.bottom);
-            return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#8E8E93" strokeOpacity={0.18} strokeDasharray={[3, 6]} strokeWidth={1} />;
+            return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={palette.separator} strokeDasharray={[3, 6]} strokeWidth={1} />;
           })}
 
           {/* Area */}
@@ -81,7 +84,7 @@ export default function TimelineGraph() {
 
           {/* Dots */}
           {points.map((p, i) => (
-            <Circle key={`pt-${i}`} cx={p.x} cy={p.y} r={4} fill={accent as string} stroke="#ffffff" strokeWidth={1.5} />
+            <Circle key={`pt-${i}`} cx={p.x} cy={p.y} r={4} fill={accent as string} stroke={palette.card} strokeWidth={1.5} />
           ))}
         </Svg>
       )}

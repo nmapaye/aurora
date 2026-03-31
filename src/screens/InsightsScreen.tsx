@@ -1,365 +1,309 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, PlatformColor, Share, useColorScheme } from 'react-native';
-import ScreenContainer from '~/components/ScreenContainer';
-import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine } from 'react-native-svg';
-import { useStore } from '~/state/store';
-import useSleepGuidance from '~/hooks/useSleepGuidance';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Share, Text, View, useColorScheme } from 'react-native';
+import Svg, { Defs, Line as SvgLine, LinearGradient, Path, Stop } from 'react-native-svg';
+
+import AppScreen from '~/components/AppScreen';
+import Button from '~/components/Button';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
-import { getPrimaryButtonColors } from '~/theme/colors';
+import HistoryContent from '~/components/HistoryContent';
+import { ListRow, SectionCard, SectionTitle, SegmentedControl, StatTile } from '~/components/ui';
+import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
+import type { RootTabParamList } from '~/navigation/types';
+import { makeSummaryText } from '~/services/storage/export';
+import { useStore } from '~/state/store';
+import { getAppPalette } from '~/theme/colors';
 
-const CONTENT_MAX_WIDTH = 560;
-const HIT_TARGET = 44;
+type RangeKey = '7' | '14' | '30';
+type InsightsSection = 'summary' | 'trends' | 'history';
 
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label'), marginBottom: 8 }}>
-      {title}
-    </Text>
-  );
-}
-
-function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: PlatformColor('secondarySystemBackground'),
-          borderRadius: 16,
-          padding: 16,
-          borderWidth: 1,
-          borderColor: PlatformColor('separator'),
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-}
-
-function SegmentedChips<T extends string>({ options, value, onChange }: { options: { key: T; label: string }[]; value: T; onChange: (val: T) => void; }) {
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-      {options.map((o) => {
-        const selected = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            accessibilityLabel={o.label}
-            hitSlop={12}
-            style={{
-              minHeight: HIT_TARGET,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 999,
-              backgroundColor: selected ? PlatformColor('systemFill') : PlatformColor('tertiarySystemBackground'),
-              borderWidth: 1,
-              borderColor: PlatformColor('separator'),
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label'), fontWeight: selected ? '600' : '400' }}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-type RangeKey = '7' | '14' | '30' | 'custom';
-
-function TrendChart({ data, height = 160, strokeWidth = 2 }: { data: number[]; daysTs?: number[]; height?: number; strokeWidth?: number }) {
+function TrendChart({
+  data,
+  height = 160,
+}: {
+  data: number[];
+  height?: number;
+}) {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const [width, setWidth] = useState(0);
   const padding = { top: 12, right: 8, bottom: 18, left: 8 };
-  const w = Math.max(0, width - padding.left - padding.right);
-  const h = Math.max(0, height - padding.top - padding.bottom);
+  const chartWidth = Math.max(0, width - padding.left - padding.right);
+  const chartHeight = Math.max(0, height - padding.top - padding.bottom);
   const min = Math.min(...data, 0);
   const max = Math.max(...data, 1);
   const pad = (max - min) * 0.1;
   const yMin = min - pad;
   const yMax = max + pad;
-  const toX = (i: number) => (data.length <= 1 ? 0 : (i / (data.length - 1)) * w);
-  const toY = (v: number) => h - ((v - yMin) / Math.max(1e-6, (yMax - yMin))) * h;
+  const toX = (index: number) =>
+    data.length <= 1 ? 0 : (index / (data.length - 1)) * chartWidth;
+  const toY = (value: number) =>
+    chartHeight - ((value - yMin) / Math.max(1e-6, yMax - yMin)) * chartHeight;
 
-  // Build polyline path
-  let d = '';
-  data.forEach((v, i) => {
-    const x = padding.left + toX(i);
-    const y = padding.top + toY(v);
-    d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
+  let linePath = '';
+  data.forEach((value, index) => {
+    const x = padding.left + toX(index);
+    const y = padding.top + toY(value);
+    linePath += index === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
   });
-  // Area path to baseline
-  let a = '';
+
+  let areaPath = '';
   if (data.length > 0) {
     const x0 = padding.left + toX(0);
     const xN = padding.left + toX(data.length - 1);
     const y0 = padding.top + toY(data[0]);
     const yBase = padding.top + toY(yMin);
-    a = `M ${x0} ${y0}`;
-    for (let i = 1; i < data.length; i++) a += ` L ${padding.left + toX(i)} ${padding.top + toY(data[i])}`;
-    a += ` L ${xN} ${yBase} L ${x0} ${yBase} Z`;
+    areaPath = `M ${x0} ${y0}`;
+    for (let index = 1; index < data.length; index += 1) {
+      areaPath += ` L ${padding.left + toX(index)} ${padding.top + toY(data[index])}`;
+    }
+    areaPath += ` L ${xN} ${yBase} L ${x0} ${yBase} Z`;
   }
 
   return (
-    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ width: '100%', height }}>
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ width: '100%', height }}>
       {width > 0 ? (
         <Svg width={width} height={height}>
-          {/* Gridlines (dashed, subtle) */}
-          {Array.from({ length: 3 }).map((_, i) => {
-            const y = padding.top + (i / 2) * h;
-            return <SvgLine key={`h${i}`} x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#8E8E93" strokeOpacity={0.25} strokeWidth={1} strokeDasharray={[2,6]} />;
-          })}
-          {Array.from({ length: 2 }).map((_, i) => {
-            const x = padding.left + ((i + 1) / 3) * w;
-            return <SvgLine key={`v${i}`} x1={x} y1={padding.top} x2={x} y2={padding.top + h} stroke="#8E8E93" strokeOpacity={0.25} strokeWidth={1} strokeDasharray={[2,6]} />;
+          {Array.from({ length: 3 }).map((_, index) => {
+            const y = padding.top + (index / 2) * chartHeight;
+            return (
+              <SvgLine
+                key={`h-${index}`}
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke={palette.separator}
+                strokeWidth={1}
+                strokeDasharray={[2, 6]}
+              />
+            );
           })}
           <Defs>
-            <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset={0} stopColor="#FFFFFF" stopOpacity={0.18} />
-              <Stop offset={1} stopColor="#FFFFFF" stopOpacity={0.04} />
+            <LinearGradient id="trendArea" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset={0} stopColor={palette.tint} stopOpacity={0.22} />
+              <Stop offset={1} stopColor={palette.tint} stopOpacity={0.04} />
             </LinearGradient>
           </Defs>
-          {/* Area fill */}
-          {max - min > 0.01 && a ? <Path d={a} fill="url(#areaGrad)" /> : null}
-          {/* Line glow */}
-          {d ? <Path d={d} stroke="#FFFFFF" strokeOpacity={0.35} strokeWidth={strokeWidth + 2} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
-          {/* Line */}
-          {d ? <Path d={d} stroke="#FFFFFF" strokeWidth={strokeWidth} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
+          {areaPath ? <Path d={areaPath} fill="url(#trendArea)" /> : null}
+          {linePath ? (
+            <Path
+              d={linePath}
+              stroke={palette.tint}
+              strokeWidth={3}
+              fill="none"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ) : null}
         </Svg>
       ) : null}
     </View>
   );
 }
 
+function fmtDay(timestamp: number) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(timestamp));
+  } catch {
+    return new Date(timestamp).toDateString();
+  }
+}
+
+function fmtDateTime(timestamp: number) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(timestamp));
+  } catch {
+    return new Date(timestamp).toLocaleString();
+  }
+}
+
+function fmtClock(timestamp: number) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(timestamp));
+  } catch {
+    return new Date(timestamp).toLocaleTimeString();
+  }
+}
+
 export default function InsightsScreen() {
+  const route = useRoute<RouteProp<RootTabParamList, 'Insights'>>();
   const scheme = useColorScheme();
-  const primaryButton = getPrimaryButtonColors(scheme);
-  const doses = useStore((s) => s.doses);
-  const vigilanceSessions = useStore((s) => s.vigilanceSessions);
-  const dailyLimit = useStore((s) => s.prefs.dailyLimitMg ?? 400);
+  const palette = getAppPalette(scheme);
+  const doses = useStore((state) => state.doses);
+  const vigilanceSessions = useStore((state) => state.vigilanceSessions);
+  const dailyLimit = useStore((state) => state.prefs.dailyLimitMg ?? 400);
   const sleepGuidance = useSleepGuidance();
 
-  const [range, setRange] = useState<RangeKey>('7');
-  // Custom range state (inclusive of both start/end days)
-  const [customStart, setCustomStart] = useState<number>(() => {
-    const end = new Date();
-    const start = new Date(end);
-    start.setDate(end.getDate() - 6); // default last 7 days
-    start.setHours(0,0,0,0);
-    return start.getTime();
-  });
-  const [customEnd, setCustomEnd] = useState<number>(() => {
-    const end = new Date();
-    end.setHours(23,59,59,999);
-    return end.getTime();
-  });
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<string[] | null>(null); // null = all
-  const [weekdayFilter, setWeekdayFilter] = useState<number[] | null>(null); // 0=Sun...6=Sat, null = all
+  const [section, setSection] = useState<InsightsSection>(
+    route.params?.section ?? 'summary'
+  );
+  const [range, setRange] = useState<RangeKey>('14');
 
-  // Date helpers (must be defined before use in hooks below)
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
-  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
-
-  const DAYS = useMemo(() => (range === '7' ? 7 : range === '14' ? 14 : range === '30' ? 30 : Math.max(1, Math.round((endOfDay(new Date(customEnd)) - startOfDay(new Date(customStart))) / 86400000) + 1)), [range, customStart, customEnd]);
-  const DAILY_LIMIT = dailyLimit; // user-configurable limit
-
-  // Filter helpers
-  const doseInFilters = (ts: number, source?: string) => {
-    if (sourceFilter && source && !sourceFilter.includes(source)) return false;
-    if (weekdayFilter) {
-      const wd = new Date(ts).getDay();
-      if (!weekdayFilter.includes(wd)) return false;
+  useEffect(() => {
+    if (route.params?.section) {
+      setSection(route.params.section);
     }
-    return true;
-  };
+  }, [route.params?.section]);
 
-  // Build daily totals for current and previous window
-  const { days, totals, prevTotals } = useMemo(() => {
-    const buildTotalsForRange = (startMs: number, endMs: number) => {
-      const arr: number[] = [];
-      const daysList: number[] = [];
+  const daysInRange = range === '7' ? 7 : range === '14' ? 14 : 30;
+
+  const { days, totals, previousTotals } = useMemo(() => {
+    const endOfDay = (date: Date) =>
+      new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        23,
+        59,
+        59,
+        999
+      ).getTime();
+    const startOfDay = (date: Date) =>
+      new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        0,
+        0,
+        0,
+        0
+      ).getTime();
+
+    const buildWindow = (startMs: number) => {
+      const dayStarts: number[] = [];
+      const dailyTotals: number[] = [];
       const start = startOfDay(new Date(startMs));
-      const end = endOfDay(new Date(endMs));
-      const nDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
-      for (let i = 0; i < nDays; i++) {
-        const d = new Date(start);
-        d.setDate(d.getDate() + i);
-        const s = startOfDay(d), e = endOfDay(d);
-        let sum = 0;
-        for (const x of doses) {
-          if (x.timestamp >= s && x.timestamp <= e && doseInFilters(x.timestamp, x.source)) sum += x.mg;
-        }
-        arr.push(sum);
-        daysList.push(s);
+      for (let index = 0; index < daysInRange; index += 1) {
+        const current = new Date(start);
+        current.setDate(current.getDate() + index);
+        const dayStart = startOfDay(current);
+        const dayEnd = endOfDay(current);
+        dayStarts.push(dayStart);
+        dailyTotals.push(
+          doses.reduce(
+            (sum, dose) =>
+              dose.timestamp >= dayStart && dose.timestamp <= dayEnd
+                ? sum + dose.mg
+                : sum,
+            0
+          )
+        );
       }
-      return { arr, daysList };
+      return { dayStarts, dailyTotals };
     };
 
-    if (range === 'custom') {
-      const { arr, daysList } = buildTotalsForRange(customStart, customEnd);
-      // previous window: same number of days ending the day before customStart
-      const prevEnd = startOfDay(new Date(customStart - 1));
-      const prevStart = new Date(prevEnd);
-      prevStart.setDate(prevStart.getDate() - (arr.length - 1));
-      const { arr: prevArr } = buildTotalsForRange(prevStart.getTime(), prevEnd);
-      return { days: daysList, totals: arr, prevTotals: prevArr };
-    } else {
-      // rolling window ending today
-      const today = new Date();
-      const end = endOfDay(today);
-      const start = new Date(end);
-      start.setDate(start.getDate() - (DAYS - 1));
-      const { arr, daysList } = buildTotalsForRange(start.getTime(), end);
-      const prevEnd = startOfDay(new Date(start.getTime() - 1));
-      const prevStart = new Date(prevEnd);
-      prevStart.setDate(prevStart.getDate() - (DAYS - 1));
-      const { arr: prevArr } = buildTotalsForRange(prevStart.getTime(), prevEnd);
-      return { days: daysList, totals: arr, prevTotals: prevArr };
-    }
-  }, [doses, DAYS, sourceFilter, weekdayFilter, range, customStart, customEnd]);
+    const today = new Date();
+    const end = endOfDay(today);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (daysInRange - 1));
+    const current = buildWindow(start.getTime());
 
-  // Weekly average (with ≥5 days requirement)
-  const { weeklyAvg, weeklyAvgCaption, deltaPctRounded } = useMemo(() => {
-    const present = totals.filter((v) => v > 0).length;
-    const avg = totals.reduce((a, b) => a + b, 0) / Math.max(1, totals.length);
-    if (present < 5) return { weeklyAvg: undefined, weeklyAvgCaption: 'Insufficient data' };
-    const prevAvg = prevTotals.reduce((a, b) => a + b, 0) / Math.max(1, prevTotals.length);
-    const deltaPct = prevAvg > 0 ? ((avg / prevAvg) - 1) * 100 : undefined;
-    const deltaPctRounded = deltaPct === undefined ? undefined : Math.round(deltaPct);
-    const cap = deltaPct === undefined ? '—' : `${deltaPct >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(deltaPct))}% vs prior ${DAYS} days`;
-    return { weeklyAvg: Math.round(avg), weeklyAvgCaption: cap, deltaPctRounded };
-  }, [totals, prevTotals, DAYS]);
+    const previousEnd = startOfDay(new Date(start.getTime() - 1));
+    const previousStart = new Date(previousEnd);
+    previousStart.setDate(previousStart.getDate() - (daysInRange - 1));
+    const previous = buildWindow(previousStart.getTime());
 
-  // Limit adherence and streaks
-  const { adherencePct, latestStreak } = useMemo(() => {
-    let withData = 0, within = 0;
+    return {
+      days: current.dayStarts,
+      totals: current.dailyTotals,
+      previousTotals: previous.dailyTotals,
+    };
+  }, [daysInRange, doses]);
+
+  const weeklyAverage = Math.round(
+    totals.reduce((sum, value) => sum + value, 0) / Math.max(1, totals.length)
+  );
+  const previousAverage = Math.round(
+    previousTotals.reduce((sum, value) => sum + value, 0) /
+      Math.max(1, previousTotals.length)
+  );
+  const deltaPct =
+    previousAverage > 0
+      ? Math.round(((weeklyAverage / previousAverage) - 1) * 100)
+      : undefined;
+
+  const adherence = useMemo(() => {
+    const daysWithData = totals.filter((value) => value > 0).length;
+    const withinLimit = totals.filter((value) => value > 0 && value <= dailyLimit).length;
     let streak = 0;
-    for (let i = totals.length - 1; i >= 0; i--) {
-      const v = totals[i];
-      if (v > 0) {
-        withData++;
-        if (v <= DAILY_LIMIT) { within++; streak++; } else { streak = 0; }
+    for (let index = totals.length - 1; index >= 0; index -= 1) {
+      const value = totals[index];
+      if (value > 0 && value <= dailyLimit) {
+        streak += 1;
+      } else if (value > 0) {
+        streak = 0;
+        break;
       }
     }
-    const pct = withData > 0 ? Math.round((within / withData) * 100) : 0;
-    return { adherencePct: pct, latestStreak: streak };
-  }, [totals]);
+    return {
+      pct: daysWithData > 0 ? Math.round((withinLimit / daysWithData) * 100) : 0,
+      streak,
+    };
+  }, [dailyLimit, totals]);
 
-  // Daypart distribution
   const daypart = useMemo(() => {
-    const bins = [0, 0, 0, 0]; // 05–11, 11–17, 17–21, 21–05
-    const inRangeStart = days[0] ?? Date.now();
-    const inRangeEnd = endOfDay(new Date(days[days.length - 1] ?? Date.now()));
-    for (const x of doses) {
-      if (x.timestamp < inRangeStart || x.timestamp > inRangeEnd) continue;
-      if (!doseInFilters(x.timestamp, x.source)) continue;
-      const d = new Date(x.timestamp);
-      const hr = d.getHours();
-      const idx = hr >= 5 && hr < 11 ? 0 : hr >= 11 && hr < 17 ? 1 : hr >= 17 && hr < 21 ? 2 : 3;
-      bins[idx] += x.mg;
+    const bins = [0, 0, 0, 0];
+    const start = days[0] ?? Date.now();
+    const end = (days[days.length - 1] ?? Date.now()) + 86_400_000;
+    for (const dose of doses) {
+      if (dose.timestamp < start || dose.timestamp > end) continue;
+      const hour = new Date(dose.timestamp).getHours();
+      const index =
+        hour >= 5 && hour < 11 ? 0 : hour >= 11 && hour < 17 ? 1 : hour >= 17 && hour < 21 ? 2 : 3;
+      bins[index] += dose.mg;
     }
     return bins;
-  }, [doses, days, sourceFilter, weekdayFilter]);
+  }, [days, doses]);
 
-  // Source mix
   const sourceMix = useMemo(() => {
-    const inRangeStart = days[0] ?? Date.now();
-    const inRangeEnd = endOfDay(new Date(days[days.length - 1] ?? Date.now()));
-    const map = new Map<string, number>();
-    const norm = (s?: string) => {
-      if (!s) return 'Other';
-      const v = s.toLowerCase();
-      if (v.includes('espresso') || v.includes('drip') || v.includes('brew')) return 'Coffee';
-      if (v.includes('tea') || v.includes('matcha')) return 'Tea';
-      if (v.includes('energy')) return 'Energy';
-      if (v.includes('pill')) return 'Pills';
+    const start = days[0] ?? Date.now();
+    const end = (days[days.length - 1] ?? Date.now()) + 86_400_000;
+    const totalsBySource = new Map<string, number>();
+    const normalizeSource = (source?: string) => {
+      if (!source) return 'Other';
+      const value = source.toLowerCase();
+      if (value.includes('espresso') || value.includes('drip') || value.includes('brew')) return 'Coffee';
+      if (value.includes('tea') || value.includes('matcha')) return 'Tea';
+      if (value.includes('energy')) return 'Energy';
+      if (value.includes('pill')) return 'Pills';
       return 'Other';
     };
-    for (const x of doses) {
-      if (x.timestamp < inRangeStart || x.timestamp > inRangeEnd) continue;
-      if (!doseInFilters(x.timestamp, x.source)) continue;
-      const k = norm(x.source);
-      map.set(k, (map.get(k) || 0) + x.mg);
-    }
-    const arr = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-    const sum = arr.reduce((a, b) => a + b[1], 0) || 1;
-    return arr.map(([k, v]) => ({ k, mg: v, pct: Math.round((v / sum) * 100) }));
-  }, [doses, days, sourceFilter, weekdayFilter]);
 
-  // Guidance: suggest bedtime based on half-life + current mg, and wake time on 90m cycles
-  const guidance = useMemo(() => {
-    const fmt = (ts: number) => {
-      try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(ts)); }
-      catch { return new Date(ts).toLocaleTimeString(); }
-    };
-    return `Suggested bedtime: ${fmt(sleepGuidance.bedtime)} (≈${sleepGuidance.mgAtBed} mg active).
-Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7am).`;
-  }, [sleepGuidance]);
-
-  // Mode of daily totals for compressed summaries on larger ranges
-  const modeMg = useMemo(() => {
-    if (!totals.length) return 0;
-    const freq = new Map<number, number>();
-    for (const v of totals) freq.set(v, (freq.get(v) || 0) + 1);
-    let bestVal = 0, bestCount = -1;
-    for (const [val, count] of freq) {
-      if (count > bestCount || (count === bestCount && val < bestVal)) {
-        bestVal = val; bestCount = count;
-      }
+    for (const dose of doses) {
+      if (dose.timestamp < start || dose.timestamp > end) continue;
+      const key = normalizeSource(dose.source);
+      totalsBySource.set(key, (totalsBySource.get(key) || 0) + dose.mg);
     }
-    return bestVal;
-  }, [totals]);
 
-  // Weekly summaries (groups of 7 consecutive days) with mode per week
-  const weeklySummaries = useMemo(() => {
-    const groups: { start: number; end: number; mode: number }[] = [];
-    for (let i = 0; i + 6 < days.length; i += 7) {
-      const start = days[i];
-      const end = days[i + 6];
-      const slice = totals.slice(i, i + 7);
-      const freq = new Map<number, number>();
-      for (const v of slice) freq.set(v, (freq.get(v) || 0) + 1);
-      let bestVal = 0, bestCount = -1;
-      for (const [val, count] of freq) {
-        if (count > bestCount || (count === bestCount && val < bestVal)) { bestVal = val; bestCount = count; }
-      }
-      groups.push({ start, end, mode: bestVal });
-    }
-    return groups;
-  }, [days, totals]);
-
-  const fmtDay = (ts: number) => {
-    try { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(ts)); }
-    catch { return new Date(ts).toDateString(); }
-  };
-  const fmtDateTime = (ts: number) => {
-    try {
-      return new Intl.DateTimeFormat(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      }).format(new Date(ts));
-    } catch {
-      return new Date(ts).toLocaleString();
-    }
-  };
+    const entries = Array.from(totalsBySource.entries()).sort((a, b) => b[1] - a[1]);
+    const totalMg = entries.reduce((sum, entry) => sum + entry[1], 0) || 1;
+    return entries.map(([label, mg]) => ({
+      label,
+      mg,
+      pct: Math.round((mg / totalMg) * 100),
+    }));
+  }, [days, doses]);
 
   const vigilanceSummary = useMemo(() => {
     const latest = vigilanceSessions[0];
-    const cutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
-    const pastWeek = vigilanceSessions.filter((session) => session.completedAt >= cutoffMs);
+    const weekCutoff = Date.now() - 7 * 24 * 86_400_000 / 24;
+    const recent = vigilanceSessions.filter((session) => session.completedAt >= weekCutoff);
     const averageScore =
-      pastWeek.length > 0
-        ? Math.round(
-            pastWeek.reduce((sum, session) => sum + session.score, 0) / pastWeek.length
-          )
+      recent.length > 0
+        ? Math.round(recent.reduce((sum, session) => sum + session.score, 0) / recent.length)
         : undefined;
     const trendSessions = [...vigilanceSessions]
       .slice(0, 7)
@@ -367,421 +311,288 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
     return {
       latest,
       averageScore,
-      pastWeekCount: pastWeek.length,
       trendSessions,
       hasBaseline: vigilanceSessions.length >= 3,
     };
   }, [vigilanceSessions]);
 
+  const shareMonthlySummary = async () => {
+    const monthStart = Date.now() - 30 * 86_400_000;
+    const monthDoses = doses.filter((dose) => dose.timestamp >= monthStart);
+    const totalMg = monthDoses.reduce((sum, dose) => sum + dose.mg, 0);
+    const daypartRows = [
+      { label: 'Morning', mg: daypart[0] },
+      { label: 'Midday', mg: daypart[1] },
+      { label: 'Evening', mg: daypart[2] },
+      { label: 'Late', mg: daypart[3] },
+    ];
+    await Share.share({
+      message: makeSummaryText({
+        range: 'Last 30 Days',
+        totalMg,
+        avgMg: Math.round(totalMg / 30),
+        adherencePct: adherence.pct,
+        streakDays: adherence.streak,
+        dayparts: daypartRows,
+        sources: sourceMix.map((item) => ({
+          label: item.label,
+          mg: item.mg,
+          pct: item.pct,
+        })),
+      }),
+    });
+  };
+
   return (
-    <ScreenContainer center>
-      <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: 16 }}>
-        {/* Range + Filters */}
-        <Panel>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SegmentedChips
-              value={range}
-              onChange={setRange}
-              options={[{ key: '7', label: '7' }, { key: '14', label: '14' }, { key: '30', label: '30' }, { key: 'custom', label: 'Custom' }]}
-            />
-            <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => setFiltersOpen((v) => !v)}
-              accessibilityRole="button"
-              hitSlop={12}
-              style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-            >
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>Filter</Text>
-            </Pressable>
-          </View>
-          {range === 'custom' ? (
-            <View style={{ marginTop: 12, gap: 8 }}>
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Custom Range</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Text style={{ width: 56, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Start</Text>
-                <Pressable
-                  onPress={() => setCustomStart((t) => { const d = new Date(t); d.setDate(d.getDate() - 1); d.setHours(0,0,0,0); return d.getTime(); })}
-                  accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ color: PlatformColor('label') }}>{'<'}</Text>
-                </Pressable>
-                <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{fmtDay(customStart)}</Text>
-                <Pressable
-                  onPress={() => setCustomStart((t) => {
-                    const next = new Date(t); next.setDate(next.getDate() + 1); next.setHours(0,0,0,0);
-                    // ensure start <= end
-                    const end = new Date(customEnd); end.setHours(23,59,59,999);
-                    if (next.getTime() <= end.getTime()) return next.getTime();
-                    return t;
-                  })}
-                  accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ color: PlatformColor('label') }}>{'>'}</Text>
-                </Pressable>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Text style={{ width: 56, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>End</Text>
-                <Pressable
-                  onPress={() => setCustomEnd((t) => {
-                    const prev = new Date(t); prev.setDate(prev.getDate() - 1); prev.setHours(23,59,59,999);
-                    const start = new Date(customStart); start.setHours(0,0,0,0);
-                    if (prev.getTime() >= start.getTime()) return prev.getTime();
-                    return t;
-                  })}
-                  accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ color: PlatformColor('label') }}>{'<'}</Text>
-                </Pressable>
-                <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{fmtDay(customEnd)}</Text>
-                <Pressable
-                  onPress={() => setCustomEnd((t) => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(23,59,59,999); return d.getTime(); })}
-                  accessibilityRole="button"
-                  hitSlop={12}
-                  style={{ minWidth: 44, minHeight: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ color: PlatformColor('label') }}>{'>'}</Text>
-                </Pressable>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pressable
-                  onPress={() => {
-                    const end = new Date(); end.setHours(23,59,59,999);
-                    const start = new Date(end); start.setDate(end.getDate() - 6); start.setHours(0,0,0,0);
-                    setCustomStart(start.getTime()); setCustomEnd(end.getTime());
-                  }}
-                  accessibilityRole="button"
-                  style={{ minHeight: 36, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('systemFill') }}
-                >
-                  <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('label') }}>Reset 7d</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-          {filtersOpen ? (
-            <View style={{ marginTop: 12, gap: 8 }} accessible accessibilityRole="summary">
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Filters</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {['Espresso', 'Drip', 'Cold Brew', 'Tea', 'Matcha', 'Energy', 'Pills', 'Other'].map((s) => {
-                  const active = sourceFilter?.includes(s) ?? false;
-                  return (
-                    <Pressable
-                      key={s}
-                      onPress={() => {
-                        setSourceFilter((curr) => {
-                          if (!curr) return [s];
-                          return curr.includes(s) ? curr.filter((x) => x !== s) : [...curr, s];
-                        });
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: active ? PlatformColor('systemFill') : PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                    >
-                      <Text style={{ color: PlatformColor('label') }}>{s}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={{ height: 8 }} />
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Weekdays</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((label, idx) => {
-                  const active = weekdayFilter ? weekdayFilter.includes(idx) : false;
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => {
-                        setWeekdayFilter((curr) => {
-                          if (!curr) return [idx];
-                          return curr.includes(idx) ? curr.filter((x) => x !== idx) : [...curr, idx];
-                        });
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: active ? PlatformColor('systemFill') : PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                    >
-                      <Text style={{ color: PlatformColor('label') }}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
-                <View style={{ width: 8 }} />
-                <Pressable
-                  onPress={() => { setSourceFilter(null); setWeekdayFilter(null); }}
-                  accessibilityRole="button"
-                  style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: PlatformColor('tertiarySystemBackground'), borderWidth: 1, borderColor: PlatformColor('separator') }}
-                >
-                  <Text style={{ color: PlatformColor('label') }}>Clear</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-        </Panel>
+    <AppScreen
+      title="Insights"
+      subtitle="Review how caffeine, sleep, and vigilance are trending without leaving the app’s main flow."
+    >
+      <View style={{ gap: 16 }}>
+        <SegmentedControl
+          value={section}
+          onChange={setSection}
+          options={[
+            { key: 'summary', label: 'Summary' },
+            { key: 'trends', label: 'Trends' },
+            { key: 'history', label: 'History' },
+          ]}
+        />
 
-        {/* Hero metrics */}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Panel style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Weekly Avg</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
-              <Text style={{ fontSize: 34, lineHeight: 41, fontWeight: '600', color: PlatformColor('label') }}>
-                {weeklyAvg === undefined ? '—' : `${weeklyAvg}`}
+        {section === 'summary' ? (
+          <>
+            <SectionTitle action={<Button title="Share month" variant="secondary" onPress={shareMonthlySummary} />}>
+              Overview
+            </SectionTitle>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <StatTile
+                label={`${daysInRange}-day average`}
+                value={`${weeklyAverage} mg`}
+                detail={
+                  typeof deltaPct === 'number'
+                    ? `${deltaPct >= 0 ? 'Up' : 'Down'} ${Math.abs(deltaPct)}% vs prior window`
+                    : 'Building baseline'
+                }
+              />
+              <StatTile
+                label="Limit adherence"
+                value={`${adherence.pct}%`}
+                detail={`Current streak ${adherence.streak} day${adherence.streak === 1 ? '' : 's'}`}
+              />
+            </View>
+
+            <SectionCard>
+              <SectionTitle>Today</SectionTitle>
+              <CaffeineTodayGraph />
+              <Text
+                style={{
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: palette.textTertiary,
+                }}
+              >
+                Today’s curve stays separate from longer-range insights so the dashboard can stay calmer.
               </Text>
-              <Text style={{ fontSize: 22, lineHeight: 28, color: PlatformColor('secondaryLabel') }}>mg</Text>
-            </View>
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{weeklyAvgCaption}</Text>
-          </Panel>
-          <Panel style={{ width: 140, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Adherence</Text>
-            <Text accessibilityRole="text" style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>{adherencePct}%</Text>
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>Streak {latestStreak}d</Text>
-          </Panel>
-        </View>
+            </SectionCard>
 
-        {/* Vigilance */}
-        <View>
-          <SectionHeader title="Vigilance" />
-          <Panel>
-            {vigilanceSummary.latest ? (
-              <View style={{ gap: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <Panel style={{ flex: 1, backgroundColor: PlatformColor('tertiarySystemBackground') }}>
-                    <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Latest</Text>
-                    <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>
-                      {vigilanceSummary.latest.score} {vigilanceSummary.latest.rating}
-                    </Text>
-                    <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                      {fmtDateTime(vigilanceSummary.latest.completedAt)}
-                    </Text>
-                  </Panel>
-                  <Panel style={{ flex: 1, backgroundColor: PlatformColor('tertiarySystemBackground') }}>
-                    <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>7-day avg</Text>
-                    <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>
-                      {typeof vigilanceSummary.averageScore === 'number' ? vigilanceSummary.averageScore : '—'}
-                    </Text>
-                    <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                      {vigilanceSummary.pastWeekCount} session{vigilanceSummary.pastWeekCount === 1 ? '' : 's'} in range
-                    </Text>
-                  </Panel>
-                </View>
-                <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>
-                  Median reaction {vigilanceSummary.latest.medianReactionMs ?? '—'} ms • Lapses {vigilanceSummary.latest.lapseCount} • False starts {vigilanceSummary.latest.falseStartCount}
-                </Text>
-                {vigilanceSummary.hasBaseline ? (
-                  <>
-                    <View style={{ marginTop: 4 }}>
-                      <TrendChart
-                        data={vigilanceSummary.trendSessions.map((session) => session.score)}
-                        daysTs={vigilanceSummary.trendSessions.map((session) => session.completedAt)}
-                        height={140}
-                      />
-                    </View>
-                    <View style={{ flexDirection: 'row' }}>
-                      <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                        {fmtDay(vigilanceSummary.trendSessions[0]?.completedAt ?? Date.now())}
-                      </Text>
-                      <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                        {fmtDay(vigilanceSummary.trendSessions[vigilanceSummary.trendSessions.length - 1]?.completedAt ?? Date.now())}
-                      </Text>
-                    </View>
-                  </>
-                ) : (
-                  <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                    Complete {Math.max(0, 3 - vigilanceSessions.length)} more session{Math.max(0, 3 - vigilanceSessions.length) === 1 ? '' : 's'} to build a baseline trend.
-                  </Text>
-                )}
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    hitSlop={12}
+            <SectionCard>
+              <SectionTitle
+                action={
+                  <Button
+                    title={vigilanceSummary.latest ? 'Run again' : 'Start test'}
+                    variant="secondary"
                     onPress={() => navigate('VigilanceTest')}
-                    style={{
-                      minHeight: HIT_TARGET,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: primaryButton.backgroundColor,
-                    }}
-                  >
-                    <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>
-                      Run again
+                  />
+                }
+              >
+                Vigilance
+              </SectionTitle>
+              {vigilanceSummary.latest ? (
+                <>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <StatTile
+                      label="Latest"
+                      value={`${vigilanceSummary.latest.score}`}
+                      detail={`${vigilanceSummary.latest.rating} • ${fmtDateTime(vigilanceSummary.latest.completedAt)}`}
+                    />
+                    <StatTile
+                      label="7-day average"
+                      value={
+                        typeof vigilanceSummary.averageScore === 'number'
+                          ? `${vigilanceSummary.averageScore}`
+                          : '—'
+                      }
+                      detail={`${vigilanceSummary.trendSessions.length} recent sessions`}
+                    />
+                  </View>
+                  <ListRow
+                    title="Median reaction"
+                    subtitle="Latest completed session"
+                    value={`${vigilanceSummary.latest.medianReactionMs ?? '—'} ms`}
+                  />
+                  <ListRow
+                    title="Accuracy markers"
+                    subtitle="Lapses and false starts"
+                    value={`${vigilanceSummary.latest.lapseCount} / ${vigilanceSummary.latest.falseStartCount}`}
+                  />
+                  {vigilanceSummary.hasBaseline ? (
+                    <TrendChart
+                      data={vigilanceSummary.trendSessions.map((session) => session.score)}
+                      height={132}
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        lineHeight: 18,
+                        color: palette.textTertiary,
+                      }}
+                    >
+                      Complete at least three sessions to build a usable attentiveness baseline.
                     </Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <View style={{ gap: 12 }}>
-                <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-                  No vigilance sessions yet. Run the 60-second reaction task from the dashboard to start building an attentiveness baseline.
-                </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-start' }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    hitSlop={12}
-                    onPress={() => navigate('VigilanceTest')}
-                    style={{
-                      minHeight: HIT_TARGET,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: primaryButton.backgroundColor,
-                    }}
-                  >
-                    <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>
-                      Start test
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Panel>
-        </View>
-
-        <Panel>
-          <CaffeineTodayGraph />
-        </Panel>
-
-        {/* Guidance */}
-        <View>
-          <SectionHeader title="Guidance" />
-          <Panel>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{guidance}</Text>
-            <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-              Descriptive only. Correlation does not imply causation. All computations on-device.
-            </Text>
-          </Panel>
-        </View>
-
-        {/* Trend line chart with % change */}
-        <View>
-          <SectionHeader title={range === 'custom' ? 'Custom Trend' : `${DAYS}-Day Trend`} />
-          <Panel>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-                Last value {totals[totals.length - 1] ?? 0} mg
-              </Text>
-              {typeof deltaPctRounded === 'number' ? (
+                  )}
+                </>
+              ) : (
                 <Text
-                  accessibilityLabel={`Change versus prior ${DAYS} days ${deltaPctRounded >= 0 ? 'up' : 'down'} ${Math.abs(deltaPctRounded)} percent`}
-                  style={{ fontSize: 15, lineHeight: 20, fontWeight: '600', color: PlatformColor('tintColor') }}
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 20,
+                    color: palette.textSecondary,
+                  }}
                 >
-                  {deltaPctRounded >= 0 ? '↑' : '↓'} {Math.abs(deltaPctRounded)}%
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ marginTop: 8 }}>
-              <TrendChart data={totals} daysTs={days} />
-            </View>
-            {/* X-axis ticks (first, middle, last) */}
-            <View style={{ marginTop: 4, flexDirection: 'row' }}>
-              <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtDay(days[0] ?? Date.now())}</Text>
-              <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtDay(days[Math.floor(days.length/2)] ?? Date.now())}</Text>
-              <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>{fmtDay(days[days.length-1] ?? Date.now())}</Text>
-            </View>
-            <View accessible accessibilityRole="summary" style={{ marginTop: 8 }}>
-              {range === '14' && weeklySummaries.slice(-2).map((g) => (
-                <Text key={`${g.start}`} style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                  {fmtDay(g.start)} – {fmtDay(g.end)} — {g.mode} mg (mode)
-                </Text>
-              ))}
-              {range === '30' && weeklySummaries.slice(-3).map((g) => (
-                <Text key={`${g.start}`} style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                  {fmtDay(g.start)} – {fmtDay(g.end)} — {g.mode} mg (mode)
-                </Text>
-              ))}
-              {range === 'custom' && (
-                <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
-                  {fmtDay(days[0] ?? Date.now())} – {fmtDay(days[days.length - 1] ?? Date.now())} — {modeMg} mg (mode)
+                  No vigilance sessions yet. Run the 60-second reaction task to start tracking attentiveness alongside sleep and caffeine.
                 </Text>
               )}
-            </View>
-          </Panel>
-        </View>
+            </SectionCard>
 
-        {/* Daypart Distribution */}
-        <View>
-          <SectionHeader title="Daypart Distribution" />
-          <Panel>
-            {['05–11', '11–17', '17–21', '21–05'].map((label, idx) => (
-              <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: idx === 0 ? 0 : 6 }}>
-                <Text style={{ width: 64, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>{label}</Text>
-                <View style={{ flex: 1, height: 10, backgroundColor: PlatformColor('tertiarySystemBackground'), borderRadius: 6, overflow: 'hidden' }}>
-                  <View style={{ width: `${Math.min(100, daypart[idx] === 0 ? 0 : Math.min(100, (daypart[idx] / Math.max(1, Math.max(...daypart))) * 100))}%`, height: '100%', backgroundColor: PlatformColor('tintColor') }} />
-                </View>
-                <Text style={{ width: 64, textAlign: 'right', fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{Math.round(daypart[idx])} mg</Text>
+            <SectionCard>
+              <SectionTitle>Guidance</SectionTitle>
+              <ListRow
+                title="Suggested bedtime"
+                subtitle={`Projected active caffeine ${sleepGuidance.mgAtBed} mg`}
+                value={fmtClock(sleepGuidance.bedtime)}
+              />
+              <ListRow
+                title="Suggested wake"
+                subtitle="90-minute sleep cycles, aiming for a normal morning window"
+                value={fmtClock(sleepGuidance.wake)}
+              />
+            </SectionCard>
+          </>
+        ) : null}
+
+        {section === 'trends' ? (
+          <>
+            <SectionTitle>Trends</SectionTitle>
+            <SectionCard>
+              <SegmentedControl
+                value={range}
+                onChange={setRange}
+                options={[
+                  { key: '7', label: '7d' },
+                  { key: '14', label: '14d' },
+                  { key: '30', label: '30d' },
+                ]}
+              />
+              <Text
+                style={{
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: palette.textTertiary,
+                }}
+              >
+                Compare a short recent window without piling on filters. The goal here is readability, not dashboard sprawl.
+              </Text>
+            </SectionCard>
+
+            <SectionCard>
+              <SectionTitle>{daysInRange}-day caffeine trend</SectionTitle>
+              <ListRow
+                title="Latest day"
+                subtitle={`${fmtDay(days[days.length - 1] ?? Date.now())}`}
+                value={`${totals[totals.length - 1] ?? 0} mg`}
+              />
+              <TrendChart data={totals} />
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
+                  {fmtDay(days[0] ?? Date.now())}
+                </Text>
+                <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
+                  {fmtDay(days[days.length - 1] ?? Date.now())}
+                </Text>
               </View>
-            ))}
-          </Panel>
-        </View>
+            </SectionCard>
 
-        {/* Calendar Heatmap removed per request */}
-
-        {/* (Sleep impact moved to Sleep screen) */}
-
-        {/* Source Mix */}
-        <View>
-          <SectionHeader title="Source Mix" />
-          <Panel>
-            {sourceMix.length === 0 ? (
-              <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>No sources in range.</Text>
-            ) : (
-              sourceMix.map((s) => (
-                <View key={s.k} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                  <Text style={{ width: 80, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>{s.k}</Text>
-                  <View style={{ flex: 1, height: 10, backgroundColor: PlatformColor('tertiarySystemBackground'), borderRadius: 6, overflow: 'hidden' }}>
-                    <View style={{ width: `${s.pct}%`, height: '100%', backgroundColor: PlatformColor('tintColor') }} />
+            <SectionCard>
+              <SectionTitle>Daypart mix</SectionTitle>
+              {[
+                ['05–11', daypart[0]],
+                ['11–17', daypart[1]],
+                ['17–21', daypart[2]],
+                ['21–05', daypart[3]],
+              ].map(([label, mg]) => (
+                <View key={String(label)} style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: palette.textSecondary }}>
+                      {label}
+                    </Text>
+                    <Text style={{ fontSize: 15, lineHeight: 20, color: palette.textPrimary }}>
+                      {Math.round(Number(mg))} mg
+                    </Text>
                   </View>
-                  <Text style={{ width: 80, textAlign: 'right', fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>{s.mg} mg ({s.pct}%)</Text>
+                  <View
+                    style={{
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: palette.cardMuted,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Number(mg) === 0
+                            ? 0
+                            : (Number(mg) / Math.max(1, Math.max(...daypart))) * 100
+                        )}%`,
+                        height: '100%',
+                        backgroundColor: palette.tint,
+                      }}
+                    />
+                  </View>
                 </View>
-              ))
-            )}
-          </Panel>
-        </View>
+              ))}
+            </SectionCard>
 
-        {/* Share (placeholder) */}
-        <Panel>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Export monthly summary</Text>
-            <View style={{ flex: 1 }} />
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={12}
-              style={{
-                minHeight: HIT_TARGET,
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: primaryButton.backgroundColor,
-              }}
-              onPress={async () => {
-                try {
-                  const startStr = fmtDay(days[0] ?? Date.now());
-                  const endStr = fmtDay(days[days.length - 1] ?? Date.now());
-                  const total = totals.reduce((a, b) => a + b, 0);
-                  const avg = totals.length ? Math.round(total / totals.length) : 0;
-                  const parts = [
-                    `AURORA Summary ${startStr} – ${endStr}`,
-                    `Total: ${total} mg`,
-                    `Average: ${avg} mg/day`,
-                    `Adherence: ${adherencePct}% (streak ${latestStreak}d)`,
-                    `Dayparts: [05–11:${Math.round(daypart[0])} mg, 11–17:${Math.round(daypart[1])} mg, 17–21:${Math.round(daypart[2])} mg, 21–05:${Math.round(daypart[3])} mg]`,
-                    `Sources: ${sourceMix.map((s) => `${s.k} ${s.mg}mg (${s.pct}%)`).join(', ') || '—'}`,
-                  ];
-                  await Share.share({ message: parts.join('\n') });
-                } catch {}
-              }}
-            >
-              <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>Share</Text>
-            </Pressable>
-          </View>
-        </Panel>
+            <SectionCard>
+              <SectionTitle>Source mix</SectionTitle>
+              {sourceMix.length === 0 ? (
+                <Text
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 20,
+                    color: palette.textSecondary,
+                  }}
+                >
+                  No logged sources in this window yet.
+                </Text>
+              ) : (
+                sourceMix.map((item) => (
+                  <ListRow
+                    key={item.label}
+                    title={item.label}
+                    subtitle={`${item.pct}% of intake`}
+                    value={`${item.mg} mg`}
+                  />
+                ))
+              )}
+            </SectionCard>
+          </>
+        ) : null}
+
+        {section === 'history' ? <HistoryContent /> : null}
       </View>
-    </ScreenContainer>
+    </AppScreen>
   );
 }

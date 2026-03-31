@@ -1,45 +1,81 @@
-import { View, Text, Pressable, useColorScheme } from 'react-native';
-import ScreenContainer from '~/components/ScreenContainer';
-import Card from '~/components/Card';
+import React from 'react';
+
+import AppScreen from '~/components/AppScreen';
+import Button from '~/components/Button';
+import {
+  ListRow,
+  SectionCard,
+  SectionTitle,
+  StepperField,
+} from '~/components/ui';
+import { goBack } from '~/navigation';
 import { useStore } from '~/state/store';
-import { getAppPalette, getNeutralButtonColors } from '~/theme/colors';
 
-function Stepper({label, value, setValue, step=0.5, min=0.5, max=16}:{label:string; value:number; setValue:(n:number)=>void; step?:number; min?:number; max?:number}){
-  const scheme = useColorScheme();
-  const palette = getAppPalette(scheme);
-  const neutralButton = getNeutralButtonColors(scheme);
-  return (
-    <Card>
-      <Text style={{ color: palette.textPrimary, marginBottom:8, fontSize: 16, fontWeight: '600' }}>{label}: {value.toFixed(1)}</Text>
-      <View style={{ flexDirection:'row', gap:12 }}>
-        <Pressable
-          onPress={()=>setValue(Math.max(min, value-step))}
-          style={{ padding:10, borderRadius:12, backgroundColor: neutralButton.backgroundColor, borderWidth: 1, borderColor: neutralButton.borderColor }}
-        >
-          <Text style={{ color: neutralButton.color, fontSize: 18, fontWeight: '600' }}>−</Text>
-        </Pressable>
-        <Pressable
-          onPress={()=>setValue(Math.min(max, value+step))}
-          style={{ padding:10, borderRadius:12, backgroundColor: neutralButton.backgroundColor, borderWidth: 1, borderColor: neutralButton.borderColor }}
-        >
-          <Text style={{ color: neutralButton.color, fontSize: 18, fontWeight: '600' }}>+</Text>
-        </Pressable>
-      </View>
-    </Card>
-  );
-}
+export default function SettingsScreen() {
+  const prefs = useStore((s) => s.prefs);
+  const setPrefs = useStore((s) => s.setPrefs);
 
-export default function SettingsScreen(){
-  const prefs = useStore(s=>s.prefs);
-  const setPrefs = useStore(s=>s.setPrefs);
   return (
-    <ScreenContainer horizontalPadding={20} topPadding={20} bottomPadding={20}>
-      <View style={{ gap:16 }}>
-      <Stepper label="Caffeine half-life (h)" value={prefs.halfLife} setValue={(v)=>setPrefs({ halfLife:v })} />
-      <Stepper label="Daily sleep target (h)" value={prefs.targetSleep} setValue={(v)=>setPrefs({ targetSleep:v })} />
-      <Stepper label="Daily caffeine limit (mg)" value={prefs.dailyLimitMg} setValue={(v)=>setPrefs({ dailyLimitMg: Math.round(v) })} step={20} min={0} max={1000} />
-      <Stepper label="Cutoff hour (0–23)" value={prefs.cutoffHour} setValue={(v)=>setPrefs({ cutoffHour: Math.max(0, Math.min(23, Math.round(v))) })} step={1} min={0} max={23} />
-      </View>
-    </ScreenContainer>
+    <AppScreen
+      title="Settings"
+      subtitle="Adjust the core assumptions Aurora uses for sleep protection and caffeine guidance."
+      trailing={<Button title="Done" variant="plain" onPress={goBack} />}
+    >
+      <SectionTitle>Guidance</SectionTitle>
+      <StepperField
+        label="Caffeine half-life"
+        value={prefs.halfLife}
+        onChange={(value) => setPrefs({ halfLife: value })}
+        step={0.5}
+        min={0.5}
+        max={16}
+        formatValue={(value) => `${value.toFixed(1)} h`}
+        footer="Used to estimate active caffeine and bedtime guidance."
+      />
+      <StepperField
+        label="Daily sleep target"
+        value={prefs.targetSleep}
+        onChange={(value) => setPrefs({ targetSleep: value })}
+        step={0.5}
+        min={5}
+        max={10}
+        formatValue={(value) => `${value.toFixed(1)} h`}
+        footer="Aurora tries to protect this amount of sleep when calculating your cutoff."
+      />
+      <StepperField
+        label="Daily caffeine limit"
+        value={prefs.dailyLimitMg}
+        onChange={(value) => setPrefs({ dailyLimitMg: Math.round(value) })}
+        step={20}
+        min={0}
+        max={1000}
+        formatValue={(value) => `${Math.round(value)} mg`}
+        footer="Shown in insights and adherence summaries."
+      />
+      <StepperField
+        label="Cutoff hour"
+        value={prefs.cutoffHour}
+        onChange={(value) =>
+          setPrefs({ cutoffHour: Math.max(0, Math.min(23, Math.round(value))) })
+        }
+        step={1}
+        min={0}
+        max={23}
+        formatValue={(value) => `${Math.round(value)}:00`}
+        footer="Used as the simple daily guardrail for late caffeine."
+      />
+
+      <SectionTitle>About</SectionTitle>
+      <SectionCard>
+        <ListRow
+          title="Current release focus"
+          subtitle="HealthKit-backed sleep import, manual intake logging, vigilance reaction testing, and on-device insights."
+        />
+        <ListRow
+          title="Deferred for later"
+          subtitle="Android health integration, sync, encrypted import/export, notifications, and background automation."
+        />
+      </SectionCard>
+    </AppScreen>
   );
 }
