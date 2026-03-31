@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, PlatformColor, Share } from 'react-native';
+import { View, Text, Pressable, PlatformColor, Share, useColorScheme } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine } from 'react-native-svg';
 import { useStore } from '~/state/store';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
+import { getPrimaryButtonColors } from '~/theme/colors';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -136,6 +137,8 @@ function TrendChart({ data, daysTs, height = 160, strokeWidth = 2 }: { data: num
 }
 
 export default function InsightsScreen() {
+  const scheme = useColorScheme();
+  const primaryButton = getPrimaryButtonColors(scheme);
   const doses = useStore((s) => s.doses);
   const sleeps = useStore((s) => s.sleeps);
   const dailyLimit = useStore((s) => s.prefs.dailyLimitMg ?? 400);
@@ -666,7 +669,14 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
             <Pressable
               accessibilityRole="button"
               hitSlop={12}
-              style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: PlatformColor('tintColor') }}
+              style={{
+                minHeight: HIT_TARGET,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: primaryButton.backgroundColor,
+              }}
               onPress={async () => {
                 try {
                   const startStr = fmtDay(days[0] ?? Date.now());
@@ -682,12 +692,10 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
                     `Sources: ${sourceMix.map((s) => `${s.k} ${s.mg}mg (${s.pct}%)`).join(', ') || '—'}`,
                   ];
                   await Share.share({ message: parts.join('\n') });
-                } catch (e) {
-                  // no-op
-                }
+                } catch {}
               }}
             >
-              <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: '#FFFFFF' }}>Share</Text>
+              <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>Share</Text>
             </Pressable>
           </View>
         </Panel>

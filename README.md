@@ -1,6 +1,11 @@
 # AURORA 
 Another Unwise Refill? O.K, Reconsider Alertness
 
+Current Scope
+	•	iOS-first MVP with HealthKit-backed sleep import and manual caffeine logging
+	•	Onboarding currently supports sleep target setup, Health app connection, or manual-only mode
+	•	Android health integration, cloud sync, encrypted import/export, and background automation are not part of the current release branch
+
 Setup Tutorial
 
 Requirements
@@ -49,7 +54,7 @@ Ensure the Info.plist includes NSHealthShareUsageDescription and NSHealthUpdateU
 
 5) Sample data
 	•	Use Quick Add to create doses if Health data is not connected.
-	•	Insights hides sleep correlations until Health data exists.
+	•	Insights and sleep-aware guidance improve once Health sleep sessions are imported.
 
 6) Build for testers (EAS)
 

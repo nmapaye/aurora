@@ -23,9 +23,8 @@ const config: Config = {
     '^~/(.*)$': '<rootDir>/src/$1',
   },
   testEnvironment: 'node',
-  setupFiles: [],
+  setupFiles: ['<rootDir>/tests/setup.ts'],
   verbose: false,
 };
 
 export default config;
-

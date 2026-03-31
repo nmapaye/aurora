@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, PlatformColor, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Pressable, PlatformColor, ActivityIndicator, Platform, useColorScheme } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import AppleHealth from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
+import { getPrimaryButtonColors } from '~/theme/colors';
 
 const HIT_TARGET = 44;
 
@@ -56,8 +57,12 @@ function fmtDuration(ms: number){
 }
 
 export default function SleepScreen() {
+  const scheme = useColorScheme();
   const doses = useStore(s=>s.doses);
   const addDose = useStore(s=>s.addDose);
+  const onboarding = useStore((s) => s.onboarding);
+  const setOnboarding = useStore((s) => s.setOnboarding);
+  const upsertSleepSessions = useStore((s) => s.upsertSleepSessions);
   const cutoff = useCaffeineCutoff();
 
   const [healthAvailable, setHealthAvailable] = useState(false);
@@ -67,25 +72,18 @@ export default function SleepScreen() {
   const [sleepSamples, setSleepSamples] = useState<SleepSample[]>([]);
   const [wakeTime, setWakeTime] = useState<number|undefined>();
   const [error, setError] = useState<string|undefined>();
+  const primaryButton = getPrimaryButtonColors(scheme, loading || !healthAvailable);
 
-  // Optional require helper to avoid Metro static analysis of string literals
-  const optionalRequire = (name: string): any | null => {
-    try {
-      // Use eval to keep Metro from resolving at bundle time
-      // eslint-disable-next-line no-eval
-      const rq = eval('require');
-      return rq(name);
-    } catch {
-      return null;
-    }
-  };
-
-  // Detect Health module availability (iOS only)
   useEffect(()=>{
-    if (Platform.OS !== 'ios') { setHealthAvailable(false); return; }
-    const maybe = optionalRequire('react-native-health');
-    const alt = optionalRequire('react-native-apple-healthkit');
-    setHealthAvailable(!!(maybe || alt));
+    let active = true;
+    AppleHealth.isAvailable().then((available) => {
+      if (active) {
+        setHealthAvailable(available);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const todayTotals = useMemo(()=>{
@@ -154,13 +152,23 @@ export default function SleepScreen() {
         .map((s: any) => ({ start: +s.start, end: +s.end, type: s.label }))
         .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end))
         .sort((a, b) => b.end - a.end);
+      upsertSleepSessions(
+        mapped.map((sample) => ({
+          id: `sleep:${sample.start}:${sample.end}`,
+          start: sample.start,
+          end: sample.end,
+          type: 'sleep' as const,
+        }))
+      );
       const last = mapped[0];
       setSleepSamples(mapped);
       setLastSleep(last);
       setWakeTime(last?.end);
+      setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
     } catch (e: any) {
       setError(e?.message || 'Failed to read sleep data.');
       setHealthAuthorized(false);
+      setOnboarding({ permissionStatus: 'denied' });
     } finally {
       setLoading(false);
     }
@@ -240,7 +248,9 @@ export default function SleepScreen() {
         <Panel>
           <Text style={{ fontSize: 22, lineHeight: 28, fontWeight: '600', color: PlatformColor('label') }}>Sleep</Text>
           <Text style={{ marginTop: 4, fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
-            Import sleep from the Health app to tailor your caffeine plan.
+            {onboarding.source === 'manual'
+              ? 'Aurora is currently using manual logging only. Connect Health any time to import sleep.'
+              : 'Import sleep from the Health app to tailor your caffeine plan.'}
           </Text>
           <View style={{ height: 12 }} />
           {loading ? (
@@ -252,13 +262,25 @@ export default function SleepScreen() {
             <Pressable
               onPress={connectHealth}
               accessibilityRole="button"
-              style={{ minHeight: HIT_TARGET, borderRadius: 12, alignItems:'center', justifyContent:'center', backgroundColor: PlatformColor('tintColor') }}
+              disabled={loading || !healthAvailable}
+              style={{
+                minHeight: HIT_TARGET,
+                borderRadius: 12,
+                alignItems:'center',
+                justifyContent:'center',
+                backgroundColor: primaryButton.backgroundColor,
+              }}
             >
-              <Text style={{ fontSize:17, lineHeight:22, fontWeight:'600', color: '#FFFFFF' }}>
+              <Text style={{ fontSize:17, lineHeight:22, fontWeight:'600', color: primaryButton.color }}>
                 {healthAuthorized ? 'Refresh Sleep' : 'Connect to Health'}
               </Text>
             </Pressable>
           )}
+          {!healthAvailable && !loading ? (
+            <Text style={{ marginTop:8, color: PlatformColor('secondaryLabel') }}>
+              Health import is unavailable on this device right now.
+            </Text>
+          ) : null}
           {error ? <Text style={{ marginTop:8, color: PlatformColor('systemRed') }}>{error}</Text> : null}
         </Panel>
 

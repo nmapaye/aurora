@@ -163,12 +163,9 @@ export default function DashboardScreen() {
   const addDose = useStore((s) => s.addDose);
   const removeDose = useStore((s) => (s as any).removeDose);
 
-  const { todayTotal, yesterdayTotal, deltaText, todayDoses } = useMemo(() => {
+  const { todayTotal, deltaText, todayDoses } = useMemo(() => {
     const now = new Date();
     const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
-    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
-
     const todayKey = key(now);
     const y = new Date(now); y.setDate(now.getDate() - 1);
     const yKey = key(y);
@@ -184,7 +181,7 @@ export default function DashboardScreen() {
     tDoses.sort((a, b) => b.ts - a.ts);
     const delta = tTotal - yTotal;
     const deltaText = `${delta >= 0 ? '+' : ''}${delta} vs yesterday`;
-    return { todayTotal: tTotal, yesterdayTotal: yTotal, deltaText, todayDoses: tDoses };
+    return { todayTotal: tTotal, deltaText, todayDoses: tDoses };
   }, [doses]);
 
   const addDoseQuick = (mg: number, source?: string) => {
@@ -204,9 +201,10 @@ export default function DashboardScreen() {
     return 'Low';
   }, [nowScore]);
 
-  const gradient = scheme === 'dark'
-    ? ['#0b0f1c', '#0e1c2c', '#0c2536']
-    : ['#f9f7ff', '#f0f6ff', '#e5f7f9'];
+  const gradient: readonly [string, string, string] =
+    scheme === 'dark'
+      ? ['#0b0f1c', '#0e1c2c', '#0c2536']
+      : ['#f9f7ff', '#f0f6ff', '#e5f7f9'];
 
   return (
     <View style={{ flex: 1 }}>

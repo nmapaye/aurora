@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, PlatformColor, Platform, Modal } from 'react-native';
+import { View, Text, Pressable, TextInput, PlatformColor, Platform, Modal, useColorScheme } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '~/state/store';
-import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { getPrimaryButtonColors } from '~/theme/colors';
 
 const HIT_TARGET = 44;
 
@@ -113,18 +113,18 @@ function SegmentedChips<T extends string>({
 }
 
 export default function LogIntakeScreen() {
+  const scheme = useColorScheme();
   const addDose = useStore((s) => s.addDose);
-  const cutoff = useCaffeineCutoff();
 
   const [mg, setMg] = useState(80);
   const [source, setSource] = useState<'Espresso' | 'Drip' | 'Cold Brew' | 'Tea' | 'Matcha' | 'Other'>('Drip');
   const [note, setNote] = useState('');
   const [ts, setTs] = useState<number>(Date.now());
-  const [justSaved, setJustSaved] = useState(false);
   const [iosPickerVisible, setIOSPickerVisible] = useState(false);
   const [iosPendingTime, setIOSPendingTime] = useState<Date>(new Date());
 
   const canSave = useMemo(() => Number.isFinite(mg) && mg > 0 && mg < 2000, [mg]);
+  const primaryButton = getPrimaryButtonColors(scheme, !canSave);
   const fmtTime = (t: number) => {
     try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(t)); }
     catch { return new Date(t).toLocaleTimeString(); }
@@ -135,8 +135,6 @@ export default function LogIntakeScreen() {
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     addDose({ id, timestamp: Date.now(), mg: amount, source: presetSource });
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 1500);
   };
 
   const onSaveCustom = async () => {
@@ -145,8 +143,6 @@ export default function LogIntakeScreen() {
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     addDose({ id, timestamp: ts, mg, source, note: note || undefined });
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 1500);
   };
   const openTimePicker = () => {
     if (Platform.OS === 'ios') {
@@ -319,10 +315,10 @@ export default function LogIntakeScreen() {
                   borderRadius: 12,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: canSave ? PlatformColor('tintColor') : PlatformColor('systemFill'),
+                  backgroundColor: primaryButton.backgroundColor,
                 }}
               >
-                <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: '#FFFFFF' }}>
+                <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>
                   Add Dose
                 </Text>
               </Pressable>

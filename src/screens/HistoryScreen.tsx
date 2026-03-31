@@ -1,17 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, PlatformColor, Share } from 'react-native';
+import { View, Text, Pressable, TextInput, PlatformColor, Share, useColorScheme } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import { useStore } from '~/state/store';
+import { getPrimaryButtonColors } from '~/theme/colors';
 
 const HIT_TARGET = 44;
-
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: PlatformColor('label'), marginBottom: 8 }}>
-      {title}
-    </Text>
-  );
-}
 
 function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
   return (
@@ -33,6 +26,8 @@ function Panel({ children, style }: React.PropsWithChildren<{ style?: any }>) {
 }
 
 export default function HistoryScreen() {
+  const scheme = useColorScheme();
+  const primaryButton = getPrimaryButtonColors(scheme);
   const doses = useStore((s) => s.doses);
   const updateDose = useStore((s) => (s as any).updateDose as (id: string, patch: any) => void);
   const removeDose = useStore((s) => (s as any).removeDose as (id: string) => void);
@@ -42,7 +37,6 @@ export default function HistoryScreen() {
   const [range, setRange] = useState<RangeKey>('7');
   const [query, setQuery] = useState('');
 
-  const now = Date.now();
   const rangeStart = useMemo(() => {
     if (range === 'all') return 0;
     const days = range === '7' ? 7 : range === '14' ? 14 : 30;
@@ -105,9 +99,16 @@ export default function HistoryScreen() {
                 await Share.share({ message: csv });
               }}
               accessibilityRole="button"
-              style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 12, alignItems:'center', justifyContent:'center', backgroundColor: PlatformColor('tintColor') }}
+              style={{
+                minHeight: HIT_TARGET,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                alignItems:'center',
+                justifyContent:'center',
+                backgroundColor: primaryButton.backgroundColor,
+              }}
             >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Export CSV</Text>
+              <Text style={{ color: primaryButton.color, fontWeight: '600' }}>Export CSV</Text>
             </Pressable>
           </View>
           <TextInput
@@ -154,8 +155,19 @@ export default function HistoryScreen() {
                         placeholderTextColor={PlatformColor('tertiaryLabel')}
                         style={{ minWidth: 96, textAlign: 'left', borderBottomWidth: 1, borderColor: PlatformColor('separator'), color: PlatformColor('label') }}
                       />
-                      <Pressable onPress={saveEdit} accessibilityRole="button" style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 10, backgroundColor: PlatformColor('tintColor'), alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+                      <Pressable
+                        onPress={saveEdit}
+                        accessibilityRole="button"
+                        style={{
+                          minHeight: HIT_TARGET,
+                          paddingHorizontal: 12,
+                          borderRadius: 10,
+                          backgroundColor: primaryButton.backgroundColor,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text style={{ color: primaryButton.color, fontWeight: '600' }}>Save</Text>
                       </Pressable>
                       <Pressable onPress={() => setEditingId(null)} accessibilityRole="button" style={{ minHeight: HIT_TARGET, paddingHorizontal: 12, borderRadius: 10, backgroundColor: PlatformColor('systemFill'), alignItems: 'center', justifyContent: 'center' }}>
                         <Text style={{ color: PlatformColor('label') }}>Cancel</Text>

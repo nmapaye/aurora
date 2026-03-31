@@ -9,10 +9,12 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Linking as RNLinking } from 'react-native';
 
 import { navigationRef } from '~/navigation';
+import { useStore } from '~/state/store';
 import RootTabs from '~/navigation/RootTabs';
 import { useAppInit } from '~/hooks/useAppInit';
 import type { RootTabParamList } from '~/navigation/types';
 import linking from '~/navigation/linking';
+import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
 
 // Enable react-native-screens if available (perf/memory). Use dynamic require to avoid runtime errors if missing.
@@ -77,6 +79,7 @@ function BootGate() {
 export default function App() {
   const ready = useAppInit();
   const scheme = useColorScheme();
+  const onboardingComplete = useStore((s) => s.onboarding.completed);
   const theme = useMemo<Theme>(() => (scheme === 'dark' ? DarkNavTheme : LightNavTheme), [scheme]);
 
   useEffect(() => {
@@ -102,18 +105,22 @@ export default function App() {
           <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
           <RootErrorBoundary>
             {ready ? (
-              <NavigationContainer<RootTabParamList>
-                ref={navigationRef}
-                theme={theme}
-                linking={linking}
-                onReady={() => {
-                  try {
-                    (perf as any).mark?.('nav:ready');
-                  } catch {}
-                }}
-              >
-                <RootTabs />
-              </NavigationContainer>
+              onboardingComplete ? (
+                <NavigationContainer<RootTabParamList>
+                  ref={navigationRef}
+                  theme={theme}
+                  linking={linking}
+                  onReady={() => {
+                    try {
+                      (perf as any).mark?.('nav:ready');
+                    } catch {}
+                  }}
+                >
+                  <RootTabs />
+                </NavigationContainer>
+              ) : (
+                <OnboardingScreen />
+              )
             ) : (
               <BootGate />
             )}

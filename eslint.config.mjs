@@ -45,5 +45,8 @@ export default [
   },
 
   // File-specific overrides
-  { files: ['metro.config.js'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
+  {
+    files: ['metro.config.js', 'plugins/**/*.js', 'scripts/**/*.js'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 ];

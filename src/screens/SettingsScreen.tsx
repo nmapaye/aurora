@@ -1,18 +1,28 @@
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, useColorScheme } from 'react-native';
 import ScreenContainer from '~/components/ScreenContainer';
 import Card from '~/components/Card';
 import { useStore } from '~/state/store';
+import { getAppPalette, getNeutralButtonColors } from '~/theme/colors';
 
 function Stepper({label, value, setValue, step=0.5, min=0.5, max=16}:{label:string; value:number; setValue:(n:number)=>void; step?:number; min?:number; max?:number}){
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
+  const neutralButton = getNeutralButtonColors(scheme);
   return (
     <Card>
-      <Text style={{ color:'white', marginBottom:8 }}>{label}: {value.toFixed(1)}</Text>
+      <Text style={{ color: palette.textPrimary, marginBottom:8, fontSize: 16, fontWeight: '600' }}>{label}: {value.toFixed(1)}</Text>
       <View style={{ flexDirection:'row', gap:12 }}>
-        <Pressable onPress={()=>setValue(Math.max(min, value-step))} style={{ padding:10, borderRadius:12, backgroundColor:'rgba(255,255,255,0.12)' }}>
-          <Text style={{ color:'white' }}>−</Text>
+        <Pressable
+          onPress={()=>setValue(Math.max(min, value-step))}
+          style={{ padding:10, borderRadius:12, backgroundColor: neutralButton.backgroundColor, borderWidth: 1, borderColor: neutralButton.borderColor }}
+        >
+          <Text style={{ color: neutralButton.color, fontSize: 18, fontWeight: '600' }}>−</Text>
         </Pressable>
-        <Pressable onPress={()=>setValue(Math.min(max, value+step))} style={{ padding:10, borderRadius:12, backgroundColor:'rgba(255,255,255,0.12)' }}>
-          <Text style={{ color:'white' }}>+</Text>
+        <Pressable
+          onPress={()=>setValue(Math.min(max, value+step))}
+          style={{ padding:10, borderRadius:12, backgroundColor: neutralButton.backgroundColor, borderWidth: 1, borderColor: neutralButton.borderColor }}
+        >
+          <Text style={{ color: neutralButton.color, fontSize: 18, fontWeight: '600' }}>+</Text>
         </Pressable>
       </View>
     </Card>

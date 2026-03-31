@@ -21,11 +21,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.aurora",
+      "bundleIdentifier": "com.nmapaye.aurora",
       "newArchEnabled": true
     },
     "android": {
-      "package": "com.example.aurora",
+      "package": "com.nmapaye.aurora",
       "newArchEnabled": true
     },
     "plugins": [
@@ -38,10 +38,6 @@
       "expo-font",
       "expo-asset"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "REPLACE_ME"
-      }
-    }
+    "extra": {}
   }
 }

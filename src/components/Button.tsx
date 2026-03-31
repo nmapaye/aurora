@@ -8,8 +8,9 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
+  useColorScheme,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { getAppPalette } from '../theme/colors';
 
 type Variant = 'primary' | 'glass' | 'outline';
 
@@ -40,14 +41,16 @@ export default function Button({
   accessibilityLabel,
   testID,
 }: Props) {
+  const scheme = useColorScheme();
+  const palette = getAppPalette(scheme);
   const containerVariantStyle =
     variant === 'primary'
-      ? { backgroundColor: colors.caffeine, borderColor: 'transparent' }
+      ? { backgroundColor: palette.primaryButton, borderColor: 'transparent' }
       : variant === 'outline'
-      ? { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.25)' }
-      : { backgroundColor: colors.card, borderColor: 'rgba(255,255,255,0.12)' };
+      ? { backgroundColor: 'transparent', borderColor: palette.neutralButtonBorder }
+      : { backgroundColor: palette.card, borderColor: palette.cardBorder };
 
-  const textColor = variant === 'primary' ? colors.bg : colors.textPrimary;
+  const textColor = variant === 'primary' ? palette.primaryButtonText : palette.textPrimary;
 
   return (
     <Pressable
