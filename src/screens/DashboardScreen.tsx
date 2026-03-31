@@ -85,7 +85,7 @@ export default function DashboardScreen() {
   return (
     <AppScreen
       title="Today"
-      subtitle="A calmer snapshot of caffeine, vigilance, and the sleep you’re trying to protect."
+      subtitle="A snapshot of your caffeine, vigilance, and the sleep you’re protecting."
     >
       <SectionTitle>Overview</SectionTitle>
       <View style={{ flexDirection: 'row', gap: 12 }}>

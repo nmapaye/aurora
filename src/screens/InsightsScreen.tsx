@@ -346,7 +346,7 @@ export default function InsightsScreen() {
   return (
     <AppScreen
       title="Insights"
-      subtitle="Review how caffeine, sleep, and vigilance are trending without leaving the app’s main flow."
+      subtitle="Review how your caffeine, sleep, and vigilance are trending."
     >
       <View style={{ gap: 16 }}>
         <SegmentedControl
@@ -501,7 +501,7 @@ export default function InsightsScreen() {
                   color: palette.textTertiary,
                 }}
               >
-                Compare a short recent window without piling on filters. The goal here is readability, not dashboard sprawl.
+                Compare a short recent window without filters.
               </Text>
             </SectionCard>
 

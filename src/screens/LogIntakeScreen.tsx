@@ -109,7 +109,7 @@ export default function LogIntakeScreen() {
   return (
     <AppScreen
       title="Log intake"
-      subtitle="Capture caffeine quickly with grouped controls that feel native on iPhone."
+      subtitle="Capture caffeine quickly."
     >
       <SectionTitle>Quick actions</SectionTitle>
       <SectionCard>
