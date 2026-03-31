@@ -1,5 +1,9 @@
 const backingStore = new Map<string, string>();
 
+beforeEach(() => {
+  backingStore.clear();
+});
+
 jest.mock('react-native-mmkv', () => ({
   MMKV: class MockMMKV {
     getString(key: string) {

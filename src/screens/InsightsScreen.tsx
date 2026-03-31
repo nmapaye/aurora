@@ -6,6 +6,7 @@ import { useStore } from '~/state/store';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 import { getPrimaryButtonColors } from '~/theme/colors';
+import { navigate } from '~/navigation';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -72,7 +73,7 @@ function SegmentedChips<T extends string>({ options, value, onChange }: { option
 
 type RangeKey = '7' | '14' | '30' | 'custom';
 
-function TrendChart({ data, daysTs, height = 160, strokeWidth = 2 }: { data: number[]; daysTs?: number[]; height?: number; strokeWidth?: number }) {
+function TrendChart({ data, height = 160, strokeWidth = 2 }: { data: number[]; daysTs?: number[]; height?: number; strokeWidth?: number }) {
   const [width, setWidth] = useState(0);
   const padding = { top: 12, right: 8, bottom: 18, left: 8 };
   const w = Math.max(0, width - padding.left - padding.right);
@@ -98,7 +99,6 @@ function TrendChart({ data, daysTs, height = 160, strokeWidth = 2 }: { data: num
     const x0 = padding.left + toX(0);
     const xN = padding.left + toX(data.length - 1);
     const y0 = padding.top + toY(data[0]);
-    const yN = padding.top + toY(data[data.length - 1]);
     const yBase = padding.top + toY(yMin);
     a = `M ${x0} ${y0}`;
     for (let i = 1; i < data.length; i++) a += ` L ${padding.left + toX(i)} ${padding.top + toY(data[i])}`;
@@ -140,9 +140,8 @@ export default function InsightsScreen() {
   const scheme = useColorScheme();
   const primaryButton = getPrimaryButtonColors(scheme);
   const doses = useStore((s) => s.doses);
-  const sleeps = useStore((s) => s.sleeps);
+  const vigilanceSessions = useStore((s) => s.vigilanceSessions);
   const dailyLimit = useStore((s) => s.prefs.dailyLimitMg ?? 400);
-  const halfLife = useStore((s) => s.prefs.halfLife);
   const sleepGuidance = useSleepGuidance();
 
   const [range, setRange] = useState<RangeKey>('7');
@@ -182,10 +181,6 @@ export default function InsightsScreen() {
 
   // Build daily totals for current and previous window
   const { days, totals, prevTotals } = useMemo(() => {
-    const daysArr: number[] = [];
-    const tot: number[] = [];
-    const prev: number[] = [];
-
     const buildTotalsForRange = (startMs: number, endMs: number) => {
       const arr: number[] = [];
       const daysList: number[] = [];
@@ -240,21 +235,6 @@ export default function InsightsScreen() {
     const cap = deltaPct === undefined ? '—' : `${deltaPct >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(deltaPct))}% vs prior ${DAYS} days`;
     return { weeklyAvg: Math.round(avg), weeklyAvgCaption: cap, deltaPctRounded };
   }, [totals, prevTotals, DAYS]);
-
-  // Theil–Sen slope on DailyTotal (mg/day)
-  const theilSenSlope = (arr: number[]) => {
-    const slopes: number[] = [];
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        const denom = j - i;
-        if (denom !== 0) slopes.push((arr[j] - arr[i]) / denom);
-      }
-    }
-    if (slopes.length === 0) return 0;
-    slopes.sort((a, b) => a - b);
-    return slopes[Math.floor(slopes.length / 2)];
-  };
-  const slope = useMemo(() => theilSenSlope(totals), [totals]);
 
   // Limit adherence and streaks
   const { adherencePct, latestStreak } = useMemo(() => {
@@ -312,39 +292,6 @@ export default function InsightsScreen() {
     return arr.map(([k, v]) => ({ k, mg: v, pct: Math.round((v / sum) * 100) }));
   }, [doses, days, sourceFilter, weekdayFilter]);
 
-  // Sleep impact proxy (last dose before sleep)
-  const lastDoseStats = useMemo(() => {
-    const pairs: { deltaMin: number; sleepMin: number }[] = [];
-    for (const s of sleeps) {
-      const sleepStart = s.start;
-      const windowStart = sleepStart - 12 * 3600000;
-      let last: number | undefined;
-      for (const d of doses) {
-        if (d.timestamp <= sleepStart && d.timestamp >= windowStart && doseInFilters(d.timestamp, d.source)) {
-          if (!last || d.timestamp > last) last = d.timestamp;
-        }
-      }
-      if (last) {
-        const deltaMin = Math.round((sleepStart - last) / 60000); // minutes earlier
-        const sleepMin = Math.round((s.end - s.start) / 60000);
-        pairs.push({ deltaMin, sleepMin });
-      }
-    }
-    const n = pairs.length;
-    const med = (arr: number[]) => { const a = [...arr].sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
-    const p = (arr: number[], q: number) => { const a = [...arr].sort((x, y) => x - y); const i = Math.max(0, Math.min(a.length - 1, Math.round(q * (a.length - 1)))); return a[i] || 0; };
-    const deltas = pairs.map((p2) => p2.deltaMin);
-    const sleepDur = pairs.map((p2) => p2.sleepMin);
-    return {
-      n,
-      medianDeltaMin: med(deltas),
-      p10: p(deltas, 0.1),
-      p90: p(deltas, 0.9),
-      showCorrelation: n >= 14,
-      medianSleepMin: med(sleepDur),
-    };
-  }, [sleeps, doses, sourceFilter, weekdayFilter]);
-
   // Guidance: suggest bedtime based on half-life + current mg, and wake time on 90m cycles
   const guidance = useMemo(() => {
     const fmt = (ts: number) => {
@@ -391,6 +338,40 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
     try { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(ts)); }
     catch { return new Date(ts).toDateString(); }
   };
+  const fmtDateTime = (ts: number) => {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(ts));
+    } catch {
+      return new Date(ts).toLocaleString();
+    }
+  };
+
+  const vigilanceSummary = useMemo(() => {
+    const latest = vigilanceSessions[0];
+    const cutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
+    const pastWeek = vigilanceSessions.filter((session) => session.completedAt >= cutoffMs);
+    const averageScore =
+      pastWeek.length > 0
+        ? Math.round(
+            pastWeek.reduce((sum, session) => sum + session.score, 0) / pastWeek.length
+          )
+        : undefined;
+    const trendSessions = [...vigilanceSessions]
+      .slice(0, 7)
+      .sort((a, b) => a.completedAt - b.completedAt);
+    return {
+      latest,
+      averageScore,
+      pastWeekCount: pastWeek.length,
+      trendSessions,
+      hasBaseline: vigilanceSessions.length >= 3,
+    };
+  }, [vigilanceSessions]);
 
   return (
     <ScreenContainer center>
@@ -557,6 +538,107 @@ Suggested wake time: ${fmt(sleepGuidance.wake)} (90‑min cycles, aim for 6–7a
             <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Adherence</Text>
             <Text accessibilityRole="text" style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>{adherencePct}%</Text>
             <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>Streak {latestStreak}d</Text>
+          </Panel>
+        </View>
+
+        {/* Vigilance */}
+        <View>
+          <SectionHeader title="Vigilance" />
+          <Panel>
+            {vigilanceSummary.latest ? (
+              <View style={{ gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Panel style={{ flex: 1, backgroundColor: PlatformColor('tertiarySystemBackground') }}>
+                    <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>Latest</Text>
+                    <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>
+                      {vigilanceSummary.latest.score} {vigilanceSummary.latest.rating}
+                    </Text>
+                    <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                      {fmtDateTime(vigilanceSummary.latest.completedAt)}
+                    </Text>
+                  </Panel>
+                  <Panel style={{ flex: 1, backgroundColor: PlatformColor('tertiarySystemBackground') }}>
+                    <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>7-day avg</Text>
+                    <Text style={{ fontSize: 28, lineHeight: 34, fontWeight: '600', color: PlatformColor('label') }}>
+                      {typeof vigilanceSummary.averageScore === 'number' ? vigilanceSummary.averageScore : '—'}
+                    </Text>
+                    <Text style={{ marginTop: 6, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                      {vigilanceSummary.pastWeekCount} session{vigilanceSummary.pastWeekCount === 1 ? '' : 's'} in range
+                    </Text>
+                  </Panel>
+                </View>
+                <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('label') }}>
+                  Median reaction {vigilanceSummary.latest.medianReactionMs ?? '—'} ms • Lapses {vigilanceSummary.latest.lapseCount} • False starts {vigilanceSummary.latest.falseStartCount}
+                </Text>
+                {vigilanceSummary.hasBaseline ? (
+                  <>
+                    <View style={{ marginTop: 4 }}>
+                      <TrendChart
+                        data={vigilanceSummary.trendSessions.map((session) => session.score)}
+                        daysTs={vigilanceSummary.trendSessions.map((session) => session.completedAt)}
+                        height={140}
+                      />
+                    </View>
+                    <View style={{ flexDirection: 'row' }}>
+                      <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                        {fmtDay(vigilanceSummary.trendSessions[0]?.completedAt ?? Date.now())}
+                      </Text>
+                      <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                        {fmtDay(vigilanceSummary.trendSessions[vigilanceSummary.trendSessions.length - 1]?.completedAt ?? Date.now())}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel') }}>
+                    Complete {Math.max(0, 3 - vigilanceSessions.length)} more session{Math.max(0, 3 - vigilanceSessions.length) === 1 ? '' : 's'} to build a baseline trend.
+                  </Text>
+                )}
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={12}
+                    onPress={() => navigate('VigilanceTest')}
+                    style={{
+                      minHeight: HIT_TARGET,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: primaryButton.backgroundColor,
+                    }}
+                  >
+                    <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>
+                      Run again
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                <Text style={{ fontSize: 15, lineHeight: 20, color: PlatformColor('secondaryLabel') }}>
+                  No vigilance sessions yet. Run the 60-second reaction task from the dashboard to start building an attentiveness baseline.
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-start' }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={12}
+                    onPress={() => navigate('VigilanceTest')}
+                    style={{
+                      minHeight: HIT_TARGET,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: primaryButton.backgroundColor,
+                    }}
+                  >
+                    <Text style={{ fontSize: 17, lineHeight: 22, fontWeight: '600', color: primaryButton.color }}>
+                      Start test
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </Panel>
         </View>
 

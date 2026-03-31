@@ -6,20 +6,18 @@ import { ActivityIndicator, StatusBar, Text, View, useColorScheme, LogBox } from
 import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Linking as RNLinking } from 'react-native';
 
 import { navigationRef } from '~/navigation';
 import { useStore } from '~/state/store';
-import RootTabs from '~/navigation/RootTabs';
+import RootNavigator from '~/navigation/RootNavigator';
 import { useAppInit } from '~/hooks/useAppInit';
-import type { RootTabParamList } from '~/navigation/types';
+import type { RootStackParamList } from '~/navigation/types';
 import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
 
 // Enable react-native-screens if available (perf/memory). Use dynamic require to avoid runtime errors if missing.
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   require('react-native-screens').enableScreens?.(true);
 } catch {}
 
@@ -106,7 +104,7 @@ export default function App() {
           <RootErrorBoundary>
             {ready ? (
               onboardingComplete ? (
-                <NavigationContainer<RootTabParamList>
+                <NavigationContainer<RootStackParamList>
                   ref={navigationRef}
                   theme={theme}
                   linking={linking}
@@ -116,7 +114,7 @@ export default function App() {
                     } catch {}
                   }}
                 >
-                  <RootTabs />
+                  <RootNavigator />
                 </NavigationContainer>
               ) : (
                 <OnboardingScreen />

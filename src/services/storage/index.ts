@@ -9,11 +9,10 @@ let usingFallback = false;
 
 try {
   nativeKv = new MMKV({ id: 'aurora' });
-} catch (e) {
+} catch {
   // Gracefully degrade to in-memory storage so the app can run
   usingFallback = true;
   fallbackMap = new Map<string, string>();
-  // eslint-disable-next-line no-console
   console.warn('[storage] MMKV unavailable; using in-memory fallback. Data will not persist.');
 }
 

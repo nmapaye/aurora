@@ -1,17 +1,32 @@
 // src/navigation/index.tsx
 import { createNavigationContainerRef } from '@react-navigation/native';
-import type { RootTabParamList } from './types';
+import type { RootStackParamList, RootTabParamList } from './types';
 
-export const navigationRef = createNavigationContainerRef<RootTabParamList>();
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-// Typed navigate helper (safe for routes with or without params)
-export function navigate<RouteName extends keyof RootTabParamList>(
+type StandaloneRouteName = Exclude<keyof RootStackParamList, 'Tabs'>;
+type AppRouteName = keyof RootTabParamList | StandaloneRouteName;
+
+export function navigate<RouteName extends AppRouteName>(
   name: RouteName,
-  params?: RootTabParamList[RouteName]
+  params?: RouteName extends keyof RootTabParamList
+    ? RootTabParamList[RouteName]
+    : RouteName extends StandaloneRouteName
+    ? RootStackParamList[RouteName]
+    : never
 ) {
   if (!navigationRef.isReady()) return;
-  // React Navigation uses variadic tuple overloads; cast through any to avoid TS tuple inference issues
-  (navigationRef as any).navigate(name as any, params as any);
+  if (name === 'VigilanceTest') {
+    (navigationRef as any).navigate('VigilanceTest', params as any);
+    return;
+  }
+  (navigationRef as any).navigate('Tabs', { screen: name as keyof RootTabParamList, params });
+}
+
+export function goBack() {
+  if (navigationRef.isReady() && navigationRef.canGoBack()) {
+    navigationRef.goBack();
+  }
 }
 
 export { default as RootNavigator } from './RootNavigator';

@@ -1,3 +1,5 @@
+import type { VigilanceSession } from '~/domain/vigilance';
+
 export type DailyTotal = { date: string; mg: number };
 
 export function makeDailyTotalsCSV(rows: DailyTotal[]): string {
@@ -35,4 +37,44 @@ export function makeSummaryText(params: {
   return parts.join('\n');
 }
 
-export default { makeDailyTotalsCSV, makeSummaryText };
+export function makeVigilanceSessionsCSV(rows: VigilanceSession[]): string {
+  const header = [
+    'id',
+    'started_at',
+    'completed_at',
+    'duration_ms',
+    'trial_count',
+    'valid_reaction_count',
+    'false_start_count',
+    'lapse_count',
+    'median_reaction_ms',
+    'mean_reaction_ms',
+    'fastest_reaction_ms',
+    'reaction_std_dev_ms',
+    'score',
+    'rating',
+  ].join(',');
+  const lines = rows.map((row) =>
+    [
+      row.id,
+      new Date(row.startedAt).toISOString(),
+      new Date(row.completedAt).toISOString(),
+      row.durationMs,
+      row.trialCount,
+      row.validReactionCount,
+      row.falseStartCount,
+      row.lapseCount,
+      row.medianReactionMs ?? '',
+      row.meanReactionMs ?? '',
+      row.fastestReactionMs ?? '',
+      row.reactionStdDevMs ?? '',
+      row.score,
+      row.rating,
+    ]
+      .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+      .join(',')
+  );
+  return [header, ...lines].join('\n');
+}
+
+export default { makeDailyTotalsCSV, makeSummaryText, makeVigilanceSessionsCSV };

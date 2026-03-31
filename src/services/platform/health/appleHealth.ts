@@ -12,7 +12,6 @@ try {
 
 function optionalRequire(name: string): any | null {
   try {
-    // eslint-disable-next-line no-eval
     const rq = eval('require');
     return rq(name);
   } catch {

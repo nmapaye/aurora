@@ -3,12 +3,12 @@ import { View, Text, Pressable, useColorScheme, PlatformColor } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '~/state/store';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
-import useNextDip from '~/hooks/useNextDip';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import ScreenContainer from '~/components/ScreenContainer';
 import { navigate } from '~/navigation';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
+import { getPrimaryButtonColors } from '~/theme/colors';
 
 const CONTENT_MAX_WIDTH = 560;
 const HIT_TARGET = 44;
@@ -154,12 +154,13 @@ const fmtTime = (ts: unknown) => {
 
 export default function DashboardScreen() {
   const scheme = useColorScheme();
-  const { nowScore, mgActiveNow: mgActive, series } = (useAlertnessSeries() as any) || {};
-  const nextDip: number | undefined = (useNextDip as any)?.() as any;
+  const primaryButton = getPrimaryButtonColors(scheme);
+  const { nowScore, mgActiveNow: mgActive } = (useAlertnessSeries() as any) || {};
   const cutoff = useCaffeineCutoff();
   const sleepGuidance = useSleepGuidance();
 
   const doses = useStore((s) => s.doses);
+  const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const addDose = useStore((s) => s.addDose);
   const removeDose = useStore((s) => (s as any).removeDose);
 
@@ -205,6 +206,10 @@ export default function DashboardScreen() {
     scheme === 'dark'
       ? ['#0b0f1c', '#0e1c2c', '#0c2536']
       : ['#f9f7ff', '#f0f6ff', '#e5f7f9'];
+
+  const latestVigilanceLabel = latestVigilanceSession
+    ? `${latestVigilanceSession.score} ${latestVigilanceSession.rating}`
+    : 'No baseline yet';
 
   return (
     <View style={{ flex: 1 }}>
@@ -266,6 +271,51 @@ export default function DashboardScreen() {
         <Panel>
           <CaffeineTodayGraph />
         </Panel>
+
+        {/* Vigilance test */}
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <SectionHeader title="Vigilance Test" />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => navigate('VigilanceTest')}
+              accessibilityRole="button"
+              accessibilityLabel="Start vigilance test"
+              hitSlop={12}
+              style={{
+                minHeight: 36,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: primaryButton.backgroundColor,
+              }}
+            >
+              <Text style={{ fontSize: 15, lineHeight: 20, color: primaryButton.color, fontWeight: '600' }}>
+                Start
+              </Text>
+            </Pressable>
+          </View>
+          <Panel>
+            <Text style={{ fontSize: 17, lineHeight: 22, color: PlatformColor('label') }}>
+              Measure attentiveness with a 60-second reaction task.
+            </Text>
+            <Text style={{ fontSize: 13, lineHeight: 18, color: PlatformColor('secondaryLabel'), marginTop: 4 }}>
+              Keep this separate from caffeine guidance and use it to build a repeatable focus baseline.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <MetricTile title="Latest" value={latestVigilanceLabel} />
+              <MetricTile
+                title="Median Reaction"
+                value={
+                  latestVigilanceSession?.medianReactionMs
+                    ? `${latestVigilanceSession.medianReactionMs} ms`
+                    : '—'
+                }
+              />
+            </View>
+          </Panel>
+        </View>
 
         {/* Quick add */}
         <View>
@@ -358,12 +408,4 @@ export default function DashboardScreen() {
     </ScreenContainer>
     </View>
   );
-}
-
-// Optional helper for trend
-function computeTrend(series: any[] | undefined) {
-  if (!series || series.length < 2) return 0;
-  const a = series[series.length - 2]?.score ?? 0;
-  const b = series[series.length - 1]?.score ?? 0;
-  return Math.sign(b - a);
 }

@@ -15,7 +15,6 @@ const config: Config = {
           esModuleInterop: true,
           skipLibCheck: true,
         },
-        isolatedModules: true,
       },
     ],
   },
@@ -23,7 +22,7 @@ const config: Config = {
     '^~/(.*)$': '<rootDir>/src/$1',
   },
   testEnvironment: 'node',
-  setupFiles: ['<rootDir>/tests/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   verbose: false,
 };
 

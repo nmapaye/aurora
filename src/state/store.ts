@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
+import type { VigilanceSession } from '~/domain/vigilance';
 import { jsonStringStorage } from '~/services/storage';
 
 type Dose = { id: string; timestamp: number; mg: number; source?: string; note?: string };
@@ -18,6 +19,7 @@ type Onboarding = {
 type State = {
   doses: Dose[];
   sleeps: Sleep[];
+  vigilanceSessions: VigilanceSession[];
   prefs: Prefs;
   onboarding: Onboarding;
   addDose: (d: Dose) => void;
@@ -25,13 +27,14 @@ type State = {
   removeDose: (id: string) => void;
   addSleep: (s: Sleep) => void;
   upsertSleepSessions: (items: Sleep[]) => void;
+  addVigilanceSession: (session: VigilanceSession) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   setOnboarding: (p: Partial<Onboarding>) => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
 };
 
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
-type PersistedState = Pick<State, 'doses' | 'sleeps' | 'prefs' | 'onboarding'>;
+type PersistedState = Pick<State, 'doses' | 'sleeps' | 'vigilanceSessions' | 'prefs' | 'onboarding'>;
 const mmkvStorage = createJSONStorage<PersistedState>(() => jsonStringStorage as any);
 
 export const useStore = create<State>()(
@@ -39,6 +42,7 @@ export const useStore = create<State>()(
     (set) => ({
       doses: [],
       sleeps: [],
+      vigilanceSessions: [],
       prefs: { halfLife: DEFAULT_HALFLIFE_H, targetSleep: DEFAULT_TARGET_SLEEP_H, dailyLimitMg: 400, cutoffHour: 16 },
       onboarding: { completed: false, source: 'healthkit', permissionStatus: 'idle' },
       addDose: (d) => set((s) => ({ doses: [...s.doses, d] })),
@@ -57,6 +61,12 @@ export const useStore = create<State>()(
             sleeps: [...deduped.values()].sort((a, b) => b.end - a.end),
           };
         }),
+      addVigilanceSession: (session) =>
+        set((s) => ({
+          vigilanceSessions: [session, ...s.vigilanceSessions].sort(
+            (a, b) => b.completedAt - a.completedAt
+          ),
+        })),
       setPrefs: (p) => set((s) => ({ prefs: { ...s.prefs, ...p } })),
       setOnboarding: (p) => set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
       completeOnboarding: (p) =>
@@ -71,10 +81,52 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 1,
+      version: 2,
       storage: mmkvStorage,
-      partialize: (s) => ({ doses: s.doses, sleeps: s.sleeps, prefs: s.prefs, onboarding: s.onboarding }),
-      // Future migrations can be added here
+      partialize: (s) => ({
+        doses: s.doses,
+        sleeps: s.sleeps,
+        vigilanceSessions: s.vigilanceSessions,
+        prefs: s.prefs,
+        onboarding: s.onboarding,
+      }),
+      migrate: (persistedState, version) => {
+        const nextState = (persistedState ?? {}) as Partial<PersistedState>;
+        if (version < 2) {
+          return {
+            doses: nextState.doses ?? [],
+            sleeps: nextState.sleeps ?? [],
+            vigilanceSessions: [],
+            prefs: nextState.prefs ?? {
+              halfLife: DEFAULT_HALFLIFE_H,
+              targetSleep: DEFAULT_TARGET_SLEEP_H,
+              dailyLimitMg: 400,
+              cutoffHour: 16,
+            },
+            onboarding: nextState.onboarding ?? {
+              completed: false,
+              source: 'healthkit',
+              permissionStatus: 'idle',
+            },
+          };
+        }
+        return {
+          doses: nextState.doses ?? [],
+          sleeps: nextState.sleeps ?? [],
+          vigilanceSessions: nextState.vigilanceSessions ?? [],
+          prefs: nextState.prefs ?? {
+            halfLife: DEFAULT_HALFLIFE_H,
+            targetSleep: DEFAULT_TARGET_SLEEP_H,
+            dailyLimitMg: 400,
+            cutoffHour: 16,
+          },
+          onboarding: nextState.onboarding ?? {
+            completed: false,
+            source: 'healthkit',
+            permissionStatus: 'idle',
+          },
+        };
+      },
     }
   )
 );

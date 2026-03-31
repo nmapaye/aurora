@@ -31,7 +31,6 @@ export default function StorybookUIRoot() {
     (async () => {
       try {
         // Dynamic import avoids bundling errors if not installed
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const sb: any = await import('@storybook/react-native');
         const { getStorybookUI, configure } = sb;
         configure(loadStories);

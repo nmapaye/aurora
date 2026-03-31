@@ -1,17 +1,23 @@
 import type { LinkingOptions } from '@react-navigation/native';
-import type { RootTabParamList } from './types';
+import type { RootStackParamList } from './types';
 import { Linking as RNLinking } from 'react-native';
 
-const linking: LinkingOptions<RootTabParamList> = {
+const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [] as string[],
   config: {
-    initialRouteName: 'Home',
+    initialRouteName: 'Tabs',
     screens: {
-      Home: 'home',
-      Log: 'log',
-      Sleep: 'sleep',
-      Insights: 'insights',
-      Settings: 'settings',
+      Tabs: {
+        screens: {
+          Home: 'home',
+          Log: 'log',
+          Sleep: 'sleep',
+          Insights: 'insights',
+          History: 'history',
+          Settings: 'settings',
+        },
+      },
+      VigilanceTest: 'vigilance',
     },
   },
   async getInitialURL() {

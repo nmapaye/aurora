@@ -5,6 +5,7 @@ describe('store onboarding and logging flow', () => {
     useStore.setState({
       doses: [],
       sleeps: [],
+      vigilanceSessions: [],
       prefs: { halfLife: 5, targetSleep: 8, dailyLimitMg: 400, cutoffHour: 16 },
       onboarding: { completed: false, source: 'healthkit', permissionStatus: 'idle' },
     });
@@ -31,6 +32,31 @@ describe('store onboarding and logging flow', () => {
       { id: 'dose-1', timestamp: 10, mg: 95, source: 'Drip' },
       { id: 'dose-2', timestamp: 20, mg: 60, source: 'Espresso' },
     ]);
+  });
+
+  test('completed vigilance sessions persist separately from dose and sleep state', () => {
+    useStore.getState().addVigilanceSession({
+      id: 'vig-1',
+      startedAt: 1000,
+      completedAt: 61000,
+      durationMs: 60000,
+      trialCount: 12,
+      validReactionCount: 10,
+      falseStartCount: 1,
+      lapseCount: 2,
+      medianReactionMs: 280,
+      meanReactionMs: 294,
+      fastestReactionMs: 240,
+      reactionStdDevMs: 41,
+      score: 76,
+      rating: 'Steady',
+    });
+
+    const state = useStore.getState();
+    expect(state.vigilanceSessions).toHaveLength(1);
+    expect(state.doses).toEqual([]);
+    expect(state.sleeps).toEqual([]);
+    expect(state.vigilanceSessions[0].rating).toBe('Steady');
   });
 });
   
