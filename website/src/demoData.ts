@@ -49,7 +49,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     id: 'healthkit',
     modeLabel: 'With Health data',
     heroLine:
-      'See how Aurora turns imported sleep into simple caffeine timing and a clearer daily snapshot.',
+      'Sleep from Health helps Aurora shape a clearer cutoff, a steadier plan, and a more grounded daily view.',
     todayCaffeineMg: 185,
     activeCaffeineMg: 82,
     alertnessScore: 74,
@@ -58,7 +58,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     wakeTime: '6:35 AM',
     sleepStatus: 'Connected to Health',
     sleepSummary: '7h 42m imported from last night',
-    sleepDetail: 'Wake time 6:48 AM • latest dose typically lands 228 min before sleep',
+    sleepDetail: 'Wake time 6:48 AM • the latest dose usually lands about 228 min before sleep',
     plan: [
       { label: 'Kickstart', mg: 80, time: '7:20 AM' },
       { label: 'Sustain', mg: 80, time: '10:50 AM' },
@@ -91,16 +91,16 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
       { label: 'Espresso', mg: 20, time: '1:05 PM' },
     ],
     history: [
-      { title: '78 Steady', subtitle: 'Median 284 ms • lapses 1', detail: 'Today, 1:18 PM' },
-      { title: '95 mg • Drip', subtitle: 'Morning intake', detail: 'Today, 7:34 AM' },
-      { title: '70 mg • Matcha', subtitle: 'Late morning top-up', detail: 'Today, 10:58 AM' },
+      { title: '78 Steady', subtitle: 'Median 284 ms • 1 lapse', detail: 'Today, 1:18 PM' },
+      { title: '95 mg • Drip', subtitle: 'First cup of the day', detail: 'Today, 7:34 AM' },
+      { title: '70 mg • Matcha', subtitle: 'Late-morning boost', detail: 'Today, 10:58 AM' },
     ],
   },
   manual: {
     id: 'manual',
     modeLabel: 'Manual only',
     heroLine:
-      'Aurora still works without Health by focusing on clean logging, guided cutoffs, and a fast vigilance baseline.',
+      'Aurora still works well without Health by keeping logging fast and guidance easy to follow through the day.',
     todayCaffeineMg: 130,
     activeCaffeineMg: 49,
     alertnessScore: 67,
@@ -108,8 +108,8 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     bedtime: '10:20 PM',
     wakeTime: '6:20 AM',
     sleepStatus: 'Manual logging only',
-    sleepSummary: 'No sleep import connected',
-    sleepDetail: 'Aurora falls back to your configured target sleep and current intake.',
+    sleepSummary: 'No sleep import connected yet',
+    sleepDetail: 'Aurora falls back to your configured sleep target and current intake.',
     plan: [
       { label: 'Kickstart', mg: 60, time: '7:30 AM' },
       { label: 'Sustain', mg: 60, time: '11:00 AM' },
@@ -139,32 +139,32 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
       { label: 'Matcha', mg: 70, time: '11:27 AM' },
     ],
     history: [
-      { title: '71 Steady', subtitle: 'Median 301 ms • false starts 1', detail: 'Today, 12:42 PM' },
-      { title: '60 mg • Espresso', subtitle: 'Quick add', detail: 'Today, 8:02 AM' },
-      { title: '70 mg • Matcha', subtitle: 'Custom entry', detail: 'Today, 11:27 AM' },
+      { title: '71 Steady', subtitle: 'Median 301 ms • 1 false start', detail: 'Today, 12:42 PM' },
+      { title: '60 mg • Espresso', subtitle: 'Logged from a quick add', detail: 'Today, 8:02 AM' },
+      { title: '70 mg • Matcha', subtitle: 'Logged as a custom entry', detail: 'Today, 11:27 AM' },
     ],
   },
 };
 
 export const siteSections = [
   {
-    title: 'Sleep-aware caffeine timing',
+    title: 'Clearer caffeine timing',
     body:
-      'Aurora turns your current intake and sleep context into a simple cutoff, bedtime signal, and daily pacing plan.',
+      'Aurora turns your intake and sleep context into a clearer cutoff, a bedtime signal, and a steadier pacing plan.',
   },
   {
-    title: 'Fast manual logging',
+    title: 'Fast enough to keep using',
     body:
-      'Quick presets and custom entries keep logging light enough to use multiple times per day without friction.',
+      'Quick presets and custom entries keep logging light enough to use throughout the day without breaking your flow.',
   },
   {
-    title: 'On-device vigilance testing',
+    title: 'A short attentiveness check',
     body:
-      'A 60-second reaction task gives users a repeatable attentiveness measure without sending personal data to a server.',
+      'A 60-second reaction test gives people a repeatable read on attentiveness without sending personal data to a server.',
   },
   {
     title: 'Private by design',
     body:
-      'The current Aurora MVP is iOS-first, local-first, and does not depend on cloud sync to be useful.',
+      'Aurora is built to stay useful on-device, with Health support on iPhone and no cloud account required.',
   },
 ];
