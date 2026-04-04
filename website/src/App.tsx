@@ -19,9 +19,9 @@ export default function App() {
   const scenario = demoScenarios[mode];
   const vigilanceTimeline = useMemo(
     () => [
-      'Get ready. Wait for the screen to change, then respond as quickly as you can.',
-      'The cue appears and the user taps the active area right away.',
-      `Aurora saves the result as ${scenario.latestVigilance.score} ${scenario.latestVigilance.rating}, with a median reaction time of ${scenario.latestVigilance.medianReactionMs} ms.`,
+      'Instructions: tap as soon as the screen changes.',
+      'Cue live: the user reacts on the active area.',
+      `Saved result: ${scenario.latestVigilance.score} ${scenario.latestVigilance.rating} with median ${scenario.latestVigilance.medianReactionMs} ms.`,
     ],
     [scenario]
   );
@@ -51,25 +51,25 @@ export default function App() {
       <main id="top">
         <section className="hero section">
           <div className="hero-copy">
-            <div className="eyebrow">Sleep-aware caffeine guidance</div>
-            <h1>Track intake, protect sleep, and measure attentiveness in one calm daily flow.</h1>
+            <div className="eyebrow">iOS-first demo</div>
+            <h1>Show what Aurora can do before anyone installs it.</h1>
             <p className="hero-text">
-              Aurora helps people understand how caffeine fits into the rest of the day.
-              You can log intake quickly, see a clearer cutoff, and run a short vigilance test
-              to track how alert you feel over time.
+              Aurora helps users log caffeine quickly, protect sleep with simpler timing,
+              and measure attentiveness with an on-device vigilance test. This site
+              previews the experience in the browser without pretending the app is already a web product.
             </p>
             <div className="hero-actions">
-              <a className="button button-primary" href="#demo">
-                Try the interactive preview
+              <a className="button button-primary" href={githubUrl} target="_blank" rel="noreferrer">
+                View on GitHub
               </a>
-              <a className="button button-secondary" href={githubUrl} target="_blank" rel="noreferrer">
-                Explore the project
+              <a className="button button-secondary" href="#demo">
+                See the app flow
               </a>
             </div>
             <div className="hero-points">
-              <span>Health-backed sleep timing</span>
-              <span>Quick manual logging</span>
-              <span>On-device vigilance testing</span>
+              <span>HealthKit-backed sleep import</span>
+              <span>Manual logging fallback</span>
+              <span>On-device vigilance reaction test</span>
             </div>
           </div>
 
@@ -88,7 +88,7 @@ export default function App() {
         <section id="capabilities" className="section">
           <div className="section-heading">
             <div className="eyebrow">What it does</div>
-            <h2>Aurora keeps the signal clear when caffeine and sleep start to overlap.</h2>
+            <h2>Built for users who want guidance, not another noisy health dashboard.</h2>
           </div>
           <div className="capability-grid">
             {siteSections.map((item) => (
@@ -102,18 +102,18 @@ export default function App() {
 
         <section id="demo" className="section demo-section">
           <div className="section-heading">
-            <div className="eyebrow">Interactive preview</div>
-            <h2>Move through the core Aurora experience in the browser.</h2>
+            <div className="eyebrow">Interactive demo</div>
+            <h2>Walk through the core Aurora experience with seeded data.</h2>
             <p>
-              Switch between a Health-connected view and a manual-only flow, then step through
-              the screens that shape the everyday experience.
+              Switch between a Health-backed flow and a manual-only fallback, then
+              move through the app’s core screens without requiring native modules or login.
             </p>
           </div>
 
           <div className="demo-layout">
             <aside className="demo-controls">
               <div className="control-group">
-                <span className="control-label">View</span>
+                <span className="control-label">Scenario</span>
                 <div className="segmented">
                   {(['healthkit', 'manual'] as DemoMode[]).map((nextMode) => (
                     <button
@@ -133,7 +133,7 @@ export default function App() {
               </div>
 
               <div className="control-group">
-                <span className="control-label">Screens</span>
+                <span className="control-label">Flow</span>
                 <div className="screen-list">
                   {([
                     ['home', 'Home / Today'],
@@ -154,14 +154,14 @@ export default function App() {
               </div>
 
               <div className="control-group callout">
-                <span className="control-label">Selected view</span>
+                <span className="control-label">Current mode</span>
                 <strong>{scenario.modeLabel}</strong>
                 <p>{scenario.heroLine}</p>
               </div>
 
               {screen === 'vigilance' ? (
                 <div className="control-group">
-                  <span className="control-label">Reaction flow</span>
+                  <span className="control-label">Simulated vigilance flow</span>
                   <div className="screen-list">
                     {vigilanceTimeline.map((label, index) => (
                       <button
@@ -194,34 +194,34 @@ export default function App() {
 
         <section id="proof" className="section">
           <div className="section-heading">
-            <div className="eyebrow">Product context</div>
-            <h2>Built around the current Aurora app, with the details kept honest.</h2>
+            <div className="eyebrow">Trust and proof</div>
+            <h2>Grounded in the current Aurora MVP.</h2>
           </div>
           <div className="proof-grid">
             <article className="proof-card">
-              <h3>What Aurora already does</h3>
+              <h3>What exists today</h3>
               <ul>
-                <li>iPhone-first app with Health-backed sleep import</li>
-                <li>Fast caffeine logging with quick-add and custom entries</li>
-                <li>On-device vigilance testing with saved insights</li>
+                <li>iOS-first app with HealthKit-backed sleep import</li>
+                <li>Manual caffeine logging with fast quick-add flows</li>
+                <li>On-device vigilance reaction testing and insights</li>
               </ul>
             </article>
             <article className="proof-card">
-              <h3>What stays out of scope here</h3>
+              <h3>What this demo avoids claiming</h3>
               <ul>
                 <li>No cloud sync</li>
                 <li>No Android health parity</li>
-                <li>No App Store-style promises that do not exist yet</li>
+                <li>No fake App Store or “download now” messaging</li>
               </ul>
             </article>
             <article className="proof-card">
-              <h3>See how it is built</h3>
+              <h3>Why GitHub is the CTA</h3>
               <p>
-                The interactive preview is meant to explain the product quickly. GitHub is there
-                if you want the real code, current scope, and implementation details behind it.
+                This is a showcase for the current product shape. The repo is the right place
+                to inspect scope, implementation status, and the real app code behind the demo.
               </p>
               <a className="button button-secondary full-width" href={githubUrl} target="_blank" rel="noreferrer">
-                Open Aurora on GitHub
+                Open the Aurora repository
               </a>
             </article>
           </div>
@@ -307,7 +307,7 @@ function HomePreview({ scenario }: { scenario: DemoScenario }) {
           </strong>
           <span>{scenario.latestVigilance.completedAt}</span>
         </div>
-        <p>Latest median reaction time: {scenario.latestVigilance.medianReactionMs} ms.</p>
+        <p>Median reaction {scenario.latestVigilance.medianReactionMs} ms</p>
       </ScreenCard>
 
       <ScreenCard title="Recommendations">
@@ -388,7 +388,7 @@ function VigilancePreview({
     <div className="phone-content">
       <ScreenCard title="Test area" emphasis={vigilanceStep === 1}>
         <div className={vigilanceStep === 1 ? 'reaction-zone active' : 'reaction-zone'}>
-          <span>{vigilanceStep === 1 ? 'Tap now' : vigilanceStep === 2 ? 'Result saved' : 'Wait for the cue'}</span>
+          <span>{vigilanceStep === 1 ? 'Tap now' : vigilanceStep === 2 ? 'Saved' : 'Wait for the cue'}</span>
         </div>
         <p>{vigilanceTimeline[vigilanceStep]}</p>
       </ScreenCard>
