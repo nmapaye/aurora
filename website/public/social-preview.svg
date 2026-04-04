@@ -1,0 +1,83 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="94" y1="62" x2="1128" y2="578" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EEF5FF"/>
+      <stop offset="1" stop-color="#FFF6EF"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#5C7CFF"/>
+      <stop offset="1" stop-color="#7A4DDB"/>
+    </linearGradient>
+    <filter id="shadow" x="40" y="32" width="1120" height="566" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="18"/>
+      <feGaussianBlur stdDeviation="22"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.141176 0 0 0 0 0.176471 0 0 0 0 0.247059 0 0 0 0.12 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="#F6F7FB"/>
+  <rect x="54" y="48" width="1092" height="534" rx="34" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="78" y="58" width="1044" height="490" rx="32" fill="#FFFFFF" stroke="#D7D9E2" stroke-width="2"/>
+  </g>
+
+  <rect x="112" y="92" width="120" height="44" rx="22" fill="#FFFFFF"/>
+  <circle cx="153" cy="114" r="11" stroke="#6D6F78" stroke-width="4"/>
+  <circle cx="153" cy="114" r="3.5" fill="#6D6F78"/>
+  <text x="179" y="123" font-family="SF Pro Display, Arial, sans-serif" font-size="22" fill="#545762">Preview</text>
+
+  <rect x="867" y="92" width="164" height="44" rx="22" fill="#FFFFFF"/>
+  <circle cx="903" cy="114" r="14" fill="url(#hero)"/>
+  <path d="M896 114C896 110.686 898.686 108 902 108H904.5C907.814 108 910.5 110.686 910.5 114C910.5 117.314 907.814 120 904.5 120H902C898.686 120 896 117.314 896 114Z" fill="white" fill-opacity="0.92"/>
+  <text x="928" y="123" font-family="SF Pro Display, Arial, sans-serif" font-size="22" font-weight="700" fill="#111111">Aurora</text>
+
+  <text x="116" y="208" font-family="SF Pro Display, Arial, sans-serif" font-size="72" font-weight="700" letter-spacing="-3" fill="#111111">
+    Track caffeine.
+  </text>
+  <text x="116" y="286" font-family="SF Pro Display, Arial, sans-serif" font-size="72" font-weight="700" letter-spacing="-3" fill="#111111">
+    Protect sleep.
+  </text>
+  <text x="116" y="364" font-family="SF Pro Display, Arial, sans-serif" font-size="72" font-weight="700" letter-spacing="-3" fill="#111111">
+    Measure attentiveness.
+  </text>
+
+  <text x="118" y="432" font-family="SF Pro Text, Arial, sans-serif" font-size="24" fill="#5A5D66">
+    Sleep-aware caffeine guidance with quick logging, Health-backed timing,
+  </text>
+  <text x="118" y="466" font-family="SF Pro Text, Arial, sans-serif" font-size="24" fill="#5A5D66">
+    and a short on-device vigilance test.
+  </text>
+
+  <rect x="118" y="500" width="210" height="48" rx="24" fill="#111111"/>
+  <text x="153" y="531" font-family="SF Pro Text, Arial, sans-serif" font-size="22" font-weight="600" fill="#FFFFFF">Interactive preview</text>
+
+  <g transform="translate(722 148)">
+    <rect x="0" y="0" width="292" height="332" rx="34" fill="#15161A"/>
+    <rect x="12" y="12" width="268" height="308" rx="26" fill="#F3F4F8"/>
+
+    <text x="32" y="52" font-family="SF Pro Display, Arial, sans-serif" font-size="28" font-weight="700" fill="#111111">Today</text>
+    <text x="32" y="76" font-family="SF Pro Text, Arial, sans-serif" font-size="14" fill="#6B6E77">A calmer daily snapshot</text>
+
+    <rect x="32" y="96" width="100" height="92" rx="18" fill="#FFFFFF" stroke="#D8DBE5"/>
+    <text x="46" y="122" font-family="SF Pro Text, Arial, sans-serif" font-size="14" font-weight="600" fill="#6B6E77">Caffeine</text>
+    <text x="46" y="158" font-family="SF Pro Display, Arial, sans-serif" font-size="30" font-weight="700" fill="#111111">185</text>
+    <text x="95" y="158" font-family="SF Pro Text, Arial, sans-serif" font-size="16" fill="#6B6E77">mg</text>
+
+    <rect x="144" y="96" width="104" height="92" rx="18" fill="#FFFFFF" stroke="#D8DBE5"/>
+    <text x="158" y="122" font-family="SF Pro Text, Arial, sans-serif" font-size="14" font-weight="600" fill="#6B6E77">Vigilance</text>
+    <text x="158" y="158" font-family="SF Pro Display, Arial, sans-serif" font-size="30" font-weight="700" fill="#111111">78</text>
+    <text x="205" y="158" font-family="SF Pro Text, Arial, sans-serif" font-size="16" fill="#6B6E77">steady</text>
+
+    <rect x="32" y="204" width="216" height="90" rx="18" fill="#FFFFFF" stroke="#D8DBE5"/>
+    <text x="48" y="230" font-family="SF Pro Text, Arial, sans-serif" font-size="14" font-weight="600" fill="#6B6E77">Recommendations</text>
+    <text x="48" y="258" font-family="SF Pro Text, Arial, sans-serif" font-size="16" fill="#111111">Daily cutoff</text>
+    <text x="172" y="258" font-family="SF Pro Text, Arial, sans-serif" font-size="16" font-weight="600" fill="#111111">2:10 PM</text>
+    <text x="48" y="284" font-family="SF Pro Text, Arial, sans-serif" font-size="16" fill="#111111">Suggested bedtime</text>
+    <text x="165" y="284" font-family="SF Pro Text, Arial, sans-serif" font-size="16" font-weight="600" fill="#111111">10:35 PM</text>
+  </g>
+</svg>
