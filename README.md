@@ -46,6 +46,17 @@ npx expo run:ios
 npx expo run:android
 
 
+Website demo
+	•	Start the standalone showcase site
+
+npm run site:dev
+
+
+	•	Build the static demo for GitHub Pages
+
+npm run site:build
+
+
 
 4) App permissions
 	•	iOS Health: enable permissions on first launch via the system prompt or Settings → Health → Data Access.
