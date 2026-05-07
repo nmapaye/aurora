@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import {
   demoScenarios,
@@ -10,6 +10,15 @@ import {
 type DemoScreen = 'home' | 'sleep' | 'insights' | 'vigilance';
 
 const githubUrl = 'https://github.com/nmapaye/aurora';
+const gumroadUrl = getConfiguredUrl('VITE_AURORA_GUMROAD_URL');
+const testFlightUrl = getConfiguredUrl('VITE_AURORA_TESTFLIGHT_URL');
+
+function getConfiguredUrl(key: string) {
+  const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+  const value = env?.[key]?.trim();
+
+  return value && value.length > 0 ? value : undefined;
+}
 
 export default function App() {
   const [mode, setMode] = useState<DemoMode>('healthkit');
@@ -41,6 +50,7 @@ export default function App() {
         <nav className="topnav">
           <a href="#capabilities">What it does</a>
           <a href="#demo">Demo</a>
+          <a href="#access">Access</a>
           <a href="#proof">Proof</a>
           <a className="nav-cta" href={githubUrl} target="_blank" rel="noreferrer">
             View on GitHub
@@ -64,6 +74,9 @@ export default function App() {
               </a>
               <a className="button button-secondary" href={githubUrl} target="_blank" rel="noreferrer">
                 Explore the project
+              </a>
+              <a className="button button-secondary" href="#access">
+                Get TestFlight access
               </a>
             </div>
             <div className="hero-points">
@@ -226,8 +239,91 @@ export default function App() {
             </article>
           </div>
         </section>
+
+        <section id="access" className="section access-section">
+          <div className="section-heading">
+            <div className="eyebrow">Gumroad + TestFlight</div>
+            <h2>Package the demo clearly without shipping a raw iOS binary.</h2>
+            <p>
+              Gumroad should sell or grant access to the release notes, setup steps, and support
+              path. TestFlight should deliver the installed iOS beta to iPhone testers.
+            </p>
+          </div>
+          <div className="proof-grid">
+            <article id="release-links" className="proof-card">
+              <h3>Get TestFlight access</h3>
+              <p>
+                Configure the Gumroad package URL when the product is ready. The package should
+                contain the TestFlight invite, iPhone install steps, beta notes, and a feedback path.
+              </p>
+              <ConfiguredLink
+                className="button button-primary full-width"
+                fallbackHref="#release-links"
+                placeholderLabel="Set VITE_AURORA_GUMROAD_URL"
+                url={gumroadUrl}
+              >
+                Open Gumroad package
+              </ConfiguredLink>
+            </article>
+            <article className="proof-card">
+              <h3>What the demo includes</h3>
+              <p>
+                The Gumroad package is the access and documentation wrapper. The TestFlight app is
+                the hands-on iOS demo.
+              </p>
+              <ul>
+                <li>HealthKit-backed sleep import, with a manual path if Health access is denied</li>
+                <li>Reviewer-friendly demo data for sleep, caffeine, and vigilance results</li>
+                <li>Caffeine logging, attentiveness testing, insights, and CSV export</li>
+              </ul>
+            </article>
+            <article className="proof-card">
+              <h3>Tester notes</h3>
+              <p>
+                Health access is optional, demo data stays local, and Aurora is not medical advice.
+                Configure the TestFlight public link only after the beta build is approved.
+              </p>
+              <ConfiguredLink
+                className="button button-secondary full-width"
+                fallbackHref="#release-links"
+                placeholderLabel="Set VITE_AURORA_TESTFLIGHT_URL"
+                url={testFlightUrl}
+              >
+                Open TestFlight invite
+              </ConfiguredLink>
+            </article>
+          </div>
+        </section>
       </main>
     </div>
+  );
+}
+
+function ConfiguredLink({
+  children,
+  className,
+  fallbackHref,
+  placeholderLabel,
+  url,
+}: {
+  children: ReactNode;
+  className: string;
+  fallbackHref: string;
+  placeholderLabel: string;
+  url?: string;
+}) {
+  if (!url) {
+    return (
+      <a className={className} href={fallbackHref} aria-label={placeholderLabel}>
+        {placeholderLabel}
+      </a>
+    );
+  }
+
+  return (
+    <a className={className} href={url} target="_blank" rel="noreferrer">
+      {children}
+    </a>
   );
 }
 

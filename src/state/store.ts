@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
+import type { Dose, SleepSession } from '~/domain/models';
 import type { VigilanceSession } from '~/domain/vigilance';
+import { createDemoSnapshot } from '~/dev/mockData';
 import { jsonStringStorage } from '~/services/storage';
 
-type Dose = { id: string; timestamp: number; mg: number; source?: string; note?: string };
-type Sleep = { id: string; start: number; end: number; type: 'sleep' | 'nap' };
 type Prefs = { halfLife: number; targetSleep: number; tz?: string; dailyLimitMg: number; cutoffHour: number };
 export type OnboardingSource = 'healthkit' | 'manual';
 export type HealthPermissionStatus = 'idle' | 'granted' | 'denied' | 'unsupported';
+type HealthSync = {
+  lastSyncedAt?: number;
+  lastMessage?: string;
+  importedCount: number;
+};
 type Onboarding = {
   completed: boolean;
   source: OnboardingSource;
@@ -18,24 +23,61 @@ type Onboarding = {
 
 type State = {
   doses: Dose[];
-  sleeps: Sleep[];
+  sleeps: SleepSession[];
   vigilanceSessions: VigilanceSession[];
   prefs: Prefs;
   onboarding: Onboarding;
+  healthSync: HealthSync;
+  demoMode: boolean;
   addDose: (d: Dose) => void;
   updateDose: (id: string, patch: Partial<Omit<Dose, 'id'>>) => void;
   removeDose: (id: string) => void;
-  addSleep: (s: Sleep) => void;
-  upsertSleepSessions: (items: Sleep[]) => void;
+  addSleep: (s: SleepSession) => void;
+  upsertSleepSessions: (items: SleepSession[]) => void;
   addVigilanceSession: (session: VigilanceSession) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   setOnboarding: (p: Partial<Onboarding>) => void;
+  setHealthSync: (p: Partial<HealthSync>) => void;
+  loadDemoData: () => void;
+  clearDemoData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
 };
 
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
-type PersistedState = Pick<State, 'doses' | 'sleeps' | 'vigilanceSessions' | 'prefs' | 'onboarding'>;
+type PersistedState = Pick<
+  State,
+  'doses' | 'sleeps' | 'vigilanceSessions' | 'prefs' | 'onboarding' | 'healthSync' | 'demoMode'
+>;
 const mmkvStorage = createJSONStorage<PersistedState>(() => jsonStringStorage as any);
+const defaultPrefs: Prefs = {
+  halfLife: DEFAULT_HALFLIFE_H,
+  targetSleep: DEFAULT_TARGET_SLEEP_H,
+  dailyLimitMg: 400,
+  cutoffHour: 16,
+};
+const defaultOnboarding: Onboarding = {
+  completed: false,
+  source: 'healthkit',
+  permissionStatus: 'idle',
+};
+const defaultHealthSync: HealthSync = { importedCount: 0 };
+const demoIdPrefix = 'demo:';
+
+function withoutDemoId<T extends { id: string }>(items: T[]) {
+  return items.filter((item) => !item.id.startsWith(demoIdPrefix));
+}
+
+function normalizePersistedState(persistedState?: Partial<PersistedState>): PersistedState {
+  return {
+    doses: persistedState?.doses ?? [],
+    sleeps: persistedState?.sleeps ?? [],
+    vigilanceSessions: persistedState?.vigilanceSessions ?? [],
+    prefs: { ...defaultPrefs, ...persistedState?.prefs },
+    onboarding: { ...defaultOnboarding, ...persistedState?.onboarding },
+    healthSync: { ...defaultHealthSync, ...persistedState?.healthSync },
+    demoMode: persistedState?.demoMode ?? false,
+  };
+}
 
 export const useStore = create<State>()(
   persist(
@@ -43,8 +85,10 @@ export const useStore = create<State>()(
       doses: [],
       sleeps: [],
       vigilanceSessions: [],
-      prefs: { halfLife: DEFAULT_HALFLIFE_H, targetSleep: DEFAULT_TARGET_SLEEP_H, dailyLimitMg: 400, cutoffHour: 16 },
-      onboarding: { completed: false, source: 'healthkit', permissionStatus: 'idle' },
+      prefs: defaultPrefs,
+      onboarding: defaultOnboarding,
+      healthSync: defaultHealthSync,
+      demoMode: false,
       addDose: (d) => set((s) => ({ doses: [...s.doses, d] })),
       updateDose: (id, patch) => set((s) => ({
         doses: s.doses.map((d) => (d.id === id ? { ...d, ...patch, id: d.id } : d)),
@@ -69,6 +113,43 @@ export const useStore = create<State>()(
         })),
       setPrefs: (p) => set((s) => ({ prefs: { ...s.prefs, ...p } })),
       setOnboarding: (p) => set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
+      setHealthSync: (p) => set((s) => ({ healthSync: { ...s.healthSync, ...p } })),
+      loadDemoData: () =>
+        set((s) => {
+          const demo = createDemoSnapshot();
+          return {
+            doses: [...withoutDemoId(s.doses), ...demo.doses].sort((a, b) => b.timestamp - a.timestamp),
+            sleeps: [...withoutDemoId(s.sleeps), ...demo.sleeps].sort((a, b) => b.end - a.end),
+            vigilanceSessions: [
+              ...withoutDemoId(s.vigilanceSessions),
+              ...demo.vigilanceSessions,
+            ].sort((a, b) => b.completedAt - a.completedAt),
+            demoMode: true,
+            onboarding: {
+              ...s.onboarding,
+              completed: true,
+              source: 'manual',
+              permissionStatus: 'unsupported',
+              completedAt: s.onboarding.completedAt ?? Date.now(),
+            },
+            healthSync: {
+              importedCount: demo.sleeps.length,
+              lastSyncedAt: Date.now(),
+              lastMessage: 'Demo sample data loaded for screenshots and review.',
+            },
+          };
+        }),
+      clearDemoData: () =>
+        set((s) => ({
+          doses: withoutDemoId(s.doses),
+          sleeps: withoutDemoId(s.sleeps),
+          vigilanceSessions: withoutDemoId(s.vigilanceSessions),
+          demoMode: false,
+          healthSync: {
+            ...s.healthSync,
+            lastMessage: 'Demo sample data removed.',
+          },
+        })),
       completeOnboarding: (p) =>
         set((s) => ({
           onboarding: {
@@ -81,7 +162,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 2,
+      version: 3,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
@@ -89,44 +170,20 @@ export const useStore = create<State>()(
         vigilanceSessions: s.vigilanceSessions,
         prefs: s.prefs,
         onboarding: s.onboarding,
+        healthSync: s.healthSync,
+        demoMode: s.demoMode,
       }),
       migrate: (persistedState, version) => {
         const nextState = (persistedState ?? {}) as Partial<PersistedState>;
         if (version < 2) {
-          return {
-            doses: nextState.doses ?? [],
-            sleeps: nextState.sleeps ?? [],
-            vigilanceSessions: [],
-            prefs: nextState.prefs ?? {
-              halfLife: DEFAULT_HALFLIFE_H,
-              targetSleep: DEFAULT_TARGET_SLEEP_H,
-              dailyLimitMg: 400,
-              cutoffHour: 16,
-            },
-            onboarding: nextState.onboarding ?? {
-              completed: false,
-              source: 'healthkit',
-              permissionStatus: 'idle',
-            },
-          };
+          return normalizePersistedState({ ...nextState, vigilanceSessions: [] });
         }
-        return {
-          doses: nextState.doses ?? [],
-          sleeps: nextState.sleeps ?? [],
-          vigilanceSessions: nextState.vigilanceSessions ?? [],
-          prefs: nextState.prefs ?? {
-            halfLife: DEFAULT_HALFLIFE_H,
-            targetSleep: DEFAULT_TARGET_SLEEP_H,
-            dailyLimitMg: 400,
-            cutoffHour: 16,
-          },
-          onboarding: nextState.onboarding ?? {
-            completed: false,
-            source: 'healthkit',
-            permissionStatus: 'idle',
-          },
-        };
+        return normalizePersistedState(nextState);
       },
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...normalizePersistedState((persistedState ?? {}) as Partial<PersistedState>),
+      }),
     }
   )
 );

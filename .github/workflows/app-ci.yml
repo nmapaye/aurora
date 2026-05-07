@@ -1,0 +1,80 @@
+name: App CI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/app-ci.yml'
+      - 'App.tsx'
+      - 'app.json'
+      - 'assets/**'
+      - 'babel.config.js'
+      - 'eslint.config.mjs'
+      - 'expo-env.d.ts'
+      - 'jest.config.ts'
+      - 'metro.config.js'
+      - 'package-lock.json'
+      - 'package.json'
+      - 'plugins/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'tsconfig.json'
+      - 'android/**'
+      - 'ios/**'
+  pull_request:
+    paths:
+      - '.github/workflows/app-ci.yml'
+      - 'App.tsx'
+      - 'app.json'
+      - 'assets/**'
+      - 'babel.config.js'
+      - 'eslint.config.mjs'
+      - 'expo-env.d.ts'
+      - 'jest.config.ts'
+      - 'metro.config.js'
+      - 'package-lock.json'
+      - 'package.json'
+      - 'plugins/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'tsconfig.json'
+      - 'android/**'
+      - 'ios/**'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Type-check app
+        run: npm run type-check
+
+      - name: Lint app
+        run: npm run lint
+
+      - name: Test app
+        run: npm test -- --runInBand

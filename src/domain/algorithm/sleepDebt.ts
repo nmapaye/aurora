@@ -1,4 +1,6 @@
-export function totalSleepHoursLast24(nowMs: number, sleeps: {start:number; end:number}[]){
+import type { SleepSessionInput } from '../models';
+
+export function totalSleepHoursLast24(nowMs: number, sleeps: SleepSessionInput[]){
   const from = nowMs - 24*3600_000;
   let total = 0;
   for(const s of sleeps){
@@ -8,9 +10,8 @@ export function totalSleepHoursLast24(nowMs: number, sleeps: {start:number; end:
   }
   return total;
 }
-export function sleepDebt(nowMs: number, sleeps: any[], targetH: number){
+export function sleepDebt(nowMs: number, sleeps: SleepSessionInput[], targetH: number){
   const H = totalSleepHoursLast24(nowMs, sleeps);
   const debt = (targetH - H)/targetH;
   return Math.max(0, Math.min(1, debt));
 }
-  

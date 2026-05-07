@@ -11,7 +11,7 @@ import { ListRow, SectionCard, SectionTitle, SegmentedControl, StatTile } from '
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import type { RootTabParamList } from '~/navigation/types';
-import { makeSummaryText } from '~/services/storage/export';
+import { makeDailyTotalsCSV, makeSummaryText } from '~/services/storage/export';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -145,6 +145,7 @@ export default function InsightsScreen() {
   const doses = useStore((state) => state.doses);
   const vigilanceSessions = useStore((state) => state.vigilanceSessions);
   const dailyLimit = useStore((state) => state.prefs.dailyLimitMg ?? 400);
+  const demoMode = useStore((state) => state.demoMode);
   const sleepGuidance = useSleepGuidance();
 
   const [section, setSection] = useState<InsightsSection>(
@@ -343,6 +344,17 @@ export default function InsightsScreen() {
     });
   };
 
+  const shareDailyTotalsCSV = async () => {
+    await Share.share({
+      message: makeDailyTotalsCSV(
+        days.map((day, index) => ({
+          date: new Date(day).toISOString().slice(0, 10),
+          mg: totals[index] ?? 0,
+        }))
+      ),
+    });
+  };
+
   return (
     <AppScreen
       title="Insights"
@@ -361,7 +373,7 @@ export default function InsightsScreen() {
 
         {section === 'summary' ? (
           <>
-            <SectionTitle action={<Button title="Share month" variant="secondary" onPress={shareMonthlySummary} />}>
+            <SectionTitle action={<Button title="Share summary" variant="secondary" onPress={shareMonthlySummary} />}>
               Overview
             </SectionTitle>
             <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -382,6 +394,7 @@ export default function InsightsScreen() {
             </View>
 
             <SectionCard>
+              {demoMode ? <InlineDemoNotice paletteColor={palette.textTertiary} /> : null}
               <SectionTitle>Today</SectionTitle>
               <CaffeineTodayGraph />
               <Text
@@ -463,6 +476,25 @@ export default function InsightsScreen() {
                   No vigilance sessions yet. Run the 60-second reaction task to start tracking attentiveness alongside sleep and caffeine.
                 </Text>
               )}
+            </SectionCard>
+
+            <SectionCard>
+              <SectionTitle
+                action={
+                  <Button
+                    title="Export CSV"
+                    variant="secondary"
+                    onPress={shareDailyTotalsCSV}
+                  />
+                }
+              >
+                Share and export
+              </SectionTitle>
+              <ListRow
+                title="Daily caffeine totals"
+                subtitle="Share the selected window as CSV for reviewer notes, testing, or a demo package."
+                value={`${daysInRange} days`}
+              />
             </SectionCard>
 
             <SectionCard>
@@ -594,5 +626,19 @@ export default function InsightsScreen() {
         {section === 'history' ? <HistoryContent /> : null}
       </View>
     </AppScreen>
+  );
+}
+
+function InlineDemoNotice({ paletteColor }: { paletteColor: string }) {
+  return (
+    <Text
+      style={{
+        fontSize: 13,
+        lineHeight: 18,
+        color: paletteColor,
+      }}
+    >
+      Reviewer sample data is active; shared summaries and CSV exports include seeded demo entries.
+    </Text>
   );
 }

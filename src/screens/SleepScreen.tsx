@@ -5,11 +5,18 @@ import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import { InlineStatus, ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
-import AppleHealth from '~/services/platform/health/appleHealth';
+import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
 type SleepSample = { start: number; end: number; type?: string };
+type HealthConnectionState =
+  | 'unavailable'
+  | 'denied'
+  | 'connected'
+  | 'manual'
+  | 'demo'
+  | 'ready';
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
@@ -41,22 +48,29 @@ function fmtDuration(ms: number) {
   return `${hours}h ${minutes}m`;
 }
 
+function pluralizeSamples(count: number) {
+  return `${count} sleep sample${count === 1 ? '' : 's'}`;
+}
+
 export default function SleepScreen() {
   const scheme = useColorScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
+  const sleeps = useStore((state) => state.sleeps);
   const addDose = useStore((state) => state.addDose);
   const onboarding = useStore((state) => state.onboarding);
   const setOnboarding = useStore((state) => state.setOnboarding);
+  const healthSync = useStore((state) => state.healthSync);
+  const setHealthSync = useStore((state) => state.setHealthSync);
+  const demoMode = useStore((state) => state.demoMode);
+  const loadDemoData = useStore((state) => state.loadDemoData);
+  const clearDemoData = useStore((state) => state.clearDemoData);
   const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
   const cutoff = useCaffeineCutoff();
 
-  const [healthAvailable, setHealthAvailable] = useState(false);
+  const [healthAvailable, setHealthAvailable] = useState<boolean | undefined>(undefined);
   const [healthAuthorized, setHealthAuthorized] = useState<boolean | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  const [lastSleep, setLastSleep] = useState<SleepSample | undefined>();
-  const [sleepSamples, setSleepSamples] = useState<SleepSample[]>([]);
-  const [wakeTime, setWakeTime] = useState<number | undefined>();
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
@@ -84,6 +98,20 @@ export default function SleepScreen() {
     }
     return total;
   }, [doses]);
+
+  const storedSleepSamples = useMemo<SleepSample[]>(
+    () =>
+      sleeps
+        .map((sample) => ({
+          start: sample.start,
+          end: sample.end,
+          type: sample.type,
+        }))
+        .sort((a, b) => b.end - a.end),
+    [sleeps]
+  );
+  const lastSleep = storedSleepSamples[0];
+  const wakeTime = lastSleep?.end;
 
   const plan = useMemo(() => {
     const budget = 200;
@@ -124,15 +152,28 @@ export default function SleepScreen() {
     setLoading(true);
     try {
       const available = await AppleHealth.isAvailable();
+      setHealthAvailable(available);
       if (!available) {
         setError('Health import is unavailable on this device.');
         setHealthAuthorized(false);
+        setOnboarding({ source: 'manual', permissionStatus: 'unsupported' });
+        setHealthSync({
+          importedCount: 0,
+          lastSyncedAt: Date.now(),
+          lastMessage: 'Health is unavailable here. No sleep samples imported; manual logging and demo data remain available.',
+        });
         return;
       }
       const ok = await AppleHealth.requestAuthorization();
       if (!ok) {
         setError('Authorization was not granted.');
         setHealthAuthorized(false);
+        setOnboarding({ source: 'manual', permissionStatus: 'denied' });
+        setHealthSync({
+          importedCount: 0,
+          lastSyncedAt: Date.now(),
+          lastMessage: 'Health access was denied. No sleep samples imported; continue manually or use demo sample data.',
+        });
         return;
       }
       setHealthAuthorized(true);
@@ -140,38 +181,48 @@ export default function SleepScreen() {
       const start = end - 3 * 24 * 3_600_000;
       const samples = await AppleHealth.getSleepSamples(start, end);
       const mapped: SleepSample[] = (samples || [])
-        .map((sample: any) => ({
-          start: Number(sample.start),
-          end: Number(sample.end),
+        .map((sample) => ({
+          start: sample.start,
+          end: sample.end,
           type: sample.label,
         }))
         .filter((sample) => Number.isFinite(sample.start) && Number.isFinite(sample.end))
         .sort((a, b) => b.end - a.end);
       upsertSleepSessions(
         mapped.map((sample) => ({
-          id: `sleep:${sample.start}:${sample.end}`,
+          id: makeHealthSleepSessionId(sample),
           start: sample.start,
           end: sample.end,
           type: 'sleep' as const,
         }))
       );
-      const latest = mapped[0];
-      setSleepSamples(mapped);
-      setLastSleep(latest);
-      setWakeTime(latest?.end);
+      setHealthSync({
+        importedCount: mapped.length,
+        lastSyncedAt: Date.now(),
+        lastMessage:
+          mapped.length > 0
+            ? `Imported ${pluralizeSamples(mapped.length)} from Health. Last sync completed.`
+            : 'Health connected. Last sync completed with 0 imported sleep samples.',
+      });
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
-    } catch (nextError: any) {
-      setError(nextError?.message || 'Failed to read sleep data.');
+    } catch (nextError) {
+      const message = nextError instanceof Error ? nextError.message : 'Failed to read sleep data.';
+      setError(message);
       setHealthAuthorized(false);
       setOnboarding({ permissionStatus: 'denied' });
+      setHealthSync({
+        importedCount: 0,
+        lastSyncedAt: Date.now(),
+        lastMessage: `Health refresh failed. No sleep samples imported. ${message}`,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const lastNightTotalMs = useMemo(() => {
-    if (!sleepSamples.length) return 0;
-    const referenceEnd = lastSleep?.end ?? sleepSamples[0]?.end;
+    if (!storedSleepSamples.length) return 0;
+    const referenceEnd = lastSleep?.end ?? storedSleepSamples[0]?.end;
     if (!referenceEnd) return 0;
     const windowEnd = new Date(referenceEnd);
     windowEnd.setHours(12, 0, 0, 0);
@@ -186,18 +237,18 @@ export default function SleepScreen() {
       return normalized.includes('ASLEEP') || normalized === 'SLEEP';
     };
     let total = 0;
-    for (const sample of sleepSamples) {
+    for (const sample of storedSleepSamples) {
       if (!isAsleep(sample.type)) continue;
       const start = Math.max(sample.start, startMs);
       const end = Math.min(sample.end, endMs);
       if (end > start) total += end - start;
     }
     return total;
-  }, [lastSleep?.end, sleepSamples]);
+  }, [lastSleep?.end, storedSleepSamples]);
 
   const sleepImpact = useMemo(() => {
     const pairs: { deltaMin: number; sleepMin: number }[] = [];
-    for (const sample of sleepSamples) {
+    for (const sample of storedSleepSamples) {
       const sleepStart = sample.start;
       const windowStart = sleepStart - 12 * 3_600_000;
       let latestDose: number | undefined;
@@ -239,7 +290,7 @@ export default function SleepScreen() {
       showCorrelation: pairs.length >= 14,
       medianSleepMin: median(sleepDurations),
     };
-  }, [doses, sleepSamples]);
+  }, [doses, storedSleepSamples]);
 
   const addNow = (mg: number) => {
     addDose({
@@ -250,27 +301,55 @@ export default function SleepScreen() {
     });
   };
 
-  const healthStatus =
-    loading
-      ? 'Syncing'
-      : healthAuthorized
-      ? 'Connected'
-      : onboarding.source === 'manual'
-      ? 'Manual mode'
-      : healthAvailable
-      ? 'Not connected'
-      : 'Unavailable';
+  const healthConnectionState: HealthConnectionState = demoMode
+    ? 'demo'
+    : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
+    ? 'unavailable'
+    : onboarding.permissionStatus === 'denied' || healthAuthorized === false
+    ? 'denied'
+    : healthAuthorized || onboarding.permissionStatus === 'granted'
+    ? 'connected'
+    : onboarding.source === 'manual'
+    ? 'manual'
+    : 'ready';
+
+  const healthStatus = loading
+    ? 'Syncing Health'
+    : healthConnectionState === 'demo'
+    ? 'Demo data'
+    : healthConnectionState === 'connected'
+    ? 'Health connected'
+    : healthConnectionState === 'denied'
+    ? 'Health access denied'
+    : healthConnectionState === 'manual'
+    ? 'Manual mode'
+    : healthConnectionState === 'unavailable'
+    ? 'Health unavailable'
+    : 'Ready to connect';
 
   const healthTone =
-    error
+    error || healthConnectionState === 'denied'
       ? 'error'
-      : healthAuthorized
+      : healthConnectionState === 'demo'
+      ? 'info'
+      : healthConnectionState === 'connected'
       ? 'success'
-      : onboarding.source === 'manual'
-      ? 'neutral'
-      : healthAvailable
+      : healthConnectionState === 'ready'
       ? 'warning'
       : 'neutral';
+
+  const healthDescription =
+    healthConnectionState === 'demo'
+      ? 'Aurora is showing deterministic demo sleep and caffeine data for screenshots and reviewer walkthroughs.'
+      : healthConnectionState === 'connected'
+      ? 'Aurora can refresh recent sleep from Health and update wake-time guidance from imported sessions.'
+      : healthConnectionState === 'denied'
+      ? 'Health access is denied. Manual logging stays available, and demo data can fill the screen for walkthroughs.'
+      : healthConnectionState === 'manual'
+      ? 'Aurora is using manual sleep logging. Connect Health any time to import sleep automatically.'
+      : healthConnectionState === 'unavailable'
+      ? 'Health import is unavailable on this device. Manual logging and demo data remain available.'
+      : 'Aurora can read recent sleep from Health after you connect.';
 
   return (
     <AppScreen
@@ -288,10 +367,35 @@ export default function SleepScreen() {
               color: palette.textSecondary,
             }}
           >
-            {onboarding.source === 'manual'
-              ? 'Aurora is currently using manual logging only. Connect Health any time to import sleep automatically.'
-              : 'Aurora reads recent sleep from Health so wake time and guidance stay grounded in actual recovery.'}
+            {healthDescription}
           </Text>
+          {healthSync.lastSyncedAt || healthSync.lastMessage ? (
+            <View style={{ gap: 2 }}>
+              <ListRow
+                title="Imported"
+                subtitle="Most recent Health refresh"
+                value={pluralizeSamples(healthSync.importedCount)}
+              />
+              {healthSync.lastSyncedAt ? (
+                <ListRow
+                  title="Last sync"
+                  subtitle={fmtDate(healthSync.lastSyncedAt)}
+                  value={fmtTime(healthSync.lastSyncedAt)}
+                />
+              ) : null}
+              {healthSync.lastMessage ? (
+                <Text
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: palette.textTertiary,
+                  }}
+                >
+                  {healthSync.lastMessage}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {loading ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <ActivityIndicator color={palette.tint} />
@@ -309,10 +413,10 @@ export default function SleepScreen() {
             <Button
               title={healthAuthorized ? 'Refresh sleep' : 'Connect to Health'}
               onPress={connectHealth}
-              disabled={!healthAvailable}
+              disabled={healthAvailable === false}
             />
           )}
-          {!healthAvailable && !loading ? (
+          {healthAvailable === false && !loading ? (
             <Text
               style={{
                 fontSize: 13,
@@ -320,7 +424,7 @@ export default function SleepScreen() {
                 color: palette.textTertiary,
               }}
             >
-              Health import is currently available on iPhone only.
+              Health import is available on iPhone only. Use manual mode or load demo data on this device.
             </Text>
           ) : null}
           {error ? (
@@ -334,6 +438,22 @@ export default function SleepScreen() {
               {error}
             </Text>
           ) : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button
+              title={demoMode ? 'Refresh demo data' : 'Load demo data'}
+              variant="secondary"
+              onPress={loadDemoData}
+              disabled={loading}
+            />
+            {demoMode ? (
+              <Button
+                title="Clear demo data"
+                variant="plain"
+                onPress={clearDemoData}
+                disabled={loading}
+              />
+            ) : null}
+          </View>
         </SectionCard>
 
         <SectionTitle>Last night</SectionTitle>
@@ -354,8 +474,13 @@ export default function SleepScreen() {
             <SectionCard>
               <ListRow
                 title="Imported night"
-                subtitle="Most recent Health session"
+                subtitle={demoMode ? 'Most recent demo session' : 'Most recent sleep session'}
                 value={fmtDate(lastSleep.start)}
+              />
+              <ListRow
+                title="Sleep samples"
+                subtitle={demoMode ? 'Demo sessions loaded' : 'Stored sessions available'}
+                value={`${storedSleepSamples.length}`}
               />
               <ListRow
                 title="Wake time"
@@ -373,7 +498,7 @@ export default function SleepScreen() {
                 color: palette.textSecondary,
               }}
             >
-              Connect Health to bring in recent sleep. Aurora will then show your latest wake time and tailor the suggested caffeine plan below.
+              Connect Health to bring in recent sleep, log sleep manually, or load demo data for screenshots and reviewer walkthroughs.
             </Text>
           </SectionCard>
         )}

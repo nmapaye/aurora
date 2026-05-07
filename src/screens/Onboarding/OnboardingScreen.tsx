@@ -3,6 +3,7 @@ import { Text, View, useColorScheme } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
+import { InlineStatus, ListRow, SectionCard } from '~/components/ui';
 import StepPermissions from '~/screens/Onboarding/steps/StepPermissions';
 import StepSleepTarget from '~/screens/Onboarding/steps/StepSleepTarget';
 import StepSources from '~/screens/Onboarding/steps/StepSources';
@@ -26,6 +27,8 @@ export default function OnboardingScreen() {
   const setOnboarding = useStore((state) => state.setOnboarding);
   const completeOnboarding = useStore((state) => state.completeOnboarding);
   const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
+  const setHealthSync = useStore((state) => state.setHealthSync);
+  const loadDemoData = useStore((state) => state.loadDemoData);
 
   const [step, setStep] = useState(0);
   const [permissionMessage, setPermissionMessage] = useState<string>();
@@ -59,6 +62,14 @@ export default function OnboardingScreen() {
             type: 'sleep' as const,
           }))
         );
+        setHealthSync({
+          importedCount: samples.length,
+          lastSyncedAt: Date.now(),
+          lastMessage:
+            samples.length > 0
+              ? `Imported ${samples.length} recent sleep sample${samples.length === 1 ? '' : 's'} from Health.`
+              : 'Health connected, but no recent sleep samples were found.',
+        });
       }
     } finally {
       setRequestingPermission(false);
@@ -73,7 +84,17 @@ export default function OnboardingScreen() {
     completeOnboarding();
   };
 
+  const startDemo = () => {
+    loadDemoData();
+  };
+
   const back = () => setStep((current) => Math.max(0, current - 1));
+  const nextAction =
+    onboarding.source === 'manual'
+      ? 'Finish setup to log caffeine manually. Use the reviewer shortcut only when you want a fully seeded walkthrough.'
+      : onboarding.permissionStatus === 'granted'
+      ? 'Finish setup, then review imported sleep and log your next caffeine intake.'
+      : 'Connect Health for sleep samples, or switch to manual setup and finish without permissions.';
 
   return (
     <AppScreen
@@ -138,6 +159,22 @@ export default function OnboardingScreen() {
             busy={requestingPermission}
             onRequest={handleRequestPermission}
           />
+        ) : null}
+
+        {step === 2 ? (
+          <SectionCard>
+            <InlineStatus tone="info" text="Reviewer shortcut" />
+            <ListRow
+              title="Use sample data for a complete review"
+              subtitle={nextAction}
+            />
+            <Button
+              title="Load reviewer sample"
+              variant="secondary"
+              onPress={startDemo}
+              disabled={requestingPermission}
+            />
+          </SectionCard>
         ) : null}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>

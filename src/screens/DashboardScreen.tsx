@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import { ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
+import { InlineStatus, ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
@@ -41,8 +41,11 @@ export default function DashboardScreen() {
   const sleepGuidance = useSleepGuidance();
 
   const doses = useStore((s) => s.doses);
+  const sleepCount = useStore((s) => s.sleeps.length);
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const addDose = useStore((s) => s.addDose);
+  const demoMode = useStore((s) => s.demoMode);
+  const loadDemoData = useStore((s) => s.loadDemoData);
 
   const todaySummary = useMemo(() => {
     const now = new Date();
@@ -87,6 +90,28 @@ export default function DashboardScreen() {
       title="Today"
       subtitle="A snapshot of your caffeine, vigilance, and the sleep you’re protecting."
     >
+      {demoMode || todaySummary.recent.length === 0 ? (
+        <SectionCard>
+          <InlineStatus
+            tone={demoMode ? 'info' : 'warning'}
+            text={demoMode ? 'Reviewer data' : 'Fresh install'}
+          />
+          <ListRow
+            title={demoMode ? 'Sample flow is ready' : 'Next: log caffeine or load sample data'}
+            subtitle={
+              demoMode
+                ? 'Sleep, caffeine, and vigilance entries are seeded. Review Insights when you are ready to show summary and export.'
+                : 'Use Quick Add below for a real first dose, or seed the reviewer walkthrough in one tap.'
+            }
+          />
+          <Button
+            title={demoMode ? 'Open Insights' : 'Load reviewer sample'}
+            variant="secondary"
+            onPress={demoMode ? () => navigate('Insights', { section: 'summary' }) : loadDemoData}
+          />
+        </SectionCard>
+      ) : null}
+
       <SectionTitle>Overview</SectionTitle>
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <StatTile
@@ -146,7 +171,7 @@ export default function DashboardScreen() {
       <SectionCard>
         <ListRow
           title="Daily cutoff"
-          subtitle="Simple late-day caffeine guardrail."
+          subtitle={`${sleepCount} sleep session${sleepCount === 1 ? '' : 's'} available for guidance.`}
           value={fmtTime(cutoff?.nextCutoff)}
         />
         <ListRow

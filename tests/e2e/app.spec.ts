@@ -8,6 +8,8 @@ describe('app boot smoke flow', () => {
       vigilanceSessions: [],
       prefs: { halfLife: 5, targetSleep: 8, dailyLimitMg: 400, cutoffHour: 16 },
       onboarding: { completed: false, source: 'healthkit', permissionStatus: 'idle' },
+      healthSync: { importedCount: 0 },
+      demoMode: false,
     });
   });
 
@@ -43,5 +45,18 @@ describe('app boot smoke flow', () => {
     expect(snapshot.vigilanceSessions).toHaveLength(1);
     expect(snapshot.prefs.targetSleep).toBe(8.5);
   });
+
+  it('loads reviewer sample data as a complete first-run walkthrough', () => {
+    const store = useStore.getState();
+    store.loadDemoData();
+
+    const snapshot = useStore.getState();
+    expect(snapshot.demoMode).toBe(true);
+    expect(snapshot.onboarding.completed).toBe(true);
+    expect(snapshot.onboarding.source).toBe('manual');
+    expect(snapshot.doses.length).toBeGreaterThan(0);
+    expect(snapshot.sleeps.length).toBeGreaterThan(0);
+    expect(snapshot.vigilanceSessions.length).toBeGreaterThan(0);
+    expect(snapshot.healthSync.lastMessage).toContain('Demo sample data loaded');
+  });
 });
-  

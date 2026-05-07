@@ -2,9 +2,13 @@ import type { VigilanceSession } from '~/domain/vigilance';
 
 export type DailyTotal = { date: string; mg: number };
 
+function csvCell(value: string | number): string {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
 export function makeDailyTotalsCSV(rows: DailyTotal[]): string {
   const header = 'date,mg';
-  const lines = rows.map((r) => `${r.date},${r.mg}`);
+  const lines = rows.map((r) => [r.date, r.mg].map(csvCell).join(','));
   return [header, ...lines].join('\n');
 }
 
@@ -71,7 +75,7 @@ export function makeVigilanceSessionsCSV(rows: VigilanceSession[]): string {
       row.score,
       row.rating,
     ]
-      .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+      .map(csvCell)
       .join(',')
   );
   return [header, ...lines].join('\n');
