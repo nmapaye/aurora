@@ -91,10 +91,10 @@ export default function OnboardingScreen() {
   const back = () => setStep((current) => Math.max(0, current - 1));
   const nextAction =
     onboarding.source === 'manual'
-      ? 'Finish setup to log caffeine manually. Use the reviewer shortcut only when you want a fully seeded walkthrough.'
+      ? 'Finish setup to log caffeine manually. You can also try Aurora with sample data.'
       : onboarding.permissionStatus === 'granted'
-      ? 'Finish setup, then review imported sleep and log your next caffeine intake.'
-      : 'Connect Health for sleep samples, or switch to manual setup and finish without permissions.';
+      ? 'Finish setup, then review imported sleep.'
+      : 'Connect Health, or finish with manual setup.';
 
   return (
     <AppScreen
@@ -163,13 +163,13 @@ export default function OnboardingScreen() {
 
         {step === 2 ? (
           <SectionCard>
-            <InlineStatus tone="info" text="Reviewer shortcut" />
+            <InlineStatus tone="info" text="Sample Data" />
             <ListRow
-              title="Use sample data for a complete review"
+              title="Try Aurora with examples"
               subtitle={nextAction}
             />
             <Button
-              title="Load reviewer sample"
+              title="Load Sample Data"
               variant="secondary"
               onPress={startDemo}
               disabled={requestingPermission}

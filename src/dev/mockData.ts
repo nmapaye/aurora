@@ -39,7 +39,7 @@ export function createDemoSnapshot(now = Date.now()): {
     timestamp: today - item.day * dayMs + item.hour * hourMs,
     mg: item.mg,
     source: item.source,
-    note: 'Demo sample',
+    note: 'Sample data',
   }));
 
   const sleeps = Array.from({ length: 10 }).map((_, index) => {

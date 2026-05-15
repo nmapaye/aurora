@@ -50,7 +50,7 @@ export default function StepPermissions({
             fontSize: 30,
             lineHeight: 36,
             fontWeight: '700',
-            letterSpacing: -0.4,
+            letterSpacing: 0,
             color: palette.textPrimary,
           }}
         >
@@ -64,8 +64,8 @@ export default function StepPermissions({
           }}
         >
           {isManual
-            ? 'Manual mode is ready. Finish setup now and start logging doses immediately.'
-            : 'Grant Health access so Aurora can import recent sleep and tailor guidance to your actual recovery.'}
+            ? 'Manual mode is ready.'
+            : 'Allow Aurora to read recent sleep from Health.'}
         </Text>
       </View>
 
@@ -80,7 +80,7 @@ export default function StepPermissions({
         >
           {message ??
             (isManual
-              ? 'Aurora will use manual caffeine logs until you connect Health later.'
+              ? 'You can connect Health later from Sleep.'
               : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
         </Text>
       </SectionCard>

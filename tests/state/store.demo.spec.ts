@@ -23,7 +23,7 @@ function resetStore() {
   });
 }
 
-describe('demo sample data store actions', () => {
+describe('sample data store actions', () => {
   beforeEach(() => {
     resetStore();
   });
@@ -43,7 +43,7 @@ describe('demo sample data store actions', () => {
     ).toBe(true);
   });
 
-  it('replaces existing demo records when demo data is loaded repeatedly', () => {
+  it('replaces existing sample records when sample data is loaded repeatedly', () => {
     useStore.setState({
       doses: [{ id: 'user:dose', timestamp: Date.now(), mg: 95, source: 'Drip' }],
       sleeps: [

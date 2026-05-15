@@ -27,9 +27,9 @@ export function SectionTitle({
       <Text
         style={{
           flex: 1,
-          fontSize: 20,
-          lineHeight: 24,
-          fontWeight: '700',
+          fontSize: 17,
+          lineHeight: 22,
+          fontWeight: '600',
           color: palette.textPrimary,
         }}
       >
@@ -54,7 +54,7 @@ export function SectionCard({
       style={[
         {
           backgroundColor: palette.card,
-          borderRadius: 18,
+          borderRadius: 14,
           padding: 16,
           borderWidth: 1,
           borderColor: palette.cardBorder,
@@ -88,7 +88,7 @@ export function StatTile({
           flex: 1,
           minHeight: 92,
           backgroundColor: palette.cardMuted,
-          borderRadius: 16,
+          borderRadius: 14,
           padding: 14,
           borderWidth: 1,
           borderColor: palette.cardBorder,
@@ -111,7 +111,7 @@ export function StatTile({
         style={{
           fontSize: 28,
           lineHeight: 34,
-          fontWeight: '700',
+          fontWeight: '600',
           color: palette.textPrimary,
         }}
       >

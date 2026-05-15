@@ -358,7 +358,7 @@ export default function InsightsScreen() {
   return (
     <AppScreen
       title="Insights"
-      subtitle="Review how your caffeine, sleep, and vigilance are trending."
+      subtitle="Caffeine, sleep, and alertness trends."
     >
       <View style={{ gap: 16 }}>
         <SegmentedControl
@@ -492,7 +492,7 @@ export default function InsightsScreen() {
               </SectionTitle>
               <ListRow
                 title="Daily caffeine totals"
-                subtitle="Share the selected window as CSV for reviewer notes, testing, or a demo package."
+                subtitle="Share the selected window as CSV."
                 value={`${daysInRange} days`}
               />
             </SectionCard>
@@ -638,7 +638,7 @@ function InlineDemoNotice({ paletteColor }: { paletteColor: string }) {
         color: paletteColor,
       }}
     >
-      Reviewer sample data is active; shared summaries and CSV exports include seeded demo entries.
+      Sample data is active. Shared summaries include example records.
     </Text>
   );
 }

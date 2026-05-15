@@ -11,12 +11,12 @@ Aurora is an iPhone-first caffeine and sleep guidance demo. Testers can log caff
 - Complete onboarding with either HealthKit or manual-only setup.
 - Deny Health access and confirm Aurora remains usable with manual caffeine logging.
 - Grant Health access, if available, and confirm sleep import or the empty-state explanation is clear.
-- Use demo sample data to review the full product loop without personal Health data.
+- Use sample data to review the full product loop without personal Health data.
 - Quick-add caffeine, add a custom caffeine entry, run a vigilance test, and share an insights summary or daily totals CSV.
 
 ## Beta Review Notes
 
-Aurora uses HealthKit only to read recent sleep data for caffeine and sleep guidance. Health access is optional. If HealthKit is unavailable, denied, or empty, testers can continue with manual logging or load deterministic demo sample data from onboarding or the Sleep screen.
+Aurora uses HealthKit only to read recent sleep data for caffeine and sleep guidance. Health access is optional. If HealthKit is unavailable, denied, or empty, testers can continue with manual logging or load sample data from onboarding or the Sleep screen.
 
 Aurora is not a medical device and does not diagnose, treat, cure, or prevent any disease or condition. Guidance is informational and based on locally stored caffeine logs, imported sleep timing when available, and an on-device reaction test.
 
@@ -26,13 +26,13 @@ No cloud account is required for this demo. Demo records and user logs are store
 
 - TestFlight invite: [insert public or reviewer TestFlight link]
 - Gumroad package: [insert Gumroad product link, if applicable]
-- Demo path without Health data: launch Aurora, use manual setup, then tap "Load demo sample data" from onboarding or Sleep.
+- Sample-data path without Health data: launch Aurora, use manual setup, then tap "Load Sample Data" from onboarding or Sleep.
 
 ## Privacy Notes
 
 - HealthKit sleep data is read-only.
 - Aurora does not write Health data.
-- Demo mode uses generated sample records identifiable by `demo:` ids.
+- Sample Data uses generated records identifiable by `demo:` ids.
 - Export/share actions use the iOS share sheet and require explicit tester action.
 
 ## Known Demo Limits

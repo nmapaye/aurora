@@ -135,7 +135,7 @@ export const useStore = create<State>()(
             healthSync: {
               importedCount: demo.sleeps.length,
               lastSyncedAt: Date.now(),
-              lastMessage: 'Demo sample data loaded for screenshots and review.',
+              lastMessage: 'Sample data loaded.',
             },
           };
         }),
@@ -147,7 +147,7 @@ export const useStore = create<State>()(
           demoMode: false,
           healthSync: {
             ...s.healthSync,
-            lastMessage: 'Demo sample data removed.',
+            lastMessage: 'Sample data removed.',
           },
         })),
       completeOnboarding: (p) =>

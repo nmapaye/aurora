@@ -15,13 +15,13 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
   const options: { key: OnboardingSource; title: string; body: string }[] = [
     {
       key: 'healthkit',
-      title: 'Health app import',
-      body: 'Recommended on iPhone. Aurora reads recent sleep so Home, Sleep, and Insights reflect real recovery data.',
+      title: 'Health',
+      body: 'Read recent sleep from the Health app.',
     },
     {
       key: 'manual',
-      title: 'Manual logging only',
-      body: 'Skip health import for now and rely on dose logging. You can connect Health later from the Sleep screen.',
+      title: 'Manual',
+      body: 'Skip Health for now. You can connect later.',
     },
   ];
 
@@ -33,7 +33,7 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
             fontSize: 30,
             lineHeight: 36,
             fontWeight: '700',
-            letterSpacing: -0.4,
+            letterSpacing: 0,
             color: palette.textPrimary,
           }}
         >
@@ -46,7 +46,7 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
             color: palette.textSecondary,
           }}
         >
-          Aurora is shipping with HealthKit support first. Android sync stays out of scope for this release.
+          Choose how Aurora gets sleep data.
         </Text>
       </View>
 
@@ -62,7 +62,7 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
               style={({ pressed }) => ({
                 gap: 8,
                 padding: 18,
-                borderRadius: 20,
+                borderRadius: 14,
                 borderWidth: 1,
                 borderColor: selected ? palette.tint : palette.cardBorder,
                 backgroundColor: selected

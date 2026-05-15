@@ -22,7 +22,7 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
             fontSize: 30,
             lineHeight: 36,
             fontWeight: '700',
-            letterSpacing: -0.4,
+            letterSpacing: 0,
             color: palette.textPrimary,
           }}
         >
@@ -35,7 +35,7 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
             color: palette.textSecondary,
           }}
         >
-          Set the amount of sleep Aurora should protect when it calculates your caffeine cutoff and bedtime guidance.
+          Choose the nightly target Aurora should protect.
         </Text>
       </View>
 

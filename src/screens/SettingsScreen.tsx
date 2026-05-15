@@ -18,7 +18,7 @@ export default function SettingsScreen() {
   return (
     <AppScreen
       title="Settings"
-      subtitle="Adjust the core assumptions Aurora uses for sleep protection and caffeine guidance."
+      subtitle="Tune caffeine and sleep guidance."
       trailing={<Button title="Done" variant="plain" onPress={goBack} />}
     >
       <SectionTitle>Guidance</SectionTitle>
@@ -30,7 +30,7 @@ export default function SettingsScreen() {
         min={0.5}
         max={16}
         formatValue={(value) => `${value.toFixed(1)} h`}
-        footer="Used to estimate active caffeine and bedtime guidance."
+        footer="Used to estimate active caffeine."
       />
       <StepperField
         label="Daily sleep target"
@@ -40,7 +40,7 @@ export default function SettingsScreen() {
         min={5}
         max={10}
         formatValue={(value) => `${value.toFixed(1)} h`}
-        footer="Aurora tries to protect this amount of sleep when calculating your cutoff."
+        footer="Used for sleep guidance."
       />
       <StepperField
         label="Daily caffeine limit"
@@ -50,7 +50,7 @@ export default function SettingsScreen() {
         min={0}
         max={1000}
         formatValue={(value) => `${Math.round(value)} mg`}
-        footer="Shown in insights and adherence summaries."
+        footer="Shown in Insights."
       />
       <StepperField
         label="Cutoff hour"
@@ -62,18 +62,18 @@ export default function SettingsScreen() {
         min={0}
         max={23}
         formatValue={(value) => `${Math.round(value)}:00`}
-        footer="Used as the simple daily guardrail for late caffeine."
+        footer="Your daily guardrail."
       />
 
       <SectionTitle>About</SectionTitle>
       <SectionCard>
         <ListRow
           title="Current release focus"
-          subtitle="HealthKit-backed sleep import, manual intake logging, vigilance reaction testing, and on-device insights."
+          subtitle="Health sleep import, caffeine logging, vigilance testing, and insights."
         />
         <ListRow
           title="Deferred for later"
-          subtitle="Android health integration, sync, encrypted import/export, notifications, and background automation."
+          subtitle="Android health, sync, notifications, and background automation."
         />
       </SectionCard>
     </AppScreen>

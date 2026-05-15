@@ -49,7 +49,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     id: 'healthkit',
     modeLabel: 'With Health data',
     heroLine:
-      'Sleep from Health helps Aurora shape a clearer cutoff, a steadier plan, and a more grounded daily view.',
+      'Sleep from Health helps Aurora shape the daily cutoff and plan.',
     todayCaffeineMg: 185,
     activeCaffeineMg: 82,
     alertnessScore: 74,
@@ -58,7 +58,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     wakeTime: '6:35 AM',
     sleepStatus: 'Connected to Health',
     sleepSummary: '7h 42m imported from last night',
-    sleepDetail: 'Wake time 6:48 AM • the latest dose usually lands about 228 min before sleep',
+    sleepDetail: 'Wake time 6:48 AM • latest dose 228 min before sleep',
     plan: [
       { label: 'Kickstart', mg: 80, time: '7:20 AM' },
       { label: 'Sustain', mg: 80, time: '10:50 AM' },
@@ -100,7 +100,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     id: 'manual',
     modeLabel: 'Manual only',
     heroLine:
-      'Aurora still works well without Health by keeping logging fast and guidance easy to follow through the day.',
+      'Manual logging keeps Aurora useful without Health access.',
     todayCaffeineMg: 130,
     activeCaffeineMg: 49,
     alertnessScore: 67,
@@ -109,7 +109,7 @@ export const demoScenarios: Record<DemoMode, DemoScenario> = {
     wakeTime: '6:20 AM',
     sleepStatus: 'Manual logging only',
     sleepSummary: 'No sleep import connected yet',
-    sleepDetail: 'Aurora falls back to your configured sleep target and current intake.',
+    sleepDetail: 'Guidance uses your sleep target and current intake.',
     plan: [
       { label: 'Kickstart', mg: 60, time: '7:30 AM' },
       { label: 'Sustain', mg: 60, time: '11:00 AM' },
@@ -150,21 +150,21 @@ export const siteSections = [
   {
     title: 'Clearer caffeine timing',
     body:
-      'Aurora turns your intake and sleep context into a clearer cutoff, a bedtime signal, and a steadier pacing plan.',
+      'Aurora turns intake and sleep timing into a clearer cutoff and daily plan.',
   },
   {
     title: 'Fast enough to keep using',
     body:
-      'Quick presets and custom entries keep logging light enough to use throughout the day without breaking your flow.',
+      'Quick presets and custom entries keep logging light.',
   },
   {
     title: 'A short attentiveness check',
     body:
-      'A 60-second reaction test gives people a repeatable read on attentiveness without sending personal data to a server.',
+      'A 60-second reaction test gives a repeatable alertness signal.',
   },
   {
     title: 'Private by design',
     body:
-      'Aurora is built to stay useful on-device, with Health support on iPhone and no cloud account required.',
+      'Aurora stays useful on device, with Health support on iPhone and no account required.',
   },
 ];

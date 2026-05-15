@@ -88,24 +88,24 @@ export default function DashboardScreen() {
   return (
     <AppScreen
       title="Today"
-      subtitle="A snapshot of your caffeine, vigilance, and the sleep you’re protecting."
+      subtitle="Caffeine, alertness, and sleep guidance for the day."
     >
       {demoMode || todaySummary.recent.length === 0 ? (
         <SectionCard>
           <InlineStatus
             tone={demoMode ? 'info' : 'warning'}
-            text={demoMode ? 'Reviewer data' : 'Fresh install'}
+            text={demoMode ? 'Sample Data' : 'New Day'}
           />
           <ListRow
-            title={demoMode ? 'Sample flow is ready' : 'Next: log caffeine or load sample data'}
+            title={demoMode ? 'Examples loaded' : 'Start with a dose'}
             subtitle={
               demoMode
-                ? 'Sleep, caffeine, and vigilance entries are seeded. Review Insights when you are ready to show summary and export.'
-                : 'Use Quick Add below for a real first dose, or seed the reviewer walkthrough in one tap.'
+                ? 'Review Insights or clear sample data from Sleep.'
+                : 'Use Quick Add, or load sample data to explore Aurora.'
             }
           />
           <Button
-            title={demoMode ? 'Open Insights' : 'Load reviewer sample'}
+            title={demoMode ? 'Open Insights' : 'Load Sample Data'}
             variant="secondary"
             onPress={demoMode ? () => navigate('Insights', { section: 'summary' }) : loadDemoData}
           />
@@ -176,7 +176,7 @@ export default function DashboardScreen() {
         />
         <ListRow
           title="Suggested bedtime"
-          subtitle="Estimated from active caffeine and your current target."
+          subtitle="Based on active caffeine and your sleep target."
           value={fmtTime(sleepGuidance?.bedtime)}
         />
         <ListRow
@@ -200,7 +200,7 @@ export default function DashboardScreen() {
       <SectionCard>
         {todaySummary.recent.length === 0 ? (
           <Text style={{ fontSize: 15, lineHeight: 20, color: '#8E8E93' }}>
-            No doses logged today. Use Quick Add or Custom entry to capture your first intake.
+            No doses logged today.
           </Text>
         ) : (
           todaySummary.recent.map((dose) => (
