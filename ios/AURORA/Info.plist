@@ -28,7 +28,6 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>aurora</string>
-          <string>com.example.aurora</string>
         </array>
       </dict>
     </array>
