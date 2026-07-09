@@ -21,6 +21,7 @@ export default function SettingsScreen() {
   return (
     <AppScreen
       title="Settings"
+      subtitle="Tune caffeine and sleep guidance."
       trailing={<Button title="Done" variant="plain" onPress={goBack} />}
     >
       <HealthSectionHeader title="Appearance" />
@@ -45,6 +46,7 @@ export default function SettingsScreen() {
         min={0.5}
         max={16}
         formatValue={(value) => `${value.toFixed(1)} h`}
+        footer="Used to estimate active caffeine."
       />
       <StepperField
         label="Daily sleep target"
@@ -54,6 +56,7 @@ export default function SettingsScreen() {
         min={5}
         max={10}
         formatValue={(value) => `${value.toFixed(1)} h`}
+        footer="Used for sleep guidance."
       />
       <StepperField
         label="Daily caffeine limit"
@@ -63,6 +66,7 @@ export default function SettingsScreen() {
         min={0}
         max={1000}
         formatValue={(value) => `${Math.round(value)} mg`}
+        footer="Shown in Insights."
       />
       <StepperField
         label="Cutoff hour"
@@ -74,19 +78,18 @@ export default function SettingsScreen() {
         min={0}
         max={23}
         formatValue={(value) => `${Math.round(value)}:00`}
+        footer="Your daily guardrail."
       />
 
       <HealthSectionHeader title="About" />
       <SectionCard>
         <ListRow
-          title="Release focus"
-          value="Demo"
-          subtitle="Health import, caffeine logging, vigilance, insights"
+          title="Current release focus"
+          subtitle="Health sleep import, caffeine logging, vigilance testing, and insights."
         />
         <ListRow
-          title="Deferred"
-          value="Later"
-          subtitle="Sync, Android health, notifications, Apple Watch"
+          title="Deferred for later"
+          subtitle="Android health, sync, notifications, and background automation."
         />
       </SectionCard>
     </AppScreen>

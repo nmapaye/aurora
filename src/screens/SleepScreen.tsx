@@ -168,7 +168,7 @@ export default function SleepScreen() {
         setHealthSync({
           importedCount: 0,
           lastSyncedAt: Date.now(),
-          lastMessage: 'Health is unavailable here. No sleep samples imported; manual logging and demo data remain available.',
+          lastMessage: 'Health is unavailable here. No sleep samples were imported.',
         });
         return;
       }
@@ -180,7 +180,7 @@ export default function SleepScreen() {
         setHealthSync({
           importedCount: 0,
           lastSyncedAt: Date.now(),
-          lastMessage: 'Health access was denied. No sleep samples imported; continue manually or use demo sample data.',
+          lastMessage: 'Health access was denied. No sleep samples were imported.',
         });
         return;
       }
@@ -324,7 +324,7 @@ export default function SleepScreen() {
   const healthStatus = loading
     ? 'Syncing Health'
     : healthConnectionState === 'demo'
-    ? 'Demo data'
+    ? 'Sample Data'
     : healthConnectionState === 'connected'
     ? 'Health connected'
     : healthConnectionState === 'denied'
@@ -348,19 +348,22 @@ export default function SleepScreen() {
 
   const healthDescription =
     healthConnectionState === 'demo'
-      ? 'Aurora is showing deterministic demo sleep and caffeine data for screenshots and reviewer walkthroughs.'
+      ? 'Example sleep and caffeine data is active.'
       : healthConnectionState === 'connected'
-      ? 'Aurora can refresh recent sleep from Health and update wake-time guidance from imported sessions.'
+      ? 'Aurora can refresh recent sleep from Health.'
       : healthConnectionState === 'denied'
-      ? 'Health access is denied. Manual logging stays available, and demo data can fill the screen for walkthroughs.'
+      ? 'Health access is denied. Manual logging is still available.'
       : healthConnectionState === 'manual'
-      ? 'Aurora is using manual sleep logging. Connect Health any time to import sleep automatically.'
+      ? 'Aurora is using manual sleep logging.'
       : healthConnectionState === 'unavailable'
-      ? 'Health import is unavailable on this device. Manual logging and demo data remain available.'
+      ? 'Health import is unavailable on this device.'
       : 'Aurora can read recent sleep from Health after you connect.';
 
   return (
-    <AppScreen title="Sleep">
+    <AppScreen
+      title="Sleep"
+      subtitle="Connect Health or enter sleep manually."
+    >
       <View style={{ gap: 16 }}>
         <HealthSectionHeader title="Pinned" />
         {lastSleep ? (
@@ -450,7 +453,7 @@ export default function SleepScreen() {
                 color: palette.textTertiary,
               }}
             >
-              Health import is available on iPhone only. Use manual mode or load demo data on this device.
+              Health import is available on iPhone only. Use manual mode or sample data on this device.
             </Text>
           ) : null}
           {error ? (
@@ -466,14 +469,14 @@ export default function SleepScreen() {
           ) : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <Button
-              title={demoMode ? 'Refresh demo data' : 'Load demo data'}
+              title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'}
               variant="secondary"
               onPress={loadDemoData}
               disabled={loading}
             />
             {demoMode ? (
               <Button
-                title="Clear demo data"
+                title="Clear Samples"
                 variant="plain"
                 onPress={clearDemoData}
                 disabled={loading}
@@ -500,12 +503,12 @@ export default function SleepScreen() {
             <SectionCard>
               <ListRow
                 title="Imported night"
-                subtitle={demoMode ? 'Most recent demo session' : 'Most recent sleep session'}
+                subtitle={demoMode ? 'Most recent sample session' : 'Most recent sleep session'}
                 value={fmtDate(lastSleep.start)}
               />
               <ListRow
                 title="Sleep samples"
-                subtitle={demoMode ? 'Demo sessions loaded' : 'Stored sessions available'}
+                subtitle={demoMode ? 'Sample sessions loaded' : 'Stored sessions'}
                 value={`${storedSleepSamples.length}`}
               />
               <ListRow
@@ -524,7 +527,7 @@ export default function SleepScreen() {
                 color: palette.textSecondary,
               }}
             >
-              Connect Health, log sleep manually, or load demo data.
+              Connect Health, log sleep manually, or try sample data.
             </Text>
           </SectionCard>
         )}
@@ -568,7 +571,7 @@ export default function SleepScreen() {
                 color: palette.textSecondary,
               }}
             >
-              Once Aurora has sleep history and nearby dose timing, this section will summarize how close your final dose tends to land before bed.
+              Add sleep and caffeine records to see timing patterns.
             </Text>
           )}
         </SectionCard>
@@ -583,7 +586,7 @@ export default function SleepScreen() {
                 color: palette.textSecondary,
               }}
             >
-              A plan appears after Aurora has a wake time and there is still room before today’s cutoff.
+              Add a wake time to see a plan.
             </Text>
           ) : (
             <>
@@ -618,7 +621,7 @@ export default function SleepScreen() {
                   color: palette.textTertiary,
                 }}
               >
-                Based on a soft 200 mg budget and the time between your latest wake point and cutoff.
+                Based on today’s intake and your cutoff.
               </Text>
             </>
           )}

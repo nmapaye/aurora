@@ -117,27 +117,32 @@ export default function DashboardScreen() {
     addDose({ id, timestamp: Date.now(), mg, source });
   };
 
-  const alertCard =
-    demoMode || todaySummary.recent.length === 0 ? (
-      <HealthAlertCard
-        tone={demoMode ? 'info' : 'warning'}
-        label={demoMode ? 'Reviewer Data' : 'Fresh Install'}
-        dateLabel={fmtDay(Date.now())}
-        icon={demoMode ? 'sparkles-outline' : 'alert-circle-outline'}
-        title={demoMode ? 'Sample flow is ready.' : 'No data yet.'}
-        body={
-          demoMode
-            ? 'Sleep, caffeine, and vigilance are seeded.'
-            : 'Log caffeine or load reviewer data to fill Summary.'
-        }
-        actionLabel={demoMode ? 'More Details' : 'Load Sample'}
-        onAction={
-          demoMode
-            ? () => navigate('Insights', { section: 'summary' })
-            : loadDemoData
-        }
-      />
-    ) : null;
+  return (
+    <AppScreen
+      title="Today"
+      subtitle="Caffeine, alertness, and sleep guidance for the day."
+    >
+      {demoMode || todaySummary.recent.length === 0 ? (
+        <SectionCard>
+          <InlineStatus
+            tone={demoMode ? 'info' : 'warning'}
+            text={demoMode ? 'Sample Data' : 'New Day'}
+          />
+          <ListRow
+            title={demoMode ? 'Examples loaded' : 'Start with a dose'}
+            subtitle={
+              demoMode
+                ? 'Review Insights or clear sample data from Sleep.'
+                : 'Use Quick Add, or load sample data to explore Aurora.'
+            }
+          />
+          <Button
+            title={demoMode ? 'Open Insights' : 'Load Sample Data'}
+            variant="secondary"
+            onPress={demoMode ? () => navigate('Insights', { section: 'summary' }) : loadDemoData}
+          />
+        </SectionCard>
+      ) : null}
 
   const pinnedCards = (
     <>
@@ -223,7 +228,47 @@ export default function DashboardScreen() {
             />
           ))}
         </View>
-        <Button title="Custom Entry" variant="plain" onPress={() => navigate('Log')} />
+        <Button title="Custom entry" variant="plain" onPress={() => navigate('Log')} />
+      </SectionCard>
+
+      <SectionTitle
+        action={<Button title="Start test" variant="secondary" onPress={() => navigate('VigilanceTest')} />}
+      >
+        Vigilance
+      </SectionTitle>
+      <SectionCard>
+        <StatTile
+          label="Latest session"
+          value={
+            latestVigilanceSession
+              ? `${latestVigilanceSession.score} ${latestVigilanceSession.rating}`
+              : 'No baseline'
+          }
+          detail={
+            latestVigilanceSession?.medianReactionMs
+              ? `Median reaction ${latestVigilanceSession.medianReactionMs} ms`
+              : 'Run the 60-second reaction task to start tracking attentiveness.'
+          }
+        />
+      </SectionCard>
+
+      <SectionTitle>Recommendations</SectionTitle>
+      <SectionCard>
+        <ListRow
+          title="Daily cutoff"
+          subtitle={`${sleepCount} sleep session${sleepCount === 1 ? '' : 's'} available for guidance.`}
+          value={fmtTime(cutoff?.nextCutoff)}
+        />
+        <ListRow
+          title="Suggested bedtime"
+          subtitle="Based on active caffeine and your sleep target."
+          value={fmtTime(sleepGuidance?.bedtime)}
+        />
+        <ListRow
+          title="Suggested wake"
+          subtitle="Based on 90-minute cycles and your current bedtime target."
+          value={fmtTime(sleepGuidance?.wake)}
+        />
       </SectionCard>
     </>
   );
@@ -244,7 +289,7 @@ export default function DashboardScreen() {
       <SectionCard>
         {todaySummary.recent.length === 0 ? (
           <Text style={{ fontSize: 15, lineHeight: 20, color: '#8E8E93' }}>
-            No doses logged today. Use Quick Add or Custom entry to capture your first intake.
+            No doses logged today.
           </Text>
         ) : (
           todaySummary.recent.map((dose) => (

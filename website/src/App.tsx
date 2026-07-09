@@ -62,11 +62,9 @@ export default function App() {
         <section className="hero section">
           <div className="hero-copy">
             <div className="eyebrow">Sleep-aware caffeine guidance</div>
-            <h1>Track intake, protect sleep, and measure attentiveness in one calm daily flow.</h1>
+            <h1>Track caffeine, protect sleep, and check alertness.</h1>
             <p className="hero-text">
-              Aurora helps people understand how caffeine fits into the rest of the day.
-              You can log intake quickly, see a clearer cutoff, and run a short vigilance test
-              to track how alert you feel over time.
+              Aurora keeps caffeine logging fast, sleep guidance clear, and alertness checks private.
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href="#demo">
@@ -101,7 +99,7 @@ export default function App() {
         <section id="capabilities" className="section">
           <div className="section-heading">
             <div className="eyebrow">What it does</div>
-            <h2>Aurora keeps the signal clear when caffeine and sleep start to overlap.</h2>
+            <h2>Simple tools for caffeine, sleep, and alertness.</h2>
           </div>
           <div className="capability-grid">
             {siteSections.map((item) => (
@@ -116,10 +114,9 @@ export default function App() {
         <section id="demo" className="section demo-section">
           <div className="section-heading">
             <div className="eyebrow">Interactive preview</div>
-            <h2>Move through the core Aurora experience in the browser.</h2>
+            <h2>Preview the main flow.</h2>
             <p>
-              Switch between a Health-connected view and a manual-only flow, then step through
-              the screens that shape the everyday experience.
+              Compare a Health-connected view with a manual setup.
             </p>
           </div>
 
@@ -208,11 +205,11 @@ export default function App() {
         <section id="proof" className="section">
           <div className="section-heading">
             <div className="eyebrow">Product context</div>
-            <h2>Built around the current Aurora app, with the details kept honest.</h2>
+            <h2>Current app scope.</h2>
           </div>
           <div className="proof-grid">
             <article className="proof-card">
-              <h3>What Aurora already does</h3>
+              <h3>Included</h3>
               <ul>
                 <li>iPhone-first app with Health-backed sleep import</li>
                 <li>Fast caffeine logging with quick-add and custom entries</li>
@@ -220,18 +217,17 @@ export default function App() {
               </ul>
             </article>
             <article className="proof-card">
-              <h3>What stays out of scope here</h3>
+              <h3>Not included</h3>
               <ul>
                 <li>No cloud sync</li>
                 <li>No Android health parity</li>
-                <li>No App Store-style promises that do not exist yet</li>
+                <li>No unavailable release promises</li>
               </ul>
             </article>
             <article className="proof-card">
-              <h3>See how it is built</h3>
+              <h3>Source</h3>
               <p>
-                The interactive preview is meant to explain the product quickly. GitHub is there
-                if you want the real code, current scope, and implementation details behind it.
+                View the current code, release scope, and implementation notes.
               </p>
               <a className="button button-secondary full-width" href={githubUrl} target="_blank" rel="noreferrer">
                 Open Aurora on GitHub
@@ -243,18 +239,16 @@ export default function App() {
         <section id="access" className="section access-section">
           <div className="section-heading">
             <div className="eyebrow">Gumroad + TestFlight</div>
-            <h2>Package the demo clearly without shipping a raw iOS binary.</h2>
+            <h2>Access through Gumroad. Install through TestFlight.</h2>
             <p>
-              Gumroad should sell or grant access to the release notes, setup steps, and support
-              path. TestFlight should deliver the installed iOS beta to iPhone testers.
+              Gumroad holds the guide and support path. TestFlight delivers the iOS beta.
             </p>
           </div>
           <div className="proof-grid">
             <article id="release-links" className="proof-card">
               <h3>Get TestFlight access</h3>
               <p>
-                Configure the Gumroad package URL when the product is ready. The package should
-                contain the TestFlight invite, iPhone install steps, beta notes, and a feedback path.
+                Add the Gumroad link when the package is ready.
               </p>
               <ConfiguredLink
                 className="button button-primary full-width"
@@ -268,20 +262,18 @@ export default function App() {
             <article className="proof-card">
               <h3>What the demo includes</h3>
               <p>
-                The Gumroad package is the access and documentation wrapper. The TestFlight app is
-                the hands-on iOS demo.
+                The package explains access. The app runs in TestFlight.
               </p>
               <ul>
-                <li>HealthKit-backed sleep import, with a manual path if Health access is denied</li>
-                <li>Reviewer-friendly demo data for sleep, caffeine, and vigilance results</li>
+                <li>Health sleep import with a manual path</li>
+                <li>Sample data for sleep, caffeine, and alertness</li>
                 <li>Caffeine logging, attentiveness testing, insights, and CSV export</li>
               </ul>
             </article>
             <article className="proof-card">
               <h3>Tester notes</h3>
               <p>
-                Health access is optional, demo data stays local, and Aurora is not medical advice.
-                Configure the TestFlight public link only after the beta build is approved.
+                Health access is optional. Sample data stays local. Aurora is not medical advice.
               </p>
               <ConfiguredLink
                 className="button button-secondary full-width"

@@ -46,7 +46,7 @@ describe('app boot smoke flow', () => {
     expect(snapshot.prefs.targetSleep).toBe(8.5);
   });
 
-  it('loads reviewer sample data as a complete first-run walkthrough', () => {
+  it('loads sample data as a complete first-run state', () => {
     const store = useStore.getState();
     store.loadDemoData();
 
@@ -57,6 +57,6 @@ describe('app boot smoke flow', () => {
     expect(snapshot.doses.length).toBeGreaterThan(0);
     expect(snapshot.sleeps.length).toBeGreaterThan(0);
     expect(snapshot.vigilanceSessions.length).toBeGreaterThan(0);
-    expect(snapshot.healthSync.lastMessage).toContain('Demo sample data loaded');
+    expect(snapshot.healthSync.lastMessage).toContain('Sample data loaded');
   });
 });

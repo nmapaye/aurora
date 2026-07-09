@@ -17,19 +17,40 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
   const options: { key: OnboardingSource; title: string; body: string }[] = [
     {
       key: 'healthkit',
-      title: 'Health app import',
-      body: 'Read recent sleep from Health.',
+      title: 'Health',
+      body: 'Read recent sleep from the Health app.',
     },
     {
       key: 'manual',
-      title: 'Manual logging only',
-      body: 'Skip permissions and log manually.',
+      title: 'Manual',
+      body: 'Skip Health for now. You can connect later.',
     },
   ];
 
   return (
     <View style={{ gap: 16 }}>
-      <HealthSectionHeader title="Data Source" />
+      <View style={{ gap: 8 }}>
+        <Text
+          style={{
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: '700',
+            letterSpacing: 0,
+            color: palette.textPrimary,
+          }}
+        >
+          Choose your data source
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            lineHeight: 22,
+            color: palette.textSecondary,
+          }}
+        >
+          Choose how Aurora gets sleep data.
+        </Text>
+      </View>
 
       <View style={{ gap: 12 }}>
         {options.map((option) => {
@@ -38,12 +59,39 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
             <HealthOptionCard
               key={option.key}
               onPress={() => onSelect(option.key)}
-              selected={selected}
-              icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
-              title={option.title}
-              subtitle={option.body}
-              color={option.key === 'healthkit' ? '#FF2D55' : palette.tint}
-            />
+              style={({ pressed }) => ({
+                gap: 8,
+                padding: 18,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: selected ? palette.tint : palette.cardBorder,
+                backgroundColor: selected
+                  ? palette.cardMuted
+                  : pressed
+                  ? palette.pressed
+                  : palette.card,
+              })}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  lineHeight: 24,
+                  fontWeight: '600',
+                  color: palette.textPrimary,
+                }}
+              >
+                {option.title}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 15,
+                  lineHeight: 20,
+                  color: palette.textSecondary,
+                }}
+              >
+                {option.body}
+              </Text>
+            </Pressable>
           );
         })}
       </View>

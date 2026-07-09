@@ -17,7 +17,28 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
 
   return (
     <View style={{ gap: 16 }}>
-      <HealthSectionHeader title="Sleep Target" />
+      <View style={{ gap: 8 }}>
+        <Text
+          style={{
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: '700',
+            letterSpacing: 0,
+            color: palette.textPrimary,
+          }}
+        >
+          Sleep target
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            lineHeight: 22,
+            color: palette.textSecondary,
+          }}
+        >
+          Choose the nightly target Aurora should protect.
+        </Text>
+      </View>
 
       <StepperField
         label="Target sleep"

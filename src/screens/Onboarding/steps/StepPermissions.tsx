@@ -45,20 +45,30 @@ export default function StepPermissions({
 
   return (
     <View style={{ gap: 16 }}>
-      <HealthSectionHeader title="Permissions" />
-
-      <HealthMetricCard
-        icon={isManual ? 'create-outline' : 'heart'}
-        label={isManual ? 'Manual Mode' : 'Health'}
-        labelColor={isManual ? palette.tint : '#FF2D55'}
-        dateLabel={stateLabel}
-        value={isManual ? 'Ready' : stateLabel}
-        detail={
-          isManual
-            ? 'Log caffeine without Health access.'
-            : 'Aurora reads sleep only.'
-        }
-      />
+      <View style={{ gap: 8 }}>
+        <Text
+          style={{
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: '700',
+            letterSpacing: 0,
+            color: palette.textPrimary,
+          }}
+        >
+          Permissions
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            lineHeight: 22,
+            color: palette.textSecondary,
+          }}
+        >
+          {isManual
+            ? 'Manual mode is ready.'
+            : 'Allow Aurora to read recent sleep from Health.'}
+        </Text>
+      </View>
 
       <SectionCard>
         <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
@@ -71,7 +81,7 @@ export default function StepPermissions({
         >
           {message ??
             (isManual
-              ? 'Aurora will use manual caffeine logs until you connect Health later.'
+              ? 'You can connect Health later from Sleep.'
               : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
         </Text>
       </SectionCard>

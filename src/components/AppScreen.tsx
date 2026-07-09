@@ -67,6 +67,7 @@ export default function AppScreen({
                   fontSize: 40,
                   lineHeight: 46,
                   fontWeight: '700',
+                  letterSpacing: 0,
                   color: palette.textPrimary,
                 }}
               >
