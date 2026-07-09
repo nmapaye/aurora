@@ -10,6 +10,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .env*
+!.env.example
 .DS_Store
 # iOS/Android build artifacts
 ios/build/
