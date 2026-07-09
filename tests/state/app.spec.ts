@@ -6,7 +6,7 @@ describe('app boot smoke flow', () => {
       doses: [],
       sleeps: [],
       vigilanceSessions: [],
-      prefs: { halfLife: 5, targetSleep: 8, dailyLimitMg: 400, cutoffHour: 16 },
+      prefs: { halfLife: 5, targetSleep: 8, dailyLimitMg: 400, cutoffHour: 16, notifyCutoff: false },
       onboarding: { completed: false, source: 'healthkit', permissionStatus: 'idle' },
       healthSync: { importedCount: 0 },
       demoMode: false,

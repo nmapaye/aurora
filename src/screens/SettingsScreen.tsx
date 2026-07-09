@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -10,6 +10,7 @@ import {
   StepperField,
 } from '~/components/ui';
 import { goBack } from '~/navigation';
+import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
 
 export default function SettingsScreen() {
@@ -17,6 +18,21 @@ export default function SettingsScreen() {
   const setPrefs = useStore((s) => s.setPrefs);
   const appearanceMode = useStore((s) => s.appearanceMode);
   const setAppearanceMode = useStore((s) => s.setAppearanceMode);
+
+  useEffect(() => {
+    let cancelled = false;
+    syncCutoffReminder(prefs.notifyCutoff, prefs.cutoffHour)
+      .then((scheduled) => {
+        // Permission denied: reflect reality in the pref so the toggle is honest.
+        if (!cancelled && prefs.notifyCutoff && !scheduled) {
+          setPrefs({ notifyCutoff: false });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [prefs.notifyCutoff, prefs.cutoffHour, setPrefs]);
 
   return (
     <AppScreen
@@ -81,6 +97,22 @@ export default function SettingsScreen() {
         footer="Your daily guardrail."
       />
 
+      <HealthSectionHeader title="Notifications" />
+      <SectionCard>
+        <ListRow
+          title="Cutoff reminder"
+          subtitle={`Daily at ${prefs.cutoffHour}:00, so caffeine stays clear of bedtime.`}
+        />
+        <SegmentedControl
+          value={prefs.notifyCutoff ? 'on' : 'off'}
+          onChange={(value) => setPrefs({ notifyCutoff: value === 'on' })}
+          options={[
+            { key: 'off', label: 'Off' },
+            { key: 'on', label: 'On' },
+          ]}
+        />
+      </SectionCard>
+
       <HealthSectionHeader title="About" />
       <SectionCard>
         <ListRow
@@ -89,7 +121,7 @@ export default function SettingsScreen() {
         />
         <ListRow
           title="Deferred for later"
-          subtitle="Android health, sync, notifications, and background automation."
+          subtitle="Android health, sync, and background automation."
         />
       </SectionCard>
     </AppScreen>

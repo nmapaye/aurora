@@ -12,6 +12,7 @@ function resetStore() {
       targetSleep: DEFAULT_TARGET_SLEEP_H,
       dailyLimitMg: 400,
       cutoffHour: 16,
+      notifyCutoff: false,
     },
     onboarding: {
       completed: false,
@@ -195,6 +196,7 @@ describe('sample data store actions', () => {
       targetSleep: DEFAULT_TARGET_SLEEP_H,
       dailyLimitMg: 400,
       cutoffHour: 16,
+      notifyCutoff: false,
     });
     expect(state.onboarding).toMatchObject({
       completed: true,
@@ -230,6 +232,7 @@ describe('sample data store actions', () => {
       targetSleep: 7.5,
       dailyLimitMg: 400,
       cutoffHour: 16,
+      notifyCutoff: false,
     });
   });
 

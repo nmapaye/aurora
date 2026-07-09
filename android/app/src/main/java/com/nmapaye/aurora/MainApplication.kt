@@ -1,4 +1,4 @@
-package com.example.aurora
+package com.nmapaye.aurora
 
 import android.app.Application
 import android.content.res.Configuration

@@ -33,7 +33,14 @@ const nonDefaultPersistedState = {
       rating: 'Sharp' as const,
     },
   ],
-  prefs: { halfLife: 6.5, targetSleep: 7.25, tz: 'America/Los_Angeles', dailyLimitMg: 300, cutoffHour: 14 },
+  prefs: {
+    halfLife: 6.5,
+    targetSleep: 7.25,
+    tz: 'America/Los_Angeles',
+    dailyLimitMg: 300,
+    cutoffHour: 14,
+    notifyCutoff: true,
+  },
   onboarding: {
     completed: true,
     source: 'manual' as const,
