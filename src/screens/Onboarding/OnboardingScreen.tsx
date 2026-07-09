@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import { HealthAlertCard } from '~/components/ui';
+import { InlineStatus, ListRow, SectionCard } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import StepPermissions from '~/screens/Onboarding/steps/StepPermissions';
 import StepSleepTarget from '~/screens/Onboarding/steps/StepSleepTarget';
