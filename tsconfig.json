@@ -24,8 +24,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": [
-    "src/dev/storybook/**/*"
-  ],
   "extends": "expo/tsconfig.base"
 }
