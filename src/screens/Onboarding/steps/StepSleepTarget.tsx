@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { SectionCard, SectionTitle, StepperField } from '~/components/ui';
+import { HealthOptionCard, HealthSectionHeader, StepperField } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 
 type Props = {
@@ -10,34 +11,13 @@ type Props = {
 };
 
 export default function StepSleepTarget({ targetSleep, onChange }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const presets = [7, 8, 9];
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text
-          style={{
-            fontSize: 30,
-            lineHeight: 36,
-            fontWeight: '700',
-            letterSpacing: -0.4,
-            color: palette.textPrimary,
-          }}
-        >
-          Sleep target
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            lineHeight: 22,
-            color: palette.textSecondary,
-          }}
-        >
-          Set the amount of sleep Aurora should protect when it calculates your caffeine cutoff and bedtime guidance.
-        </Text>
-      </View>
+      <HealthSectionHeader title="Sleep Target" />
 
       <StepperField
         label="Target sleep"
@@ -46,51 +26,37 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
         min={5}
         max={10}
         formatValue={(value) => `${value.toFixed(1)} h`}
-        footer="You can change this later in Settings."
         onChange={(value) => onChange(Math.round(value * 2) / 2)}
       />
 
-      <SectionCard>
-        <SectionTitle>Common targets</SectionTitle>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
+      <View style={{ gap: 10 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            lineHeight: 18,
+            color: palette.textSecondary,
+            fontWeight: '600',
+          }}
+        >
+          Common Targets
+        </Text>
+        <View style={{ gap: 10 }}>
           {presets.map((preset) => {
             const selected = preset === Math.round(targetSleep);
             return (
-              <Pressable
+              <HealthOptionCard
                 key={preset}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
                 onPress={() => onChange(preset)}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: selected ? palette.tint : palette.cardBorder,
-                  backgroundColor: selected
-                    ? palette.cardMuted
-                    : pressed
-                    ? palette.pressed
-                    : palette.card,
-                  paddingHorizontal: 14,
-                  paddingVertical: 16,
-                })}
-              >
-                <Text
-                  style={{
-                    fontSize: 17,
-                    lineHeight: 22,
-                    fontWeight: '600',
-                    color: palette.textPrimary,
-                    textAlign: 'center',
-                  }}
-                >
-                  {preset}h
-                </Text>
-              </Pressable>
+                selected={selected}
+                icon="bed"
+                title={`${preset} hours`}
+                subtitle={preset === 7 ? 'Light target' : preset === 8 ? 'Standard target' : 'Extended target'}
+                color="#7D7AFF"
+              />
             );
           })}
         </View>
-      </SectionCard>
+      </View>
     </View>
   );
 }

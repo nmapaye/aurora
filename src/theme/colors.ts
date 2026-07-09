@@ -92,13 +92,13 @@ const lightPalette: AppPalette = {
 };
 
 const darkPalette: AppPalette = {
-  screen: '#000000',
-  groupedBackground: '#000000',
-  modalBackground: '#111111',
+  screen: '#111113',
+  groupedBackground: '#111113',
+  modalBackground: '#1C1C1E',
   card: '#1C1C1E',
   cardMuted: '#2C2C2E',
-  cardBorder: '#38383A',
-  separator: '#38383A',
+  cardBorder: '#303033',
+  separator: '#303033',
   textPrimary: '#FFFFFF',
   textSecondary: '#AEAEB2',
   textTertiary: '#8E8E93',
@@ -115,7 +115,7 @@ const darkPalette: AppPalette = {
   secondaryButtonBorder: '#21456D',
   secondaryButtonText: '#6BB4FF',
   plainButtonText: '#6BB4FF',
-  pressed: '#2C2C2E',
+  pressed: '#333336',
   selectionFill: '#142033',
   fieldBackground: '#2C2C2E',
   modalScrim: 'rgba(0,0,0,0.42)',

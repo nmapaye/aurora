@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
+import useAppScheme from '~/hooks/useAppScheme';
 import { goBack } from '~/navigation';
 import {
   advanceVigilanceTask,
@@ -28,7 +29,7 @@ function formatReaction(reactionMs: number | null) {
 }
 
 export default function VigilanceTestScreen() {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const addVigilanceSession = useStore((s) => s.addVigilanceSession);
   const [taskState, setTaskState] = useState<VigilanceTaskState>(() =>
@@ -137,7 +138,7 @@ export default function VigilanceTestScreen() {
     <View
       style={{
         flex: 1,
-        backgroundColor: palette.screen,
+        backgroundColor: palette.groupedBackground,
         paddingHorizontal: 16,
         paddingTop: 20,
         paddingBottom: 32,
@@ -150,7 +151,7 @@ export default function VigilanceTestScreen() {
           marginBottom: 20,
         }}
       >
-        <Button title="Close" variant="outline" onPress={goBack} />
+        <Button title="Close" variant="plain" onPress={goBack} />
         <View style={{ flex: 1 }} />
         <View
           style={{
@@ -159,8 +160,8 @@ export default function VigilanceTestScreen() {
             borderRadius: 999,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: palette.neutralButton,
-            borderWidth: 1,
+            backgroundColor: palette.cardMuted,
+            borderWidth: scheme === 'dark' ? 0 : 1,
             borderColor: palette.neutralButtonBorder,
           }}
         >
@@ -181,9 +182,9 @@ export default function VigilanceTestScreen() {
         <View
           style={{
             backgroundColor: palette.card,
-            borderRadius: 18,
+            borderRadius: 28,
             padding: 18,
-            borderWidth: 1,
+            borderWidth: scheme === 'dark' ? 0 : 1,
             borderColor: palette.cardBorder,
             gap: 8,
           }}
@@ -227,7 +228,7 @@ export default function VigilanceTestScreen() {
                 : currentCueVisible
                 ? palette.primaryButton
                 : palette.neutralButton,
-            borderWidth: 2,
+            borderWidth: scheme === 'dark' ? 0 : 2,
             borderColor:
               taskState.phase === 'complete'
                 ? palette.cardBorder
@@ -338,7 +339,7 @@ export default function VigilanceTestScreen() {
                   backgroundColor: palette.neutralButton,
                   borderRadius: 18,
                   padding: 16,
-                  borderWidth: 1,
+                  borderWidth: scheme === 'dark' ? 0 : 1,
                   borderColor: palette.neutralButtonBorder,
                 }}
               >
@@ -361,7 +362,7 @@ export default function VigilanceTestScreen() {
               </View>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <Button title="Run again" variant="primary" onPress={startSession} />
-                <Button title="Done" variant="outline" onPress={goBack} />
+                <Button title="Done" variant="plain" onPress={goBack} />
               </View>
             </View>
           ) : null}
@@ -379,8 +380,8 @@ export default function VigilanceTestScreen() {
                 flex: 1,
                 minHeight: HIT_TARGET,
                 backgroundColor: palette.card,
-                borderRadius: 16,
-                borderWidth: 1,
+                borderRadius: 18,
+                borderWidth: scheme === 'dark' ? 0 : 1,
                 borderColor: palette.cardBorder,
                 padding: 14,
               }}

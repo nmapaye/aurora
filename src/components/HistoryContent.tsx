@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Share, Text, View, useColorScheme } from 'react-native';
+import { Share, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { FieldInput, SectionCard, SectionTitle, SegmentedControl } from '~/components/ui';
+import { FieldInput, HealthSectionHeader, SectionCard, SegmentedControl } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import { makeVigilanceSessionsCSV } from '~/services/storage/export';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
@@ -15,7 +16,7 @@ type Props = {
 };
 
 export default function HistoryContent({ initialSection = 'doses' }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
   const vigilanceSessions = useStore((state) => state.vigilanceSessions);
@@ -90,9 +91,11 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
 
   return (
     <View style={{ gap: 16 }}>
-      <SectionTitle action={<Button title="Export CSV" variant="secondary" onPress={exportCurrentSection} />}>
-        History
-      </SectionTitle>
+      <HealthSectionHeader
+        title="History"
+        actionLabel="Export"
+        onAction={exportCurrentSection}
+      />
 
       <SegmentedControl
         value={section}
@@ -235,7 +238,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                 color: palette.textSecondary,
               }}
             >
-              No vigilance sessions yet. Run the reaction test from Home to start building a baseline.
+              No vigilance sessions yet. Run the reaction test from Summary to start building a baseline.
             </Text>
           ) : (
             vigilanceSessions.map((session, index) => (

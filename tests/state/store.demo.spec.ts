@@ -20,6 +20,7 @@ function resetStore() {
     },
     healthSync: { importedCount: 0 },
     demoMode: false,
+    appearanceMode: 'system',
   });
 }
 
@@ -167,7 +168,7 @@ describe('demo sample data store actions', () => {
     expect(state.vigilanceSessions[0].id).toBe('user:vigilance');
   });
 
-  it('hydrates default health sync and demo mode for same-version persisted states missing those fields', async () => {
+  it('hydrates default health sync, demo mode, and appearance for same-version persisted states missing those fields', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
       JSON.stringify({
@@ -188,6 +189,7 @@ describe('demo sample data store actions', () => {
     expect(state.doses).toHaveLength(1);
     expect(state.healthSync).toEqual({ importedCount: 0 });
     expect(state.demoMode).toBe(false);
+    expect(state.appearanceMode).toBe('system');
     expect(state.prefs).toMatchObject({
       halfLife: 4,
       targetSleep: DEFAULT_TARGET_SLEEP_H,
@@ -222,11 +224,26 @@ describe('demo sample data store actions', () => {
     expect(state.vigilanceSessions).toEqual([]);
     expect(state.healthSync).toEqual({ importedCount: 0 });
     expect(state.demoMode).toBe(false);
+    expect(state.appearanceMode).toBe('system');
     expect(state.prefs).toMatchObject({
       halfLife: DEFAULT_HALFLIFE_H,
       targetSleep: 7.5,
       dailyLimitMg: 400,
       cutoffHour: 16,
     });
+  });
+
+  it('updates and persists appearance mode choices', async () => {
+    useStore.getState().setAppearanceMode('light');
+    expect(useStore.getState().appearanceMode).toBe('light');
+
+    useStore.getState().setAppearanceMode('dark');
+    expect(useStore.getState().appearanceMode).toBe('dark');
+
+    useStore.getState().setAppearanceMode('system');
+    expect(useStore.getState().appearanceMode).toBe('system');
+
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().appearanceMode).toBe('system');
   });
 });

@@ -1,8 +1,9 @@
 import React from 'react';
-import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { InlineStatus, SectionCard } from '~/components/ui';
+import { HealthMetricCard, HealthSectionHeader, InlineStatus, SectionCard } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -21,7 +22,7 @@ export default function StepPermissions({
   busy = false,
   onRequest,
 }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
   const stateLabel =
@@ -44,30 +45,20 @@ export default function StepPermissions({
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text
-          style={{
-            fontSize: 30,
-            lineHeight: 36,
-            fontWeight: '700',
-            letterSpacing: -0.4,
-            color: palette.textPrimary,
-          }}
-        >
-          Permissions
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            lineHeight: 22,
-            color: palette.textSecondary,
-          }}
-        >
-          {isManual
-            ? 'Manual mode is ready. Finish setup now and start logging doses immediately.'
-            : 'Grant Health access so Aurora can import recent sleep and tailor guidance to your actual recovery.'}
-        </Text>
-      </View>
+      <HealthSectionHeader title="Permissions" />
+
+      <HealthMetricCard
+        icon={isManual ? 'create-outline' : 'heart'}
+        label={isManual ? 'Manual Mode' : 'Health'}
+        labelColor={isManual ? palette.tint : '#FF2D55'}
+        dateLabel={stateLabel}
+        value={isManual ? 'Ready' : stateLabel}
+        detail={
+          isManual
+            ? 'Log caffeine without Health access.'
+            : 'Aurora reads sleep only.'
+        }
+      />
 
       <SectionCard>
         <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />

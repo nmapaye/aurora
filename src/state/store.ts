@@ -7,6 +7,7 @@ import { createDemoSnapshot } from '~/dev/mockData';
 import { jsonStringStorage } from '~/services/storage';
 
 type Prefs = { halfLife: number; targetSleep: number; tz?: string; dailyLimitMg: number; cutoffHour: number };
+export type AppearanceMode = 'system' | 'light' | 'dark';
 export type OnboardingSource = 'healthkit' | 'manual';
 export type HealthPermissionStatus = 'idle' | 'granted' | 'denied' | 'unsupported';
 type HealthSync = {
@@ -29,6 +30,7 @@ type State = {
   onboarding: Onboarding;
   healthSync: HealthSync;
   demoMode: boolean;
+  appearanceMode: AppearanceMode;
   addDose: (d: Dose) => void;
   updateDose: (id: string, patch: Partial<Omit<Dose, 'id'>>) => void;
   removeDose: (id: string) => void;
@@ -38,6 +40,7 @@ type State = {
   setPrefs: (p: Partial<Prefs>) => void;
   setOnboarding: (p: Partial<Onboarding>) => void;
   setHealthSync: (p: Partial<HealthSync>) => void;
+  setAppearanceMode: (mode: AppearanceMode) => void;
   loadDemoData: () => void;
   clearDemoData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
@@ -46,7 +49,14 @@ type State = {
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
 type PersistedState = Pick<
   State,
-  'doses' | 'sleeps' | 'vigilanceSessions' | 'prefs' | 'onboarding' | 'healthSync' | 'demoMode'
+  | 'doses'
+  | 'sleeps'
+  | 'vigilanceSessions'
+  | 'prefs'
+  | 'onboarding'
+  | 'healthSync'
+  | 'demoMode'
+  | 'appearanceMode'
 >;
 const mmkvStorage = createJSONStorage<PersistedState>(() => jsonStringStorage as any);
 const defaultPrefs: Prefs = {
@@ -76,6 +86,7 @@ function normalizePersistedState(persistedState?: Partial<PersistedState>): Pers
     onboarding: { ...defaultOnboarding, ...persistedState?.onboarding },
     healthSync: { ...defaultHealthSync, ...persistedState?.healthSync },
     demoMode: persistedState?.demoMode ?? false,
+    appearanceMode: persistedState?.appearanceMode ?? 'system',
   };
 }
 
@@ -89,6 +100,7 @@ export const useStore = create<State>()(
       onboarding: defaultOnboarding,
       healthSync: defaultHealthSync,
       demoMode: false,
+      appearanceMode: 'system',
       addDose: (d) => set((s) => ({ doses: [...s.doses, d] })),
       updateDose: (id, patch) => set((s) => ({
         doses: s.doses.map((d) => (d.id === id ? { ...d, ...patch, id: d.id } : d)),
@@ -114,6 +126,7 @@ export const useStore = create<State>()(
       setPrefs: (p) => set((s) => ({ prefs: { ...s.prefs, ...p } })),
       setOnboarding: (p) => set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
       setHealthSync: (p) => set((s) => ({ healthSync: { ...s.healthSync, ...p } })),
+      setAppearanceMode: (mode) => set({ appearanceMode: mode }),
       loadDemoData: () =>
         set((s) => {
           const demo = createDemoSnapshot();
@@ -172,6 +185,7 @@ export const useStore = create<State>()(
         onboarding: s.onboarding,
         healthSync: s.healthSync,
         demoMode: s.demoMode,
+        appearanceMode: s.appearanceMode,
       }),
       migrate: (persistedState, version) => {
         const nextState = (persistedState ?? {}) as Partial<PersistedState>;

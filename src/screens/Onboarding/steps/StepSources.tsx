@@ -1,6 +1,8 @@
 import React from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 
+import { HealthOptionCard, HealthSectionHeader } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import type { OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -10,88 +12,38 @@ type Props = {
 };
 
 export default function StepSources({ selectedSource, onSelect }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const options: { key: OnboardingSource; title: string; body: string }[] = [
     {
       key: 'healthkit',
       title: 'Health app import',
-      body: 'Recommended on iPhone. Aurora reads recent sleep so Home, Sleep, and Insights reflect real recovery data.',
+      body: 'Read recent sleep from Health.',
     },
     {
       key: 'manual',
       title: 'Manual logging only',
-      body: 'Skip health import for now and rely on dose logging. You can connect Health later from the Sleep screen.',
+      body: 'Skip permissions and log manually.',
     },
   ];
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text
-          style={{
-            fontSize: 30,
-            lineHeight: 36,
-            fontWeight: '700',
-            letterSpacing: -0.4,
-            color: palette.textPrimary,
-          }}
-        >
-          Choose your data source
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            lineHeight: 22,
-            color: palette.textSecondary,
-          }}
-        >
-          Aurora is shipping with HealthKit support first. Android sync stays out of scope for this release.
-        </Text>
-      </View>
+      <HealthSectionHeader title="Data Source" />
 
       <View style={{ gap: 12 }}>
         {options.map((option) => {
           const selected = option.key === selectedSource;
           return (
-            <Pressable
+            <HealthOptionCard
               key={option.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
               onPress={() => onSelect(option.key)}
-              style={({ pressed }) => ({
-                gap: 8,
-                padding: 18,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: selected ? palette.tint : palette.cardBorder,
-                backgroundColor: selected
-                  ? palette.cardMuted
-                  : pressed
-                  ? palette.pressed
-                  : palette.card,
-              })}
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  lineHeight: 24,
-                  fontWeight: '600',
-                  color: palette.textPrimary,
-                }}
-              >
-                {option.title}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 20,
-                  color: palette.textSecondary,
-                }}
-              >
-                {option.body}
-              </Text>
-            </Pressable>
+              selected={selected}
+              icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
+              title={option.title}
+              subtitle={option.body}
+              color={option.key === 'healthkit' ? '#FF2D55' : palette.tint}
+            />
           );
         })}
       </View>

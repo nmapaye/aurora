@@ -3,7 +3,6 @@ import {
   Modal,
   Platform,
   View,
-  useColorScheme,
 } from 'react-native';
 import DateTimePicker, {
   DateTimePickerAndroid,
@@ -13,11 +12,13 @@ import * as Haptics from 'expo-haptics';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
+import useAppScheme from '~/hooks/useAppScheme';
 import {
   FieldInput,
   FormField,
+  HealthOptionCard,
+  HealthSectionHeader,
   SectionCard,
-  SectionTitle,
   SegmentedControl,
 } from '~/components/ui';
 import { getAppPalette } from '~/theme/colors';
@@ -43,7 +44,7 @@ function fmtTime(timestamp: number) {
 }
 
 export default function LogIntakeScreen() {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const addDose = useStore((s) => s.addDose);
 
@@ -107,34 +108,29 @@ export default function LogIntakeScreen() {
   };
 
   return (
-    <AppScreen
-      title="Log intake"
-      subtitle="Capture caffeine quickly."
-    >
-      <SectionTitle>Quick actions</SectionTitle>
-      <SectionCard>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {[
-            ['Espresso', 60],
-            ['Drip', 95],
-            ['Tea', 40],
-            ['Energy', 160],
-          ].map(([label, amount]) => (
-            <Button
-              key={label}
-              title={`${label} ${amount}mg`}
-              variant="secondary"
-              onPress={() => commitDose(amount as number, label as string)}
-            />
-          ))}
-        </View>
-      </SectionCard>
+    <AppScreen title="Log">
+      <HealthSectionHeader title="Quick Add" />
+      <View style={{ gap: 10 }}>
+        {[
+          ['Espresso', 60],
+          ['Drip', 95],
+          ['Tea', 40],
+          ['Energy', 160],
+        ].map(([label, amount]) => (
+          <HealthOptionCard
+            key={label}
+            icon={label === 'Energy' ? 'flash' : 'cafe'}
+            title={label as string}
+            subtitle={`${amount} mg`}
+            onPress={() => commitDose(amount as number, label as string)}
+          />
+        ))}
+      </View>
 
-      <SectionTitle>Custom entry</SectionTitle>
+      <HealthSectionHeader title="Custom Entry" />
       <SectionCard>
         <FormField
           label="Amount"
-          footer="Use the stepper for common adjustments or type a precise amount."
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Button
@@ -191,7 +187,6 @@ export default function LogIntakeScreen() {
 
         <FormField
           label="Note"
-          footer="Optional context for what you drank or why."
         >
           <FieldInput
             value={note}

@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import React, { useEffect, useMemo } from 'react';
-import { ActivityIndicator, StatusBar, Text, View, useColorScheme, LogBox } from 'react-native';
+import { ActivityIndicator, StatusBar, Text, View, LogBox } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { navigationRef } from '~/navigation';
 import { useStore } from '~/state/store';
 import RootNavigator from '~/navigation/RootNavigator';
 import { useAppInit } from '~/hooks/useAppInit';
+import useAppScheme from '~/hooks/useAppScheme';
 import type { RootStackParamList } from '~/navigation/types';
 import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
@@ -67,7 +68,7 @@ function BootGate() {
 
 export default function App() {
   const ready = useAppInit();
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const onboardingComplete = useStore((s) => s.onboarding.completed);
   const theme = useMemo<Theme>(() => {
     const palette = getAppPalette(scheme);

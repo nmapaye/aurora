@@ -1,13 +1,21 @@
 import { RouteProp, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Share, Text, View, useColorScheme } from 'react-native';
+import { Share, Text, View } from 'react-native';
 import Svg, { Defs, Line as SvgLine, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 import HistoryContent from '~/components/HistoryContent';
-import { ListRow, SectionCard, SectionTitle, SegmentedControl, StatTile } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
+import {
+  HealthSectionHeader,
+  ListRow,
+  SectionCard,
+  SectionTitle,
+  SegmentedControl,
+  StatTile,
+} from '~/components/ui';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import type { RootTabParamList } from '~/navigation/types';
@@ -25,7 +33,7 @@ function TrendChart({
   data: number[];
   height?: number;
 }) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const [width, setWidth] = useState(0);
   const padding = { top: 12, right: 8, bottom: 18, left: 8 };
@@ -140,7 +148,7 @@ function fmtClock(timestamp: number) {
 
 export default function InsightsScreen() {
   const route = useRoute<RouteProp<RootTabParamList, 'Insights'>>();
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
   const vigilanceSessions = useStore((state) => state.vigilanceSessions);
@@ -356,10 +364,7 @@ export default function InsightsScreen() {
   };
 
   return (
-    <AppScreen
-      title="Insights"
-      subtitle="Review how your caffeine, sleep, and vigilance are trending."
-    >
+    <AppScreen title="Insights">
       <View style={{ gap: 16 }}>
         <SegmentedControl
           value={section}
@@ -373,9 +378,11 @@ export default function InsightsScreen() {
 
         {section === 'summary' ? (
           <>
-            <SectionTitle action={<Button title="Share summary" variant="secondary" onPress={shareMonthlySummary} />}>
-              Overview
-            </SectionTitle>
+            <HealthSectionHeader
+              title="Summary"
+              actionLabel="Share"
+              onAction={shareMonthlySummary}
+            />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <StatTile
                 label={`${daysInRange}-day average`}
@@ -404,7 +411,7 @@ export default function InsightsScreen() {
                   color: palette.textTertiary,
                 }}
               >
-                Today’s curve stays separate from longer-range insights so the dashboard can stay calmer.
+                Today’s curve is separate from longer-range trends.
               </Text>
             </SectionCard>
 
@@ -413,7 +420,7 @@ export default function InsightsScreen() {
                 action={
                   <Button
                     title={vigilanceSummary.latest ? 'Run again' : 'Start test'}
-                    variant="secondary"
+                    variant="plain"
                     onPress={() => navigate('VigilanceTest')}
                   />
                 }
@@ -473,7 +480,7 @@ export default function InsightsScreen() {
                     color: palette.textSecondary,
                   }}
                 >
-                  No vigilance sessions yet. Run the 60-second reaction task to start tracking attentiveness alongside sleep and caffeine.
+                  No vigilance sessions yet.
                 </Text>
               )}
             </SectionCard>
@@ -483,7 +490,7 @@ export default function InsightsScreen() {
                 action={
                   <Button
                     title="Export CSV"
-                    variant="secondary"
+                    variant="plain"
                     onPress={shareDailyTotalsCSV}
                   />
                 }
@@ -498,7 +505,7 @@ export default function InsightsScreen() {
             </SectionCard>
 
             <SectionCard>
-              <SectionTitle>Guidance</SectionTitle>
+              <HealthSectionHeader title="Guidance" />
               <ListRow
                 title="Suggested bedtime"
                 subtitle={`Projected active caffeine ${sleepGuidance.mgAtBed} mg`}
@@ -515,7 +522,7 @@ export default function InsightsScreen() {
 
         {section === 'trends' ? (
           <>
-            <SectionTitle>Trends</SectionTitle>
+            <HealthSectionHeader title="Trends" />
             <SectionCard>
               <SegmentedControl
                 value={range}
@@ -538,7 +545,7 @@ export default function InsightsScreen() {
             </SectionCard>
 
             <SectionCard>
-              <SectionTitle>{daysInRange}-day caffeine trend</SectionTitle>
+              <HealthSectionHeader title={`${daysInRange}-day caffeine trend`} />
               <ListRow
                 title="Latest day"
                 subtitle={`${fmtDay(days[days.length - 1] ?? Date.now())}`}
@@ -556,7 +563,7 @@ export default function InsightsScreen() {
             </SectionCard>
 
             <SectionCard>
-              <SectionTitle>Daypart mix</SectionTitle>
+              <HealthSectionHeader title="Daypart Mix" />
               {[
                 ['05–11', daypart[0]],
                 ['11–17', daypart[1]],
@@ -598,7 +605,7 @@ export default function InsightsScreen() {
             </SectionCard>
 
             <SectionCard>
-              <SectionTitle>Source mix</SectionTitle>
+              <HealthSectionHeader title="Source Mix" />
               {sourceMix.length === 0 ? (
                 <Text
                   style={{

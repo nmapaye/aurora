@@ -3,7 +3,16 @@ import { Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import { InlineStatus, ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
+import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
+import {
+  HealthAlertCard,
+  HealthMetricCard,
+  HealthSectionHeader,
+  ListRow,
+  SectionCard,
+  SectionTitle,
+} from '~/components/ui';
+import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
@@ -35,13 +44,36 @@ function fmtDateTime(ts: number) {
   }
 }
 
+function fmtDay(ts?: number) {
+  if (!ts) return 'Today';
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(ts));
+  } catch {
+    return new Date(ts).toDateString();
+  }
+}
+
+function fmtDuration(ms?: number) {
+  if (!ms || ms <= 0) return 'No Data';
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.round((ms % 3_600_000) / 60_000);
+  return `${hours}h ${minutes}m`;
+}
+
 export default function DashboardScreen() {
+  const layout = useAdaptiveLayout();
   const { nowScore, mgActiveNow: mgActive } = (useAlertnessSeries() as any) || {};
   const cutoff = useCaffeineCutoff();
   const sleepGuidance = useSleepGuidance();
 
   const doses = useStore((s) => s.doses);
   const sleepCount = useStore((s) => s.sleeps.length);
+  const latestSleep = useStore((s) =>
+    [...s.sleeps].sort((a, b) => b.end - a.end)[0]
+  );
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const addDose = useStore((s) => s.addDose);
   const demoMode = useStore((s) => s.demoMode);
@@ -85,48 +117,96 @@ export default function DashboardScreen() {
     addDose({ id, timestamp: Date.now(), mg, source });
   };
 
-  return (
-    <AppScreen
-      title="Today"
-      subtitle="A snapshot of your caffeine, vigilance, and the sleep you’re protecting."
-    >
-      {demoMode || todaySummary.recent.length === 0 ? (
-        <SectionCard>
-          <InlineStatus
-            tone={demoMode ? 'info' : 'warning'}
-            text={demoMode ? 'Reviewer data' : 'Fresh install'}
-          />
-          <ListRow
-            title={demoMode ? 'Sample flow is ready' : 'Next: log caffeine or load sample data'}
-            subtitle={
-              demoMode
-                ? 'Sleep, caffeine, and vigilance entries are seeded. Review Insights when you are ready to show summary and export.'
-                : 'Use Quick Add below for a real first dose, or seed the reviewer walkthrough in one tap.'
-            }
-          />
-          <Button
-            title={demoMode ? 'Open Insights' : 'Load reviewer sample'}
-            variant="secondary"
-            onPress={demoMode ? () => navigate('Insights', { section: 'summary' }) : loadDemoData}
-          />
-        </SectionCard>
-      ) : null}
+  const alertCard =
+    demoMode || todaySummary.recent.length === 0 ? (
+      <HealthAlertCard
+        tone={demoMode ? 'info' : 'warning'}
+        label={demoMode ? 'Reviewer Data' : 'Fresh Install'}
+        dateLabel={fmtDay(Date.now())}
+        icon={demoMode ? 'sparkles-outline' : 'alert-circle-outline'}
+        title={demoMode ? 'Sample flow is ready.' : 'No data yet.'}
+        body={
+          demoMode
+            ? 'Sleep, caffeine, and vigilance are seeded.'
+            : 'Log caffeine or load reviewer data to fill Summary.'
+        }
+        actionLabel={demoMode ? 'More Details' : 'Load Sample'}
+        onAction={
+          demoMode
+            ? () => navigate('Insights', { section: 'summary' })
+            : loadDemoData
+        }
+      />
+    ) : null;
 
-      <SectionTitle>Overview</SectionTitle>
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <StatTile
+  const pinnedCards = (
+    <>
+      <HealthSectionHeader title="Pinned" actionLabel="Edit" />
+      <View style={{ gap: 18 }}>
+        <HealthMetricCard
+          icon="cafe"
           label="Caffeine"
+          labelColor="#0A84FF"
+          dateLabel="Today"
           value={`${Math.round(todaySummary.todayTotal)} mg`}
           detail={todaySummary.deltaText}
+          onPress={() => navigate('Insights', { section: 'summary' })}
         />
-        <StatTile
-          label="Active now"
+        <HealthMetricCard
+          icon="pulse"
+          label="Active Caffeine"
+          labelColor="#32D74B"
+          dateLabel="Now"
           value={`${Math.round(mgActive ?? 0)} mg`}
           detail={`Alertness ${Math.round(nowScore ?? 0)}`}
+          onPress={() => navigate('Insights', { section: 'trends' })}
+        />
+        <HealthMetricCard
+          icon="bed"
+          label="Sleep"
+          labelColor="#7D7AFF"
+          dateLabel={fmtDay(latestSleep?.end)}
+          value={latestSleep ? fmtDuration(latestSleep.end - latestSleep.start) : 'No Data'}
+          detail={
+            latestSleep
+              ? `${sleepCount} session${sleepCount === 1 ? '' : 's'} available`
+              : 'Connect Health or use demo data'
+          }
+          onPress={() => navigate('Sleep')}
+        />
+        <HealthMetricCard
+          icon="speedometer"
+          label="Vigilance"
+          labelColor="#30D5C8"
+          dateLabel={latestVigilanceSession ? fmtDay(latestVigilanceSession.completedAt) : 'Today'}
+          value={
+            latestVigilanceSession
+              ? `${latestVigilanceSession.score}`
+              : 'No Data'
+          }
+          detail={
+            latestVigilanceSession
+              ? `${latestVigilanceSession.rating} • ${latestVigilanceSession.medianReactionMs ?? '—'} ms median`
+              : 'Run a 60-second test'
+          }
+          onPress={() => navigate('VigilanceTest')}
+        />
+        <HealthMetricCard
+          icon="moon"
+          label="Caffeine Cutoff"
+          labelColor="#BF5AF2"
+          dateLabel="Today"
+          value={fmtTime(cutoff?.nextCutoff)}
+          detail={`Bed ${fmtTime(sleepGuidance?.bedtime)} • Wake ${fmtTime(sleepGuidance?.wake)}`}
+          onPress={() => navigate('Sleep')}
         />
       </View>
+    </>
+  );
 
-      <SectionTitle>Quick Add</SectionTitle>
+  const logSection = (
+    <>
+      <SectionTitle>Log</SectionTitle>
       <SectionCard>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {[
@@ -138,54 +218,18 @@ export default function DashboardScreen() {
             <Button
               key={label}
               title={`${label} ${mg}mg`}
-              variant="secondary"
+              variant="plain"
               onPress={() => quickAdd(mg as number, label as string)}
             />
           ))}
         </View>
-        <Button title="Custom entry" variant="plain" onPress={() => navigate('Log')} />
+        <Button title="Custom Entry" variant="plain" onPress={() => navigate('Log')} />
       </SectionCard>
+    </>
+  );
 
-      <SectionTitle
-        action={<Button title="Start test" variant="secondary" onPress={() => navigate('VigilanceTest')} />}
-      >
-        Vigilance
-      </SectionTitle>
-      <SectionCard>
-        <StatTile
-          label="Latest session"
-          value={
-            latestVigilanceSession
-              ? `${latestVigilanceSession.score} ${latestVigilanceSession.rating}`
-              : 'No baseline'
-          }
-          detail={
-            latestVigilanceSession?.medianReactionMs
-              ? `Median reaction ${latestVigilanceSession.medianReactionMs} ms`
-              : 'Run the 60-second reaction task to start tracking attentiveness.'
-          }
-        />
-      </SectionCard>
-
-      <SectionTitle>Recommendations</SectionTitle>
-      <SectionCard>
-        <ListRow
-          title="Daily cutoff"
-          subtitle={`${sleepCount} sleep session${sleepCount === 1 ? '' : 's'} available for guidance.`}
-          value={fmtTime(cutoff?.nextCutoff)}
-        />
-        <ListRow
-          title="Suggested bedtime"
-          subtitle="Estimated from active caffeine and your current target."
-          value={fmtTime(sleepGuidance?.bedtime)}
-        />
-        <ListRow
-          title="Suggested wake"
-          subtitle="Based on 90-minute cycles and your current bedtime target."
-          value={fmtTime(sleepGuidance?.wake)}
-        />
-      </SectionCard>
-
+  const recentSection = (
+    <>
       <SectionTitle
         action={
           <Button
@@ -212,6 +256,75 @@ export default function DashboardScreen() {
           ))
         )}
       </SectionCard>
+    </>
+  );
+
+  const todayPanel = (
+    <SectionCard style={{ borderRadius: 28, padding: 20, gap: 18 }}>
+      <HealthSectionHeader
+        title="Today"
+        actionLabel="Details"
+        onAction={() => navigate('Insights', { section: 'summary' })}
+      />
+      <CaffeineTodayGraph
+        height={340}
+        showCaption={false}
+        compact
+        variant="panel"
+      />
+      <View style={{ gap: 2 }}>
+        <ListRow
+          title="Caffeine"
+          subtitle={todaySummary.deltaText}
+          value={`${Math.round(todaySummary.todayTotal)} mg`}
+        />
+        <ListRow
+          title="Active now"
+          subtitle={`Alertness ${Math.round(nowScore ?? 0)}`}
+          value={`${Math.round(mgActive ?? 0)} mg`}
+        />
+        <ListRow
+          title="Cutoff"
+          subtitle={`Bed ${fmtTime(sleepGuidance?.bedtime)}`}
+          value={fmtTime(cutoff?.nextCutoff)}
+        />
+        <ListRow
+          title="Vigilance"
+          subtitle={
+            latestVigilanceSession
+              ? `${latestVigilanceSession.rating} • ${latestVigilanceSession.medianReactionMs ?? '—'} ms median`
+              : 'No session yet'
+          }
+          value={
+            latestVigilanceSession ? `${latestVigilanceSession.score}` : '—'
+          }
+        />
+      </View>
+    </SectionCard>
+  );
+
+  return (
+    <AppScreen title="Summary">
+      {layout.isWideLayout ? (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 24 }}>
+          <View style={{ width: layout.leftColumnWidth, gap: 18 }}>
+            {alertCard}
+            {pinnedCards}
+            {logSection}
+            {recentSection}
+          </View>
+          <View style={{ width: layout.rightColumnWidth, gap: 18 }}>
+            {todayPanel}
+          </View>
+        </View>
+      ) : (
+        <>
+          {alertCard}
+          {pinnedCards}
+          {logSection}
+          {recentSection}
+        </>
+      )}
     </AppScreen>
   );
 }
