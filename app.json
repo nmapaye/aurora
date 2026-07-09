@@ -9,8 +9,8 @@
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1020"
+      "resizeMode": "cover",
+      "backgroundColor": "#0A0E1C"
     },
     "jsEngine": "hermes",
     "experiments": {
@@ -22,7 +22,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nmapaye.aurora",
-      "newArchEnabled": true
+      "newArchEnabled": true,
+      "icon": {
+        "light": "./assets/icons/ios-light.png",
+        "dark": "./assets/icons/ios-dark.png",
+        "tinted": "./assets/icons/ios-tinted.png"
+      }
     },
     "android": {
       "package": "com.nmapaye.aurora",
@@ -35,7 +40,14 @@
           "shareMessage": "Aurora reads sleep to tailor your caffeine plan."
         }
       ],
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
+          ]
+        }
+      ],
       "expo-asset",
       "expo-notifications"
     ],
