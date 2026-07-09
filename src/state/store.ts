@@ -6,7 +6,14 @@ import type { VigilanceSession } from '~/domain/vigilance';
 import { createDemoSnapshot } from '~/dev/mockData';
 import { jsonStringStorage } from '~/services/storage';
 
-type Prefs = { halfLife: number; targetSleep: number; tz?: string; dailyLimitMg: number; cutoffHour: number };
+type Prefs = {
+  halfLife: number;
+  targetSleep: number;
+  tz?: string;
+  dailyLimitMg: number;
+  cutoffHour: number;
+  notifyCutoff: boolean;
+};
 export type AppearanceMode = 'system' | 'light' | 'dark';
 export type OnboardingSource = 'healthkit' | 'manual';
 export type HealthPermissionStatus = 'idle' | 'granted' | 'denied' | 'unsupported';
@@ -64,6 +71,7 @@ const defaultPrefs: Prefs = {
   targetSleep: DEFAULT_TARGET_SLEEP_H,
   dailyLimitMg: 400,
   cutoffHour: 16,
+  notifyCutoff: false,
 };
 const defaultOnboarding: Onboarding = {
   completed: false,
