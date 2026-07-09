@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
-import { HealthOptionCard, HealthSectionHeader, StepperField } from '~/components/ui';
+import { HealthOptionCard, StepperField } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 

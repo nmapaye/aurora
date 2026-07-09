@@ -10,10 +10,9 @@
     "esModuleInterop": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "baseUrl": "./",
     "paths": {
       "~/*": [
-        "src/*"
+        "./src/*"
       ]
     }
   },
@@ -23,9 +22,6 @@
     "tests/**/*",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ],
-  "exclude": [
-    "src/dev/storybook/**/*"
   ],
   "extends": "expo/tsconfig.base"
 }

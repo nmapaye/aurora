@@ -29,28 +29,7 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text
-          style={{
-            fontSize: 30,
-            lineHeight: 36,
-            fontWeight: '700',
-            letterSpacing: 0,
-            color: palette.textPrimary,
-          }}
-        >
-          Choose your data source
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            lineHeight: 22,
-            color: palette.textSecondary,
-          }}
-        >
-          Choose how Aurora gets sleep data.
-        </Text>
-      </View>
+      <HealthSectionHeader title="Data Source" />
 
       <View style={{ gap: 12 }}>
         {options.map((option) => {
@@ -59,39 +38,12 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
             <HealthOptionCard
               key={option.key}
               onPress={() => onSelect(option.key)}
-              style={({ pressed }) => ({
-                gap: 8,
-                padding: 18,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: selected ? palette.tint : palette.cardBorder,
-                backgroundColor: selected
-                  ? palette.cardMuted
-                  : pressed
-                  ? palette.pressed
-                  : palette.card,
-              })}
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  lineHeight: 24,
-                  fontWeight: '600',
-                  color: palette.textPrimary,
-                }}
-              >
-                {option.title}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 20,
-                  color: palette.textSecondary,
-                }}
-              >
-                {option.body}
-              </Text>
-            </Pressable>
+              selected={selected}
+              icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
+              title={option.title}
+              subtitle={option.body}
+              color={option.key === 'healthkit' ? '#FF2D55' : palette.tint}
+            />
           );
         })}
       </View>

@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { HealthMetricCard, HealthSectionHeader, InlineStatus, SectionCard } from '~/components/ui';
+import { InlineStatus, SectionCard } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
