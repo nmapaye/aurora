@@ -8,7 +8,6 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
-  useColorScheme,
 } from 'react-native';
 import {
   getAppPalette,
@@ -16,6 +15,7 @@ import {
   getPrimaryButtonColors,
   getSecondaryButtonColors,
 } from '../theme/colors';
+import useAppScheme from '~/hooks/useAppScheme';
 
 type Variant = 'primary' | 'secondary' | 'plain' | 'outline' | 'glass';
 
@@ -46,7 +46,7 @@ export default function Button({
   accessibilityLabel,
   testID,
 }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const primary = getPrimaryButtonColors(scheme, disabled || loading);
   const secondary = getSecondaryButtonColors(scheme);
@@ -60,7 +60,7 @@ export default function Button({
       : variant === 'secondary'
       ? {
           backgroundColor: secondary.backgroundColor,
-          borderColor: secondary.borderColor,
+          borderColor: 'transparent',
         }
       : variant === 'plain'
       ? {
@@ -74,7 +74,7 @@ export default function Button({
         }
       : {
           backgroundColor: palette.cardMuted,
-          borderColor: palette.cardBorder,
+          borderColor: 'transparent',
         };
 
   const textColor =

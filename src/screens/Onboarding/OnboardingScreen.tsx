@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View, useColorScheme } from 'react-native';
+import { Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import { InlineStatus, ListRow, SectionCard } from '~/components/ui';
+import { HealthAlertCard } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import StepPermissions from '~/screens/Onboarding/steps/StepPermissions';
 import StepSleepTarget from '~/screens/Onboarding/steps/StepSleepTarget';
 import StepSources from '~/screens/Onboarding/steps/StepSources';
@@ -19,7 +20,7 @@ function toSleepSessionId(start: number, end: number) {
 }
 
 export default function OnboardingScreen() {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const targetSleep = useStore((state) => state.prefs.targetSleep);
   const setPrefs = useStore((state) => state.setPrefs);
@@ -98,7 +99,7 @@ export default function OnboardingScreen() {
 
   return (
     <AppScreen
-      title="Set up Aurora"
+      title="Set Up"
       subtitle={`Step ${step + 1} of ${TOTAL_STEPS}`}
       trailing={<View style={{ width: 36, height: 36 }} />}
       topInset={24}
@@ -111,10 +112,9 @@ export default function OnboardingScreen() {
               lineHeight: 18,
               fontWeight: '600',
               color: palette.textSecondary,
-              textTransform: 'uppercase',
             }}
           >
-            iPhone-first setup
+            Aurora
           </Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {Array.from({ length: TOTAL_STEPS }).map((_, index) => (

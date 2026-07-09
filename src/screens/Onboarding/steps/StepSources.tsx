@@ -1,6 +1,8 @@
 import React from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 
+import { HealthOptionCard, HealthSectionHeader } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import type { OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -10,7 +12,7 @@ type Props = {
 };
 
 export default function StepSources({ selectedSource, onSelect }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const options: { key: OnboardingSource; title: string; body: string }[] = [
     {
@@ -54,10 +56,8 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
         {options.map((option) => {
           const selected = option.key === selectedSource;
           return (
-            <Pressable
+            <HealthOptionCard
               key={option.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
               onPress={() => onSelect(option.key)}
               style={({ pressed }) => ({
                 gap: 8,

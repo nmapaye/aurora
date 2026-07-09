@@ -1,9 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import { InlineStatus, ListRow, SectionCard, SectionTitle, StatTile } from '~/components/ui';
+import {
+  HealthMetricCard,
+  HealthSectionHeader,
+  InlineStatus,
+  ListRow,
+  SectionCard,
+  StatTile,
+} from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
@@ -53,7 +61,7 @@ function pluralizeSamples(count: number) {
 }
 
 export default function SleepScreen() {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
   const sleeps = useStore((state) => state.sleeps);
@@ -357,7 +365,28 @@ export default function SleepScreen() {
       subtitle="Connect Health or enter sleep manually."
     >
       <View style={{ gap: 16 }}>
-        <SectionTitle>Connection</SectionTitle>
+        <HealthSectionHeader title="Pinned" />
+        {lastSleep ? (
+          <HealthMetricCard
+            icon="bed"
+            label="Sleep"
+            labelColor="#7D7AFF"
+            dateLabel={fmtDate(lastSleep.end)}
+            value={fmtDuration(lastNightTotalMs || lastSleep.end - lastSleep.start)}
+            detail={`${fmtTime(lastSleep.start)} – ${fmtTime(lastSleep.end)}`}
+          />
+        ) : (
+          <HealthMetricCard
+            icon="bed"
+            label="Sleep"
+            labelColor="#7D7AFF"
+            dateLabel="Today"
+            value="No Data"
+            detail="Connect Health or load demo data."
+          />
+        )}
+
+        <HealthSectionHeader title="Connection" />
         <SectionCard>
           <InlineStatus tone={healthTone} text={healthStatus} />
           <Text
@@ -456,7 +485,7 @@ export default function SleepScreen() {
           </View>
         </SectionCard>
 
-        <SectionTitle>Last night</SectionTitle>
+        <HealthSectionHeader title="Records" />
         {lastSleep ? (
           <>
             <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -503,7 +532,7 @@ export default function SleepScreen() {
           </SectionCard>
         )}
 
-        <SectionTitle>Caffeine impact</SectionTitle>
+        <HealthSectionHeader title="Caffeine Impact" />
         <SectionCard>
           {sleepImpact.n >= 1 ? (
             <>
@@ -547,7 +576,7 @@ export default function SleepScreen() {
           )}
         </SectionCard>
 
-        <SectionTitle>Suggested plan</SectionTitle>
+        <HealthSectionHeader title="Suggested Plan" />
         <SectionCard>
           {!wakeTime || plan.length === 0 ? (
             <Text

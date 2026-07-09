@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootTabParamList = {
-  Home: undefined;
+  Summary: undefined;
   Log: undefined;
   Sleep: undefined;
   Insights: { section?: 'summary' | 'trends' | 'history' } | undefined;

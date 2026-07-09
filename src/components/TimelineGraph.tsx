@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
+import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 
 export default function TimelineGraph() {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const { series = [] } = useAlertnessSeries() || {};
   const [width, setWidth] = useState(0);

@@ -1,26 +1,55 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, useColorScheme } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
+import { View, Text } from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, Line } from 'react-native-svg';
+import useAppScheme from '~/hooks/useAppScheme';
 import { useTodayCaffeineSeries } from '~/hooks/useTodayCaffeineSeries';
 import { getAppPalette } from '~/theme/colors';
 
-export default function CaffeineTodayGraph() {
-  const scheme = useColorScheme();
+export default function CaffeineTodayGraph({
+  height = 180,
+  showCaption = true,
+  compact = false,
+  variant = 'standard',
+}: {
+  height?: number;
+  showCaption?: boolean;
+  compact?: boolean;
+  variant?: 'standard' | 'panel';
+}) {
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const { series, start, end } = useTodayCaffeineSeries();
   const [width, setWidth] = useState(0);
-  const height = 180;
-  const padding = { top: 12, right: 14, bottom: 28, left: 44 };
+  const axisWidth = variant === 'panel' ? 54 : compact ? 42 : 52;
+  const doseMarkerOffsetX = variant === 'panel' ? 12 : 8;
+  const plotPadding = {
+    top: variant === 'panel' ? 18 : 12,
+    right: variant === 'panel' ? 6 : 14,
+    bottom: compact ? 18 : 28,
+    left: 0,
+  };
   const accent = palette.tint;
   const domain = Math.max(1, end - start);
 
-  const { linePath, areaPath, points, nowX, yTicks } = useMemo(() => {
+  const { linePath, areaPath, points, nowX, yTicks, plotRect } = useMemo(() => {
+    const plotRect = {
+      x: axisWidth,
+      y: plotPadding.top,
+      width: Math.max(0, width - axisWidth - plotPadding.right),
+      height: Math.max(0, height - plotPadding.top - plotPadding.bottom),
+    };
+
     if (!series.length || width === 0) {
-      return { linePath: '', areaPath: '', points: [] as { x: number; y: number }[], nowX: undefined as number | undefined, yTicks: [] as { value: number; y: number }[] };
+      return {
+        linePath: '',
+        areaPath: '',
+        points: [] as { x: number; y: number }[],
+        nowX: undefined as number | undefined,
+        yTicks: [] as { value: number; y: number }[],
+        plotRect,
+      };
     }
 
-    const w = Math.max(0, width - padding.left - padding.right);
-    const h = Math.max(0, height - padding.top - padding.bottom);
     const vals = series.map((p) => p.mg);
     const minVal = Math.min(...vals, 0);
     const maxVal = Math.max(...vals, 10);
@@ -30,8 +59,8 @@ export default function CaffeineTodayGraph() {
     const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
     const pts = series.map((p) => {
-      const x = padding.left + clamp(((p.t - start) / domain) * w, 0, w);
-      const y = padding.top + (h - ((p.mg - yMin) / Math.max(1e-6, yMax - yMin)) * h);
+      const x = plotRect.x + clamp(((p.t - start) / domain) * plotRect.width, 0, plotRect.width);
+      const y = plotRect.y + (plotRect.height - ((p.mg - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height);
       return { x, y };
     });
 
@@ -50,24 +79,23 @@ export default function CaffeineTodayGraph() {
 
     let a = '';
     if (pts.length > 1) {
-      const baseY = padding.top + h;
-      a = `M ${pts[0].x} ${pts[0].y}`;
-      for (let i = 1; i < pts.length; i++) a += ` L ${pts[i].x} ${pts[i].y}`;
+      const baseY = plotRect.y + plotRect.height;
+      a = d;
       a += ` L ${pts[pts.length - 1].x} ${baseY} L ${pts[0].x} ${baseY} Z`;
     }
 
     const now = Date.now();
-    const nowX = padding.left + clamp(((now - start) / domain) * w, 0, w);
+    const nowX = plotRect.x + clamp(((now - start) / domain) * plotRect.width, 0, plotRect.width);
 
     const rawTicks = [yMax, yMin + (yMax - yMin) / 2, yMin];
     const uniq = Array.from(new Set(rawTicks.map((v) => Math.round(v))));
     const yTicks = uniq.map((v) => ({
       value: v,
-      y: padding.top + (h - ((v - yMin) / Math.max(1e-6, yMax - yMin)) * h),
+      y: plotRect.y + (plotRect.height - ((v - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height),
     }));
 
-    return { linePath: d, areaPath: a, points: pts, nowX, yTicks };
-  }, [series, width, start, domain, padding.left, padding.right, padding.top, padding.bottom, height]);
+    return { linePath: d, areaPath: a, points: pts, nowX, yTicks, plotRect };
+  }, [axisWidth, domain, height, plotPadding.bottom, plotPadding.right, plotPadding.top, series, start, width]);
 
   const fmtHour = (ts: number) => {
     try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).format(new Date(ts)); }
@@ -91,18 +119,26 @@ export default function CaffeineTodayGraph() {
             </Defs>
 
             {/* Grid */}
-            {Array.from({ length: 3 }).map((_, i) => {
-              const y = padding.top + (i / 2) * (height - padding.top - padding.bottom);
-              return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={palette.separator} strokeDasharray={[3, 6]} strokeWidth={1} />;
-            })}
+            {yTicks.map((tick, i) => (
+              <Line
+                key={`g-h-${i}-${tick.value}`}
+                x1={plotRect.x}
+                x2={plotRect.x + plotRect.width}
+                y1={tick.y}
+                y2={tick.y}
+                stroke={palette.separator}
+                strokeDasharray={[3, 6]}
+                strokeWidth={1}
+              />
+            ))}
 
             {/* Now marker */}
             {typeof nowX === 'number' ? (
               <Line
                 x1={nowX}
                 x2={nowX}
-                y1={padding.top}
-                y2={height - padding.bottom}
+                y1={plotRect.y}
+                y2={plotRect.y + plotRect.height}
                 stroke={accent as string}
                 strokeOpacity={0.35}
                 strokeDasharray={[4, 4]}
@@ -117,36 +153,60 @@ export default function CaffeineTodayGraph() {
             {linePath ? <Path d={linePath} stroke={accent as string} strokeOpacity={0.32} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
             {linePath ? <Path d={linePath} stroke={accent as string} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
 
-            {/* Points only where a dose exists */}
+            {/* Vertical markers where a dose was logged */}
             {series.map((p, i) => p.hasDose ? (
-              <Circle key={`pt-${i}`} cx={points[i]?.x ?? 0} cy={points[i]?.y ?? 0} r={4} fill={accent as string} stroke={palette.card} strokeWidth={1.5} />
+              <Line
+                key={`dose-${i}`}
+                x1={Math.max(plotRect.x, (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX)}
+                x2={Math.max(plotRect.x, (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX)}
+                y1={plotRect.y}
+                y2={plotRect.y + plotRect.height}
+                stroke={accent as string}
+                strokeOpacity={0.32}
+                strokeDasharray={[2, 7]}
+                strokeWidth={2}
+              />
             ) : null)}
           </Svg>
         ) : null}
         {width > 0 && yTicks.length ? (
-          <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: padding.bottom, width: padding.left - 8 }}>
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: axisWidth, height }}>
             {yTicks.map((t, i) => {
-              const y = Math.min(height - padding.bottom, Math.max(0, t.y));
+              const y = Math.min(plotRect.y + plotRect.height, Math.max(plotRect.y, t.y));
               return (
                 <Text
                   key={`tick-${i}-${t.value}`}
-                  style={{ position: 'absolute', left: 4, top: y - 8, fontSize: 12, lineHeight: 16, color: palette.textSecondary }}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 10,
+                    top: y - 17,
+                    fontSize: 12,
+                    lineHeight: 16,
+                    color: palette.textSecondary,
+                    textAlign: 'left',
+                  }}
                 >
-                  {Math.round(t.value)} mg
+                  {Math.round(t.value)}
+                  {'\n'}mg
                 </Text>
               );
             })}
           </View>
         ) : null}
       </View>
-      <View style={{ flexDirection: 'row', marginTop: 6 }}>
-        <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(firstTs)}</Text>
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(midTs)}</Text>
-        <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(lastTs)}</Text>
-      </View>
-      <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
-        Active caffeine (mg) projected hourly based on your doses and half-life.
-      </Text>
+      {!compact ? (
+        <View style={{ flexDirection: 'row', marginTop: 6 }}>
+          <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(firstTs)}</Text>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(midTs)}</Text>
+          <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(lastTs)}</Text>
+        </View>
+      ) : null}
+      {showCaption ? (
+        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
+          Active caffeine (mg) projected hourly based on your doses and half-life.
+        </Text>
+      ) : null}
     </View>
   );
 }

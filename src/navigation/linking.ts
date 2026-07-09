@@ -9,7 +9,7 @@ const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Tabs: {
         screens: {
-          Home: 'home',
+          Summary: 'summary',
           Log: 'log',
           Sleep: 'sleep',
           Insights: 'insights',

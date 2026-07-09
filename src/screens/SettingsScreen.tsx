@@ -3,9 +3,10 @@ import React from 'react';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import {
+  HealthSectionHeader,
   ListRow,
   SectionCard,
-  SectionTitle,
+  SegmentedControl,
   StepperField,
 } from '~/components/ui';
 import { goBack } from '~/navigation';
@@ -14,6 +15,8 @@ import { useStore } from '~/state/store';
 export default function SettingsScreen() {
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
+  const appearanceMode = useStore((s) => s.appearanceMode);
+  const setAppearanceMode = useStore((s) => s.setAppearanceMode);
 
   return (
     <AppScreen
@@ -21,7 +24,20 @@ export default function SettingsScreen() {
       subtitle="Tune caffeine and sleep guidance."
       trailing={<Button title="Done" variant="plain" onPress={goBack} />}
     >
-      <SectionTitle>Guidance</SectionTitle>
+      <HealthSectionHeader title="Appearance" />
+      <SectionCard>
+        <SegmentedControl
+          value={appearanceMode}
+          onChange={setAppearanceMode}
+          options={[
+            { key: 'system', label: 'System' },
+            { key: 'light', label: 'Light' },
+            { key: 'dark', label: 'Dark' },
+          ]}
+        />
+      </SectionCard>
+
+      <HealthSectionHeader title="Guidance" />
       <StepperField
         label="Caffeine half-life"
         value={prefs.halfLife}
@@ -65,7 +81,7 @@ export default function SettingsScreen() {
         footer="Your daily guardrail."
       />
 
-      <SectionTitle>About</SectionTitle>
+      <HealthSectionHeader title="About" />
       <SectionCard>
         <ListRow
           title="Current release focus"

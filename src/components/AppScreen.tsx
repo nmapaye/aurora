@@ -6,11 +6,12 @@ import {
   Text,
   View,
   ViewStyle,
-  useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import useAppScheme from '~/hooks/useAppScheme';
 import { navigate } from '~/navigation';
 import { getAppPalette } from '~/theme/colors';
 
@@ -35,9 +36,10 @@ export default function AppScreen({
   showsVerticalScrollIndicator = false,
   topInset = 8,
 }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const insets = useSafeAreaInsets();
+  const layout = useAdaptiveLayout();
 
   return (
     <ScrollView
@@ -46,15 +48,15 @@ export default function AppScreen({
       style={{ flex: 1, backgroundColor: palette.groupedBackground }}
       contentContainerStyle={[
         {
-          paddingTop: topInset,
+          paddingTop: topInset + layout.topChromeBuffer,
           paddingBottom: 32 + insets.bottom,
-          paddingHorizontal: 16,
-          alignItems: centered ? 'center' : undefined,
+          paddingHorizontal: layout.horizontalPadding,
+          alignItems: centered || layout.isWideLayout ? 'center' : undefined,
         },
         contentStyle,
       ]}
     >
-      <View style={{ width: '100%', maxWidth: 600, gap: 18 }}>
+      <View style={{ width: '100%', maxWidth: layout.contentMaxWidth, gap: 18 }}>
         <View style={{ gap: 12 }}>
           <View
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}
@@ -62,8 +64,8 @@ export default function AppScreen({
             <View style={{ flex: 1, gap: 4 }}>
               <Text
                 style={{
-                  fontSize: 34,
-                  lineHeight: 41,
+                  fontSize: 40,
+                  lineHeight: 46,
                   fontWeight: '700',
                   letterSpacing: 0,
                   color: palette.textPrimary,
@@ -90,21 +92,21 @@ export default function AppScreen({
                 accessibilityLabel="Open settings"
                 onPress={() => navigate('Settings')}
                 style={({ pressed }) => ({
-                  minWidth: 36,
-                  minHeight: 36,
-                  borderRadius: 18,
+                  minWidth: 44,
+                  minHeight: 44,
+                  borderRadius: 22,
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: pressed
                     ? palette.pressed
-                    : palette.card,
+                    : palette.cardMuted,
                   borderWidth: 1,
                   borderColor: palette.cardBorder,
                 })}
               >
                 <Ionicons
                   name="settings-outline"
-                  size={18}
+                  size={24}
                   color={palette.textPrimary}
                 />
               </Pressable>

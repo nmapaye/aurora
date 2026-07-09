@@ -1,8 +1,9 @@
 import React from 'react';
-import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { InlineStatus, SectionCard } from '~/components/ui';
+import { HealthMetricCard, HealthSectionHeader, InlineStatus, SectionCard } from '~/components/ui';
+import useAppScheme from '~/hooks/useAppScheme';
 import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -21,7 +22,7 @@ export default function StepPermissions({
   busy = false,
   onRequest,
 }: Props) {
-  const scheme = useColorScheme();
+  const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
   const stateLabel =
