@@ -18,6 +18,8 @@ import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
+import useAppScheme from '~/hooks/useAppScheme';
+import { getAppPalette } from '~/theme/colors';
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
@@ -65,14 +67,16 @@ function fmtDuration(ms?: number) {
 
 export default function DashboardScreen() {
   const layout = useAdaptiveLayout();
-  const { nowScore, mgActiveNow: mgActive } = (useAlertnessSeries() as any) || {};
+  const palette = getAppPalette(useAppScheme());
+  const { nowScore, mgActiveNow: mgActive } =
+    (useAlertnessSeries() as any) || {};
   const cutoff = useCaffeineCutoff();
   const sleepGuidance = useSleepGuidance();
 
   const doses = useStore((s) => s.doses);
   const sleepCount = useStore((s) => s.sleeps.length);
-  const latestSleep = useStore((s) =>
-    [...s.sleeps].sort((a, b) => b.end - a.end)[0]
+  const latestSleep = useStore(
+    (s) => [...s.sleeps].sort((a, b) => b.end - a.end)[0],
   );
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const addDose = useStore((s) => s.addDose);
@@ -146,7 +150,7 @@ export default function DashboardScreen() {
         <HealthMetricCard
           icon="cafe"
           label="Caffeine"
-          labelColor="#0A84FF"
+          labelColor={palette.caffeineAccent}
           dateLabel="Today"
           value={`${Math.round(todaySummary.todayTotal)} mg`}
           detail={todaySummary.deltaText}
@@ -155,7 +159,7 @@ export default function DashboardScreen() {
         <HealthMetricCard
           icon="pulse"
           label="Active Caffeine"
-          labelColor="#32D74B"
+          labelColor={palette.activeCaffeineAccent}
           dateLabel="Now"
           value={`${Math.round(mgActive ?? 0)} mg`}
           detail={`Alertness ${Math.round(nowScore ?? 0)}`}
@@ -164,9 +168,13 @@ export default function DashboardScreen() {
         <HealthMetricCard
           icon="bed"
           label="Sleep"
-          labelColor="#7D7AFF"
+          labelColor={palette.sleepAccent}
           dateLabel={fmtDay(latestSleep?.end)}
-          value={latestSleep ? fmtDuration(latestSleep.end - latestSleep.start) : 'No Data'}
+          value={
+            latestSleep
+              ? fmtDuration(latestSleep.end - latestSleep.start)
+              : 'No Data'
+          }
           detail={
             latestSleep
               ? `${sleepCount} session${sleepCount === 1 ? '' : 's'} available`
@@ -177,8 +185,12 @@ export default function DashboardScreen() {
         <HealthMetricCard
           icon="speedometer"
           label="Vigilance"
-          labelColor="#30D5C8"
-          dateLabel={latestVigilanceSession ? fmtDay(latestVigilanceSession.completedAt) : 'Today'}
+          labelColor={palette.vigilanceAccent}
+          dateLabel={
+            latestVigilanceSession
+              ? fmtDay(latestVigilanceSession.completedAt)
+              : 'Today'
+          }
           value={
             latestVigilanceSession
               ? `${latestVigilanceSession.score}`
@@ -194,7 +206,7 @@ export default function DashboardScreen() {
         <HealthMetricCard
           icon="moon"
           label="Caffeine Cutoff"
-          labelColor="#BF5AF2"
+          labelColor={palette.cutoffAccent}
           dateLabel="Today"
           value={fmtTime(cutoff?.nextCutoff)}
           detail={`Bed ${fmtTime(sleepGuidance?.bedtime)} • Wake ${fmtTime(sleepGuidance?.wake)}`}
@@ -223,7 +235,11 @@ export default function DashboardScreen() {
             />
           ))}
         </View>
-        <Button title="Custom entry" variant="plain" onPress={() => navigate('Log')} />
+        <Button
+          title="Custom entry"
+          variant="plain"
+          onPress={() => navigate('Log')}
+        />
       </SectionCard>
     </>
   );
@@ -243,7 +259,13 @@ export default function DashboardScreen() {
       </SectionTitle>
       <SectionCard>
         {todaySummary.recent.length === 0 ? (
-          <Text style={{ fontSize: 15, lineHeight: 20, color: '#8E8E93' }}>
+          <Text
+            style={{
+              fontSize: 15,
+              lineHeight: 20,
+              color: palette.textTertiary,
+            }}
+          >
             No doses logged today.
           </Text>
         ) : (
@@ -306,7 +328,9 @@ export default function DashboardScreen() {
   return (
     <AppScreen title="Summary">
       {layout.isWideLayout ? (
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 24 }}>
+        <View
+          style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 24 }}
+        >
           <View style={{ width: layout.leftColumnWidth, gap: 18 }}>
             {alertCard}
             {pinnedCards}

@@ -71,8 +71,14 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
                 selected={selected}
                 icon="bed"
                 title={`${preset} hours`}
-                subtitle={preset === 7 ? 'Light target' : preset === 8 ? 'Standard target' : 'Extended target'}
-                color="#7D7AFF"
+                subtitle={
+                  preset === 7
+                    ? 'Light target'
+                    : preset === 8
+                      ? 'Standard target'
+                      : 'Extended target'
+                }
+                color={palette.sleepAccent}
               />
             );
           })}

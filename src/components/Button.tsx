@@ -16,6 +16,7 @@ import {
   getSecondaryButtonColors,
 } from '../theme/colors';
 import useAppScheme from '~/hooks/useAppScheme';
+import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 
 type Variant = 'primary' | 'secondary' | 'plain' | 'outline' | 'glass';
 
@@ -58,33 +59,33 @@ export default function Button({
           borderColor: 'transparent',
         }
       : variant === 'secondary'
-      ? {
-          backgroundColor: secondary.backgroundColor,
-          borderColor: 'transparent',
-        }
-      : variant === 'plain'
-      ? {
-          backgroundColor: 'transparent',
-          borderColor: 'transparent',
-        }
-      : variant === 'outline'
-      ? {
-          backgroundColor: palette.card,
-          borderColor: neutral.borderColor,
-        }
-      : {
-          backgroundColor: palette.cardMuted,
-          borderColor: 'transparent',
-        };
+        ? {
+            backgroundColor: secondary.backgroundColor,
+            borderColor: 'transparent',
+          }
+        : variant === 'plain'
+          ? {
+              backgroundColor: 'transparent',
+              borderColor: 'transparent',
+            }
+          : variant === 'outline'
+            ? {
+                backgroundColor: palette.card,
+                borderColor: neutral.borderColor,
+              }
+            : {
+                backgroundColor: palette.cardMuted,
+                borderColor: 'transparent',
+              };
 
   const textColor =
     variant === 'primary'
       ? primary.color
       : variant === 'secondary'
-      ? secondary.color
-      : variant === 'plain'
-      ? palette.plainButtonText
-      : neutral.color;
+        ? secondary.color
+        : variant === 'plain'
+          ? palette.plainButtonText
+          : neutral.color;
 
   return (
     <Pressable
@@ -103,7 +104,9 @@ export default function Button({
     >
       <View style={styles.content}>
         {iconLeft ? <View style={styles.icon}>{iconLeft}</View> : null}
-        <Text style={[styles.text, { color: textColor }, textStyle]}>{title}</Text>
+        <Text style={[styles.text, { color: textColor }, textStyle]}>
+          {title}
+        </Text>
         {loading ? (
           <ActivityIndicator size="small" style={styles.spinner} />
         ) : iconRight ? (
@@ -116,23 +119,25 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.control,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: controlSizes.minimumTouchTarget,
   },
   pressed: { transform: [{ scale: 0.985 }], opacity: 0.92 },
   disabled: { opacity: 0.5 },
-  content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  icon: { marginRight: 8 },
-  iconRight: { marginLeft: 8, marginRight: 0 },
-  spinner: { marginLeft: 8 },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: { marginRight: spacing.xs },
+  iconRight: { marginLeft: spacing.xs, marginRight: 0 },
+  spinner: { marginLeft: spacing.xs },
   text: {
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: '600', // If you loaded Inter fonts, you can use: fontFamily: 'Inter-SemiBold'
+    ...typeRamp.headline,
   },
 });

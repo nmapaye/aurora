@@ -39,6 +39,16 @@ export type AppPalette = {
   statusWarningText: string;
   statusErrorBackground: string;
   statusErrorText: string;
+  caffeineAccent: string;
+  activeCaffeineAccent: string;
+  sleepAccent: string;
+  vigilanceAccent: string;
+  cutoffAccent: string;
+  healthAccent: string;
+  napAccent: string;
+  warningFill: string;
+  warningForeground: string;
+  onDestructive: string;
 };
 
 const lightPalette: AppPalette = {
@@ -79,6 +89,16 @@ const lightPalette: AppPalette = {
   statusWarningText: '#C67C00',
   statusErrorBackground: '#FFE9E8',
   statusErrorText: '#C9342C',
+  caffeineAccent: '#0A84FF',
+  activeCaffeineAccent: '#34C759',
+  sleepAccent: '#5E5CE6',
+  vigilanceAccent: '#30B0C7',
+  cutoffAccent: '#AF52DE',
+  healthAccent: '#FF2D55',
+  napAccent: '#32ADE6',
+  warningFill: '#FFD60A',
+  warningForeground: '#1C1C1E',
+  onDestructive: '#FFFFFF',
 };
 
 const darkPalette: AppPalette = {
@@ -119,6 +139,16 @@ const darkPalette: AppPalette = {
   statusWarningText: '#FFD36B',
   statusErrorBackground: '#461A18',
   statusErrorText: '#FF9B95',
+  caffeineAccent: '#0A84FF',
+  activeCaffeineAccent: '#32D74B',
+  sleepAccent: '#5E5CE6',
+  vigilanceAccent: '#30D5C8',
+  cutoffAccent: '#BF5AF2',
+  healthAccent: '#FF375F',
+  napAccent: '#64D2FF',
+  warningFill: '#FFD60A',
+  warningForeground: '#1C1C1E',
+  onDestructive: '#FFFFFF',
 };
 
 export function getAppPalette(scheme?: AppScheme | null): AppPalette {
@@ -127,7 +157,7 @@ export function getAppPalette(scheme?: AppScheme | null): AppPalette {
 
 export function getPrimaryButtonColors(
   scheme?: AppScheme | null,
-  disabled = false
+  disabled = false,
 ) {
   const palette = getAppPalette(scheme);
   return disabled
@@ -159,10 +189,7 @@ export function getSecondaryButtonColors(scheme?: AppScheme | null) {
   };
 }
 
-export function getStatusColors(
-  tone: StatusTone,
-  scheme?: AppScheme | null
-) {
+export function getStatusColors(tone: StatusTone, scheme?: AppScheme | null) {
   const palette = getAppPalette(scheme);
   switch (tone) {
     case 'info':

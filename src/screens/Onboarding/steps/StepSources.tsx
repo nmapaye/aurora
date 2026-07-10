@@ -42,7 +42,9 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
               icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
               title={option.title}
               subtitle={option.body}
-              color={option.key === 'healthkit' ? '#FF2D55' : palette.tint}
+              color={
+                option.key === 'healthkit' ? palette.healthAccent : palette.tint
+              }
             />
           );
         })}

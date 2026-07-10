@@ -13,7 +13,9 @@ import {
 } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
-import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
+import AppleHealth, {
+  makeHealthSleepSessionId,
+} from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 
@@ -76,8 +78,12 @@ export default function SleepScreen() {
   const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
   const cutoff = useCaffeineCutoff();
 
-  const [healthAvailable, setHealthAvailable] = useState<boolean | undefined>(undefined);
-  const [healthAuthorized, setHealthAuthorized] = useState<boolean | undefined>(undefined);
+  const [healthAvailable, setHealthAvailable] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [healthAuthorized, setHealthAuthorized] = useState<boolean | undefined>(
+    undefined,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -116,14 +122,15 @@ export default function SleepScreen() {
           type: sample.type,
         }))
         .sort((a, b) => b.end - a.end),
-    [sleeps]
+    [sleeps],
   );
   const lastSleep = storedSleepSamples[0];
   const wakeTime = lastSleep?.end;
 
   const plan = useMemo(() => {
     const budget = 200;
-    if (!wakeTime || !cutoff?.nextCutoff) return [] as { t: number; mg: number; label: string }[];
+    if (!wakeTime || !cutoff?.nextCutoff)
+      return [] as { t: number; mg: number; label: string }[];
     const start = Math.max(wakeTime + 30 * 60 * 1000, Date.now());
     const end = cutoff.nextCutoff;
     if (end <= start) return [];
@@ -168,7 +175,8 @@ export default function SleepScreen() {
         setHealthSync({
           importedCount: 0,
           lastSyncedAt: Date.now(),
-          lastMessage: 'Health is unavailable here. No sleep samples were imported.',
+          lastMessage:
+            'Health is unavailable here. No sleep samples were imported.',
         });
         return;
       }
@@ -180,7 +188,8 @@ export default function SleepScreen() {
         setHealthSync({
           importedCount: 0,
           lastSyncedAt: Date.now(),
-          lastMessage: 'Health access was denied. No sleep samples were imported.',
+          lastMessage:
+            'Health access was denied. No sleep samples were imported.',
         });
         return;
       }
@@ -194,7 +203,10 @@ export default function SleepScreen() {
           end: sample.end,
           type: sample.label,
         }))
-        .filter((sample) => Number.isFinite(sample.start) && Number.isFinite(sample.end))
+        .filter(
+          (sample) =>
+            Number.isFinite(sample.start) && Number.isFinite(sample.end),
+        )
         .sort((a, b) => b.end - a.end);
       upsertSleepSessions(
         mapped.map((sample) => ({
@@ -202,7 +214,7 @@ export default function SleepScreen() {
           start: sample.start,
           end: sample.end,
           type: 'sleep' as const,
-        }))
+        })),
       );
       setHealthSync({
         importedCount: mapped.length,
@@ -214,7 +226,10 @@ export default function SleepScreen() {
       });
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
     } catch (nextError) {
-      const message = nextError instanceof Error ? nextError.message : 'Failed to read sleep data.';
+      const message =
+        nextError instanceof Error
+          ? nextError.message
+          : 'Failed to read sleep data.';
       setError(message);
       setHealthAuthorized(false);
       setOnboarding({ permissionStatus: 'denied' });
@@ -283,7 +298,7 @@ export default function SleepScreen() {
       const sorted = [...values].sort((a, b) => a - b);
       const index = Math.max(
         0,
-        Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1)))
+        Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))),
       );
       return sorted[index] || 0;
     };
@@ -312,74 +327,73 @@ export default function SleepScreen() {
   const healthConnectionState: HealthConnectionState = demoMode
     ? 'demo'
     : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
-    ? 'unavailable'
-    : onboarding.permissionStatus === 'denied' || healthAuthorized === false
-    ? 'denied'
-    : healthAuthorized || onboarding.permissionStatus === 'granted'
-    ? 'connected'
-    : onboarding.source === 'manual'
-    ? 'manual'
-    : 'ready';
+      ? 'unavailable'
+      : onboarding.permissionStatus === 'denied' || healthAuthorized === false
+        ? 'denied'
+        : healthAuthorized || onboarding.permissionStatus === 'granted'
+          ? 'connected'
+          : onboarding.source === 'manual'
+            ? 'manual'
+            : 'ready';
 
   const healthStatus = loading
     ? 'Syncing Health'
     : healthConnectionState === 'demo'
-    ? 'Sample Data'
-    : healthConnectionState === 'connected'
-    ? 'Health connected'
-    : healthConnectionState === 'denied'
-    ? 'Health access denied'
-    : healthConnectionState === 'manual'
-    ? 'Manual mode'
-    : healthConnectionState === 'unavailable'
-    ? 'Health unavailable'
-    : 'Ready to connect';
+      ? 'Sample Data'
+      : healthConnectionState === 'connected'
+        ? 'Health connected'
+        : healthConnectionState === 'denied'
+          ? 'Health access denied'
+          : healthConnectionState === 'manual'
+            ? 'Manual mode'
+            : healthConnectionState === 'unavailable'
+              ? 'Health unavailable'
+              : 'Ready to connect';
 
   const healthTone =
     error || healthConnectionState === 'denied'
       ? 'error'
       : healthConnectionState === 'demo'
-      ? 'info'
-      : healthConnectionState === 'connected'
-      ? 'success'
-      : healthConnectionState === 'ready'
-      ? 'warning'
-      : 'neutral';
+        ? 'info'
+        : healthConnectionState === 'connected'
+          ? 'success'
+          : healthConnectionState === 'ready'
+            ? 'warning'
+            : 'neutral';
 
   const healthDescription =
     healthConnectionState === 'demo'
       ? 'Example sleep and caffeine data is active.'
       : healthConnectionState === 'connected'
-      ? 'Aurora can refresh recent sleep from Health.'
-      : healthConnectionState === 'denied'
-      ? 'Health access is denied. Manual logging is still available.'
-      : healthConnectionState === 'manual'
-      ? 'Aurora is using manual sleep logging.'
-      : healthConnectionState === 'unavailable'
-      ? 'Health import is unavailable on this device.'
-      : 'Aurora can read recent sleep from Health after you connect.';
+        ? 'Aurora can refresh recent sleep from Health.'
+        : healthConnectionState === 'denied'
+          ? 'Health access is denied. Manual logging is still available.'
+          : healthConnectionState === 'manual'
+            ? 'Aurora is using manual sleep logging.'
+            : healthConnectionState === 'unavailable'
+              ? 'Health import is unavailable on this device.'
+              : 'Aurora can read recent sleep from Health after you connect.';
 
   return (
-    <AppScreen
-      title="Sleep"
-      subtitle="Connect Health or enter sleep manually."
-    >
+    <AppScreen title="Sleep" subtitle="Connect Health or enter sleep manually.">
       <View style={{ gap: 16 }}>
         <HealthSectionHeader title="Pinned" />
         {lastSleep ? (
           <HealthMetricCard
             icon="bed"
             label="Sleep"
-            labelColor="#7D7AFF"
+            labelColor={palette.sleepAccent}
             dateLabel={fmtDate(lastSleep.end)}
-            value={fmtDuration(lastNightTotalMs || lastSleep.end - lastSleep.start)}
+            value={fmtDuration(
+              lastNightTotalMs || lastSleep.end - lastSleep.start,
+            )}
             detail={`${fmtTime(lastSleep.start)} – ${fmtTime(lastSleep.end)}`}
           />
         ) : (
           <HealthMetricCard
             icon="bed"
             label="Sleep"
-            labelColor="#7D7AFF"
+            labelColor={palette.sleepAccent}
             dateLabel="Today"
             value="No Data"
             detail="Connect Health or load demo data."
@@ -426,7 +440,9 @@ export default function SleepScreen() {
             </View>
           ) : null}
           {loading ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
               <ActivityIndicator color={palette.tint} />
               <Text
                 style={{
@@ -453,7 +469,8 @@ export default function SleepScreen() {
                 color: palette.textTertiary,
               }}
             >
-              Health import is available on iPhone only. Use manual mode or sample data on this device.
+              Health import is available on iPhone only. Use manual mode or
+              sample data on this device.
             </Text>
           ) : null}
           {error ? (
@@ -503,12 +520,18 @@ export default function SleepScreen() {
             <SectionCard>
               <ListRow
                 title="Imported night"
-                subtitle={demoMode ? 'Most recent sample session' : 'Most recent sleep session'}
+                subtitle={
+                  demoMode
+                    ? 'Most recent sample session'
+                    : 'Most recent sleep session'
+                }
                 value={fmtDate(lastSleep.start)}
               />
               <ListRow
                 title="Sleep samples"
-                subtitle={demoMode ? 'Sample sessions loaded' : 'Stored sessions'}
+                subtitle={
+                  demoMode ? 'Sample sessions loaded' : 'Stored sessions'
+                }
                 value={`${storedSleepSamples.length}`}
               />
               <ListRow
@@ -559,7 +582,8 @@ export default function SleepScreen() {
                     color: palette.textTertiary,
                   }}
                 >
-                  Keep logging for at least 14 nights before reading this as a pattern.
+                  Keep logging for at least 14 nights before reading this as a
+                  pattern.
                 </Text>
               ) : null}
             </>
