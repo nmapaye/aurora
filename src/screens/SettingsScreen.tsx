@@ -4,7 +4,7 @@ import { Linking } from 'react-native';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import {
-  HealthSectionHeader,
+  SectionHeader,
   ListRow,
   SectionCard,
   SegmentedControl,
@@ -48,7 +48,7 @@ export default function SettingsScreen() {
       subtitle="Tune caffeine and sleep guidance."
       trailing={<Button title="Done" variant="plain" onPress={goBack} />}
     >
-      <HealthSectionHeader title="Appearance" />
+      <SectionHeader prominence="prominent" title="Appearance" />
       <SectionCard>
         <SegmentedControl
           value={appearanceMode}
@@ -61,7 +61,7 @@ export default function SettingsScreen() {
         />
       </SectionCard>
 
-      <HealthSectionHeader title="Guidance" />
+      <SectionHeader prominence="prominent" title="Guidance" />
       <StepperField
         label="Caffeine half-life"
         value={prefs.halfLife}
@@ -105,7 +105,7 @@ export default function SettingsScreen() {
         footer="Your daily guardrail."
       />
 
-      <HealthSectionHeader title="Notifications" />
+      <SectionHeader prominence="prominent" title="Notifications" />
       <SectionCard>
         <ListRow
           title="Cutoff reminder"
@@ -121,7 +121,7 @@ export default function SettingsScreen() {
         />
       </SectionCard>
 
-      <HealthSectionHeader title="About" />
+      <SectionHeader prominence="prominent" title="About" />
       <SectionCard>
         <ListRow
           title="Current release focus"

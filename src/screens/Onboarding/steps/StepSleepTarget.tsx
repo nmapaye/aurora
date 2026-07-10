@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 import { HealthOptionCard, StepperField } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
+import { spacing, typeRamp } from '~/theme/tokens';
 
 type Props = {
   targetSleep: number;
@@ -16,12 +17,11 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
   const presets = [7, 8, 9];
 
   return (
-    <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
+    <View style={{ gap: spacing.md }}>
+      <View style={{ gap: spacing.xs }}>
         <Text
           style={{
-            fontSize: 30,
-            lineHeight: 36,
+            ...typeRamp.title1,
             fontWeight: '700',
             letterSpacing: 0,
             color: palette.textPrimary,
@@ -31,8 +31,7 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
         </Text>
         <Text
           style={{
-            fontSize: 16,
-            lineHeight: 22,
+            ...typeRamp.body,
             color: palette.textSecondary,
           }}
         >
@@ -50,18 +49,17 @@ export default function StepSleepTarget({ targetSleep, onChange }: Props) {
         onChange={(value) => onChange(Math.round(value * 2) / 2)}
       />
 
-      <View style={{ gap: 10 }}>
+      <View style={{ gap: spacing.sm }}>
         <Text
           style={{
-            fontSize: 13,
-            lineHeight: 18,
+            ...typeRamp.footnote,
             color: palette.textSecondary,
             fontWeight: '600',
           }}
         >
           Common Targets
         </Text>
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: spacing.sm }}>
           {presets.map((preset) => {
             const selected = preset === Math.round(targetSleep);
             return (

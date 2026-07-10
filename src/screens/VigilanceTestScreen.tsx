@@ -17,6 +17,7 @@ import {
 } from '~/domain/vigilance';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { numericText, radii, spacing, typeRamp } from '~/theme/tokens';
 
 const HIT_TARGET = 44;
 
@@ -33,7 +34,7 @@ export default function VigilanceTestScreen() {
   const palette = getAppPalette(scheme);
   const addVigilanceSession = useStore((s) => s.addVigilanceSession);
   const [taskState, setTaskState] = useState<VigilanceTaskState>(() =>
-    createVigilanceTaskState()
+    createVigilanceTaskState(),
   );
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [tickNow, setTickNow] = useState<number>(Date.now());
@@ -74,8 +75,9 @@ export default function VigilanceTestScreen() {
 
   const latestSession = useStore((s) =>
     savedSessionId
-      ? s.vigilanceSessions.find((session) => session.id === savedSessionId) ?? null
-      : null
+      ? (s.vigilanceSessions.find((session) => session.id === savedSessionId) ??
+        null)
+      : null,
   );
 
   const remainingMs =
@@ -105,20 +107,20 @@ export default function VigilanceTestScreen() {
           trialCount: taskState.trialResults.length,
           falseStartCount: taskState.falseStartCount,
           lapseCount: taskState.trialResults.filter(
-            (trial) => trial.outcome === 'lapse'
+            (trial) => trial.outcome === 'lapse',
           ).length,
         }
       : latestSession
-      ? {
-          trialCount: latestSession.trialCount,
-          falseStartCount: latestSession.falseStartCount,
-          lapseCount: latestSession.lapseCount,
-        }
-      : {
-          trialCount: 0,
-          falseStartCount: 0,
-          lapseCount: 0,
-        };
+        ? {
+            trialCount: latestSession.trialCount,
+            falseStartCount: latestSession.falseStartCount,
+            lapseCount: latestSession.lapseCount,
+          }
+        : {
+            trialCount: 0,
+            falseStartCount: 0,
+            lapseCount: 0,
+          };
 
   const startSession = () => {
     savedRef.current = false;
@@ -139,16 +141,16 @@ export default function VigilanceTestScreen() {
       style={{
         flex: 1,
         backgroundColor: palette.groupedBackground,
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 32,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xxl,
       }}
     >
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          marginBottom: 20,
+          marginBottom: spacing.lg,
         }}
       >
         <Button title="Close" variant="plain" onPress={goBack} />
@@ -156,8 +158,8 @@ export default function VigilanceTestScreen() {
         <View
           style={{
             minHeight: HIT_TARGET,
-            paddingHorizontal: 14,
-            borderRadius: 999,
+            paddingHorizontal: spacing.sm,
+            borderRadius: radii.capsule,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: palette.cardMuted,
@@ -167,8 +169,7 @@ export default function VigilanceTestScreen() {
         >
           <Text
             style={{
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               color: palette.textPrimary,
               fontWeight: '600',
             }}
@@ -178,21 +179,20 @@ export default function VigilanceTestScreen() {
         </View>
       </View>
 
-      <View style={{ gap: 16, flex: 1 }}>
+      <View style={{ gap: spacing.md, flex: 1 }}>
         <View
           style={{
             backgroundColor: palette.card,
-            borderRadius: 28,
-            padding: 18,
+            borderRadius: radii.hero,
+            padding: spacing.md,
             borderWidth: scheme === 'dark' ? 0 : 1,
             borderColor: palette.cardBorder,
-            gap: 8,
+            gap: spacing.xs,
           }}
         >
           <Text
             style={{
-              fontSize: 28,
-              lineHeight: 34,
+              ...typeRamp.title1,
               fontWeight: '700',
               color: palette.textPrimary,
             }}
@@ -201,8 +201,7 @@ export default function VigilanceTestScreen() {
           </Text>
           <Text
             style={{
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               color: palette.textSecondary,
             }}
           >
@@ -218,31 +217,30 @@ export default function VigilanceTestScreen() {
           disabled={taskState.phase !== 'running'}
           style={{
             flex: 1,
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: radii.hero,
+            padding: spacing.xl,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor:
               taskState.phase === 'complete'
                 ? palette.card
                 : currentCueVisible
-                ? palette.primaryButton
-                : palette.neutralButton,
+                  ? palette.primaryButton
+                  : palette.neutralButton,
             borderWidth: scheme === 'dark' ? 0 : 2,
             borderColor:
               taskState.phase === 'complete'
                 ? palette.cardBorder
                 : currentCueVisible
-                ? palette.primaryButton
-                : palette.neutralButtonBorder,
+                  ? palette.primaryButton
+                  : palette.neutralButtonBorder,
           }}
         >
           {taskState.phase === 'instructions' ? (
-            <View style={{ gap: 14, alignItems: 'center' }}>
+            <View style={{ gap: spacing.sm, alignItems: 'center' }}>
               <Text
                 style={{
-                  fontSize: 24,
-                  lineHeight: 30,
+                  ...typeRamp.title3,
                   fontWeight: '700',
                   color: palette.textPrimary,
                   textAlign: 'center',
@@ -252,22 +250,25 @@ export default function VigilanceTestScreen() {
               </Text>
               <Text
                 style={{
-                  fontSize: 16,
-                  lineHeight: 22,
+                  ...typeRamp.body,
                   color: palette.textSecondary,
                   textAlign: 'center',
                 }}
               >
-                Wait for the cue, then tap the active area as quickly as you can.
+                Wait for the cue, then tap the active area as quickly as you
+                can.
               </Text>
-              <Button title="Start test" variant="primary" onPress={startSession} />
+              <Button
+                title="Start Test"
+                variant="primary"
+                onPress={startSession}
+              />
             </View>
           ) : taskState.phase === 'running' ? (
-            <View style={{ gap: 14, alignItems: 'center' }}>
+            <View style={{ gap: spacing.sm, alignItems: 'center' }}>
               <Text
                 style={{
-                  fontSize: 16,
-                  lineHeight: 22,
+                  ...typeRamp.body,
                   color: currentCueVisible
                     ? palette.primaryButtonText
                     : palette.textSecondary,
@@ -277,8 +278,7 @@ export default function VigilanceTestScreen() {
               </Text>
               <Text
                 style={{
-                  fontSize: 42,
-                  lineHeight: 48,
+                  ...numericText,
                   fontWeight: '700',
                   color: currentCueVisible
                     ? palette.primaryButtonText
@@ -290,8 +290,7 @@ export default function VigilanceTestScreen() {
               </Text>
               <Text
                 style={{
-                  fontSize: 15,
-                  lineHeight: 20,
+                  ...typeRamp.subheadline,
                   color: currentCueVisible
                     ? palette.primaryButtonText
                     : palette.textSecondary,
@@ -302,11 +301,12 @@ export default function VigilanceTestScreen() {
               </Text>
             </View>
           ) : latestSession ? (
-            <View style={{ gap: 16, alignItems: 'center', width: '100%' }}>
+            <View
+              style={{ gap: spacing.md, alignItems: 'center', width: '100%' }}
+            >
               <Text
                 style={{
-                  fontSize: 16,
-                  lineHeight: 22,
+                  ...typeRamp.body,
                   color: palette.textSecondary,
                 }}
               >
@@ -314,8 +314,7 @@ export default function VigilanceTestScreen() {
               </Text>
               <Text
                 style={{
-                  fontSize: 48,
-                  lineHeight: 56,
+                  ...numericText,
                   fontWeight: '700',
                   color: palette.textPrimary,
                 }}
@@ -324,8 +323,7 @@ export default function VigilanceTestScreen() {
               </Text>
               <Text
                 style={{
-                  fontSize: 24,
-                  lineHeight: 30,
+                  ...typeRamp.title3,
                   fontWeight: '600',
                   color: palette.textPrimary,
                 }}
@@ -335,40 +333,55 @@ export default function VigilanceTestScreen() {
               <View
                 style={{
                   width: '100%',
-                  gap: 10,
+                  gap: spacing.sm,
                   backgroundColor: palette.neutralButton,
-                  borderRadius: 18,
-                  padding: 16,
+                  borderRadius: radii.card,
+                  padding: spacing.md,
                   borderWidth: scheme === 'dark' ? 0 : 1,
                   borderColor: palette.neutralButtonBorder,
                 }}
               >
                 <Text
-                  style={{ fontSize: 15, lineHeight: 20, color: palette.textPrimary }}
+                  style={{
+                    ...typeRamp.subheadline,
+                    color: palette.textPrimary,
+                  }}
                 >
-                  Median reaction: {formatReaction(latestSession.medianReactionMs)}
+                  Median reaction:{' '}
+                  {formatReaction(latestSession.medianReactionMs)}
                 </Text>
                 <Text
-                  style={{ fontSize: 15, lineHeight: 20, color: palette.textPrimary }}
+                  style={{
+                    ...typeRamp.subheadline,
+                    color: palette.textPrimary,
+                  }}
                 >
-                  Fastest reaction: {formatReaction(latestSession.fastestReactionMs)}
+                  Fastest reaction:{' '}
+                  {formatReaction(latestSession.fastestReactionMs)}
                 </Text>
                 <Text
-                  style={{ fontSize: 15, lineHeight: 20, color: palette.textPrimary }}
+                  style={{
+                    ...typeRamp.subheadline,
+                    color: palette.textPrimary,
+                  }}
                 >
                   Lapses: {latestSession.lapseCount} • False starts:{' '}
                   {latestSession.falseStartCount}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Button title="Run again" variant="primary" onPress={startSession} />
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button
+                  title="Run Again"
+                  variant="primary"
+                  onPress={startSession}
+                />
                 <Button title="Done" variant="plain" onPress={goBack} />
               </View>
             </View>
           ) : null}
         </Pressable>
 
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {[
             { label: 'Trials', value: headerSummary.trialCount },
             { label: 'False starts', value: headerSummary.falseStartCount },
@@ -380,26 +393,24 @@ export default function VigilanceTestScreen() {
                 flex: 1,
                 minHeight: HIT_TARGET,
                 backgroundColor: palette.card,
-                borderRadius: 18,
+                borderRadius: radii.card,
                 borderWidth: scheme === 'dark' ? 0 : 1,
                 borderColor: palette.cardBorder,
-                padding: 14,
+                padding: spacing.sm,
               }}
             >
               <Text
                 style={{
-                  fontSize: 14,
-                  lineHeight: 18,
+                  ...typeRamp.subheadline,
                   color: palette.textSecondary,
-                  marginBottom: 4,
+                  marginBottom: spacing.xxs,
                 }}
               >
                 {item.label}
               </Text>
               <Text
                 style={{
-                  fontSize: 22,
-                  lineHeight: 28,
+                  ...typeRamp.title3,
                   fontWeight: '700',
                   color: palette.textPrimary,
                 }}

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Pressable,
+  ActivityIndicator,
   StyleProp,
   Text,
   TextInput,
@@ -8,8 +9,8 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
+import AppIcon, { type AppIconName } from '~/components/AppIcon';
 import useAppScheme from '~/hooks/useAppScheme';
 import {
   getAppPalette,
@@ -26,12 +27,18 @@ import {
   typeRamp,
 } from '~/theme/tokens';
 
-export function SectionTitle({
-  children,
+export function SectionHeader({
+  title,
+  prominence = 'standard',
   action,
+  actionLabel,
+  onAction,
 }: {
-  children: React.ReactNode;
+  title: string;
+  prominence?: 'standard' | 'prominent';
   action?: React.ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
@@ -43,13 +50,35 @@ export function SectionTitle({
         maxFontSizeMultiplier={fontScaling.body}
         style={{
           flex: 1,
-          ...typeRamp.headline,
+          ...(prominence === 'prominent' ? typeRamp.title1 : typeRamp.headline),
           color: palette.textPrimary,
         }}
       >
-        {children}
+        {title}
       </Text>
-      {action}
+      {action ??
+        (actionLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            onPress={onAction}
+            style={({ pressed }) => ({
+              minHeight: controlSizes.minimumTouchTarget,
+              minWidth: controlSizes.minimumTouchTarget,
+              borderRadius: radii.control,
+              paddingHorizontal: spacing.xs,
+              justifyContent: 'center',
+              opacity: pressed ? 0.65 : 1,
+            })}
+          >
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.body, color: palette.tint }}
+            >
+              {actionLabel}
+            </Text>
+          </Pressable>
+        ) : null)}
     </View>
   );
 }
@@ -82,59 +111,6 @@ export function SectionCard({
   );
 }
 
-export function HealthSectionHeader({
-  title,
-  actionLabel,
-  onAction,
-}: {
-  title: string;
-  actionLabel?: string;
-  onAction?: () => void;
-}) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  return (
-    <View
-      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
-    >
-      <Text
-        maxFontSizeMultiplier={fontScaling.body}
-        style={{
-          flex: 1,
-          ...typeRamp.title1,
-          color: palette.textPrimary,
-        }}
-      >
-        {title}
-      </Text>
-      {actionLabel ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAction}
-          style={({ pressed }) => ({
-            minHeight: controlSizes.minimumTouchTarget,
-            minWidth: controlSizes.minimumTouchTarget,
-            borderRadius: radii.control,
-            paddingHorizontal: spacing.xs,
-            justifyContent: 'center',
-            opacity: pressed ? 0.65 : 1,
-          })}
-        >
-          <Text
-            maxFontSizeMultiplier={fontScaling.body}
-            style={{
-              ...typeRamp.body,
-              color: palette.tint,
-            }}
-          >
-            {actionLabel}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
 export function HealthMetricCard({
   icon,
   label,
@@ -144,7 +120,7 @@ export function HealthMetricCard({
   dateLabel,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
   label: string;
   labelColor: string;
   value: string;
@@ -166,7 +142,7 @@ export function HealthMetricCard({
       <View
         style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
       >
-        <Ionicons name={icon} size={iconSizes.row} color={labelColor} />
+        <AppIcon name={icon} size={iconSizes.row} color={labelColor} />
         <Text
           maxFontSizeMultiplier={fontScaling.body}
           style={{
@@ -189,7 +165,7 @@ export function HealthMetricCard({
           </Text>
         ) : null}
         {onPress ? (
-          <Ionicons
+          <AppIcon
             name="chevron-forward"
             size={iconSizes.row}
             color={palette.textTertiary}
@@ -245,7 +221,7 @@ export function HealthOptionCard({
   onPress,
   color,
 }: {
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
   title: string;
   subtitle?: string;
   selected?: boolean;
@@ -274,7 +250,7 @@ export function HealthOptionCard({
       })}
     >
       {icon ? (
-        <Ionicons
+        <AppIcon
           name={icon}
           size={iconSizes.button}
           color={selected ? accent : palette.textSecondary}
@@ -303,9 +279,9 @@ export function HealthOptionCard({
         ) : null}
       </View>
       {selected ? (
-        <Ionicons name="checkmark-circle" size={iconSizes.row} color={accent} />
+        <AppIcon name="checkmark-circle" size={iconSizes.row} color={accent} />
       ) : (
-        <Ionicons
+        <AppIcon
           name="chevron-forward"
           size={iconSizes.inline}
           color={palette.textTertiary}
@@ -332,7 +308,7 @@ export function HealthAlertCard({
   body?: string;
   actionLabel?: string;
   onAction?: () => void;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
@@ -371,7 +347,7 @@ export function HealthAlertCard({
             backgroundColor: header.backgroundColor,
           }}
         >
-          <Ionicons
+          <AppIcon
             name="warning"
             size={iconSizes.inline}
             color={header.color}
@@ -437,7 +413,7 @@ export function HealthAlertCard({
           </View>
         ) : null}
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <Ionicons name={icon} size={iconSizes.hero} color={iconColor} />
+          <AppIcon name={icon} size={iconSizes.hero} color={iconColor} />
           <View style={{ flex: 1, gap: spacing.xs }}>
             <Text
               maxFontSizeMultiplier={fontScaling.body}
@@ -618,7 +594,7 @@ export function ListRow({
       ) : null}
       {accessory ??
         (onPress ? (
-          <Ionicons
+          <AppIcon
             name="chevron-forward"
             size={iconSizes.inline}
             color={palette.textTertiary}
@@ -634,7 +610,7 @@ export function ListRow({
         onPress={onPress}
         style={({ pressed }) => ({
           borderRadius: radii.control,
-          paddingHorizontal: 2,
+          paddingHorizontal: spacing.xxs,
           backgroundColor: pressed ? palette.pressed : 'transparent',
         })}
       >
@@ -778,6 +754,31 @@ export function InlineStatus({
   );
 }
 
+export function ProgressState({ label }: { label: string }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+      }}
+    >
+      <ActivityIndicator color={palette.tint} />
+      <Text
+        maxFontSizeMultiplier={fontScaling.body}
+        style={{ ...typeRamp.subheadline, color: palette.textSecondary }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 export function StepperField({
   label,
   value,
@@ -812,21 +813,20 @@ export function StepperField({
     <SectionCard>
       <ListRow
         title={label}
-        value={displayValue}
         accessory={
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.xs,
-            }}
+          <StepperControl
+            decrementLabel={`Decrease ${label}`}
+            incrementLabel={`Increase ${label}`}
+            onDecrement={() => update(value - step)}
+            onIncrement={() => update(value + step)}
           >
-            <StepperButton
-              symbol="remove"
-              onPress={() => update(value - step)}
-            />
-            <StepperButton symbol="add" onPress={() => update(value + step)} />
-          </View>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.subheadline, color: palette.textSecondary }}
+            >
+              {displayValue}
+            </Text>
+          </StepperControl>
         }
       />
       {footer ? (
@@ -844,11 +844,45 @@ export function StepperField({
   );
 }
 
+export function StepperControl({
+  children,
+  decrementLabel,
+  incrementLabel,
+  onDecrement,
+  onIncrement,
+}: {
+  children: React.ReactNode;
+  decrementLabel: string;
+  incrementLabel: string;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}) {
+  return (
+    <View
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+    >
+      <StepperButton
+        symbol="remove"
+        accessibilityLabel={decrementLabel}
+        onPress={onDecrement}
+      />
+      {children}
+      <StepperButton
+        symbol="add"
+        accessibilityLabel={incrementLabel}
+        onPress={onIncrement}
+      />
+    </View>
+  );
+}
+
 function StepperButton({
   symbol,
+  accessibilityLabel,
   onPress,
 }: {
   symbol: 'add' | 'remove';
+  accessibilityLabel: string;
   onPress: () => void;
 }) {
   const scheme = useAppScheme();
@@ -856,6 +890,7 @@ function StepperButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={({ pressed }) => ({
         width: controlSizes.minimumTouchTarget,
@@ -868,7 +903,7 @@ function StepperButton({
         borderColor: palette.cardBorder,
       })}
     >
-      <Ionicons
+      <AppIcon
         name={symbol}
         size={iconSizes.inline}
         color={palette.textPrimary}

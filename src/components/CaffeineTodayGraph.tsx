@@ -4,6 +4,7 @@ import Svg, { Path, Defs, LinearGradient, Stop, Line } from 'react-native-svg';
 import useAppScheme from '~/hooks/useAppScheme';
 import { useTodayCaffeineSeries } from '~/hooks/useTodayCaffeineSeries';
 import { getAppPalette } from '~/theme/colors';
+import { spacing, typeRamp } from '~/theme/tokens';
 
 export default function CaffeineTodayGraph({
   height = 180,
@@ -56,11 +57,17 @@ export default function CaffeineTodayGraph({
     const pad = (maxVal - minVal || 1) * 0.12;
     const yMin = minVal - pad;
     const yMax = maxVal + pad;
-    const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+    const clamp = (n: number, lo: number, hi: number) =>
+      Math.min(hi, Math.max(lo, n));
 
     const pts = series.map((p) => {
-      const x = plotRect.x + clamp(((p.t - start) / domain) * plotRect.width, 0, plotRect.width);
-      const y = plotRect.y + (plotRect.height - ((p.mg - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height);
+      const x =
+        plotRect.x +
+        clamp(((p.t - start) / domain) * plotRect.width, 0, plotRect.width);
+      const y =
+        plotRect.y +
+        (plotRect.height -
+          ((p.mg - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height);
       return { x, y };
     });
 
@@ -85,21 +92,41 @@ export default function CaffeineTodayGraph({
     }
 
     const now = Date.now();
-    const nowX = plotRect.x + clamp(((now - start) / domain) * plotRect.width, 0, plotRect.width);
+    const nowX =
+      plotRect.x +
+      clamp(((now - start) / domain) * plotRect.width, 0, plotRect.width);
 
     const rawTicks = [yMax, yMin + (yMax - yMin) / 2, yMin];
     const uniq = Array.from(new Set(rawTicks.map((v) => Math.round(v))));
     const yTicks = uniq.map((v) => ({
       value: v,
-      y: plotRect.y + (plotRect.height - ((v - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height),
+      y:
+        plotRect.y +
+        (plotRect.height -
+          ((v - yMin) / Math.max(1e-6, yMax - yMin)) * plotRect.height),
     }));
 
     return { linePath: d, areaPath: a, points: pts, nowX, yTicks, plotRect };
-  }, [axisWidth, domain, height, plotPadding.bottom, plotPadding.right, plotPadding.top, series, start, width]);
+  }, [
+    axisWidth,
+    domain,
+    height,
+    plotPadding.bottom,
+    plotPadding.right,
+    plotPadding.top,
+    series,
+    start,
+    width,
+  ]);
 
   const fmtHour = (ts: number) => {
-    try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).format(new Date(ts)); }
-    catch { return new Date(ts).getHours().toString(); }
+    try {
+      return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).format(
+        new Date(ts),
+      );
+    } catch {
+      return new Date(ts).getHours().toString();
+    }
   };
 
   const firstTs = series[0]?.t ?? start;
@@ -108,13 +135,24 @@ export default function CaffeineTodayGraph({
 
   return (
     <View style={{ width: '100%' }}>
-      <View style={{ width: '100%', height, position: 'relative' }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <View
+        style={{ width: '100%', height, position: 'relative' }}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      >
         {width > 0 ? (
           <Svg width={width} height={height}>
             <Defs>
               <LinearGradient id="caffArea" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={accent as string} stopOpacity={0.16} />
-                <Stop offset="1" stopColor={accent as string} stopOpacity={0.04} />
+                <Stop
+                  offset="0"
+                  stopColor={accent as string}
+                  stopOpacity={0.16}
+                />
+                <Stop
+                  offset="1"
+                  stopColor={accent as string}
+                  stopOpacity={0.04}
+                />
               </LinearGradient>
             </Defs>
 
@@ -150,29 +188,68 @@ export default function CaffeineTodayGraph({
             {areaPath ? <Path d={areaPath} fill="url(#caffArea)" /> : null}
 
             {/* Line glow + line */}
-            {linePath ? <Path d={linePath} stroke={accent as string} strokeOpacity={0.32} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
-            {linePath ? <Path d={linePath} stroke={accent as string} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
-
-            {/* Vertical markers where a dose was logged */}
-            {series.map((p, i) => p.hasDose ? (
-              <Line
-                key={`dose-${i}`}
-                x1={Math.max(plotRect.x, (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX)}
-                x2={Math.max(plotRect.x, (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX)}
-                y1={plotRect.y}
-                y2={plotRect.y + plotRect.height}
+            {linePath ? (
+              <Path
+                d={linePath}
                 stroke={accent as string}
                 strokeOpacity={0.32}
-                strokeDasharray={[2, 7]}
-                strokeWidth={2}
+                strokeWidth={4}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
-            ) : null)}
+            ) : null}
+            {linePath ? (
+              <Path
+                d={linePath}
+                stroke={accent as string}
+                strokeWidth={2.5}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+
+            {/* Vertical markers where a dose was logged */}
+            {series.map((p, i) =>
+              p.hasDose ? (
+                <Line
+                  key={`dose-${i}`}
+                  x1={Math.max(
+                    plotRect.x,
+                    (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX,
+                  )}
+                  x2={Math.max(
+                    plotRect.x,
+                    (points[i]?.x ?? plotRect.x) - doseMarkerOffsetX,
+                  )}
+                  y1={plotRect.y}
+                  y2={plotRect.y + plotRect.height}
+                  stroke={accent as string}
+                  strokeOpacity={0.32}
+                  strokeDasharray={[2, 7]}
+                  strokeWidth={2}
+                />
+              ) : null,
+            )}
           </Svg>
         ) : null}
         {width > 0 && yTicks.length ? (
-          <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: axisWidth, height }}>
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: axisWidth,
+              height,
+            }}
+          >
             {yTicks.map((t, i) => {
-              const y = Math.min(plotRect.y + plotRect.height, Math.max(plotRect.y, t.y));
+              const y = Math.min(
+                plotRect.y + plotRect.height,
+                Math.max(plotRect.y, t.y),
+              );
               return (
                 <Text
                   key={`tick-${i}-${t.value}`}
@@ -181,8 +258,7 @@ export default function CaffeineTodayGraph({
                     left: 0,
                     right: 10,
                     top: y - 17,
-                    fontSize: 12,
-                    lineHeight: 16,
+                    ...typeRamp.caption,
                     color: palette.textSecondary,
                     textAlign: 'left',
                   }}
@@ -196,15 +272,48 @@ export default function CaffeineTodayGraph({
         ) : null}
       </View>
       {!compact ? (
-        <View style={{ flexDirection: 'row', marginTop: 6 }}>
-          <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(firstTs)}</Text>
-          <Text style={{ flex: 1, textAlign: 'center', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(midTs)}</Text>
-          <Text style={{ flex: 1, textAlign: 'right', fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>{fmtHour(lastTs)}</Text>
+        <View style={{ flexDirection: 'row', marginTop: spacing.xs }}>
+          <Text
+            style={{
+              flex: 1,
+              ...typeRamp.footnote,
+              color: palette.textSecondary,
+            }}
+          >
+            {fmtHour(firstTs)}
+          </Text>
+          <Text
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              ...typeRamp.footnote,
+              color: palette.textSecondary,
+            }}
+          >
+            {fmtHour(midTs)}
+          </Text>
+          <Text
+            style={{
+              flex: 1,
+              textAlign: 'right',
+              ...typeRamp.footnote,
+              color: palette.textSecondary,
+            }}
+          >
+            {fmtHour(lastTs)}
+          </Text>
         </View>
       ) : null}
       {showCaption ? (
-        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: palette.textSecondary }}>
-          Active caffeine (mg) projected hourly based on your doses and half-life.
+        <Text
+          style={{
+            marginTop: spacing.xxs,
+            ...typeRamp.footnote,
+            color: palette.textSecondary,
+          }}
+        >
+          Active caffeine (mg) projected hourly based on your doses and
+          half-life.
         </Text>
       ) : null}
     </View>

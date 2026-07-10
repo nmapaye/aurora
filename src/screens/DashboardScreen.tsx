@@ -7,10 +7,9 @@ import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 import {
   HealthAlertCard,
   HealthMetricCard,
-  HealthSectionHeader,
   ListRow,
   SectionCard,
-  SectionTitle,
+  SectionHeader,
 } from '~/components/ui';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
@@ -20,6 +19,7 @@ import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
+import { radii, spacing, typeRamp } from '~/theme/tokens';
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
@@ -145,8 +145,8 @@ export default function DashboardScreen() {
 
   const pinnedCards = (
     <>
-      <HealthSectionHeader title="Pinned" actionLabel="Edit" />
-      <View style={{ gap: 18 }}>
+      <SectionHeader prominence="prominent" title="Pinned" actionLabel="Edit" />
+      <View style={{ gap: spacing.md }}>
         <HealthMetricCard
           icon="cafe"
           label="Caffeine"
@@ -218,9 +218,11 @@ export default function DashboardScreen() {
 
   const logSection = (
     <>
-      <SectionTitle>Log</SectionTitle>
+      <SectionHeader title="Log" />
       <SectionCard>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {[
             ['Espresso', 60],
             ['Drip', 95],
@@ -236,7 +238,7 @@ export default function DashboardScreen() {
           ))}
         </View>
         <Button
-          title="Custom entry"
+          title="Custom Entry"
           variant="plain"
           onPress={() => navigate('Log')}
         />
@@ -246,23 +248,21 @@ export default function DashboardScreen() {
 
   const recentSection = (
     <>
-      <SectionTitle
+      <SectionHeader
+        title="Recent Activity"
         action={
           <Button
-            title="See history"
+            title="See History"
             variant="plain"
             onPress={() => navigate('Insights', { section: 'history' })}
           />
         }
-      >
-        Recent activity
-      </SectionTitle>
+      />
       <SectionCard>
         {todaySummary.recent.length === 0 ? (
           <Text
             style={{
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               color: palette.textTertiary,
             }}
           >
@@ -282,8 +282,11 @@ export default function DashboardScreen() {
   );
 
   const todayPanel = (
-    <SectionCard style={{ borderRadius: 28, padding: 20, gap: 18 }}>
-      <HealthSectionHeader
+    <SectionCard
+      style={{ borderRadius: radii.hero, padding: spacing.lg, gap: spacing.md }}
+    >
+      <SectionHeader
+        prominence="prominent"
         title="Today"
         actionLabel="Details"
         onAction={() => navigate('Insights', { section: 'summary' })}
@@ -294,7 +297,7 @@ export default function DashboardScreen() {
         compact
         variant="panel"
       />
-      <View style={{ gap: 2 }}>
+      <View style={{ gap: spacing.xxs }}>
         <ListRow
           title="Caffeine"
           subtitle={todaySummary.deltaText}
@@ -329,15 +332,19 @@ export default function DashboardScreen() {
     <AppScreen title="Summary">
       {layout.isWideLayout ? (
         <View
-          style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 24 }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: spacing.xl,
+          }}
         >
-          <View style={{ width: layout.leftColumnWidth, gap: 18 }}>
+          <View style={{ width: layout.leftColumnWidth, gap: spacing.md }}>
             {alertCard}
             {pinnedCards}
             {logSection}
             {recentSection}
           </View>
-          <View style={{ width: layout.rightColumnWidth, gap: 18 }}>
+          <View style={{ width: layout.rightColumnWidth, gap: spacing.md }}>
             {todayPanel}
           </View>
         </View>

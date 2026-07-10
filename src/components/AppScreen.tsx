@@ -7,9 +7,9 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AppIcon, { appIcons } from '~/components/AppIcon';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import { navigate } from '~/navigation';
@@ -120,8 +120,8 @@ export default function AppScreen({
                   borderColor: palette.cardBorder,
                 })}
               >
-                <Ionicons
-                  name="settings-outline"
+                <AppIcon
+                  name={appIcons.settings}
                   size={iconSizes.button}
                   color={palette.textPrimary}
                 />

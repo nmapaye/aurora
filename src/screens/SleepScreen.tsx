@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import {
   HealthMetricCard,
-  HealthSectionHeader,
+  SectionHeader,
   InlineStatus,
   ListRow,
+  ProgressState,
   SectionCard,
   StatTile,
 } from '~/components/ui';
@@ -18,6 +19,7 @@ import AppleHealth, {
 } from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { spacing, typeRamp } from '~/theme/tokens';
 
 type SleepSample = { start: number; end: number; type?: string };
 type HealthConnectionState =
@@ -376,8 +378,8 @@ export default function SleepScreen() {
 
   return (
     <AppScreen title="Sleep" subtitle="Connect Health or enter sleep manually.">
-      <View style={{ gap: 16 }}>
-        <HealthSectionHeader title="Pinned" />
+      <View style={{ gap: spacing.md }}>
+        <SectionHeader prominence="prominent" title="Pinned" />
         {lastSleep ? (
           <HealthMetricCard
             icon="bed"
@@ -400,20 +402,19 @@ export default function SleepScreen() {
           />
         )}
 
-        <HealthSectionHeader title="Connection" />
+        <SectionHeader prominence="prominent" title="Connection" />
         <SectionCard>
           <InlineStatus tone={healthTone} text={healthStatus} />
           <Text
             style={{
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               color: palette.textSecondary,
             }}
           >
             {healthDescription}
           </Text>
           {healthSync.lastSyncedAt || healthSync.lastMessage ? (
-            <View style={{ gap: 2 }}>
+            <View style={{ gap: spacing.xxs }}>
               <ListRow
                 title="Imported"
                 subtitle="Most recent Health refresh"
@@ -429,8 +430,7 @@ export default function SleepScreen() {
               {healthSync.lastMessage ? (
                 <Text
                   style={{
-                    fontSize: 13,
-                    lineHeight: 18,
+                    ...typeRamp.footnote,
                     color: palette.textTertiary,
                   }}
                 >
@@ -440,23 +440,11 @@ export default function SleepScreen() {
             </View>
           ) : null}
           {loading ? (
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-            >
-              <ActivityIndicator color={palette.tint} />
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 20,
-                  color: palette.textSecondary,
-                }}
-              >
-                Syncing recent sleep…
-              </Text>
-            </View>
+            <ProgressState label="Syncing recent sleep…" />
           ) : (
             <Button
-              title={healthAuthorized ? 'Refresh sleep' : 'Connect to Health'}
+              title={healthAuthorized ? 'Refresh Sleep' : 'Connect to Health'}
+              variant="primary"
               onPress={connectHealth}
               disabled={healthAvailable === false}
             />
@@ -464,8 +452,7 @@ export default function SleepScreen() {
           {healthAvailable === false && !loading ? (
             <Text
               style={{
-                fontSize: 13,
-                lineHeight: 18,
+                ...typeRamp.footnote,
                 color: palette.textTertiary,
               }}
             >
@@ -476,18 +463,19 @@ export default function SleepScreen() {
           {error ? (
             <Text
               style={{
-                fontSize: 13,
-                lineHeight: 18,
+                ...typeRamp.footnote,
                 color: palette.destructive,
               }}
             >
               {error}
             </Text>
           ) : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
             <Button
               title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'}
-              variant="secondary"
+              variant="tinted"
               onPress={loadDemoData}
               disabled={loading}
             />
@@ -495,6 +483,7 @@ export default function SleepScreen() {
               <Button
                 title="Clear Samples"
                 variant="plain"
+                role="destructive"
                 onPress={clearDemoData}
                 disabled={loading}
               />
@@ -502,10 +491,10 @@ export default function SleepScreen() {
           </View>
         </SectionCard>
 
-        <HealthSectionHeader title="Records" />
+        <SectionHeader prominence="prominent" title="Records" />
         {lastSleep ? (
           <>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <StatTile
                 label="Sleep window"
                 value={fmtDuration(lastSleep.end - lastSleep.start)}
@@ -545,8 +534,7 @@ export default function SleepScreen() {
           <SectionCard>
             <Text
               style={{
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 color: palette.textSecondary,
               }}
             >
@@ -555,7 +543,7 @@ export default function SleepScreen() {
           </SectionCard>
         )}
 
-        <HealthSectionHeader title="Caffeine Impact" />
+        <SectionHeader prominence="prominent" title="Caffeine Impact" />
         <SectionCard>
           {sleepImpact.n >= 1 ? (
             <>
@@ -577,8 +565,7 @@ export default function SleepScreen() {
               {!sleepImpact.showCorrelation ? (
                 <Text
                   style={{
-                    fontSize: 13,
-                    lineHeight: 18,
+                    ...typeRamp.footnote,
                     color: palette.textTertiary,
                   }}
                 >
@@ -590,8 +577,7 @@ export default function SleepScreen() {
           ) : (
             <Text
               style={{
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 color: palette.textSecondary,
               }}
             >
@@ -600,13 +586,12 @@ export default function SleepScreen() {
           )}
         </SectionCard>
 
-        <HealthSectionHeader title="Suggested Plan" />
+        <SectionHeader prominence="prominent" title="Suggested Plan" />
         <SectionCard>
           {!wakeTime || plan.length === 0 ? (
             <Text
               style={{
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 color: palette.textSecondary,
               }}
             >
@@ -618,7 +603,7 @@ export default function SleepScreen() {
                 <View
                   key={item.t}
                   style={{
-                    gap: 10,
+                    gap: spacing.sm,
                     paddingTop: index === 0 ? 0 : 12,
                     borderTopWidth: index === 0 ? 0 : 1,
                     borderColor: palette.separator,
@@ -631,8 +616,8 @@ export default function SleepScreen() {
                   />
                   {index === 0 ? (
                     <Button
-                      title="Log first dose now"
-                      variant="secondary"
+                      title="Log First Dose Now"
+                      variant="tinted"
                       onPress={() => addNow(item.mg)}
                     />
                   ) : null}
@@ -640,8 +625,7 @@ export default function SleepScreen() {
               ))}
               <Text
                 style={{
-                  fontSize: 13,
-                  lineHeight: 18,
+                  ...typeRamp.footnote,
                   color: palette.textTertiary,
                 }}
               >

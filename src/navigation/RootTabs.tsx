@@ -1,7 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardScreen from '~/screens/DashboardScreen';
 import LogIntakeScreen from '~/screens/LogIntakeScreen';
@@ -9,16 +8,23 @@ import SleepScreen from '~/screens/SleepScreen';
 import InsightsScreen from '~/screens/InsightsScreen';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
+import AppIcon, { appIcons, type AppIconName } from '~/components/AppIcon';
 
 const Tab = createBottomTabNavigator();
 
-export default function RootTabs(){
+export default function RootTabs() {
   const insets = useSafeAreaInsets();
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const inset = insets.bottom || 0;
-  const tabBarHeight = Platform.select({ ios: 54 + Math.floor(inset), default: 56 });
-  const tabBarPaddingBottom = Platform.select({ ios: Math.max(6, Math.floor(inset / 3)), default: 6 });
+  const tabBarHeight = Platform.select({
+    ios: 54 + Math.floor(inset),
+    default: 56,
+  });
+  const tabBarPaddingBottom = Platform.select({
+    ios: Math.max(6, Math.floor(inset / 3)),
+    default: 6,
+  });
 
   return (
     <Tab.Navigator
@@ -26,16 +32,21 @@ export default function RootTabs(){
         headerShown: false,
         tabBarShowLabel: true,
         tabBarIcon: ({ focused, color, size }) => {
-          const name = (() => {
+          const name: AppIconName = (() => {
             switch (route.name) {
-              case 'Summary': return focused ? 'heart' : 'heart-outline';
-              case 'Log': return focused ? 'add-circle' : 'add-circle-outline';
-              case 'Sleep': return focused ? 'moon' : 'moon-outline';
-              case 'Insights': return focused ? 'stats-chart' : 'stats-chart-outline';
-              default: return 'ellipse-outline';
+              case 'Summary':
+                return focused ? appIcons.summarySelected : appIcons.summary;
+              case 'Log':
+                return focused ? appIcons.logSelected : appIcons.log;
+              case 'Sleep':
+                return focused ? appIcons.sleepSelected : appIcons.sleep;
+              case 'Insights':
+                return focused ? appIcons.insightsSelected : appIcons.insights;
+              default:
+                return appIcons.fallback;
             }
           })();
-          return <Ionicons name={name as any} size={size} color={color} />;
+          return <AppIcon name={name} size={size} color={color} />;
         },
         tabBarActiveTintColor: palette.tint,
         tabBarInactiveTintColor: palette.textTertiary,
@@ -57,14 +68,16 @@ export default function RootTabs(){
           },
         }),
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
-        tabBarBackground: () => <View style={{ flex: 1, backgroundColor: palette.card }} />,
+        tabBarBackground: () => (
+          <View style={{ flex: 1, backgroundColor: palette.card }} />
+        ),
         tabBarHideOnKeyboard: true,
       })}
     >
-      <Tab.Screen name="Summary" component={DashboardScreen}/>
-      <Tab.Screen name="Sleep" component={SleepScreen}/>
-      <Tab.Screen name="Log" component={LogIntakeScreen}/>
-      <Tab.Screen name="Insights" component={InsightsScreen}/>
+      <Tab.Screen name="Summary" component={DashboardScreen} />
+      <Tab.Screen name="Sleep" component={SleepScreen} />
+      <Tab.Screen name="Log" component={LogIntakeScreen} />
+      <Tab.Screen name="Insights" component={InsightsScreen} />
     </Tab.Navigator>
   );
 }

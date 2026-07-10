@@ -1,11 +1,12 @@
 import React from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { InlineStatus, SectionCard } from '~/components/ui';
+import { InlineStatus, ProgressState, SectionCard } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { spacing, typeRamp } from '~/theme/tokens';
 
 type Props = {
   source: OnboardingSource;
@@ -29,27 +30,26 @@ export default function StepPermissions({
     permissionStatus === 'granted'
       ? 'Connected'
       : permissionStatus === 'denied'
-      ? 'Not granted'
-      : permissionStatus === 'unsupported'
-      ? 'Unavailable'
-      : 'Pending';
+        ? 'Not granted'
+        : permissionStatus === 'unsupported'
+          ? 'Unavailable'
+          : 'Pending';
 
   const statusTone =
     permissionStatus === 'granted'
       ? 'success'
       : permissionStatus === 'denied'
-      ? 'error'
-      : permissionStatus === 'unsupported'
-      ? 'neutral'
-      : 'warning';
+        ? 'error'
+        : permissionStatus === 'unsupported'
+          ? 'neutral'
+          : 'warning';
 
   return (
-    <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
+    <View style={{ gap: spacing.md }}>
+      <View style={{ gap: spacing.xs }}>
         <Text
           style={{
-            fontSize: 30,
-            lineHeight: 36,
+            ...typeRamp.title1,
             fontWeight: '700',
             letterSpacing: 0,
             color: palette.textPrimary,
@@ -59,8 +59,7 @@ export default function StepPermissions({
         </Text>
         <Text
           style={{
-            fontSize: 16,
-            lineHeight: 22,
+            ...typeRamp.body,
             color: palette.textSecondary,
           }}
         >
@@ -74,8 +73,7 @@ export default function StepPermissions({
         <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
         <Text
           style={{
-            fontSize: 15,
-            lineHeight: 20,
+            ...typeRamp.subheadline,
             color: palette.textSecondary,
           }}
         >
@@ -89,21 +87,14 @@ export default function StepPermissions({
       {!isManual ? (
         busy ? (
           <SectionCard>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <ActivityIndicator color={palette.tint} />
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 20,
-                  color: palette.textSecondary,
-                }}
-              >
-                Requesting Health access…
-              </Text>
-            </View>
+            <ProgressState label="Requesting Health access…" />
           </SectionCard>
         ) : (
-          <Button title="Allow Health access" onPress={onRequest} />
+          <Button
+            title="Allow Health Access"
+            variant="primary"
+            onPress={onRequest}
+          />
         )
       ) : null}
     </View>
