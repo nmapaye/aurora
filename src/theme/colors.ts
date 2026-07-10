@@ -41,16 +41,6 @@ export type AppPalette = {
   statusErrorText: string;
 };
 
-export const colors = {
-  bg: '#0B1020',
-  card: 'rgba(255,255,255,0.06)',
-  textPrimary: 'rgba(255,255,255,0.9)',
-  textSecondary: 'rgba(255,255,255,0.7)',
-  ring: ['#F94144', '#F8961E', '#90BE6D', '#43AA8B', '#577590'],
-  caffeine: '#0A84FF',
-  sleep: '#5E5CE6',
-};
-
 const lightPalette: AppPalette = {
   screen: '#F2F2F7',
   groupedBackground: '#F2F2F7',
