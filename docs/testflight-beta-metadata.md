@@ -22,10 +22,15 @@ Aurora is not a medical device and does not diagnose, treat, cure, or prevent an
 
 No cloud account is required for this demo. Demo records and user logs are stored on device unless the tester explicitly shares or exports a summary.
 
+TestFlight access is free and used only for beta testing. Paid app distribution is handled through the App Store after release approval. Gumroad, if used, contains only companion guide/support material and does not unlock app access.
+
 ## Reviewer Access
 
 - TestFlight invite: [insert public or reviewer TestFlight link]
-- Gumroad package: [insert Gumroad product link, if applicable]
+- App Store listing: [insert App Store link, after approval]
+- Gumroad companion guide: [insert Gumroad product link, if applicable]
+- Privacy policy: https://nmapaye.github.io/aurora/privacy.html
+- Support: https://nmapaye.github.io/aurora/support.html
 - Sample-data path without Health data: launch Aurora, use manual setup, then tap "Load Sample Data" from onboarding or Sleep.
 
 ## Privacy Notes

@@ -190,6 +190,21 @@ button {
   color: #111111;
 }
 
+.site-footer {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 32px 0 0;
+  color: #5a5a5f;
+  font-size: 14px;
+}
+
+.site-footer a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .full-width {
   width: 100%;
 }

@@ -56,11 +56,12 @@ npm run site:dev
 
 npm run site:build
 
-Gumroad + TestFlight demo
-	•	Use Gumroad as the access and documentation package: release notes, setup steps, beta notes, feedback path, and the TestFlight invite.
-	•	Use TestFlight for iOS app delivery to iPhone testers; do not distribute a raw IPA as the product file.
-	•	Configure website release links with VITE_AURORA_GUMROAD_URL and VITE_AURORA_TESTFLIGHT_URL only after the real Gumroad product and TestFlight public invite exist.
-	•	See docs/demo-release.md for the exact local release checks, configurable link variables, demo package contents, and physical iPhone/TestFlight smoke checklist.
+App Store + TestFlight release
+	•	Use the App Store as the paid app access path for v0.1.0.
+	•	Use TestFlight only for uncompensated iOS beta testing; do not sell TestFlight access or distribute a raw IPA as the product file.
+	•	Use Gumroad only as an optional companion guide/support package with release notes, setup steps, beta notes, and feedback paths.
+	•	Configure website release links with VITE_AURORA_APP_STORE_URL, VITE_AURORA_GUMROAD_URL, and VITE_AURORA_TESTFLIGHT_URL only after the real links exist.
+	•	See docs/demo-release.md for the exact local release checks, configurable link variables, metadata drafts, and physical iPhone/iPad TestFlight smoke checklists.
 
 
 
