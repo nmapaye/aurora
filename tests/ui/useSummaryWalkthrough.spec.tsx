@@ -353,6 +353,131 @@ describe('useSummaryWalkthrough', () => {
     expect(result.current.coachVisible).toBe(false);
   });
 
+  it('cancels positioning while disabled and restarts cleanly when re-enabled', async () => {
+    const { result, rerender } = await renderHook(
+      (enabled: boolean) =>
+        useSummaryWalkthrough({
+          enabled,
+          hasAlert: false,
+          isWideLayout: false,
+          scrollRef,
+          contentRef,
+          onComplete: jest.fn(),
+        }),
+      { initialProps: true },
+    );
+
+    await act(() => {
+      result.current.measureAnchor('pinned', anchorNode(900));
+    });
+    await advanceToFirstCoach(result);
+    jest.mocked(scrollRef.current!.scrollTo).mockClear();
+    await act(() => {
+      result.current.onPrimary();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    await rerender(false);
+    await act(() => {
+      jest.advanceTimersByTime(
+        WALKTHROUGH_SCROLL_SETTLE_MS +
+          WALKTHROUGH_REVEAL_SETTLE_MS,
+      );
+    });
+    expect(result.current.coachVisible).toBe(false);
+
+    await rerender(true);
+    expect(result.current.isRevealed('pinned')).toBe(false);
+    expect(result.current.coachVisible).toBe(false);
+    expect(scrollRef.current?.scrollTo).toHaveBeenCalledTimes(2);
+
+    await act(() => {
+      jest.advanceTimersByTime(WALKTHROUGH_SCROLL_SETTLE_MS - 1);
+    });
+    expect(result.current.isRevealed('pinned')).toBe(false);
+
+    await act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(result.current.isRevealed('pinned')).toBe(true);
+    expect(result.current.coachVisible).toBe(false);
+
+    await act(() => {
+      jest.advanceTimersByTime(WALKTHROUGH_REVEAL_SETTLE_MS);
+    });
+    expect(result.current.coachVisible).toBe(true);
+  });
+
+  it('replaces animated positioning when Reduce Motion turns on', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await act(() => {
+      result.current.measureAnchor('pinned', anchorNode(900));
+    });
+    await advanceToFirstCoach(result);
+    jest.mocked(scrollRef.current!.scrollTo).mockClear();
+    jest.mocked(Haptics.selectionAsync).mockClear();
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+
+    await act(() => {
+      result.current.onPrimary();
+    });
+    const animatedTimerIndex = setTimeoutSpy.mock.calls.findIndex(
+      ([, delay]) => delay === WALKTHROUGH_SCROLL_SETTLE_MS,
+    );
+    const animatedTimer =
+      setTimeoutSpy.mock.results[animatedTimerIndex]?.value;
+
+    await act(() => {
+      jest.advanceTimersByTime(100);
+    });
+    const reduceMotionListener = jest.mocked(
+      AccessibilityInfo.addEventListener,
+    ).mock.calls[0]?.[1] as unknown as (enabled: boolean) => void;
+    await act(() => {
+      reduceMotionListener(true);
+    });
+
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(animatedTimer);
+    expect(scrollRef.current?.scrollTo).toHaveBeenNthCalledWith(1, {
+      y: 876,
+      animated: true,
+    });
+    expect(scrollRef.current?.scrollTo).toHaveBeenNthCalledWith(2, {
+      y: 876,
+      animated: false,
+    });
+
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(
+        WALKTHROUGH_REDUCED_MOTION_SETTLE_MS - 1,
+      );
+    });
+    expect(result.current.coachVisible).toBe(false);
+
+    await act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(result.current.coachVisible).toBe(true);
+    expect(result.current.reduceMotion).toBe(true);
+    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+  });
+
   it('keeps a newer Reduce Motion system event over the initial query', async () => {
     let resolveInitial!: (value: boolean) => void;
     const initialQuery = new Promise<boolean>((resolve) => {

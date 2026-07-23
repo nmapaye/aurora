@@ -73,10 +73,7 @@ export default function useSummaryWalkthrough({
     Partial<Record<SummaryAnchorId, AnchorMeasurement>>
   >({ top: { y: 0, height: 1 } });
   const coachHeightRef = useRef(0);
-  const enabledRef = useRef(enabled);
-  const reduceMotionRef = useRef(reduceMotion);
   const scrollViewRef = useRef(scrollRef);
-  const positioningStageRef = useRef<number | null>(null);
   const coachHeadingRef = useRef<Text | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -87,8 +84,6 @@ export default function useSummaryWalkthrough({
   const completedRef = useRef(false);
   const announcedStagesRef = useRef(new Set<number>());
 
-  enabledRef.current = enabled;
-  reduceMotionRef.current = reduceMotion;
   scrollViewRef.current = scrollRef;
 
   useEffect(() => {
@@ -137,16 +132,13 @@ export default function useSummaryWalkthrough({
 
   useEffect(() => {
     const stageIndex = state.stageIndex;
-    const motionReduced = reduceMotionRef.current;
     if (
-      !enabledRef.current ||
+      !enabled ||
       state.phase !== 'positioning' ||
-      motionReduced === null ||
-      positioningStageRef.current === stageIndex
+      reduceMotion === null
     ) {
       return;
     }
-    positioningStageRef.current = stageIndex;
 
     const currentStep = SUMMARY_WALKTHROUGH_STEPS[stageIndex];
     const target = anchorsRef.current[currentStep.anchor];
@@ -166,13 +158,13 @@ export default function useSummaryWalkthrough({
             : WALKTHROUGH_COACH_FALLBACK_CLEARANCE,
       });
       if (!visible) {
-        shouldAnimateScroll = !motionReduced;
+        shouldAnimateScroll = !reduceMotion;
         scrollViewRef.current.current?.scrollTo({
           y: getTargetScrollY(
             target.y,
             WALKTHROUGH_TOP_CLEARANCE,
           ),
-          animated: !motionReduced,
+          animated: !reduceMotion,
         });
       }
     }
@@ -185,7 +177,7 @@ export default function useSummaryWalkthrough({
     return () => {
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     };
-  }, [state.phase, state.stageIndex]);
+  }, [enabled, reduceMotion, state.phase, state.stageIndex]);
 
   const currentStep = SUMMARY_WALKTHROUGH_STEPS[state.stageIndex];
 
