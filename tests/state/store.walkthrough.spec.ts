@@ -1,5 +1,22 @@
 import { jsonStringStorage } from '~/services/storage';
+import {
+  isSummaryWalkthroughPending,
+  isWalkthroughTabDisabled,
+} from '~/features/summaryWalkthrough';
 import { useStore } from '~/state/store';
+
+jest.mock(
+  '~/features/summaryWalkthrough/SummaryWalkthroughCoach',
+  () => null,
+);
+jest.mock(
+  '~/features/summaryWalkthrough/useSummaryWalkthrough',
+  () => null,
+);
+jest.mock(
+  '~/features/summaryWalkthrough/WalkthroughReveal',
+  () => null,
+);
 
 function resetOnboarding() {
   useStore.setState({
@@ -45,6 +62,22 @@ describe('summary walkthrough persistence', () => {
     expect(
       useStore.getState().onboarding.summaryWalkthroughCompleted,
     ).toBe(false);
+  });
+
+  it('re-enables non-Summary tabs as soon as completion is persisted', () => {
+    useStore.getState().completeOnboarding();
+
+    const pendingBefore = isSummaryWalkthroughPending(
+      useStore.getState().onboarding,
+    );
+    expect(isWalkthroughTabDisabled('Sleep', pendingBefore)).toBe(true);
+
+    useStore.getState().completeSummaryWalkthrough();
+
+    const pendingAfter = isSummaryWalkthroughPending(
+      useStore.getState().onboarding,
+    );
+    expect(isWalkthroughTabDisabled('Sleep', pendingAfter)).toBe(false);
   });
 
   it('migrates a version 3 completed user as walkthrough-complete', async () => {

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -11,6 +12,12 @@ import {
   SectionCard,
   SectionHeader,
 } from '~/components/ui';
+import {
+  isSummaryWalkthroughPending,
+  SummaryWalkthroughCoach,
+  useSummaryWalkthrough,
+  WalkthroughReveal,
+} from '~/features/summaryWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
@@ -82,6 +89,16 @@ export default function DashboardScreen() {
   const addDose = useStore((s) => s.addDose);
   const demoMode = useStore((s) => s.demoMode);
   const loadDemoData = useStore((s) => s.loadDemoData);
+  const onboarding = useStore((state) => state.onboarding);
+  const completeSummaryWalkthrough = useStore(
+    (state) => state.completeSummaryWalkthrough,
+  );
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const pinnedAnchorRef = useRef<View>(null);
+  const loggingAnchorRef = useRef<View>(null);
+  const walkthroughEnabled =
+    isSummaryWalkthroughPending(onboarding);
 
   const todaySummary = useMemo(() => {
     const now = new Date();
@@ -143,10 +160,37 @@ export default function DashboardScreen() {
       />
     ) : null;
 
-  const pinnedCards = (
-    <>
-      <SectionHeader prominence="prominent" title="Pinned" actionLabel="Edit" />
-      <View style={{ gap: spacing.md }}>
+  const walkthrough = useSummaryWalkthrough({
+    enabled: walkthroughEnabled,
+    hasAlert: alertCard !== null,
+    isWideLayout: layout.isWideLayout,
+    scrollRef,
+    contentRef,
+    onComplete: completeSummaryWalkthrough,
+  });
+
+  const measurePinned = (_event: LayoutChangeEvent) => {
+    walkthrough.measureAnchor('pinned', pinnedAnchorRef.current);
+  };
+
+  const measureLogging = (_event: LayoutChangeEvent) => {
+    walkthrough.measureAnchor('logging', loggingAnchorRef.current);
+  };
+
+  const revealedAlert = alertCard ? (
+    <WalkthroughReveal
+      active={walkthrough.active}
+      revealed={walkthrough.isRevealed('alert')}
+      reduceMotion={walkthrough.reduceMotion}
+    >
+      {alertCard}
+    </WalkthroughReveal>
+  ) : null;
+
+  const pinnedMetricCards = [
+    {
+      key: 'caffeine',
+      element: (
         <HealthMetricCard
           icon="cafe"
           label="Caffeine"
@@ -156,6 +200,11 @@ export default function DashboardScreen() {
           detail={todaySummary.deltaText}
           onPress={() => navigate('Insights', { section: 'summary' })}
         />
+      ),
+    },
+    {
+      key: 'active-caffeine',
+      element: (
         <HealthMetricCard
           icon="pulse"
           label="Active Caffeine"
@@ -165,6 +214,11 @@ export default function DashboardScreen() {
           detail={`Alertness ${Math.round(nowScore ?? 0)}`}
           onPress={() => navigate('Insights', { section: 'trends' })}
         />
+      ),
+    },
+    {
+      key: 'sleep',
+      element: (
         <HealthMetricCard
           icon="bed"
           label="Sleep"
@@ -182,6 +236,11 @@ export default function DashboardScreen() {
           }
           onPress={() => navigate('Sleep')}
         />
+      ),
+    },
+    {
+      key: 'vigilance',
+      element: (
         <HealthMetricCard
           icon="speedometer"
           label="Vigilance"
@@ -203,6 +262,11 @@ export default function DashboardScreen() {
           }
           onPress={() => navigate('VigilanceTest')}
         />
+      ),
+    },
+    {
+      key: 'cutoff',
+      element: (
         <HealthMetricCard
           icon="moon"
           label="Caffeine Cutoff"
@@ -212,37 +276,100 @@ export default function DashboardScreen() {
           detail={`Bed ${fmtTime(sleepGuidance?.bedtime)} • Wake ${fmtTime(sleepGuidance?.wake)}`}
           onPress={() => navigate('Sleep')}
         />
+      ),
+    },
+  ];
+
+  const pinnedCards = (
+    <>
+      <WalkthroughReveal
+        active={walkthrough.active}
+        revealed={walkthrough.isRevealed('pinned')}
+        reduceMotion={walkthrough.reduceMotion}
+        staggerIndex={0}
+      >
+        <SectionHeader
+          prominence="prominent"
+          title="Pinned"
+          actionLabel="Edit"
+        />
+      </WalkthroughReveal>
+      <View style={{ gap: spacing.md }}>
+        {pinnedMetricCards.map((card, index) => (
+          <WalkthroughReveal
+            key={card.key}
+            active={walkthrough.active}
+            revealed={walkthrough.isRevealed('pinned')}
+            reduceMotion={walkthrough.reduceMotion}
+            staggerIndex={index + 1}
+          >
+            {card.element}
+          </WalkthroughReveal>
+        ))}
       </View>
     </>
   );
 
-  const logSection = (
+  const quickAddOptions = [
+    ['Espresso', 60],
+    ['Drip', 95],
+    ['Matcha', 70],
+    ['Energy', 160],
+  ] as const;
+
+  const revealedLogSection = (
     <>
-      <SectionHeader title="Log" />
-      <SectionCard>
-        <View
-          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
-        >
-          {[
-            ['Espresso', 60],
-            ['Drip', 95],
-            ['Matcha', 70],
-            ['Energy', 160],
-          ].map(([label, mg]) => (
+      <WalkthroughReveal
+        active={walkthrough.active}
+        revealed={walkthrough.isRevealed('logging')}
+        reduceMotion={walkthrough.reduceMotion}
+      >
+        <SectionHeader title="Log" />
+      </WalkthroughReveal>
+      <WalkthroughReveal
+        active={walkthrough.active}
+        revealed={walkthrough.isRevealed('logging')}
+        reduceMotion={walkthrough.reduceMotion}
+        staggerIndex={1}
+      >
+        <SectionCard>
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: spacing.sm,
+            }}
+          >
+            {quickAddOptions.map(([label, mg], index) => (
+              <WalkthroughReveal
+                key={label}
+                active={walkthrough.active}
+                revealed={walkthrough.isRevealed('logging')}
+                reduceMotion={walkthrough.reduceMotion}
+                staggerIndex={index + 2}
+              >
+                <Button
+                  title={`${label} ${mg}mg`}
+                  variant="plain"
+                  onPress={() => quickAdd(mg, label)}
+                />
+              </WalkthroughReveal>
+            ))}
+          </View>
+          <WalkthroughReveal
+            active={walkthrough.active}
+            revealed={walkthrough.isRevealed('logging')}
+            reduceMotion={walkthrough.reduceMotion}
+            staggerIndex={6}
+          >
             <Button
-              key={label}
-              title={`${label} ${mg}mg`}
+              title="Custom Entry"
               variant="plain"
-              onPress={() => quickAdd(mg as number, label as string)}
+              onPress={() => navigate('Log')}
             />
-          ))}
-        </View>
-        <Button
-          title="Custom Entry"
-          variant="plain"
-          onPress={() => navigate('Log')}
-        />
-      </SectionCard>
+          </WalkthroughReveal>
+        </SectionCard>
+      </WalkthroughReveal>
     </>
   );
 
@@ -328,8 +455,66 @@ export default function DashboardScreen() {
     </SectionCard>
   );
 
+  const revealedRecentSection = (
+    <WalkthroughReveal
+      active={walkthrough.active}
+      revealed={walkthrough.isRevealed('recent')}
+      reduceMotion={walkthrough.reduceMotion}
+      staggerIndex={1}
+    >
+      {recentSection}
+    </WalkthroughReveal>
+  );
+
+  const revealedTodayPanel = (
+    <WalkthroughReveal
+      active={walkthrough.active}
+      revealed={walkthrough.isRevealed('today')}
+      reduceMotion={walkthrough.reduceMotion}
+      staggerIndex={1}
+    >
+      {todayPanel}
+    </WalkthroughReveal>
+  );
+
+  const walkthroughCoach = walkthrough.coachVisible ? (
+    <WalkthroughReveal
+      key={walkthrough.step.id}
+      active
+      revealed
+      reduceMotion={walkthrough.reduceMotion}
+    >
+      <SummaryWalkthroughCoach
+        step={walkthrough.step}
+        locked={walkthrough.locked}
+        headingRef={walkthrough.coachHeadingRef}
+        onLayout={walkthrough.onCoachLayout}
+        onSkip={walkthrough.onSkip}
+        onPrimary={walkthrough.onPrimary}
+      />
+    </WalkthroughReveal>
+  ) : null;
+
   return (
-    <AppScreen title="Summary">
+    <AppScreen
+      title="Summary"
+      scrollRef={scrollRef}
+      contentRef={contentRef}
+      scrollEnabled={!walkthrough.active}
+      interactionEnabled={!walkthrough.active}
+      bottomOverlay={walkthroughCoach}
+      onScroll={walkthrough.onScroll}
+      onViewportLayout={walkthrough.onViewportLayout}
+      headerTransform={(header) => (
+        <WalkthroughReveal
+          active={walkthrough.active}
+          revealed={walkthrough.isRevealed('header')}
+          reduceMotion={walkthrough.reduceMotion}
+        >
+          {header}
+        </WalkthroughReveal>
+      )}
+    >
       {layout.isWideLayout ? (
         <View
           style={{
@@ -339,21 +524,49 @@ export default function DashboardScreen() {
           }}
         >
           <View style={{ width: layout.leftColumnWidth, gap: spacing.md }}>
-            {alertCard}
-            {pinnedCards}
-            {logSection}
-            {recentSection}
+            {revealedAlert}
+            <View
+              ref={pinnedAnchorRef}
+              collapsable={false}
+              onLayout={measurePinned}
+              style={{ gap: spacing.md }}
+            >
+              {pinnedCards}
+            </View>
+            <View
+              ref={loggingAnchorRef}
+              collapsable={false}
+              onLayout={measureLogging}
+              style={{ gap: spacing.md }}
+            >
+              {revealedLogSection}
+              {revealedRecentSection}
+            </View>
           </View>
           <View style={{ width: layout.rightColumnWidth, gap: spacing.md }}>
-            {todayPanel}
+            {revealedTodayPanel}
           </View>
         </View>
       ) : (
         <>
-          {alertCard}
-          {pinnedCards}
-          {logSection}
-          {recentSection}
+          {revealedAlert}
+          <View
+            ref={pinnedAnchorRef}
+            collapsable={false}
+            onLayout={measurePinned}
+            style={{ gap: spacing.md }}
+          >
+            {pinnedCards}
+          </View>
+          <View
+            ref={loggingAnchorRef}
+            collapsable={false}
+            onLayout={measureLogging}
+            style={{ gap: spacing.md }}
+          >
+            {revealedLogSection}
+            {revealedRecentSection}
+          </View>
         </>
       )}
     </AppScreen>
