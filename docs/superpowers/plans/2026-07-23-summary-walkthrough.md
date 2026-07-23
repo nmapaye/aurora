@@ -22,7 +22,17 @@
 - Reduce Motion removes translation, scale, spring, stagger, animated scrolling, and haptics.
 - Preserve current navigation routes, Health permissions, data import, and all Summary calculations.
 - Any persisted field change must update `normalizePersistedState` and `tests/state/store.persistence.spec.ts`.
+- Use `@testing-library/react-native@14.0.1`, `test-renderer@1.2.0`, and `jest-expo@54.0.17` only as development dependencies.
+- React Native Testing Library 14 uses async APIs: await `render`, `renderHook`, user events, and `act`.
+- Every production UI or hook change in Tasks 3–6 must be preceded by an automated UI test that is run and observed failing for the intended missing behavior.
+- Keep the existing pure-test project isolated from the new `jest-expo` UI-test project; `npm test -- --runInBand` must execute both.
 - Preserve the user's untracked `docs/design-audit.md` and local `.superpowers/` workspace.
+
+## Testing References
+
+- Expo unit testing: `https://docs.expo.dev/develop/unit-testing/`
+- React Native Testing Library 14: `https://www.npmjs.com/package/@testing-library/react-native`
+- Reanimated Jest setup: `https://docs.swmansion.com/react-native-reanimated/docs/guides/testing/`
 
 ## File Structure
 
@@ -39,6 +49,13 @@
 - `tests/features/summaryWalkthrough/motion.spec.ts` — motion and Reduce Motion tests.
 - `tests/state/store.walkthrough.spec.ts` — default, action, migration, and setup-flow persistence tests.
 - `tests/components/AppScreen.layout.spec.ts` — fixed-overlay padding tests.
+- `tests/ui/setup.ts` — `jest-expo` UI-test setup and Reanimated Jest initialization.
+- `tests/ui/testingLibrary.smoke.spec.tsx` — React 19 async renderer smoke test.
+- `tests/ui/summaryWalkthrough.presentation.spec.tsx` — reveal and coach accessibility/interaction tests.
+- `tests/ui/AppScreen.spec.tsx` — controlled scrolling, interaction lock, header transform, and overlay tests.
+- `tests/ui/useSummaryWalkthrough.spec.tsx` — timer, scrolling, completion, accessibility, haptic, and Reduce Motion hook tests.
+- `tests/ui/RootTabs.walkthrough.spec.tsx` — persisted non-Summary tab gating tests.
+- `tests/ui/DashboardScreen.walkthrough.spec.tsx` — real Summary composition and interaction-lock tests.
 
 ### Modified files
 
@@ -50,6 +67,8 @@
 - `src/components/AppScreen.tsx` — optional refs, interaction lock, header transform, scroll callbacks, and fixed overlay.
 - `src/navigation/RootTabs.tsx` — disable non-Summary tabs while the walkthrough is pending.
 - `src/screens/DashboardScreen.tsx` — compose the controller, anchors, reveal groups, and coach card around current content.
+- `package.json` and `package-lock.json` — React Native component-test development dependencies.
+- `jest.config.ts` — separate pure and `jest-expo` UI projects under one Jest command.
 
 ---
 
@@ -708,6 +727,12 @@ git commit -m "feat: define Summary walkthrough stages"
 - Create: `src/features/summaryWalkthrough/SummaryWalkthroughCoach.tsx`
 - Create: `src/features/summaryWalkthrough/index.ts`
 - Create: `tests/features/summaryWalkthrough/motion.spec.ts`
+- Create: `tests/ui/setup.ts`
+- Create: `tests/ui/testingLibrary.smoke.spec.tsx`
+- Create: `tests/ui/summaryWalkthrough.presentation.spec.tsx`
+- Modify: `package.json`
+- Modify: `package-lock.json`
+- Modify: `jest.config.ts`
 
 **Interfaces:**
 
@@ -715,8 +740,112 @@ git commit -m "feat: define Summary walkthrough stages"
 - Produces: `getRevealMotionPlan(reduceMotion, staggerIndex)`
 - Produces: `<WalkthroughReveal active revealed reduceMotion staggerIndex>`
 - Produces: `<SummaryWalkthroughCoach step locked headingRef onSkip onPrimary>`
+- Produces: separate `unit` and `ui` Jest projects executed together by `npm test`
 
-- [ ] **Step 1: Write the failing motion-contract tests**
+- [ ] **Step 1: Install the React 19-compatible UI test dependencies**
+
+Run:
+
+```bash
+npm install --save-dev @testing-library/react-native@14.0.1 test-renderer@1.2.0 jest-expo@54.0.17
+```
+
+Expected: `package.json` and `package-lock.json` add only development
+dependencies. Do not install or import `react-test-renderer` directly.
+
+- [ ] **Step 2: Split Jest into isolated pure and UI projects**
+
+Replace `jest.config.ts` with:
+
+```ts
+import type { Config } from 'jest';
+
+const shared = {
+  moduleNameMapper: {
+    '^~/(.*)$': '<rootDir>/src/$1',
+  },
+};
+
+const unitProject: Config = {
+  displayName: 'unit',
+  roots: ['<rootDir>/tests'],
+  testMatch: ['**/?(*.)+(spec|test).+(ts|tsx|js)'],
+  testPathIgnorePatterns: ['<rootDir>/tests/ui/'],
+  transform: {
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          target: 'ES2020',
+          module: 'commonjs',
+          jsx: 'react-jsx',
+          strict: true,
+          esModuleInterop: true,
+          skipLibCheck: true,
+        },
+      },
+    ],
+  },
+  ...shared,
+  testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+};
+
+const uiProject: Config = {
+  displayName: 'ui',
+  preset: 'jest-expo',
+  roots: ['<rootDir>/tests/ui'],
+  testMatch: ['**/?(*.)+(spec|test).+(ts|tsx|js)'],
+  ...shared,
+  setupFilesAfterEnv: ['<rootDir>/tests/ui/setup.ts'],
+  transformIgnorePatterns: [
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*|react-native-reanimated|react-native-worklets|react-native-svg)',
+  ],
+};
+
+const config: Config = {
+  projects: [unitProject, uiProject],
+};
+
+export default config;
+```
+
+Create `tests/ui/setup.ts`:
+
+```ts
+require('react-native-reanimated').setUpTests();
+```
+
+Create `tests/ui/testingLibrary.smoke.spec.tsx`:
+
+```tsx
+import React from 'react';
+import { render, screen } from '@testing-library/react-native';
+import { Text } from 'react-native';
+
+describe('React Native component test harness', () => {
+  it('renders React 19 host components through the async API', async () => {
+    await render(<Text accessibilityRole="header">Aurora UI test</Text>);
+
+    expect(
+      screen.getByRole('header', { name: 'Aurora UI test' }),
+    ).toBeOnTheScreen();
+  });
+});
+```
+
+- [ ] **Step 3: Verify both Jest projects before production UI changes**
+
+Run:
+
+```bash
+npm test -- --runInBand
+```
+
+Expected: the existing 15 suites and 47 tests PASS in the `unit` project, and
+the new UI smoke test PASSes in the `ui` project.
+
+- [ ] **Step 4: Write the failing motion and presentation tests**
 
 Create `tests/features/summaryWalkthrough/motion.spec.ts`:
 
@@ -746,17 +875,106 @@ describe('Summary walkthrough motion', () => {
 });
 ```
 
-- [ ] **Step 2: Run the motion test to verify it fails**
+Create `tests/ui/summaryWalkthrough.presentation.spec.tsx`:
+
+```tsx
+import React, { createRef } from 'react';
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { Text } from 'react-native';
+
+import {
+  SUMMARY_WALKTHROUGH_STEPS,
+  SummaryWalkthroughCoach,
+  WalkthroughReveal,
+} from '~/features/summaryWalkthrough';
+
+jest.mock('~/hooks/useAppScheme', () => ({
+  __esModule: true,
+  default: () => 'light',
+}));
+
+describe('Summary walkthrough presentation', () => {
+  it('hides unrevealed content from touch and accessibility', async () => {
+    await render(
+      <WalkthroughReveal
+        active
+        revealed={false}
+        reduceMotion={false}
+        testID="walkthrough-reveal"
+      >
+        <Text>Hidden metric</Text>
+      </WalkthroughReveal>,
+    );
+
+    expect(screen.getByTestId('walkthrough-reveal')).toHaveProp(
+      'accessibilityElementsHidden',
+      true,
+    );
+    expect(screen.getByTestId('walkthrough-reveal')).toHaveProp(
+      'importantForAccessibility',
+      'no-hide-descendants',
+    );
+    expect(screen.getByTestId('walkthrough-reveal')).toHaveProp(
+      'pointerEvents',
+      'none',
+    );
+  });
+
+  it('exposes approved coach copy and working actions', async () => {
+    const onSkip = jest.fn();
+    const onPrimary = jest.fn();
+    const user = userEvent.setup();
+
+    await render(
+      <SummaryWalkthroughCoach
+        step={SUMMARY_WALKTHROUGH_STEPS[0]}
+        locked={false}
+        headingRef={createRef()}
+        onSkip={onSkip}
+        onPrimary={onPrimary}
+      />,
+    );
+
+    expect(
+      screen.getByRole('header', { name: 'Your day at a glance' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('1 of 4')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Skip' }));
+    await user.press(screen.getByRole('button', { name: 'Next' }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onPrimary).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables both actions while a transition is locked', async () => {
+    await render(
+      <SummaryWalkthroughCoach
+        step={SUMMARY_WALKTHROUGH_STEPS[1]}
+        locked
+        headingRef={createRef()}
+        onSkip={jest.fn()}
+        onPrimary={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+});
+```
+
+- [ ] **Step 5: Run both new tests and verify RED**
 
 Run:
 
 ```bash
-npm test -- --runInBand tests/features/summaryWalkthrough/motion.spec.ts
+npm test -- --runInBand tests/features/summaryWalkthrough/motion.spec.ts tests/ui/summaryWalkthrough.presentation.spec.tsx
 ```
 
-Expected: FAIL because `motion.ts` does not exist.
+Expected: FAIL because `motion.ts`, `WalkthroughReveal`, and
+`SummaryWalkthroughCoach` do not exist. Confirm the UI harness itself does not
+fail.
 
-- [ ] **Step 3: Implement the pure motion plan**
+- [ ] **Step 6: Implement the pure motion plan**
 
 Create `src/features/summaryWalkthrough/motion.ts`:
 
@@ -793,7 +1011,7 @@ export function getRevealMotionPlan(
 }
 ```
 
-- [ ] **Step 4: Implement the layout-preserving reveal wrapper**
+- [ ] **Step 7: Implement the layout-preserving reveal wrapper**
 
 Create `src/features/summaryWalkthrough/WalkthroughReveal.tsx`:
 
@@ -817,6 +1035,7 @@ type Props = {
   staggerIndex?: number;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
 };
 
 export default function WalkthroughReveal({
@@ -826,6 +1045,7 @@ export default function WalkthroughReveal({
   staggerIndex = 0,
   children,
   style,
+  testID,
 }: Props) {
   const progress = useSharedValue(active ? 0 : 1);
   const plan = getRevealMotionPlan(reduceMotion, staggerIndex);
@@ -879,6 +1099,7 @@ export default function WalkthroughReveal({
 
   return (
     <Animated.View
+      testID={testID}
       accessibilityElementsHidden={hidden}
       importantForAccessibility={
         hidden ? 'no-hide-descendants' : 'auto'
@@ -892,7 +1113,7 @@ export default function WalkthroughReveal({
 }
 ```
 
-- [ ] **Step 5: Implement the accessible coach card**
+- [ ] **Step 8: Implement the accessible coach card**
 
 Create `src/features/summaryWalkthrough/SummaryWalkthroughCoach.tsx`:
 
@@ -1015,23 +1236,23 @@ export * from './model';
 export * from './motion';
 ```
 
-- [ ] **Step 6: Run motion tests, type-check, and lint the feature**
+- [ ] **Step 9: Run presentation tests, type-check, and lint the feature**
 
 Run:
 
 ```bash
-npm test -- --runInBand tests/features/summaryWalkthrough/motion.spec.ts
+npm test -- --runInBand tests/features/summaryWalkthrough/motion.spec.ts tests/ui/summaryWalkthrough.presentation.spec.tsx tests/ui/testingLibrary.smoke.spec.tsx
 npm run type-check
-npx eslint src/features/summaryWalkthrough tests/features/summaryWalkthrough
+npx eslint src/features/summaryWalkthrough tests/features/summaryWalkthrough tests/ui
 ```
 
-Expected: the motion suite PASSes, TypeScript exits with code 0, and ESLint
-reports no errors.
+Expected: the pure motion and UI presentation suites PASS, TypeScript exits
+with code 0, and ESLint reports no errors.
 
-- [ ] **Step 7: Commit the presentation layer**
+- [ ] **Step 10: Commit the test harness and presentation layer**
 
 ```bash
-git add src/features/summaryWalkthrough tests/features/summaryWalkthrough/motion.spec.ts
+git add package.json package-lock.json jest.config.ts tests/ui/setup.ts tests/ui/testingLibrary.smoke.spec.tsx tests/ui/summaryWalkthrough.presentation.spec.tsx src/features/summaryWalkthrough tests/features/summaryWalkthrough/motion.spec.ts
 git commit -m "feat: add Summary walkthrough presentation"
 ```
 
@@ -1043,6 +1264,7 @@ git commit -m "feat: add Summary walkthrough presentation"
 
 - Create: `src/components/appScreenLayout.ts`
 - Create: `tests/components/AppScreen.layout.spec.ts`
+- Create: `tests/ui/AppScreen.spec.tsx`
 - Modify: `src/components/AppScreen.tsx:1-136`
 
 **Interfaces:**
@@ -1059,7 +1281,7 @@ git commit -m "feat: add Summary walkthrough presentation"
   - `onViewportLayout`
 - Preserves all existing `AppScreen` behavior when these props are omitted
 
-- [ ] **Step 1: Write the failing overlay-layout tests**
+- [ ] **Step 1: Write the failing layout and AppScreen behavior tests**
 
 Create `tests/components/AppScreen.layout.spec.ts`:
 
@@ -1077,15 +1299,89 @@ describe('AppScreen overlay layout', () => {
 });
 ```
 
+Create `tests/ui/AppScreen.spec.tsx`:
+
+```tsx
+import React from 'react';
+import {
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react-native';
+import { StyleSheet, Text, View } from 'react-native';
+
+import AppScreen from '~/components/AppScreen';
+
+jest.mock('~/hooks/useAdaptiveLayout', () => ({
+  __esModule: true,
+  default: () => ({
+    isWideLayout: false,
+    topChromeBuffer: 0,
+    horizontalPadding: 16,
+    contentMaxWidth: 600,
+  }),
+}));
+jest.mock('~/hooks/useAppScheme', () => ({
+  __esModule: true,
+  default: () => 'light',
+}));
+jest.mock('~/navigation', () => ({ navigate: jest.fn() }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 20, left: 0 }),
+}));
+
+describe('AppScreen walkthrough controls', () => {
+  it('locks content, transforms the header, and reserves overlay space', async () => {
+    await render(
+      <AppScreen
+        title="Summary"
+        trailing={<Text>Settings</Text>}
+        interactionEnabled={false}
+        bottomOverlay={<Text>Coach</Text>}
+        headerTransform={(header) => (
+          <View testID="transformed-header">{header}</View>
+        )}
+      >
+        <Text>Main content</Text>
+      </AppScreen>,
+    );
+
+    await fireEvent(
+      screen.getByTestId('app-screen-overlay'),
+      'layout',
+      {
+        nativeEvent: {
+          layout: { x: 0, y: 0, width: 320, height: 180 },
+        },
+      },
+    );
+
+    expect(screen.getByTestId('app-screen-content')).toHaveProp(
+      'pointerEvents',
+      'none',
+    );
+    expect(screen.getByTestId('transformed-header')).toBeOnTheScreen();
+    expect(screen.getByText('Coach')).toBeOnTheScreen();
+
+    const styles = StyleSheet.flatten(
+      screen.getByTestId('app-screen-scroll').props
+        .contentContainerStyle,
+    );
+    expect(styles.paddingBottom).toBe(244);
+  });
+});
+```
+
 - [ ] **Step 2: Run the layout test to verify it fails**
 
 Run:
 
 ```bash
-npm test -- --runInBand tests/components/AppScreen.layout.spec.ts
+npm test -- --runInBand tests/components/AppScreen.layout.spec.ts tests/ui/AppScreen.spec.tsx
 ```
 
-Expected: FAIL because `appScreenLayout.ts` does not exist.
+Expected: FAIL because `appScreenLayout.ts` and the AppScreen walkthrough props
+and test IDs do not exist.
 
 - [ ] **Step 3: Implement the pure padding calculation**
 
@@ -1244,10 +1540,12 @@ Replace the return value with a fixed-overlay shell:
 ```tsx
 return (
   <View
+    testID="app-screen-root"
     onLayout={onViewportLayout}
     style={{ flex: 1, backgroundColor: palette.groupedBackground }}
   >
     <ScrollView
+      testID="app-screen-scroll"
       ref={scrollRef}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
@@ -1267,6 +1565,7 @@ return (
       ]}
     >
       <View
+        testID="app-screen-content"
         ref={contentRef}
         pointerEvents={interactionEnabled ? 'auto' : 'none'}
         style={{
@@ -1281,6 +1580,7 @@ return (
     </ScrollView>
     {bottomOverlay ? (
       <View
+        testID="app-screen-overlay"
         pointerEvents="box-none"
         onLayout={(event) =>
           setOverlayHeight(event.nativeEvent.layout.height)
@@ -1304,18 +1604,18 @@ return (
 Run:
 
 ```bash
-npm test -- --runInBand tests/components/AppScreen.layout.spec.ts
+npm test -- --runInBand tests/components/AppScreen.layout.spec.ts tests/ui/AppScreen.spec.tsx
 npm run type-check
-npx eslint src/components/AppScreen.tsx src/components/appScreenLayout.ts tests/components/AppScreen.layout.spec.ts
+npx eslint src/components/AppScreen.tsx src/components/appScreenLayout.ts tests/components/AppScreen.layout.spec.ts tests/ui/AppScreen.spec.tsx
 ```
 
-Expected: the layout suite PASSes, all existing callers compile unchanged, and
-ESLint reports no errors.
+Expected: the pure layout and AppScreen UI suites PASS, all existing callers
+compile unchanged, and ESLint reports no errors.
 
 - [ ] **Step 6: Commit the AppScreen extension**
 
 ```bash
-git add src/components/AppScreen.tsx src/components/appScreenLayout.ts tests/components/AppScreen.layout.spec.ts
+git add src/components/AppScreen.tsx src/components/appScreenLayout.ts tests/components/AppScreen.layout.spec.ts tests/ui/AppScreen.spec.tsx
 git commit -m "feat: support guided AppScreen overlays"
 ```
 
@@ -1329,6 +1629,7 @@ git commit -m "feat: support guided AppScreen overlays"
 - Modify: `tests/features/summaryWalkthrough/model.spec.ts`
 - Create: `src/features/summaryWalkthrough/useSummaryWalkthrough.ts`
 - Modify: `src/features/summaryWalkthrough/index.ts`
+- Create: `tests/ui/useSummaryWalkthrough.spec.tsx`
 
 **Interfaces:**
 
@@ -1337,7 +1638,7 @@ git commit -m "feat: support guided AppScreen overlays"
 - Produces: `useSummaryWalkthrough(options)`
 - Produces: anchor measurement, viewport and scroll callbacks, reveal queries, coach state, and Skip/Next/Finish actions
 
-- [ ] **Step 1: Add failing visibility and phase-lock assertions**
+- [ ] **Step 1: Add failing reducer and hook lifecycle tests**
 
 Extend `tests/features/summaryWalkthrough/model.spec.ts`:
 
@@ -1368,16 +1669,163 @@ it('ignores duplicate settle and finish events', () => {
 });
 ```
 
+Create `tests/ui/useSummaryWalkthrough.spec.tsx`:
+
+```tsx
+import type { RefObject } from 'react';
+import {
+  act,
+  renderHook,
+} from '@testing-library/react-native';
+import {
+  AccessibilityInfo,
+  type LayoutChangeEvent,
+  type ScrollView,
+  type View,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+
+import useSummaryWalkthrough from '~/features/summaryWalkthrough/useSummaryWalkthrough';
+
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+const scrollRef = {
+  current: { scrollTo: jest.fn() },
+} as unknown as RefObject<ScrollView | null>;
+const contentRef = {
+  current: {},
+} as RefObject<View | null>;
+
+function viewportEvent(height = 640) {
+  return {
+    nativeEvent: {
+      layout: { x: 0, y: 0, width: 390, height },
+    },
+  } as LayoutChangeEvent;
+}
+
+describe('useSummaryWalkthrough', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(
+      AccessibilityInfo,
+      'isReduceMotionEnabled',
+    ).mockResolvedValue(false);
+    jest.spyOn(
+      AccessibilityInfo,
+      'addEventListener',
+    ).mockReturnValue({ remove: jest.fn() });
+    jest.spyOn(
+      AccessibilityInfo,
+      'announceForAccessibility',
+    ).mockImplementation(() => {});
+    jest.spyOn(
+      AccessibilityInfo,
+      'setAccessibilityFocus',
+    ).mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it('waits for layout, reveals stage one, and exposes its coach', async () => {
+    const onComplete = jest.fn();
+    const result = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: true,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete,
+      }),
+    );
+
+    await act(async () => {
+      result.current.onViewportLayout(viewportEvent());
+      await Promise.resolve();
+      jest.advanceTimersByTime(300);
+      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(700);
+    });
+
+    expect(result.current.coachVisible).toBe(true);
+    expect(result.current.step.id).toBe('orientation');
+    expect(result.current.isRevealed('header')).toBe(true);
+    expect(
+      AccessibilityInfo.announceForAccessibility,
+    ).toHaveBeenCalledWith(
+      'Your day at a glance. Aurora brings caffeine, sleep, and alertness together.',
+    );
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists completion before dismissing on Skip', async () => {
+    const onComplete = jest.fn();
+    const result = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete,
+      }),
+    );
+
+    await act(async () => {
+      result.current.onSkip();
+    });
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(result.current.active).toBe(false);
+    expect(result.current.isRevealed('recent')).toBe(true);
+  });
+
+  it('removes haptics and long settling when Reduce Motion is enabled', async () => {
+    jest.mocked(
+      AccessibilityInfo.isReduceMotionEnabled,
+    ).mockResolvedValue(true);
+    const result = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await act(async () => {
+      result.current.onViewportLayout(viewportEvent());
+      await Promise.resolve();
+      jest.advanceTimersByTime(300);
+      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(120);
+    });
+
+    expect(result.current.coachVisible).toBe(true);
+    expect(result.current.reduceMotion).toBe(true);
+    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+  });
+});
+```
+
 - [ ] **Step 2: Run the model test and observe the duplicate-Finish failure**
 
 Run:
 
 ```bash
-npm test -- --runInBand tests/features/summaryWalkthrough/model.spec.ts
+npm test -- --runInBand tests/features/summaryWalkthrough/model.spec.ts tests/ui/useSummaryWalkthrough.spec.tsx
 ```
 
 Expected: FAIL because the current reducer returns a new completed state for a
-duplicate Finish event.
+duplicate Finish event and `useSummaryWalkthrough.ts` does not exist.
 
 - [ ] **Step 3: Make completion idempotent**
 
@@ -1402,7 +1850,6 @@ import type { RefObject } from 'react';
 import {
   AccessibilityInfo,
   findNodeHandle,
-  InteractionManager,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -1494,14 +1941,11 @@ export default function useSummaryWalkthrough({
       return;
     }
 
-    const interaction = InteractionManager.runAfterInteractions(() => {
-      startTimerRef.current = setTimeout(() => {
-        dispatch({ type: 'START' });
-      }, WALKTHROUGH_START_DELAY_MS);
-    });
+    startTimerRef.current = setTimeout(() => {
+      dispatch({ type: 'START' });
+    }, WALKTHROUGH_START_DELAY_MS);
 
     return () => {
-      interaction.cancel();
       if (startTimerRef.current) clearTimeout(startTimerRef.current);
     };
   }, [enabled, reduceMotion, state.phase, viewportHeight]);
@@ -1692,18 +2136,18 @@ export { default as useSummaryWalkthrough } from './useSummaryWalkthrough';
 Run:
 
 ```bash
-npm test -- --runInBand tests/features/summaryWalkthrough/model.spec.ts
+npm test -- --runInBand tests/features/summaryWalkthrough/model.spec.ts tests/ui/useSummaryWalkthrough.spec.tsx
 npm run type-check
-npx eslint src/features/summaryWalkthrough tests/features/summaryWalkthrough
+npx eslint src/features/summaryWalkthrough tests/features/summaryWalkthrough tests/ui/useSummaryWalkthrough.spec.tsx
 ```
 
-Expected: the model suite PASSes, TypeScript exits with code 0, and ESLint
-reports no errors.
+Expected: the model and hook suites PASS, TypeScript exits with code 0, and
+ESLint reports no errors.
 
 - [ ] **Step 6: Commit the controller**
 
 ```bash
-git add src/features/summaryWalkthrough/model.ts src/features/summaryWalkthrough/useSummaryWalkthrough.ts src/features/summaryWalkthrough/index.ts tests/features/summaryWalkthrough/model.spec.ts
+git add src/features/summaryWalkthrough/model.ts src/features/summaryWalkthrough/useSummaryWalkthrough.ts src/features/summaryWalkthrough/index.ts tests/features/summaryWalkthrough/model.spec.ts tests/ui/useSummaryWalkthrough.spec.tsx
 git commit -m "feat: orchestrate Summary walkthrough"
 ```
 
@@ -1716,6 +2160,8 @@ git commit -m "feat: orchestrate Summary walkthrough"
 - Modify: `src/navigation/RootTabs.tsx:1-68`
 - Modify: `src/screens/DashboardScreen.tsx:1-361`
 - Modify: `tests/state/store.walkthrough.spec.ts`
+- Create: `tests/ui/RootTabs.walkthrough.spec.tsx`
+- Create: `tests/ui/DashboardScreen.walkthrough.spec.tsx`
 
 **Interfaces:**
 
@@ -1724,7 +2170,7 @@ git commit -m "feat: orchestrate Summary walkthrough"
 - Produces: real Summary content revealed in four stages
 - Produces: temporarily disabled Sleep, Log, and Insights tabs
 
-- [ ] **Step 1: Add the store-to-tab gating regression test**
+- [ ] **Step 1: Write failing navigation and Summary composition tests**
 
 Append to `tests/state/store.walkthrough.spec.ts`:
 
@@ -1753,16 +2199,40 @@ it('re-enables non-Summary tabs as soon as completion is persisted', () => {
 });
 ```
 
-- [ ] **Step 2: Run the gating test before navigation integration**
+Create `tests/ui/RootTabs.walkthrough.spec.tsx`. Mock the four screen modules
+and `AppIcon` to lightweight React Native `Text` components, mock safe-area
+insets and the color scheme, then render the real `RootTabs` inside a
+`NavigationContainer` with the real Zustand store. Assert that Summary stays
+enabled while Sleep, Log, and Insights are disabled. Persist completion inside
+`act`, then assert that Sleep becomes enabled.
+
+Create `tests/ui/DashboardScreen.walkthrough.spec.tsx`. Render the real
+`DashboardScreen`, `AppScreen`, reveal wrappers, coach component, and Zustand
+store. Mock only the algorithm-heavy hooks, graph, navigation, adaptive
+layout, safe-area insets, and `useSummaryWalkthrough`. The orchestration mock
+must return an active first step with `coachVisible: true`,
+`isRevealed: () => true`, stable refs, and no-op callbacks. Assert that:
+
+- the real first-step coach heading, `Your day at a glance`, is present;
+- real empty-state Summary content such as `Pinned` is present; and
+- `app-screen-content` has `pointerEvents="none"`.
+
+The implementer may adjust mock shapes to the actual component interfaces,
+but must not weaken the assertions proving real tab gating, real Summary
+composition, coach rendering, and the interaction lock.
+
+- [ ] **Step 2: Run the new UI tests and observe the intended red state**
 
 Run:
 
 ```bash
-npm test -- --runInBand tests/state/store.walkthrough.spec.ts
+npm test -- --runInBand tests/state/store.walkthrough.spec.ts tests/ui/RootTabs.walkthrough.spec.tsx tests/ui/DashboardScreen.walkthrough.spec.tsx
 ```
 
-Expected: PASS. This locks the already-tested store and model behavior that the
-navigation wiring must consume without adding another source of truth.
+Expected: the pure store regression PASS, while both UI suites FAIL because
+`RootTabs` does not disable non-Summary tabs and `DashboardScreen` does not
+compose the active coach or interaction lock. Record the failing assertions
+before editing either production component.
 
 - [ ] **Step 3: Disable non-Summary tab buttons while pending**
 
@@ -2210,7 +2680,7 @@ changing the existing adaptive column widths.
 Run:
 
 ```bash
-npm test -- --runInBand tests/state/store.walkthrough.spec.ts tests/features/summaryWalkthrough/model.spec.ts tests/features/summaryWalkthrough/motion.spec.ts tests/components/AppScreen.layout.spec.ts
+npm test -- --runInBand tests/state/store.walkthrough.spec.ts tests/features/summaryWalkthrough/model.spec.ts tests/features/summaryWalkthrough/motion.spec.ts tests/components/AppScreen.layout.spec.ts tests/ui/RootTabs.walkthrough.spec.tsx tests/ui/DashboardScreen.walkthrough.spec.tsx
 npm run type-check
 npm run lint
 ```
@@ -2221,7 +2691,7 @@ reports no errors.
 - [ ] **Step 8: Commit the integrated walkthrough**
 
 ```bash
-git add src/navigation/RootTabs.tsx src/screens/DashboardScreen.tsx tests/state/store.walkthrough.spec.ts
+git add src/navigation/RootTabs.tsx src/screens/DashboardScreen.tsx tests/state/store.walkthrough.spec.ts tests/ui/RootTabs.walkthrough.spec.tsx tests/ui/DashboardScreen.walkthrough.spec.tsx
 git commit -m "feat: guide new users through Summary"
 ```
 
@@ -2251,7 +2721,8 @@ Run:
 npm test -- --runInBand
 ```
 
-Expected: all 15 existing suites plus the new walkthrough suites PASS.
+Expected: all 15 existing suites plus the new pure and `jest-expo` UI suites
+PASS in their isolated Jest projects.
 
 - [ ] **Step 2: Run type-check and lint**
 
