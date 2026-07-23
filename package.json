@@ -15,8 +15,6 @@
     "ios:open": "open ios/AURORA.xcworkspace",
     "ios:build:debug": "xcodebuild -workspace ios/AURORA.xcworkspace -scheme AURORA -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build",
     "ios:build:release": "xcodebuild -workspace ios/AURORA.xcworkspace -scheme AURORA -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build",
-    "android": "expo run:android",
-    "web": "expo start --web",
     "site:dev": "npm --prefix website run dev",
     "site:build": "npm --prefix website run build",
     "site:type-check": "npm --prefix website run type-check",

@@ -1,118 +1,128 @@
-# AURORA 
-Another Unwise Refill? O.K, Reconsider Alertness
+# Aurora
 
-Current Scope
-	•	iOS-first MVP with HealthKit-backed sleep import, manual caffeine logging, and an on-device vigilance reaction test
-	•	Onboarding currently supports sleep target setup, Health app connection, or manual-only mode
-	•	Android health integration, cloud sync, encrypted import/export, and background automation are not part of the current release branch
+Another Unwise Refill? O.K, Reconsider Alertness.
 
-Setup Tutorial
+Aurora is an iPhone and iPad app for understanding how caffeine timing, sleep,
+and alertness fit together. It supports optional read-only Apple Health sleep
+import, manual caffeine logging, a 60-second vigilance reaction test, and
+private on-device insights.
 
-Requirements
-	•	Node.js 24.x+ and npm 11.6+ (or pnpm/yarn)
-	•	macOS with Xcode 16.4+ and CocoaPods 1.16.2+ for iOS builds
-	•	Android Studio 2025+ with SDK 54 and JDK 24 for Android builds
-	•	Expo CLI and EAS CLI (highly recommended)
+Aurora does not currently include cloud sync, an Apple Watch companion app,
+encrypted import/export, or background automation.
 
-npm i -g expo eas-cli
+## Requirements
 
-1) Clone and install
+- macOS with stable Xcode 26 and the iOS 26 SDK.
+- Node.js 24 and npm 11.6 or newer.
+- CocoaPods 1.16.2 or newer.
 
+The repository pins its Node major in `.node-version`. The committed Xcode
+workspace is authoritative for native configuration, signing, builds,
+profiling, and releases.
+
+## Install
+
+```sh
 git clone https://github.com/nmapaye/aurora
 cd aurora
 npm install
+npm run ios:bootstrap
+```
 
-2) Initialize local environment
+The bootstrap checks the required tool versions, refreshes the ignored local
+Node path used by Xcode, and installs pods without changing native
+configuration.
 
-# Verify environment
-npx expo-doctor
+## Develop in Xcode
 
-# iOS pods
-npx pod-install
+Start Metro in one terminal:
 
-3) Run the app locally
-	•	Start Metro
+```sh
+npm start
+```
 
-npx expo start
+Open the CocoaPods workspace:
 
+```sh
+npm run ios:open
+```
 
-	•	iOS (simulator or device)
+Select the shared `AURORA` scheme and an iPhone or iPad destination, then use
+Xcode's Run action. Use Fast Refresh and React Native DevTools for TypeScript,
+and Xcode's console, LLDB, and Instruments for native work.
 
-npx expo run:ios
+Always open `ios/AURORA.xcworkspace`, never `ios/AURORA.xcodeproj`. Do not run
+`expo prebuild`: Aurora's native project is maintained manually and prebuild
+can overwrite it. See `docs/xcode-development.md` for ownership boundaries and
+the full workflow.
 
+## App permissions
 
-	•	Android (emulator or device)
+- Apple Health access is optional and read-only. The native project contains
+  `NSHealthShareUsageDescription` and the HealthKit entitlement.
+- Daily cutoff reminders are local notifications. They do not require the APNs
+  push entitlement.
+- If Health access is unavailable, denied, or empty, manual logging and sample
+  data remain available.
 
-npx expo run:android
+## Checks
 
+```sh
+npm run type-check
+npm run lint
+npm test -- --runInBand
+npx expo export --platform ios
+npm run ios:build:debug
+npm run ios:build:release
+```
 
-Website demo
-	•	Start the standalone showcase site
+The two native build checks require the full supported Xcode installation.
 
+## Showcase website
+
+The standalone Vite site remains independent from the Expo app:
+
+```sh
 npm run site:dev
-
-
-	•	Build the static demo for GitHub Pages
-
+npm run site:type-check
 npm run site:build
+```
 
-App Store + TestFlight release
-	•	Use the App Store as the paid app access path for v0.1.0.
-	•	Use TestFlight only for uncompensated iOS beta testing; do not sell TestFlight access or distribute a raw IPA as the product file.
-	•	Use Gumroad only as an optional companion guide/support package with release notes, setup steps, beta notes, and feedback paths.
-	•	Configure website release links with VITE_AURORA_APP_STORE_URL, VITE_AURORA_GUMROAD_URL, and VITE_AURORA_TESTFLIGHT_URL only after the real links exist.
-	•	See docs/demo-release.md for the exact local release checks, configurable link variables, metadata drafts, and physical iPhone/iPad TestFlight smoke checklists.
+Set `VITE_AURORA_APP_STORE_URL`, `VITE_AURORA_GUMROAD_URL`, and
+`VITE_AURORA_TESTFLIGHT_URL` only after the corresponding public links exist.
 
+## App Store and TestFlight
 
+Aurora targets a paid App Store v0.1.0 release, with free TestFlight beta
+testing and an optional Gumroad companion guide. TestFlight access must not be
+sold, and a raw IPA must not be distributed as the product.
 
-4) App permissions
-	•	iOS Health: enable permissions on first launch via the system prompt or Settings → Health → Data Access.
-Ensure the Info.plist includes NSHealthShareUsageDescription and NSHealthUpdateUsageDescription.
-	•	Notifications (if enabled later): include NSUserNotificationUsageDescription.
+See `docs/demo-release.md` for release checks and physical iPhone/iPad smoke
+tests. The existing EAS configuration remains only as a temporary rollback
+path until the first signed Xcode Organizer archive validates.
 
-5) Sample data
-	•	Use Quick Add to create doses if Health data is not connected.
-	•	Run the 60-second vigilance reaction test from the Dashboard to create an attentiveness baseline even without Health data.
-	•	Insights and sleep-aware guidance improve once Health sleep sessions are imported.
+## Icons and launch assets
 
-6) Build for testers (EAS)
+Run `node scripts/make-icons.mjs` to regenerate the source icon and splash
+files. Because Xcode owns the native asset catalog, review and update
+`ios/AURORA/Images.xcassets` explicitly; never use prebuild to synchronize it.
 
-eas login
-eas build:configure
+## Troubleshooting
 
-# iOS
-eas build -p ios --profile preview
+Clear Metro's cache:
 
-# Android
-eas build -p android --profile preview
+```sh
+npm start -- --clear
+```
 
-Troubleshooting
+Refresh the local Node path and pods:
 
-# Clear Metro cache
-npx expo start -c
+```sh
+npm run ios:bootstrap
+```
 
-# Reset iOS pods
-rm -rf ios/Pods ios/Podfile.lock && npx pod-install
+Confirm the active developer directory:
 
-# Reset watchman (macOS)
-watchman watch-del-all || true
-
-# Verify Xcode and Java paths
+```sh
 xcode-select -p
-/usr/libexec/java_home -V
-
-	•	On Expo SDK upgrades or native plugin changes, regenerate native projects (see “Native Sync” below).
-
-Native Sync (Prebuild) 
-
-This repo commits ios/ and android/ folders. When native folders exist, Expo/EAS will not automatically sync native config from app.json on build. After changing any native-related fields in app.json (e.g., icon, splash, ios, android, plugins), re-generate native projects locally and commit the changes.
-
-Scripts
-	•	npm run sync:native — runs expo prebuild --no-install to apply config changes without reinstalling node modules.
-	•	npm run sync:native:clean — runs expo prebuild --clean to fully regenerate native projects (use when changing icons/splash or after major SDK upgrades).
-
-Typical flow
-	1.	Edit app.json (icons, splash, plugins, etc.).
-	2.	Run npm run sync:native.
-	3.	Review and commit changes under ios/ and android/.
-	4.	Build locally or with EAS.
+```

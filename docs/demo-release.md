@@ -22,9 +22,8 @@ Until those variables are set, the website intentionally shows setup labels inst
 - Set app pricing in App Store Connect for the paid v0.1.0 release.
 - Add the production privacy policy URL: `https://nmapaye.github.io/aurora/privacy.html`.
 - Add the production support URL: `https://nmapaye.github.io/aurora/support.html`.
-- Replace `SET_AFTER_APP_STORE_CONNECT_RECORD_EXISTS` in `eas.json` with the real `ascAppId`.
-- Build an iOS production artifact with EAS.
-- Upload with EAS Submit or App Store Connect.
+- Keep `eas.json` only as an emergency rollback until the first signed Xcode Organizer archive validates.
+- Do not use EAS as the primary release workflow during the Xcode-first migration.
 - Use `docs/app-store-metadata.md` for App Store description, review notes, privacy notes, and known limits.
 
 ## Gumroad Companion Guide Contents
@@ -33,15 +32,14 @@ Until those variables are set, the website intentionally shows setup labels inst
 - Optional free TestFlight beta link, clearly labeled as uncompensated beta testing.
 - Product walkthrough: onboarding, Health import, caffeine logging, vigilance test, insights, and export.
 - Privacy summary: sample data stays on device unless the user explicitly shares or exports summaries.
-- Known limits: iOS-first, HealthKit optional, no medical advice, no cloud sync, no Android health parity.
+- Known limits: iPhone/iPad only, HealthKit optional, no medical advice, no cloud sync, no Apple Watch companion app.
 - Feedback/support link for testers.
 - Changelog for the current demo build.
 
 ## TestFlight Checklist
 
 - Configure the App Store Connect app record for `com.nmapaye.aurora`.
-- Build an iOS preview/release artifact with EAS.
-- Upload with EAS Submit or App Store Connect.
+- Keep EAS available only as the temporary rollback path described above.
 - Start with internal testers, then create an external tester group.
 - Use a public TestFlight link only for free beta testing.
 - Use `docs/testflight-beta-metadata.md` for App Store Connect beta description, reviewer notes, privacy notes, and known demo limits.
@@ -81,7 +79,7 @@ Run this on a physical iPhone from the actual TestFlight build before sharing th
 
 ## Manual Physical iPad/TestFlight Smoke Checklist
 
-Run this on a physical iPad or iPad simulator before App Store submission because `app.json` declares tablet support:
+Run this on a physical iPad or iPad simulator before App Store submission because the Xcode target includes iPhone and iPad device families:
 
 - Launch Aurora from a fresh install and confirm onboarding appears.
 - Complete manual-only onboarding and confirm the adaptive layout does not clip or overlap content.

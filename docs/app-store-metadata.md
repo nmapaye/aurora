@@ -30,7 +30,7 @@ Aurora is informational only. It is not a medical device and does not diagnose, 
 
 ## Promotional Text
 
-Track caffeine, protect sleep, and check alertness with a private iPhone-first workflow.
+Track caffeine, protect sleep, and check alertness privately on iPhone and iPad.
 
 ## Keywords
 
@@ -54,8 +54,7 @@ Aurora is a paid App Store app for v0.1.0. There are no in-app license keys, Gum
 
 ## Known Release Limits
 
-- iOS-first release.
-- Android health integration is deferred.
-- Cloud sync is deferred.
-- Apple Watch support is deferred.
-- Background automation is deferred.
+- Available for iPhone and iPad.
+- Cloud sync is not included in v0.1.0.
+- Apple Watch support is not included in v0.1.0.
+- Background automation is not included in v0.1.0.

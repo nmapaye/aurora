@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardScreen from '~/screens/DashboardScreen';
 import LogIntakeScreen from '~/screens/LogIntakeScreen';
@@ -17,14 +17,8 @@ export default function RootTabs() {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const inset = insets.bottom || 0;
-  const tabBarHeight = Platform.select({
-    ios: 54 + Math.floor(inset),
-    default: 56,
-  });
-  const tabBarPaddingBottom = Platform.select({
-    ios: Math.max(6, Math.floor(inset / 3)),
-    default: 6,
-  });
+  const tabBarHeight = 54 + Math.floor(inset);
+  const tabBarPaddingBottom = Math.max(6, Math.floor(inset / 3));
 
   return (
     <Tab.Navigator
@@ -51,22 +45,13 @@ export default function RootTabs() {
         tabBarActiveTintColor: palette.tint,
         tabBarInactiveTintColor: palette.textTertiary,
         // Respect device bottom inset so the bar clears the Home indicator
-        tabBarStyle: Platform.select({
-          ios: {
-            height: tabBarHeight,
-            paddingBottom: tabBarPaddingBottom,
-            paddingTop: 8,
-            backgroundColor: palette.card,
-            borderTopColor: palette.cardBorder,
-          },
-          default: {
-            height: 56,
-            paddingBottom: 6,
-            paddingTop: 8,
-            backgroundColor: palette.card,
-            borderTopColor: palette.cardBorder,
-          },
-        }),
+        tabBarStyle: {
+          height: tabBarHeight,
+          paddingBottom: tabBarPaddingBottom,
+          paddingTop: 8,
+          backgroundColor: palette.card,
+          borderTopColor: palette.cardBorder,
+        },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
         tabBarBackground: () => (
           <View style={{ flex: 1, backgroundColor: palette.card }} />

@@ -12,11 +12,9 @@ yarn-error.log*
 .env*
 !.env.example
 .DS_Store
-# iOS/Android build artifacts
+# iOS build artifacts
 ios/build/
 ios/Pods/
-android/.gradle/
-android/app/build/
 # Metro/TypeScript
 *.map
 *.tsbuildinfo

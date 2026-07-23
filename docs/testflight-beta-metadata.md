@@ -4,7 +4,7 @@ Use this copy when preparing App Store Connect/TestFlight beta review. Replace b
 
 ## Beta App Description
 
-Aurora is an iPhone-first caffeine and sleep guidance demo. Testers can log caffeine intake, optionally import recent sleep from Apple Health, run a 60-second vigilance reaction test, and review on-device insights that connect intake timing, sleep windows, and attentiveness.
+Aurora is an iPhone and iPad caffeine and sleep guidance app. Testers can log caffeine intake, optionally import recent sleep from Apple Health, run a 60-second vigilance reaction test, and review on-device insights that connect intake timing, sleep windows, and attentiveness.
 
 ## What To Test
 
@@ -42,7 +42,6 @@ TestFlight access is free and used only for beta testing. Paid app distribution 
 
 ## Known Demo Limits
 
-- iOS-first release candidate.
-- Android health integration is deferred.
-- Cloud sync is deferred.
-- Apple Watch and background automation are deferred.
+- Available for iPhone and iPad.
+- Cloud sync is not included in v0.1.0.
+- Apple Watch and background automation are not included in v0.1.0.

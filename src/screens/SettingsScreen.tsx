@@ -142,8 +142,8 @@ export default function SettingsScreen() {
           subtitle="Aurora is informational only and does not diagnose, treat, cure, or prevent any disease or condition."
         />
         <ListRow
-          title="Deferred for later"
-          subtitle="Android health, sync, and background automation."
+          title="Availability"
+          subtitle="Designed for iPhone and iPad."
         />
       </SectionCard>
     </AppScreen>

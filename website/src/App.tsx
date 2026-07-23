@@ -213,7 +213,7 @@ export default function App() {
             <article className="proof-card">
               <h3>Included</h3>
               <ul>
-                <li>iPhone-first app with Health-backed sleep import</li>
+                <li>iPhone and iPad app with Health-backed sleep import</li>
                 <li>Fast caffeine logging with quick-add and custom entries</li>
                 <li>On-device vigilance testing with saved insights</li>
               </ul>
@@ -222,7 +222,7 @@ export default function App() {
               <h3>Not included</h3>
               <ul>
                 <li>No cloud sync</li>
-                <li>No Android health parity</li>
+                <li>No Apple Watch companion app</li>
                 <li>No unavailable release promises</li>
               </ul>
             </article>

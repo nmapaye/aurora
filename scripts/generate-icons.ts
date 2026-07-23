@@ -32,8 +32,7 @@ const BG = process.env.ICON_BG ?? '#0B1020';
 const SPLASH_SIZE = Number(process.env.SPLASH_SIZE ?? 2000);
 
 const outputs = [
-  { file: 'assets/icons/app-icon.png', size: 1024 },   // Expo: app.json "icon"
-  { file: 'assets/icons/adaptive-icon.png', size: 432 }, // Expo Android adaptive foreground
+  { file: 'assets/icons/app-icon.png', size: 1024 },
   { file: 'assets/icons/marketing-512.png', size: 512 },
   { file: 'assets/icons/marketing-256.png', size: 256 },
 ];

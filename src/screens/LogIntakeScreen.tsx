@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Platform, View } from 'react-native';
+import { Modal, View } from 'react-native';
 import DateTimePicker, {
-  DateTimePickerAndroid,
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -50,8 +49,8 @@ export default function LogIntakeScreen() {
   const [source, setSource] = useState<SourceOption>('Drip');
   const [note, setNote] = useState('');
   const [timestamp, setTimestamp] = useState<number>(Date.now());
-  const [iosPickerVisible, setIOSPickerVisible] = useState(false);
-  const [iosPendingTime, setIOSPendingTime] = useState<Date>(new Date());
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pendingTime, setPendingTime] = useState<Date>(new Date());
 
   const canSave = useMemo(
     () => Number.isFinite(mg) && mg > 0 && mg < 2000,
@@ -85,24 +84,12 @@ export default function LogIntakeScreen() {
   };
 
   const openTimePicker = () => {
-    if (Platform.OS === 'ios') {
-      setIOSPendingTime(new Date(timestamp));
-      setIOSPickerVisible(true);
-      return;
-    }
-    DateTimePickerAndroid.open({
-      mode: 'time',
-      value: new Date(timestamp),
-      onChange: (event, date) => {
-        if (event.type === 'set' && date) {
-          setTimestamp(date.getTime());
-        }
-      },
-    });
+    setPendingTime(new Date(timestamp));
+    setPickerVisible(true);
   };
 
-  const onIOSPickerChange = (_event: DateTimePickerEvent, date?: Date) => {
-    if (date) setIOSPendingTime(date);
+  const onPickerChange = (_event: DateTimePickerEvent, date?: Date) => {
+    if (date) setPendingTime(date);
   };
 
   return (
@@ -209,8 +196,8 @@ export default function LogIntakeScreen() {
       <Modal
         animationType="fade"
         transparent
-        visible={iosPickerVisible}
-        onRequestClose={() => setIOSPickerVisible(false)}
+        visible={pickerVisible}
+        onRequestClose={() => setPickerVisible(false)}
       >
         <View
           style={{
@@ -236,22 +223,22 @@ export default function LogIntakeScreen() {
               <Button
                 title="Cancel"
                 variant="plain"
-                onPress={() => setIOSPickerVisible(false)}
+                onPress={() => setPickerVisible(false)}
               />
               <Button
                 title="Done"
                 variant="plain"
                 onPress={() => {
-                  setTimestamp(iosPendingTime.getTime());
-                  setIOSPickerVisible(false);
+                  setTimestamp(pendingTime.getTime());
+                  setPickerVisible(false);
                 }}
               />
             </View>
             <DateTimePicker
               mode="time"
               display="spinner"
-              value={iosPendingTime}
-              onChange={onIOSPickerChange}
+              value={pendingTime}
+              onChange={onPickerChange}
             />
           </View>
         </View>

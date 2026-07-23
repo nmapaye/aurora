@@ -14,12 +14,10 @@ on:
       - 'metro.config.js'
       - 'package-lock.json'
       - 'package.json'
-      - 'plugins/**'
       - 'scripts/**'
       - 'src/**'
       - 'tests/**'
       - 'tsconfig.json'
-      - 'android/**'
       - 'ios/**'
   pull_request:
     paths:
@@ -34,12 +32,10 @@ on:
       - 'metro.config.js'
       - 'package-lock.json'
       - 'package.json'
-      - 'plugins/**'
       - 'scripts/**'
       - 'src/**'
       - 'tests/**'
       - 'tsconfig.json'
-      - 'android/**'
       - 'ios/**'
   workflow_dispatch:
 

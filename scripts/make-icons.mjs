@@ -105,10 +105,9 @@ const png = (s) => sharp(Buffer.from(s)).png();
 await png(darkIcon).toFile('assets/icons/ios-dark.png');
 await png(lightIcon).toFile('assets/icons/ios-light.png');
 await png(tintedIcon).toFile('assets/icons/ios-tinted.png');
-// Primary icon (Android launcher, stores, fallback) — dark brand variant
+// Primary source/store fallback — dark brand variant
 await png(darkIcon).toFile('assets/icon.png');
 await png(darkIcon).toFile('assets/icons/app-icon.png');
-await png(darkIcon).resize(432, 432).toFile('assets/icons/adaptive-icon.png');
 // Splash
 await png(splashSvg).toFile('assets/splash.png');
 await png(splashSvg).toFile('assets/icons/splash.png');
