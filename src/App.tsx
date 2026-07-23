@@ -2,8 +2,13 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import React, { useEffect, useMemo } from 'react';
-import { ActivityIndicator, StatusBar, Text, View, LogBox } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
+import { StatusBar, Text, View, LogBox } from 'react-native';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  Theme,
+} from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +22,8 @@ import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
 import { getAppPalette } from '~/theme/colors';
+import { ProgressState } from '~/components/ui';
+import { spacing, typeRamp } from '~/theme/tokens';
 
 // Enable react-native-screens if available (perf/memory). Use dynamic require to avoid runtime errors if missing.
 try {
@@ -29,7 +36,10 @@ LogBox.ignoreLogs([
 ]);
 
 // Error boundary to prevent hard black screens from render-time throws
-class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error?: Error }> {
+class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error?: Error }
+> {
   state: { error?: Error } = {};
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -43,9 +53,22 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
   render() {
     if (this.state.error) {
       return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <Text style={{ fontSize: 18, marginBottom: 8 }}>Something went wrong.</Text>
-          <Text selectable numberOfLines={5} style={{ opacity: 0.7, textAlign: 'center' }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: spacing.md,
+          }}
+        >
+          <Text style={{ ...typeRamp.title3, marginBottom: spacing.xs }}>
+            Something went wrong.
+          </Text>
+          <Text
+            selectable
+            numberOfLines={5}
+            style={{ opacity: 0.7, textAlign: 'center' }}
+          >
             {this.state.error.message}
           </Text>
         </View>
@@ -60,8 +83,7 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 function BootGate() {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator />
-      <Text style={{ marginTop: 8 }}>Loading…</Text>
+      <ProgressState label="Loading Aurora…" />
     </View>
   );
 }
@@ -106,8 +128,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top']}>
-          <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: theme.colors.background }}
+          edges={['top']}
+        >
+          <StatusBar
+            barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
+          />
           <RootErrorBoundary>
             {ready ? (
               onboardingComplete ? (

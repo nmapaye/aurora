@@ -2,11 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
-import { FieldInput, HealthSectionHeader, SectionCard, SegmentedControl } from '~/components/ui';
+import {
+  FieldInput,
+  SectionHeader,
+  SectionCard,
+  SegmentedControl,
+} from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import { makeVigilanceSessionsCSV } from '~/services/storage/export';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { radii, spacing, typeRamp } from '~/theme/tokens';
 
 type RangeKey = '7' | '14' | '30' | 'all';
 type HistorySection = 'doses' | 'vigilance';
@@ -47,7 +53,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
           ? `${dose.mg}`.includes(normalizedQuery) ||
             (dose.source || '').toLowerCase().includes(normalizedQuery) ||
             (dose.note || '').toLowerCase().includes(normalizedQuery)
-          : true
+          : true,
       )
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [doses, query, rangeStart]);
@@ -70,7 +76,14 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
       const header = 'id,timestamp,datetime,mg,source,note';
       const lines = doseItems.map((dose) => {
         const iso = new Date(dose.timestamp).toISOString();
-        return [dose.id, String(dose.timestamp), iso, String(dose.mg), dose.source || '', dose.note || '']
+        return [
+          dose.id,
+          String(dose.timestamp),
+          iso,
+          String(dose.mg),
+          dose.source || '',
+          dose.note || '',
+        ]
           .map((value) => `"${String(value).replace(/"/g, '""')}"`)
           .join(',');
       });
@@ -90,8 +103,9 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
   };
 
   return (
-    <View style={{ gap: 16 }}>
-      <HealthSectionHeader
+    <View style={{ gap: spacing.md }}>
+      <SectionHeader
+        prominence="prominent"
         title="History"
         actionLabel="Export"
         onAction={exportCurrentSection}
@@ -129,8 +143,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
             {doseItems.length === 0 ? (
               <Text
                 style={{
-                  fontSize: 15,
-                  lineHeight: 20,
+                  ...typeRamp.subheadline,
                   color: palette.textSecondary,
                 }}
               >
@@ -143,17 +156,16 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                   <View
                     key={dose.id}
                     style={{
-                      gap: 10,
+                      gap: spacing.sm,
                       paddingTop: index === 0 ? 0 : 14,
                       borderTopWidth: index === 0 ? 0 : 1,
                       borderColor: palette.separator,
                     }}
                   >
-                    <View style={{ gap: 4 }}>
+                    <View style={{ gap: spacing.xxs }}>
                       <Text
                         style={{
-                          fontSize: 17,
-                          lineHeight: 22,
+                          ...typeRamp.body,
                           fontWeight: '600',
                           color: palette.textPrimary,
                         }}
@@ -162,8 +174,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                       </Text>
                       <Text
                         style={{
-                          fontSize: 13,
-                          lineHeight: 18,
+                          ...typeRamp.footnote,
                           color: palette.textSecondary,
                         }}
                       >
@@ -172,8 +183,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                       {dose.note ? (
                         <Text
                           style={{
-                            fontSize: 13,
-                            lineHeight: 18,
+                            ...typeRamp.footnote,
                             color: palette.textTertiary,
                           }}
                         >
@@ -183,8 +193,8 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                     </View>
 
                     {isEditing ? (
-                      <View style={{ gap: 10 }}>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <View style={{ gap: spacing.sm }}>
+                        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                           <FieldInput
                             value={draftMg}
                             onChangeText={setDraftMg}
@@ -199,16 +209,24 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                             style={{ flex: 1.2 }}
                           />
                         </View>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                          <Button title="Save" onPress={saveEdit} />
-                          <Button title="Cancel" variant="secondary" onPress={() => setEditingId(null)} />
+                        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                          <Button
+                            title="Save"
+                            variant="primary"
+                            onPress={saveEdit}
+                          />
+                          <Button
+                            title="Cancel"
+                            variant="tinted"
+                            onPress={() => setEditingId(null)}
+                          />
                         </View>
                       </View>
                     ) : (
-                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                         <Button
                           title="Edit"
-                          variant="secondary"
+                          variant="tinted"
                           onPress={() => {
                             setEditingId(dose.id);
                             setDraftMg(String(dose.mg));
@@ -218,6 +236,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                         <Button
                           title="Delete"
                           variant="plain"
+                          role="destructive"
                           onPress={() => removeDose(dose.id)}
                         />
                       </View>
@@ -233,30 +252,35 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
           {vigilanceSessions.length === 0 ? (
             <Text
               style={{
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 color: palette.textSecondary,
               }}
             >
-              No vigilance sessions yet. Run the reaction test from Summary to start building a baseline.
+              No vigilance sessions yet. Run the reaction test from Summary to
+              start building a baseline.
             </Text>
           ) : (
             vigilanceSessions.map((session, index) => (
               <View
                 key={session.id}
                 style={{
-                  gap: 6,
+                  gap: spacing.xs,
                   paddingTop: index === 0 ? 0 : 14,
                   borderTopWidth: index === 0 ? 0 : 1,
                   borderColor: palette.separator,
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                  <View style={{ flex: 1, gap: 4 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    gap: spacing.sm,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: spacing.xxs }}>
                     <Text
                       style={{
-                        fontSize: 17,
-                        lineHeight: 22,
+                        ...typeRamp.body,
                         fontWeight: '600',
                         color: palette.textPrimary,
                       }}
@@ -265,8 +289,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                     </Text>
                     <Text
                       style={{
-                        fontSize: 13,
-                        lineHeight: 18,
+                        ...typeRamp.footnote,
                         color: palette.textSecondary,
                       }}
                     >
@@ -274,20 +297,21 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                     </Text>
                     <Text
                       style={{
-                        fontSize: 13,
-                        lineHeight: 18,
+                        ...typeRamp.footnote,
                         color: palette.textTertiary,
                       }}
                     >
-                      Median {session.medianReactionMs ?? '—'} ms • Lapses {session.lapseCount} • False starts {session.falseStartCount}
+                      Median {session.medianReactionMs ?? '—'} ms • Lapses{' '}
+                      {session.lapseCount} • False starts{' '}
+                      {session.falseStartCount}
                     </Text>
                   </View>
                   <View
                     style={{
                       minWidth: 88,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      borderRadius: 14,
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: spacing.sm,
+                      borderRadius: radii.card,
                       backgroundColor: palette.cardMuted,
                       borderWidth: 1,
                       borderColor: palette.cardBorder,
@@ -296,8 +320,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                   >
                     <Text
                       style={{
-                        fontSize: 15,
-                        lineHeight: 20,
+                        ...typeRamp.subheadline,
                         fontWeight: '700',
                         color: palette.textPrimary,
                       }}
@@ -306,8 +329,7 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
                     </Text>
                     <Text
                       style={{
-                        fontSize: 12,
-                        lineHeight: 16,
+                        ...typeRamp.caption,
                         color: palette.textSecondary,
                       }}
                     >

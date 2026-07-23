@@ -1,9 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Modal,
-  Platform,
-  View,
-} from 'react-native';
+import { Modal, Platform, View } from 'react-native';
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
@@ -17,11 +13,13 @@ import {
   FieldInput,
   FormField,
   HealthOptionCard,
-  HealthSectionHeader,
+  SectionHeader,
   SectionCard,
   SegmentedControl,
+  StepperControl,
 } from '~/components/ui';
 import { getAppPalette } from '~/theme/colors';
+import { spacing } from '~/theme/tokens';
 import { useStore } from '~/state/store';
 
 type SourceOption =
@@ -57,7 +55,7 @@ export default function LogIntakeScreen() {
 
   const canSave = useMemo(
     () => Number.isFinite(mg) && mg > 0 && mg < 2000,
-    [mg]
+    [mg],
   );
 
   const commitDose = async (amount: number, presetSource?: string) => {
@@ -109,8 +107,8 @@ export default function LogIntakeScreen() {
 
   return (
     <AppScreen title="Log">
-      <HealthSectionHeader title="Quick Add" />
-      <View style={{ gap: 10 }}>
+      <SectionHeader prominence="prominent" title="Quick Add" />
+      <View style={{ gap: spacing.sm }}>
         {[
           ['Espresso', 60],
           ['Drip', 95],
@@ -127,30 +125,25 @@ export default function LogIntakeScreen() {
         ))}
       </View>
 
-      <HealthSectionHeader title="Custom Entry" />
+      <SectionHeader prominence="prominent" title="Custom Entry" />
       <SectionCard>
-        <FormField
-          label="Amount"
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Button
-              title="−"
-              variant="outline"
-              onPress={() => setMg((value) => Math.max(1, value - 10))}
-            />
+        <FormField label="Amount">
+          <StepperControl
+            decrementLabel="Decrease caffeine amount"
+            incrementLabel="Increase caffeine amount"
+            onDecrement={() => setMg((value) => Math.max(1, value - 10))}
+            onIncrement={() => setMg((value) => Math.min(2000, value + 10))}
+          >
             <View style={{ flex: 1 }}>
               <FieldInput
                 value={String(mg)}
-                onChangeText={(value) => setMg(Math.max(0, parseInt(value || '0', 10)))}
+                onChangeText={(value) =>
+                  setMg(Math.max(0, parseInt(value || '0', 10)))
+                }
                 keyboardType="number-pad"
               />
             </View>
-            <Button
-              title="+"
-              variant="outline"
-              onPress={() => setMg((value) => Math.min(2000, value + 10))}
-            />
-          </View>
+          </StepperControl>
         </FormField>
 
         <FormField label="Source">
@@ -169,25 +162,23 @@ export default function LogIntakeScreen() {
         </FormField>
 
         <FormField label="Time">
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
               <Button
                 title={fmtTime(timestamp)}
-                variant="outline"
+                variant="tinted"
                 onPress={openTimePicker}
               />
             </View>
             <Button
               title="Now"
-              variant="secondary"
+              variant="tinted"
               onPress={() => setTimestamp(Date.now())}
             />
           </View>
         </FormField>
 
-        <FormField
-          label="Note"
-        >
+        <FormField label="Note">
           <FieldInput
             value={note}
             onChangeText={setNote}
@@ -196,15 +187,15 @@ export default function LogIntakeScreen() {
           />
         </FormField>
 
-        <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Button
             title="Reset"
-            variant="outline"
+            variant="tinted"
             onPress={reset}
             style={{ flex: 1 }}
           />
           <Button
-            title="Save intake"
+            title="Save Intake"
             variant="primary"
             onPress={() => {
               if (canSave) void commitDose(mg);
@@ -233,13 +224,15 @@ export default function LogIntakeScreen() {
               backgroundColor: palette.modalBackground,
               borderTopLeftRadius: 22,
               borderTopRightRadius: 22,
-              paddingHorizontal: 16,
-              paddingTop: 12,
-              paddingBottom: 16,
-              gap: 12,
+              paddingHorizontal: spacing.md,
+              paddingTop: spacing.sm,
+              paddingBottom: spacing.md,
+              gap: spacing.sm,
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+            >
               <Button
                 title="Cancel"
                 variant="plain"

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View } from 'react-native';
 
-import { HealthOptionCard, HealthSectionHeader } from '~/components/ui';
+import { HealthOptionCard, SectionHeader } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import type { OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { spacing } from '~/theme/tokens';
 
 type Props = {
   selectedSource: OnboardingSource;
@@ -28,10 +29,10 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
   ];
 
   return (
-    <View style={{ gap: 16 }}>
-      <HealthSectionHeader title="Data Source" />
+    <View style={{ gap: spacing.md }}>
+      <SectionHeader prominence="prominent" title="Data Source" />
 
-      <View style={{ gap: 12 }}>
+      <View style={{ gap: spacing.sm }}>
         {options.map((option) => {
           const selected = option.key === selectedSource;
           return (
@@ -42,7 +43,9 @@ export default function StepSources({ selectedSource, onSelect }: Props) {
               icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
               title={option.title}
               subtitle={option.body}
-              color={option.key === 'healthkit' ? '#FF2D55' : palette.tint}
+              color={
+                option.key === 'healthkit' ? palette.healthAccent : palette.tint
+              }
             />
           );
         })}

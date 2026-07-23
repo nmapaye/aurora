@@ -1,4 +1,5 @@
 import { Dimensions, Platform, useWindowDimensions } from 'react-native';
+import { layout, spacing } from '~/theme/tokens';
 
 export type AdaptiveLayout = {
   width: number;
@@ -19,16 +20,19 @@ export default function useAdaptiveLayout(): AdaptiveLayout {
   const screen = Dimensions.get('screen');
   const isWideLayout = isPad && width >= 900 && width > height;
   const isIpadWindowed =
-    isPad &&
-    (width < screen.width - 24 || height < screen.height - 24);
-  const contentMaxWidth = isWideLayout ? 1220 : 600;
-  const horizontalPadding = isWideLayout ? 24 : 16;
-  const topChromeBuffer = isIpadWindowed ? 28 : 0;
+    isPad && (width < screen.width - 24 || height < screen.height - 24);
+  const contentMaxWidth = isWideLayout
+    ? layout.wideContentMaxWidth
+    : layout.contentMaxWidth;
+  const horizontalPadding = isWideLayout
+    ? layout.wideScreenGutter
+    : layout.screenGutter;
+  const topChromeBuffer = isIpadWindowed ? spacing.xl : 0;
   const availableWidth = Math.min(
     contentMaxWidth,
-    Math.max(0, width - horizontalPadding * 2)
+    Math.max(0, width - horizontalPadding * 2),
   );
-  const gap = 24;
+  const gap = spacing.xl;
   const leftColumnWidth = isWideLayout
     ? Math.min(620, Math.max(500, availableWidth * 0.52))
     : availableWidth;

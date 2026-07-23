@@ -7,13 +7,20 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AppIcon, { appIcons } from '~/components/AppIcon';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import { navigate } from '~/navigation';
 import { getAppPalette } from '~/theme/colors';
+import {
+  fontScaling,
+  iconSizes,
+  radii,
+  spacing,
+  typeRamp,
+} from '~/theme/tokens';
 
 type Props = {
   title: string;
@@ -34,7 +41,7 @@ export default function AppScreen({
   contentStyle,
   centered = false,
   showsVerticalScrollIndicator = false,
-  topInset = 8,
+  topInset = spacing.xs,
 }: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
@@ -49,24 +56,33 @@ export default function AppScreen({
       contentContainerStyle={[
         {
           paddingTop: topInset + layout.topChromeBuffer,
-          paddingBottom: 32 + insets.bottom,
+          paddingBottom: spacing.xxl + insets.bottom,
           paddingHorizontal: layout.horizontalPadding,
           alignItems: centered || layout.isWideLayout ? 'center' : undefined,
         },
         contentStyle,
       ]}
     >
-      <View style={{ width: '100%', maxWidth: layout.contentMaxWidth, gap: 18 }}>
-        <View style={{ gap: 12 }}>
+      <View
+        style={{
+          width: '100%',
+          maxWidth: layout.contentMaxWidth,
+          gap: spacing.md,
+        }}
+      >
+        <View style={{ gap: spacing.sm }}>
           <View
-            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: spacing.sm,
+            }}
           >
-            <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text
+                maxFontSizeMultiplier={fontScaling.body}
                 style={{
-                  fontSize: 40,
-                  lineHeight: 46,
-                  fontWeight: '700',
+                  ...typeRamp.largeTitle,
                   letterSpacing: 0,
                   color: palette.textPrimary,
                 }}
@@ -75,9 +91,9 @@ export default function AppScreen({
               </Text>
               {subtitle ? (
                 <Text
+                  maxFontSizeMultiplier={fontScaling.body}
                   style={{
-                    fontSize: 15,
-                    lineHeight: 20,
+                    ...typeRamp.subheadline,
                     color: palette.textSecondary,
                   }}
                 >
@@ -94,7 +110,7 @@ export default function AppScreen({
                 style={({ pressed }) => ({
                   minWidth: 44,
                   minHeight: 44,
-                  borderRadius: 22,
+                  borderRadius: radii.capsule,
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: pressed
@@ -104,9 +120,9 @@ export default function AppScreen({
                   borderColor: palette.cardBorder,
                 })}
               >
-                <Ionicons
-                  name="settings-outline"
-                  size={24}
+                <AppIcon
+                  name={appIcons.settings}
+                  size={iconSizes.button}
                   color={palette.textPrimary}
                 />
               </Pressable>

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Pressable,
+  ActivityIndicator,
   StyleProp,
   Text,
   TextInput,
@@ -8,34 +9,76 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
+import AppIcon, { type AppIconName } from '~/components/AppIcon';
 import useAppScheme from '~/hooks/useAppScheme';
-import { getAppPalette, getStatusColors, type StatusTone } from '~/theme/colors';
+import {
+  getAppPalette,
+  getStatusColors,
+  type StatusTone,
+} from '~/theme/colors';
+import {
+  controlSizes,
+  fontScaling,
+  iconSizes,
+  numericText,
+  radii,
+  spacing,
+  typeRamp,
+} from '~/theme/tokens';
 
-export function SectionTitle({
-  children,
+export function SectionHeader({
+  title,
+  prominence = 'standard',
   action,
+  actionLabel,
+  onAction,
 }: {
-  children: React.ReactNode;
+  title: string;
+  prominence?: 'standard' | 'prominent';
   action?: React.ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <View
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
+    >
       <Text
+        maxFontSizeMultiplier={fontScaling.body}
         style={{
           flex: 1,
-          fontSize: 17,
-          lineHeight: 22,
-          fontWeight: '600',
+          ...(prominence === 'prominent' ? typeRamp.title1 : typeRamp.headline),
           color: palette.textPrimary,
         }}
       >
-        {children}
+        {title}
       </Text>
-      {action}
+      {action ??
+        (actionLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            onPress={onAction}
+            style={({ pressed }) => ({
+              minHeight: controlSizes.minimumTouchTarget,
+              minWidth: controlSizes.minimumTouchTarget,
+              borderRadius: radii.control,
+              paddingHorizontal: spacing.xs,
+              justifyContent: 'center',
+              opacity: pressed ? 0.65 : 1,
+            })}
+          >
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.body, color: palette.tint }}
+            >
+              {actionLabel}
+            </Text>
+          </Pressable>
+        ) : null)}
     </View>
   );
 }
@@ -54,66 +97,16 @@ export function SectionCard({
       style={[
         {
           backgroundColor: palette.card,
-          borderRadius: 14,
-          padding: 16,
+          borderRadius: radii.card,
+          padding: spacing.md,
           borderWidth: scheme === 'dark' ? 0 : 1,
           borderColor: palette.cardBorder,
-          gap: 12,
+          gap: spacing.sm,
         },
         style,
       ]}
     >
       {children}
-    </View>
-  );
-}
-
-export function HealthSectionHeader({
-  title,
-  actionLabel,
-  onAction,
-}: {
-  title: string;
-  actionLabel?: string;
-  onAction?: () => void;
-}) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <Text
-        style={{
-          flex: 1,
-          fontSize: 28,
-          lineHeight: 34,
-          fontWeight: '700',
-          color: palette.textPrimary,
-        }}
-      >
-        {title}
-      </Text>
-      {actionLabel ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAction}
-          style={({ pressed }) => ({
-            borderRadius: 12,
-            paddingHorizontal: 4,
-            paddingVertical: 3,
-            opacity: pressed ? 0.65 : 1,
-          })}
-        >
-          <Text
-            style={{
-              fontSize: 17,
-              lineHeight: 22,
-              color: palette.tint,
-            }}
-          >
-            {actionLabel}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -127,7 +120,7 @@ export function HealthMetricCard({
   dateLabel,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
   label: string;
   labelColor: string;
   value: string;
@@ -141,19 +134,20 @@ export function HealthMetricCard({
     <View
       style={{
         minHeight: 118,
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-        gap: 24,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        gap: spacing.xl,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Ionicons name={icon} size={21} color={labelColor} />
+      <View
+        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+      >
+        <AppIcon name={icon} size={iconSizes.row} color={labelColor} />
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
             flex: 1,
-            fontSize: 17,
-            lineHeight: 22,
-            fontWeight: '700',
+            ...typeRamp.headline,
             color: labelColor,
           }}
         >
@@ -161,9 +155,9 @@ export function HealthMetricCard({
         </Text>
         {dateLabel ? (
           <Text
+            maxFontSizeMultiplier={fontScaling.body}
             style={{
-              fontSize: 17,
-              lineHeight: 22,
+              ...typeRamp.body,
               color: palette.textTertiary,
             }}
           >
@@ -171,19 +165,18 @@ export function HealthMetricCard({
           </Text>
         ) : null}
         {onPress ? (
-          <Ionicons
+          <AppIcon
             name="chevron-forward"
-            size={20}
+            size={iconSizes.row}
             color={palette.textTertiary}
           />
         ) : null}
       </View>
-      <View style={{ gap: 5 }}>
+      <View style={{ gap: spacing.xxs }}>
         <Text
+          maxFontSizeMultiplier={fontScaling.hero}
           style={{
-            fontSize: 33,
-            lineHeight: 39,
-            fontWeight: '700',
+            ...numericText,
             color: palette.textPrimary,
           }}
         >
@@ -191,9 +184,9 @@ export function HealthMetricCard({
         </Text>
         {detail ? (
           <Text
+            maxFontSizeMultiplier={fontScaling.body}
             style={{
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               color: palette.textSecondary,
             }}
           >
@@ -211,7 +204,7 @@ export function HealthMetricCard({
       disabled={!onPress}
       style={({ pressed }) => ({
         overflow: 'hidden',
-        borderRadius: 28,
+        borderRadius: radii.hero,
         backgroundColor: pressed ? palette.pressed : palette.card,
       })}
     >
@@ -228,7 +221,7 @@ export function HealthOptionCard({
   onPress,
   color,
 }: {
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
   title: string;
   subtitle?: string;
   selected?: boolean;
@@ -246,29 +239,28 @@ export function HealthOptionCard({
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 14,
+        gap: spacing.sm,
         minHeight: 72,
-        borderRadius: 24,
-        paddingHorizontal: 18,
-        paddingVertical: 16,
+        borderRadius: radii.hero,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
         backgroundColor: pressed ? palette.pressed : palette.card,
         borderWidth: scheme === 'dark' ? 0 : 1,
         borderColor: selected ? accent : palette.cardBorder,
       })}
     >
       {icon ? (
-        <Ionicons
+        <AppIcon
           name={icon}
-          size={24}
+          size={iconSizes.button}
           color={selected ? accent : palette.textSecondary}
         />
       ) : null}
-      <View style={{ flex: 1, gap: 3 }}>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
-            fontSize: 17,
-            lineHeight: 22,
-            fontWeight: '600',
+            ...typeRamp.headline,
             color: selected ? accent : palette.textPrimary,
           }}
         >
@@ -276,9 +268,9 @@ export function HealthOptionCard({
         </Text>
         {subtitle ? (
           <Text
+            maxFontSizeMultiplier={fontScaling.body}
             style={{
-              fontSize: 14,
-              lineHeight: 19,
+              ...typeRamp.subheadline,
               color: palette.textSecondary,
             }}
           >
@@ -287,9 +279,13 @@ export function HealthOptionCard({
         ) : null}
       </View>
       {selected ? (
-        <Ionicons name="checkmark-circle" size={22} color={accent} />
+        <AppIcon name="checkmark-circle" size={iconSizes.row} color={accent} />
       ) : (
-        <Ionicons name="chevron-forward" size={18} color={palette.textTertiary} />
+        <AppIcon
+          name="chevron-forward"
+          size={iconSizes.inline}
+          color={palette.textTertiary}
+        />
       )}
     </Pressable>
   );
@@ -312,28 +308,31 @@ export function HealthAlertCard({
   body?: string;
   actionLabel?: string;
   onAction?: () => void;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const header =
     tone === 'warning'
-      ? { backgroundColor: '#FFD60A', color: '#1C1C1E' }
+      ? {
+          backgroundColor: palette.warningFill,
+          color: palette.warningForeground,
+        }
       : tone === 'error'
-      ? { backgroundColor: palette.destructive, color: '#FFFFFF' }
-      : { backgroundColor: 'transparent', color: palette.textSecondary };
+        ? { backgroundColor: palette.destructive, color: palette.onDestructive }
+        : { backgroundColor: 'transparent', color: palette.textSecondary };
   const iconColor =
     tone === 'warning'
-      ? '#FFD60A'
+      ? palette.warningFill
       : tone === 'error'
-      ? palette.destructive
-      : palette.tint;
+        ? palette.destructive
+        : palette.tint;
 
   return (
     <View
       style={{
         overflow: 'hidden',
-        borderRadius: 28,
+        borderRadius: radii.hero,
         backgroundColor: palette.card,
       }}
     >
@@ -342,18 +341,22 @@ export function HealthAlertCard({
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 8,
-            paddingHorizontal: 18,
-            paddingVertical: 10,
+            gap: spacing.xs,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
             backgroundColor: header.backgroundColor,
           }}
         >
-          <Ionicons name="warning" size={17} color={header.color} />
+          <AppIcon
+            name="warning"
+            size={iconSizes.inline}
+            color={header.color}
+          />
           <Text
+            maxFontSizeMultiplier={fontScaling.body}
             style={{
               flex: 1,
-              fontSize: 15,
-              lineHeight: 20,
+              ...typeRamp.subheadline,
               fontWeight: '700',
               color: header.color,
             }}
@@ -361,20 +364,35 @@ export function HealthAlertCard({
             {label.toUpperCase()}
           </Text>
           {dateLabel ? (
-            <Text style={{ fontSize: 15, lineHeight: 20, color: header.color }}>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.subheadline, color: header.color }}
+            >
               {dateLabel}
             </Text>
           ) : null}
         </View>
       ) : null}
-      <View style={{ paddingHorizontal: 20, paddingVertical: 18, gap: 12 }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          gap: spacing.sm,
+        }}
+      >
         {tone === 'info' ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.xs,
+            }}
+          >
             <Text
+              maxFontSizeMultiplier={fontScaling.body}
               style={{
                 flex: 1,
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 fontWeight: '700',
                 color: palette.tint,
               }}
@@ -383,9 +401,9 @@ export function HealthAlertCard({
             </Text>
             {dateLabel ? (
               <Text
+                maxFontSizeMultiplier={fontScaling.body}
                 style={{
-                  fontSize: 15,
-                  lineHeight: 20,
+                  ...typeRamp.subheadline,
                   color: palette.textTertiary,
                 }}
               >
@@ -394,13 +412,13 @@ export function HealthAlertCard({
             ) : null}
           </View>
         ) : null}
-        <View style={{ flexDirection: 'row', gap: 16 }}>
-          <Ionicons name={icon} size={42} color={iconColor} />
-          <View style={{ flex: 1, gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+          <AppIcon name={icon} size={iconSizes.hero} color={iconColor} />
+          <View style={{ flex: 1, gap: spacing.xs }}>
             <Text
+              maxFontSizeMultiplier={fontScaling.body}
               style={{
-                fontSize: 24,
-                lineHeight: 30,
+                ...typeRamp.title3,
                 fontWeight: '700',
                 color: palette.textPrimary,
               }}
@@ -409,9 +427,9 @@ export function HealthAlertCard({
             </Text>
             {body ? (
               <Text
+                maxFontSizeMultiplier={fontScaling.body}
                 style={{
-                  fontSize: 17,
-                  lineHeight: 23,
+                  ...typeRamp.body,
                   color: palette.textSecondary,
                 }}
               >
@@ -424,19 +442,20 @@ export function HealthAlertCard({
                 onPress={onAction}
                 style={({ pressed }) => ({
                   alignSelf: 'flex-start',
-                  borderRadius: 18,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
+                  minHeight: controlSizes.minimumTouchTarget,
+                  borderRadius: radii.capsule,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: spacing.xs,
+                  justifyContent: 'center',
                   backgroundColor: pressed
                     ? palette.pressed
                     : palette.selectionFill,
                 })}
               >
                 <Text
+                  maxFontSizeMultiplier={fontScaling.body}
                   style={{
-                    fontSize: 17,
-                    lineHeight: 22,
-                    fontWeight: '600',
+                    ...typeRamp.headline,
                     color: palette.tint,
                   }}
                 >
@@ -471,19 +490,19 @@ export function StatTile({
           flex: 1,
           minHeight: 92,
           backgroundColor: palette.cardMuted,
-          borderRadius: 14,
-          padding: 14,
+          borderRadius: radii.card,
+          padding: spacing.sm,
           borderWidth: scheme === 'dark' ? 0 : 1,
           borderColor: palette.cardBorder,
-          gap: 4,
+          gap: spacing.xxs,
         },
         style,
       ]}
     >
       <Text
+        maxFontSizeMultiplier={fontScaling.body}
         style={{
-          fontSize: 13,
-          lineHeight: 18,
+          ...typeRamp.footnote,
           fontWeight: '600',
           color: palette.textSecondary,
         }}
@@ -491,9 +510,9 @@ export function StatTile({
         {label}
       </Text>
       <Text
+        maxFontSizeMultiplier={fontScaling.hero}
         style={{
-          fontSize: 28,
-          lineHeight: 34,
+          ...numericText,
           fontWeight: '600',
           color: palette.textPrimary,
         }}
@@ -502,9 +521,9 @@ export function StatTile({
       </Text>
       {detail ? (
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
-            fontSize: 13,
-            lineHeight: 18,
+            ...typeRamp.footnote,
             color: palette.textTertiary,
           }}
         >
@@ -539,17 +558,22 @@ export function ListRow({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: spacing.sm,
         minHeight: 52,
       }}
     >
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 16, lineHeight: 20, color }}>{title}</Text>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
+        <Text
+          maxFontSizeMultiplier={fontScaling.body}
+          style={{ ...typeRamp.body, color }}
+        >
+          {title}
+        </Text>
         {subtitle ? (
           <Text
+            maxFontSizeMultiplier={fontScaling.body}
             style={{
-              fontSize: 13,
-              lineHeight: 18,
+              ...typeRamp.footnote,
               color: palette.textSecondary,
             }}
           >
@@ -559,22 +583,23 @@ export function ListRow({
       </View>
       {value ? (
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
-            fontSize: 15,
-            lineHeight: 20,
+            ...typeRamp.subheadline,
             color: palette.textSecondary,
           }}
         >
           {value}
         </Text>
       ) : null}
-      {accessory ?? (onPress ? (
-        <Ionicons
-          name="chevron-forward"
-          size={16}
-          color={palette.textTertiary}
-        />
-      ) : null)}
+      {accessory ??
+        (onPress ? (
+          <AppIcon
+            name="chevron-forward"
+            size={iconSizes.inline}
+            color={palette.textTertiary}
+          />
+        ) : null)}
     </View>
   );
 
@@ -584,8 +609,8 @@ export function ListRow({
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => ({
-          borderRadius: 14,
-          paddingHorizontal: 2,
+          borderRadius: radii.control,
+          paddingHorizontal: spacing.xxs,
           backgroundColor: pressed ? palette.pressed : 'transparent',
         })}
       >
@@ -611,8 +636,8 @@ export function SegmentedControl<T extends string>({
     <View
       style={{
         flexDirection: 'row',
-        padding: 4,
-        borderRadius: 12,
+        padding: spacing.xxs,
+        borderRadius: radii.control,
         backgroundColor: palette.cardMuted,
         borderWidth: scheme === 'dark' ? 0 : 1,
         borderColor: palette.cardBorder,
@@ -628,21 +653,21 @@ export function SegmentedControl<T extends string>({
             onPress={() => onChange(option.key)}
             style={({ pressed }) => ({
               flex: 1,
-              minHeight: 36,
-              borderRadius: 10,
+              minHeight: controlSizes.minimumTouchTarget,
+              borderRadius: radii.control,
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: active
                 ? palette.card
                 : pressed
-                ? palette.pressed
-                : 'transparent',
+                  ? palette.pressed
+                  : 'transparent',
             })}
           >
             <Text
+              maxFontSizeMultiplier={fontScaling.body}
               style={{
-                fontSize: 15,
-                lineHeight: 20,
+                ...typeRamp.subheadline,
                 fontWeight: active ? '600' : '500',
                 color: palette.textPrimary,
               }}
@@ -668,11 +693,11 @@ export function FormField({
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: spacing.xs }}>
       <Text
+        maxFontSizeMultiplier={fontScaling.body}
         style={{
-          fontSize: 13,
-          lineHeight: 18,
+          ...typeRamp.footnote,
           fontWeight: '600',
           color: palette.textSecondary,
         }}
@@ -682,9 +707,9 @@ export function FormField({
       {children}
       {footer ? (
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
-            fontSize: 13,
-            lineHeight: 18,
+            ...typeRamp.footnote,
             color: palette.textTertiary,
           }}
         >
@@ -709,21 +734,46 @@ export function InlineStatus({
     <View
       style={{
         alignSelf: 'flex-start',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radii.capsule,
         backgroundColor: status.backgroundColor,
       }}
     >
       <Text
+        maxFontSizeMultiplier={fontScaling.body}
         style={{
-          fontSize: 13,
-          lineHeight: 18,
+          ...typeRamp.footnote,
           fontWeight: '600',
           color: status.color ?? palette.textSecondary,
         }}
       >
         {text}
+      </Text>
+    </View>
+  );
+}
+
+export function ProgressState({ label }: { label: string }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+      }}
+    >
+      <ActivityIndicator color={palette.tint} />
+      <Text
+        maxFontSizeMultiplier={fontScaling.body}
+        style={{ ...typeRamp.subheadline, color: palette.textSecondary }}
+      >
+        {label}
       </Text>
     </View>
   );
@@ -763,22 +813,27 @@ export function StepperField({
     <SectionCard>
       <ListRow
         title={label}
-        value={displayValue}
         accessory={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <StepperButton
-              symbol="remove"
-              onPress={() => update(value - step)}
-            />
-            <StepperButton symbol="add" onPress={() => update(value + step)} />
-          </View>
+          <StepperControl
+            decrementLabel={`Decrease ${label}`}
+            incrementLabel={`Increase ${label}`}
+            onDecrement={() => update(value - step)}
+            onIncrement={() => update(value + step)}
+          >
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.subheadline, color: palette.textSecondary }}
+            >
+              {displayValue}
+            </Text>
+          </StepperControl>
         }
       />
       {footer ? (
         <Text
+          maxFontSizeMultiplier={fontScaling.body}
           style={{
-            fontSize: 13,
-            lineHeight: 18,
+            ...typeRamp.footnote,
             color: palette.textTertiary,
           }}
         >
@@ -789,11 +844,45 @@ export function StepperField({
   );
 }
 
+export function StepperControl({
+  children,
+  decrementLabel,
+  incrementLabel,
+  onDecrement,
+  onIncrement,
+}: {
+  children: React.ReactNode;
+  decrementLabel: string;
+  incrementLabel: string;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}) {
+  return (
+    <View
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+    >
+      <StepperButton
+        symbol="remove"
+        accessibilityLabel={decrementLabel}
+        onPress={onDecrement}
+      />
+      {children}
+      <StepperButton
+        symbol="add"
+        accessibilityLabel={incrementLabel}
+        onPress={onIncrement}
+      />
+    </View>
+  );
+}
+
 function StepperButton({
   symbol,
+  accessibilityLabel,
   onPress,
 }: {
   symbol: 'add' | 'remove';
+  accessibilityLabel: string;
   onPress: () => void;
 }) {
   const scheme = useAppScheme();
@@ -801,11 +890,12 @@ function StepperButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={({ pressed }) => ({
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: controlSizes.minimumTouchTarget,
+        height: controlSizes.minimumTouchTarget,
+        borderRadius: radii.control,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed ? palette.pressed : palette.cardMuted,
@@ -813,7 +903,11 @@ function StepperButton({
         borderColor: palette.cardBorder,
       })}
     >
-      <Ionicons name={symbol} size={18} color={palette.textPrimary} />
+      <AppIcon
+        name={symbol}
+        size={iconSizes.inline}
+        color={palette.textPrimary}
+      />
     </Pressable>
   );
 }
@@ -845,16 +939,15 @@ export function FieldInput({
       multiline={multiline}
       style={[
         {
-          minHeight: multiline ? 96 : 48,
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: multiline ? 12 : 14,
+          minHeight: multiline ? 96 : controlSizes.inputHeight,
+          borderRadius: radii.control,
+          paddingHorizontal: spacing.sm,
+          paddingVertical: spacing.sm,
           backgroundColor: palette.fieldBackground,
           borderWidth: scheme === 'dark' ? 0 : 1,
           borderColor: palette.cardBorder,
           color: palette.textPrimary,
-          fontSize: 16,
-          lineHeight: 20,
+          ...typeRamp.body,
         },
         style,
       ]}

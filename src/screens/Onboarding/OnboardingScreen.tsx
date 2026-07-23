@@ -12,6 +12,7 @@ import AppleHealth from '~/services/platform/health/appleHealth';
 import { requestHealthPermissions } from '~/services/permissions';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
+import { radii, spacing, typeRamp } from '~/theme/tokens';
 
 const TOTAL_STEPS = 3;
 
@@ -61,7 +62,7 @@ export default function OnboardingScreen() {
             start: sample.start,
             end: sample.end,
             type: 'sleep' as const,
-          }))
+          })),
         );
         setHealthSync({
           importedCount: samples.length,
@@ -94,8 +95,8 @@ export default function OnboardingScreen() {
     onboarding.source === 'manual'
       ? 'Finish setup to log caffeine manually. You can also try Aurora with sample data.'
       : onboarding.permissionStatus === 'granted'
-      ? 'Finish setup, then review imported sleep.'
-      : 'Connect Health, or finish with manual setup.';
+        ? 'Finish setup, then review imported sleep.'
+        : 'Connect Health, or finish with manual setup.';
 
   return (
     <AppScreen
@@ -104,26 +105,25 @@ export default function OnboardingScreen() {
       trailing={<View style={{ width: 36, height: 36 }} />}
       topInset={24}
     >
-      <View style={{ gap: 20 }}>
-        <View style={{ gap: 10 }}>
+      <View style={{ gap: spacing.lg }}>
+        <View style={{ gap: spacing.sm }}>
           <Text
             style={{
-              fontSize: 13,
-              lineHeight: 18,
+              ...typeRamp.footnote,
               fontWeight: '600',
               color: palette.textSecondary,
             }}
           >
             Aurora
           </Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
               <View
                 key={index}
                 style={{
                   flex: 1,
                   height: 6,
-                  borderRadius: 999,
+                  borderRadius: radii.capsule,
                   backgroundColor:
                     index <= step ? palette.tint : palette.cardMuted,
                 }}
@@ -164,22 +164,19 @@ export default function OnboardingScreen() {
         {step === 2 ? (
           <SectionCard>
             <InlineStatus tone="info" text="Sample Data" />
-            <ListRow
-              title="Try Aurora with examples"
-              subtitle={nextAction}
-            />
+            <ListRow title="Try Aurora with examples" subtitle={nextAction} />
             <Button
               title="Load Sample Data"
-              variant="secondary"
+              variant="tinted"
               onPress={startDemo}
               disabled={requestingPermission}
             />
           </SectionCard>
         ) : null}
 
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {step > 0 ? (
-            <Button title="Back" variant="secondary" onPress={back} />
+            <Button title="Back" variant="tinted" onPress={back} />
           ) : (
             <View style={{ width: 88 }} />
           )}
