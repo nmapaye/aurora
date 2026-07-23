@@ -12,9 +12,10 @@ encrypted import/export, or background automation.
 
 ## Requirements
 
-- macOS with stable Xcode 26 and the iOS 26 SDK.
+- macOS with stable Xcode 26.6 and the iOS 26 SDK. Do not use an Xcode 27 beta
+  for release work.
 - Node.js 24 and npm 11.6 or newer.
-- CocoaPods 1.16.2 or newer.
+- CocoaPods 1.16.2, matching `ios/Podfile.lock`.
 
 The repository pins its Node major in `.node-version`. The committed Xcode
 workspace is authoritative for native configuration, signing, builds,
@@ -98,8 +99,13 @@ testing and an optional Gumroad companion guide. TestFlight access must not be
 sold, and a raw IPA must not be distributed as the product.
 
 See `docs/demo-release.md` for release checks and physical iPhone/iPad smoke
-tests. The existing EAS configuration remains only as a temporary rollback
-path until the first signed Xcode Organizer archive validates.
+tests. Create releases with Product → Archive in Xcode, Validate App in
+Organizer, then Distribute App → App Store Connect. Increment Xcode's build
+number before every upload.
+
+The existing EAS configuration remains only as a temporary emergency rollback
+until the first signed Organizer archive validates. It uses Xcode's local
+version values and is not a second supported release workflow.
 
 ## Icons and launch assets
 

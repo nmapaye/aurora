@@ -7,9 +7,10 @@ continues to provide the JavaScript runtime, Metro, and native modules.
 
 ## Requirements
 
-- Stable Xcode 26 with the iOS 26 SDK or newer.
+- Stable Xcode 26.6 with the iOS 26 SDK or newer. Do not use an Xcode 27 beta
+  for release work.
 - Node.js 24 and npm 11.6 or newer.
-- CocoaPods 1.16.2 or newer.
+- CocoaPods 1.16.2, matching `ios/Podfile.lock`.
 
 Run the bootstrap after cloning, changing Node installations, or changing a
 native dependency:
@@ -97,3 +98,38 @@ Xcode owns release numbering:
 
 The App Store Connect record and a valid Apple Developer team are prerequisites
 for Organizer validation and upload.
+
+## Archive and Distribute
+
+Xcode Organizer is the canonical release path:
+
+1. Run the complete release checks in `docs/demo-release.md`.
+2. In the `AURORA` target, confirm `Version` is the intended marketing version
+   and increment `Build` before every upload. `Info.plist` reads these values
+   from `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
+3. Select the shared `AURORA` scheme and a generic iOS device destination, then
+   choose Product → Archive.
+4. In Organizer, choose Validate App and resolve every signing, entitlement,
+   privacy, or metadata error.
+5. Choose Distribute App → App Store Connect and upload the validated archive.
+6. Wait for the build to process, then assign it to the internal TestFlight
+   group before expanding beta access.
+
+Before distribution, inspect the signed archive and confirm:
+
+- Bundle identifier `com.nmapaye.aurora`.
+- HealthKit entitlement is present and no APNs entitlement is present.
+- `PrivacyInfo.xcprivacy`, Ionicons, icon appearances, and launch assets are
+  embedded.
+- The marketing version targets the intended App Store version, and the build
+  number is unused and greater than every prior upload for that version.
+
+Signing certificates, provisioning profiles, the Apple Developer team, and the
+App Store Connect record are external prerequisites. If any is unavailable,
+simulator and CI work may land, but Organizer upload remains blocked.
+
+`eas.json` is retained only as an emergency rollback while the first signed
+Organizer archive is unverified. It uses local version values and must not
+override Xcode's build number. Delete `eas.json` and all EAS release
+instructions immediately after the first signed Organizer archive validates.
+Internal TestFlight processing remains a separate release gate.

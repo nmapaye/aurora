@@ -16,14 +16,37 @@ VITE_AURORA_TESTFLIGHT_URL="https://testflight.apple.com/join/your-invite-code"
 
 Until those variables are set, the website intentionally shows setup labels instead of external links.
 
+## Canonical Xcode Organizer Workflow
+
+1. Install and select stable Xcode 26.6, switch to Node 24, and run
+   `npm run ios:bootstrap -- --deployment`.
+2. Configure automatic signing on the `AURORA` target with the Apple Developer
+   team that owns `com.nmapaye.aurora`.
+3. Confirm the marketing version in Xcode and increment the build number before
+   every upload.
+4. Select the shared `AURORA` scheme and a generic iOS device destination, then
+   choose Product → Archive.
+5. In Organizer, choose Validate App. Resolve all signing, entitlement,
+   privacy, and metadata findings before proceeding.
+6. Choose Distribute App → App Store Connect and upload the validated archive.
+7. Confirm that the build processes successfully and assign it to internal
+   TestFlight testers before creating an external group or public invite.
+
+The Apple Developer team and App Store Connect record are external
+prerequisites. Without them, simulator and CI work may pass, but archive
+validation and upload remain blocked.
+
 ## App Store Checklist
 
 - Configure the App Store Connect app record for `com.nmapaye.aurora`.
 - Set app pricing in App Store Connect for the paid v0.1.0 release.
 - Add the production privacy policy URL: `https://nmapaye.github.io/aurora/privacy.html`.
 - Add the production support URL: `https://nmapaye.github.io/aurora/support.html`.
-- Keep `eas.json` only as an emergency rollback until the first signed Xcode Organizer archive validates.
-- Do not use EAS as the primary release workflow during the Xcode-first migration.
+- Follow the Organizer workflow above; do not use EAS as the normal build or
+  upload path.
+- Inspect the signed archive for the HealthKit entitlement, absence of an APNs
+  entitlement, embedded privacy manifest, Ionicons, launch assets, and all app
+  icon appearances.
 - Use `docs/app-store-metadata.md` for App Store description, review notes, privacy notes, and known limits.
 
 ## Gumroad Companion Guide Contents
@@ -39,10 +62,18 @@ Until those variables are set, the website intentionally shows setup labels inst
 ## TestFlight Checklist
 
 - Configure the App Store Connect app record for `com.nmapaye.aurora`.
-- Keep EAS available only as the temporary rollback path described above.
+- Upload the validated archive from Xcode Organizer.
 - Start with internal testers, then create an external tester group.
 - Use a public TestFlight link only for free beta testing.
 - Use `docs/testflight-beta-metadata.md` for App Store Connect beta description, reviewer notes, privacy notes, and known demo limits.
+
+## Temporary EAS Rollback
+
+`eas.json` remains only until the first signed Organizer archive validates. It
+uses local Xcode version values and must not auto-increment or override the
+Xcode build number. After validation passes, delete `eas.json` and every
+remaining EAS build/submit instruction in a dedicated cleanup commit. Internal
+TestFlight processing remains a separate release gate.
 
 ## Smoke Test
 
@@ -55,8 +86,14 @@ Until those variables are set, the website intentionally shows setup labels inst
 - Sample data can be removed without deleting non-demo records.
 - Quick Add updates dashboard totals.
 - Custom caffeine entry appears in history.
+- Custom-entry time selection preserves the chosen time.
 - Vigilance test completes and saves a result.
 - Insights summary and daily totals CSV can be shared.
+- All four tabs preserve their navigation paths.
+- Opening the registered `aurora://` scheme launches Aurora without crashing.
+  Route-level deep-link prefixes are not configured in this migration.
+- Enabling the daily cutoff reminder schedules a local notification; disabling
+  it cancels the reminder without requesting remote-push capability.
 
 ## Manual Physical iPhone/TestFlight Smoke Checklist
 
@@ -75,11 +112,18 @@ Run this on a physical iPhone from the actual TestFlight build before sharing th
 - Add a custom caffeine dose and confirm it appears in history.
 - Complete one vigilance test and confirm the result is saved in insights.
 - Export/share the insights summary or daily totals CSV and confirm the iOS share sheet opens.
+- Enable and disable the daily cutoff reminder and verify local scheduling and
+  cancellation.
+- Open the registered `aurora://` scheme and confirm Aurora launches without
+  crashing.
+- Visit every tab and return to the previous stack without losing state.
 - Force quit and reopen Aurora, then confirm saved records and dashboard state still load.
 
 ## Manual Physical iPad/TestFlight Smoke Checklist
 
-Run this on a physical iPad or iPad simulator before App Store submission because the Xcode target includes iPhone and iPad device families:
+Repeat the complete Smoke Test above on a physical iPad using the actual
+TestFlight build before App Store submission because the Xcode target includes
+iPhone and iPad device families. Then complete these iPad-specific checks:
 
 - Launch Aurora from a fresh install and confirm onboarding appears.
 - Complete manual-only onboarding and confirm the adaptive layout does not clip or overlap content.
@@ -87,6 +131,19 @@ Run this on a physical iPad or iPad simulator before App Store submission becaus
 - Confirm Health unavailable/available messaging is clear for the test device.
 - Confirm icons, splash, Settings privacy/support links, and share sheet behavior.
 - Force quit and reopen Aurora, then confirm saved records and dashboard state still load.
+
+## Accessibility and Appearance Review
+
+Complete this review on the release candidate:
+
+- Capture Settings, Log, and the tab bar in both light and dark mode.
+- Review every affected screen at the largest Dynamic Type accessibility size
+  for clipping, overlap, truncation, and unreachable controls.
+- Use VoiceOver to verify control labels, selected states, focus order, and
+  announcements for buttons, steppers, tabs, and the time picker.
+- Repeat interaction checks with Reduce Motion enabled.
+- Repeat appearance checks with Reduce Transparency enabled.
+- Record any intentional visual differences between iPhone and iPad.
 
 ## Smoke Results
 
@@ -96,6 +153,8 @@ Record the release-candidate result before submission:
 |------|--------------|--------|-------|
 | iPhone TestFlight | [insert device + build] | Not run | [insert notes] |
 | iPad TestFlight | [insert device + build] | Not run | [insert notes] |
+| Signed archive validation | Xcode Organizer | Not run | [insert notes] |
+| Internal TestFlight processing | App Store Connect | Not run | [insert notes] |
 | App Store metadata | App Store Connect | Not run | [insert notes] |
 | Gumroad companion guide | Gumroad | Not run | [insert notes] |
 
@@ -104,6 +163,7 @@ Record the release-candidate result before submission:
 Run these exact local checks from the repo root (`/Users/nmapaye/Documents/Local Coding Projects/aurora`) before sharing an App Store, Gumroad, or TestFlight link:
 
 ```sh
+npm run ios:bootstrap -- --deployment
 npx expo-doctor
 npm run type-check
 npm run lint
@@ -111,6 +171,11 @@ npm test -- --runInBand
 npm run site:type-check
 npm run site:build
 npx expo export --platform ios
+npm run ios:build:debug
+npm run ios:build:release
+git diff --exit-code -- ios
 ```
 
-Finish with the physical iPhone and iPad TestFlight smoke checklists above.
+All Expo Doctor checks must pass; do not suppress a new incompatibility. Finish
+with the physical iPhone/iPad, accessibility, signed-archive, and internal
+TestFlight gates above.

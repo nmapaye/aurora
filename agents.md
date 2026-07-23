@@ -41,7 +41,8 @@ See `docs/xcode-development.md` for exact ownership boundaries.
 - `npm run site:build`
 
 The JavaScript checks currently cover 15 suites and 47 tests. Native build
-checks require stable Xcode 26 with the iOS 26 SDK.
+checks require stable Xcode 26.6 with the iOS 26 SDK; do not use Xcode 27 beta
+for release work.
 
 ## Landmines and repository knowledge
 
@@ -76,8 +77,8 @@ checks require stable Xcode 26 with the iOS 26 SDK.
 
 ## Remaining release work
 
-1. Install and select stable Xcode 26, switch the local shell to Node 24, and
-   run `npm run ios:bootstrap`.
+1. Install and select stable Xcode 26.6, switch the local shell to Node 24,
+   and run `npm run ios:bootstrap`.
 2. Configure the Apple Developer team and App Store Connect record for
    `com.nmapaye.aurora`.
 3. Pass unsigned Debug and Release simulator builds plus physical iPhone/iPad
