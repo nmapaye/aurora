@@ -2,55 +2,10 @@
   "expo": {
     "name": "AURORA",
     "slug": "aurora",
-    "scheme": "aurora",
-    "version": "0.1.0",
-    "orientation": "default",
-    "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#0A0E1C"
-    },
-    "jsEngine": "hermes",
-    "experiments": {
-      "typedRoutes": true
-    },
-    "runtimeVersion": {
-      "policy": "sdkVersion"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.nmapaye.aurora",
-      "newArchEnabled": true,
-      "icon": {
-        "light": "./assets/icons/ios-light.png",
-        "dark": "./assets/icons/ios-dark.png",
-        "tinted": "./assets/icons/ios-tinted.png"
-      }
-    },
-    "android": {
-      "package": "com.nmapaye.aurora",
-      "newArchEnabled": true
-    },
-    "plugins": [
-      [
-        "./plugins/with-healthkit",
-        {
-          "shareMessage": "Aurora reads sleep to tailor your caffeine plan."
-        }
-      ],
-      [
-        "expo-font",
-        {
-          "fonts": [
-            "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
-          ]
-        }
-      ],
-      "expo-asset",
-      "expo-notifications"
+    "platforms": [
+      "ios"
     ],
-    "extra": {}
+    "scheme": "aurora",
+    "version": "0.1.0"
   }
 }
