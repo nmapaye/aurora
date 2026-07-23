@@ -10,7 +10,8 @@ manual dose logging, a 60-second vigilance reaction test, and an alertness
 model in `src/domain/algorithm/` (pure functions: caffeine pharmacokinetics ×
 circadian rhythm × sleep debt × sleep inertia). State is zustand + MMKV
 persistence (`src/state/store.ts`). A standalone Vite showcase site lives in
-`website/`. Target: TestFlight + Gumroad demo release of v0.1.0.
+`website/`. Target: paid App Store v0.1.0 release, with free TestFlight beta
+testing and an optional Gumroad companion guide/support package.
 
 ## Current state: stacked PRs, merge in order
 
@@ -83,13 +84,15 @@ GitHub retargets children as parents merge)
 
 ## Remaining release work (mostly external, owner: nmapaye)
 
-1. Merge the PR stack (#7 first — it un-breaks `main`).
-2. Manual device pass: `npx pod-install && npx expo run:ios`; check tab-bar
-   glyphs, home-screen icon (light/dark/tinted), splash, and the cutoff
-   notification toggle end-to-end.
+1. Push/land the local `main` merge stack if it is not already on GitHub.
+2. Manual device pass: `npx expo run:ios`; check tab-bar glyphs, home-screen
+   icon (light/dark/tinted), splash, Settings privacy/support links, and the
+   cutoff notification toggle end-to-end.
 3. App Store Connect record for `com.nmapaye.aurora` → set `ascAppId` in
    `eas.json` → `eas build -p ios --profile production` → EAS Submit.
-4. TestFlight public invite + Gumroad product → fill
-   `VITE_AURORA_GUMROAD_URL` / `VITE_AURORA_TESTFLIGHT_URL` (website env) and
-   the `[insert …]` placeholders in `docs/testflight-beta-metadata.md`.
-5. Physical-iPhone smoke checklist in `docs/demo-release.md`.
+4. App Store listing + free TestFlight public invite + optional Gumroad
+   companion guide → fill `VITE_AURORA_APP_STORE_URL`,
+   `VITE_AURORA_GUMROAD_URL`, and `VITE_AURORA_TESTFLIGHT_URL` (website env)
+   and the `[insert ...]` placeholders in `docs/testflight-beta-metadata.md`
+   and `docs/app-store-metadata.md`.
+5. Physical iPhone and iPad smoke checklists in `docs/demo-release.md`.

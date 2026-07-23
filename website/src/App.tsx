@@ -10,6 +10,7 @@ import {
 type DemoScreen = 'home' | 'sleep' | 'insights' | 'vigilance';
 
 const githubUrl = 'https://github.com/nmapaye/aurora';
+const appStoreUrl = getConfiguredUrl('VITE_AURORA_APP_STORE_URL');
 const gumroadUrl = getConfiguredUrl('VITE_AURORA_GUMROAD_URL');
 const testFlightUrl = getConfiguredUrl('VITE_AURORA_TESTFLIGHT_URL');
 
@@ -52,6 +53,7 @@ export default function App() {
           <a href="#demo">Demo</a>
           <a href="#access">Access</a>
           <a href="#proof">Proof</a>
+          <a href="privacy.html">Privacy</a>
           <a className="nav-cta" href={githubUrl} target="_blank" rel="noreferrer">
             View on GitHub
           </a>
@@ -74,7 +76,7 @@ export default function App() {
                 Explore the project
               </a>
               <a className="button button-secondary" href="#access">
-                Get TestFlight access
+                Release access
               </a>
             </div>
             <div className="hero-points">
@@ -238,31 +240,45 @@ export default function App() {
 
         <section id="access" className="section access-section">
           <div className="section-heading">
-            <div className="eyebrow">Gumroad + TestFlight</div>
-            <h2>Access through Gumroad. Install through TestFlight.</h2>
+            <div className="eyebrow">App Store + TestFlight</div>
+            <h2>Buy through the App Store. Test through free TestFlight.</h2>
             <p>
-              Gumroad holds the guide and support path. TestFlight delivers the iOS beta.
+              Aurora is prepared for paid App Store distribution. TestFlight is for unpaid beta testing, and Gumroad is only a companion guide and support package.
             </p>
           </div>
           <div className="proof-grid">
             <article id="release-links" className="proof-card">
-              <h3>Get TestFlight access</h3>
+              <h3>Paid app release</h3>
               <p>
-                Add the Gumroad link when the package is ready.
+                App access is sold through Apple commerce when the App Store listing is approved.
               </p>
               <ConfiguredLink
                 className="button button-primary full-width"
                 fallbackHref="#release-links"
-                placeholderLabel="Set VITE_AURORA_GUMROAD_URL"
-                url={gumroadUrl}
+                placeholderLabel="Set VITE_AURORA_APP_STORE_URL"
+                url={appStoreUrl}
               >
-                Open Gumroad package
+                Open App Store listing
               </ConfiguredLink>
             </article>
             <article className="proof-card">
-              <h3>What the demo includes</h3>
+              <h3>Companion guide</h3>
               <p>
-                The package explains access. The app runs in TestFlight.
+                Gumroad may include the walkthrough, changelog, support path, and release notes. It does not unlock the app or gate TestFlight access.
+              </p>
+              <ConfiguredLink
+                className="button button-secondary full-width"
+                fallbackHref="#release-links"
+                placeholderLabel="Set VITE_AURORA_GUMROAD_URL"
+                url={gumroadUrl}
+              >
+                Open Gumroad guide
+              </ConfiguredLink>
+            </article>
+            <article className="proof-card">
+              <h3>Free beta testing</h3>
+              <p>
+                TestFlight is used only for uncompensated beta testing before the paid App Store release.
               </p>
               <ul>
                 <li>Health sleep import with a manual path</li>
@@ -271,9 +287,9 @@ export default function App() {
               </ul>
             </article>
             <article className="proof-card">
-              <h3>Tester notes</h3>
+              <h3>Privacy and support</h3>
               <p>
-                Health access is optional. Sample data stays local. Aurora is not medical advice.
+                Health access is optional and read-only. Aurora stores demo records on device and is not medical advice.
               </p>
               <ConfiguredLink
                 className="button button-secondary full-width"
@@ -281,12 +297,18 @@ export default function App() {
                 placeholderLabel="Set VITE_AURORA_TESTFLIGHT_URL"
                 url={testFlightUrl}
               >
-                Open TestFlight invite
+                Open free TestFlight invite
               </ConfiguredLink>
             </article>
           </div>
         </section>
       </main>
+
+      <footer className="site-footer">
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="support.html">Support</a>
+        <a href={githubUrl} target="_blank" rel="noreferrer">GitHub</a>
+      </footer>
     </div>
   );
 }

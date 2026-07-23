@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Linking } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -12,6 +13,13 @@ import {
 import { goBack } from '~/navigation';
 import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
+
+const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
+const supportUrl = 'https://nmapaye.github.io/aurora/support.html';
+
+function openExternalUrl(url: string) {
+  Linking.openURL(url).catch(() => {});
+}
 
 export default function SettingsScreen() {
   const prefs = useStore((s) => s.prefs);
@@ -118,6 +126,20 @@ export default function SettingsScreen() {
         <ListRow
           title="Current release focus"
           subtitle="Health sleep import, caffeine logging, vigilance testing, and insights."
+        />
+        <ListRow
+          title="Privacy Policy"
+          subtitle="Read-only Health sleep access, local storage, exports, and deletion."
+          onPress={() => openExternalUrl(privacyPolicyUrl)}
+        />
+        <ListRow
+          title="Support"
+          subtitle="Get help, report issues, and avoid sharing private Health data."
+          onPress={() => openExternalUrl(supportUrl)}
+        />
+        <ListRow
+          title="Medical disclaimer"
+          subtitle="Aurora is informational only and does not diagnose, treat, cure, or prevent any disease or condition."
         />
         <ListRow
           title="Deferred for later"
