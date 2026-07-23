@@ -26,7 +26,7 @@ export type SummaryWalkthroughStep = {
 
 export const WALKTHROUGH_START_DELAY_MS = 300;
 export const WALKTHROUGH_SCROLL_SETTLE_MS = 350;
-export const WALKTHROUGH_REVEAL_SETTLE_MS = 700;
+export const WALKTHROUGH_REVEAL_SETTLE_MS = 900;
 export const WALKTHROUGH_REDUCED_MOTION_SETTLE_MS = 120;
 export const WALKTHROUGH_TOP_CLEARANCE = 24;
 

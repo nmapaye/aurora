@@ -1,4 +1,8 @@
 import { getRevealMotionPlan } from '~/features/summaryWalkthrough/motion';
+import {
+  WALKTHROUGH_REDUCED_MOTION_SETTLE_MS,
+  WALKTHROUGH_REVEAL_SETTLE_MS,
+} from '~/features/summaryWalkthrough/model';
 
 describe('Summary walkthrough motion', () => {
   it('uses the approved soft spring cascade', () => {
@@ -19,5 +23,17 @@ describe('Summary walkthrough motion', () => {
       mode: 'timing',
       durationMs: 120,
     });
+  });
+
+  it('settles the final index-7 reveal before coaching in under one second', () => {
+    const finalReveal = getRevealMotionPlan(false, 7);
+
+    expect(finalReveal.delayMs).toBe(560);
+    expect(WALKTHROUGH_REVEAL_SETTLE_MS).toBe(900);
+    expect(WALKTHROUGH_REVEAL_SETTLE_MS).toBeLessThan(1000);
+    expect(
+      WALKTHROUGH_REVEAL_SETTLE_MS - finalReveal.delayMs,
+    ).toBeGreaterThanOrEqual(340);
+    expect(WALKTHROUGH_REDUCED_MOTION_SETTLE_MS).toBe(120);
   });
 });

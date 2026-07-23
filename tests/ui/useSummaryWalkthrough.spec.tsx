@@ -183,6 +183,44 @@ describe('useSummaryWalkthrough', () => {
     expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
   });
 
+  it('waits for the final index-7 stage-three reveal to settle before coaching', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: true,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+    const finalRevealDelayMs = 7 * 80;
+    const minimumSpringSettleMs = 340;
+
+    await advanceToFirstCoach(result);
+    await advanceToNextCoach(result);
+    await act(() => {
+      result.current.onPrimary();
+    });
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(
+        finalRevealDelayMs + minimumSpringSettleMs - 1,
+      );
+    });
+
+    expect(result.current.step.id).toBe('logging');
+    expect(result.current.coachVisible).toBe(false);
+
+    await act(() => {
+      jest.advanceTimersByTime(1);
+    });
+
+    expect(result.current.coachVisible).toBe(true);
+  });
+
   it('persists completion before dismissing on Skip', async () => {
     let activeWhenCompleted = false;
     const onComplete = jest.fn(() => {
