@@ -46,6 +46,7 @@ const nonDefaultPersistedState = {
     source: 'manual' as const,
     permissionStatus: 'denied' as const,
     completedAt: 1_700_000_000_000,
+    summaryWalkthroughCompleted: true,
   },
   healthSync: { importedCount: 5, lastSyncedAt: 1_700_000_000_000, lastMessage: 'Synced' },
   demoMode: true,
@@ -61,7 +62,7 @@ describe('store persistence round-trip', () => {
   it('preserves every persisted key through rehydrate (merge + normalize)', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
-      JSON.stringify({ state: nonDefaultPersistedState, version: 3 })
+      JSON.stringify({ state: nonDefaultPersistedState, version: 4 })
     );
 
     await useStore.persist.rehydrate();

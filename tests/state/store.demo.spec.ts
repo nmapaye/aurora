@@ -18,6 +18,7 @@ function resetStore() {
       completed: false,
       source: 'healthkit',
       permissionStatus: 'idle',
+      summaryWalkthroughCompleted: false,
     },
     healthSync: { importedCount: 0 },
     demoMode: false,
@@ -169,7 +170,7 @@ describe('sample data store actions', () => {
     expect(state.vigilanceSessions[0].id).toBe('user:vigilance');
   });
 
-  it('hydrates default health sync, demo mode, and appearance for same-version persisted states missing those fields', async () => {
+  it('migrates completed version 3 onboarding as walkthrough-complete', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
       JSON.stringify({
@@ -203,6 +204,7 @@ describe('sample data store actions', () => {
       source: 'healthkit',
       permissionStatus: 'idle',
     });
+    expect(state.onboarding.summaryWalkthroughCompleted).toBe(true);
   });
 
   it('migrates older persisted states with health sync and demo mode fallbacks', async () => {
@@ -234,6 +236,7 @@ describe('sample data store actions', () => {
       cutoffHour: 16,
       notifyCutoff: false,
     });
+    expect(state.onboarding.summaryWalkthroughCompleted).toBe(false);
   });
 
   it('updates and persists appearance mode choices', async () => {

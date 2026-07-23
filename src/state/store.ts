@@ -27,6 +27,7 @@ type Onboarding = {
   source: OnboardingSource;
   permissionStatus: HealthPermissionStatus;
   completedAt?: number;
+  summaryWalkthroughCompleted: boolean;
 };
 
 type State = {
@@ -51,6 +52,7 @@ type State = {
   loadDemoData: () => void;
   clearDemoData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
+  completeSummaryWalkthrough: () => void;
 };
 
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
@@ -77,6 +79,7 @@ const defaultOnboarding: Onboarding = {
   completed: false,
   source: 'healthkit',
   permissionStatus: 'idle',
+  summaryWalkthroughCompleted: false,
 };
 const defaultHealthSync: HealthSync = { importedCount: 0 };
 const demoIdPrefix = 'demo:';
@@ -180,10 +183,17 @@ export const useStore = create<State>()(
             completedAt: Date.now(),
           },
         })),
+      completeSummaryWalkthrough: () =>
+        set((s) => ({
+          onboarding: {
+            ...s.onboarding,
+            summaryWalkthroughCompleted: true,
+          },
+        })),
     }),
     {
       name: 'aurora/state',
-      version: 3,
+      version: 4,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
@@ -196,9 +206,19 @@ export const useStore = create<State>()(
         appearanceMode: s.appearanceMode,
       }),
       migrate: (persistedState, version) => {
-        const nextState = (persistedState ?? {}) as Partial<PersistedState>;
+        let nextState = (persistedState ?? {}) as Partial<PersistedState>;
         if (version < 2) {
-          return normalizePersistedState({ ...nextState, vigilanceSessions: [] });
+          nextState = { ...nextState, vigilanceSessions: [] };
+        }
+        if (version < 4) {
+          const legacyOnboarding = nextState.onboarding as Partial<Onboarding> | undefined;
+          nextState = {
+            ...nextState,
+            onboarding: {
+              ...legacyOnboarding,
+              summaryWalkthroughCompleted: legacyOnboarding?.completed === true,
+            } as Onboarding,
+          };
         }
         return normalizePersistedState(nextState);
       },
