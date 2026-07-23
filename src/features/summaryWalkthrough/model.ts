@@ -117,8 +117,13 @@ export function reduceWalkthrough(
         ? { stageIndex: state.stageIndex + 1, phase: 'positioning' }
         : state;
     case 'SKIP':
-    case 'FINISH':
       return { ...state, phase: 'complete' };
+    case 'FINISH':
+      return state.phase === 'complete' ||
+        (state.phase === 'coaching' &&
+          state.stageIndex === SUMMARY_WALKTHROUGH_STEPS.length - 1)
+        ? { ...state, phase: 'complete' }
+        : state;
     default:
       return state;
   }

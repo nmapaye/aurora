@@ -16,27 +16,47 @@ describe('Summary walkthrough model', () => {
         id: step.id,
         progress: step.progress,
         title: step.title,
+        body: step.body,
+        revealGroups: step.revealGroups,
+        anchor: step.anchor,
+        primaryAction: step.primaryAction,
       })),
     ).toEqual([
       {
         id: 'orientation',
         progress: '1 of 4',
         title: 'Your day at a glance',
+        body: 'Aurora brings caffeine, sleep, and alertness together.',
+        revealGroups: ['header', 'alert'],
+        anchor: 'top',
+        primaryAction: 'Next',
       },
       {
         id: 'signals',
         progress: '2 of 4',
         title: 'See what shapes alertness',
+        body: 'These signals show how caffeine, sleep, and vigilance shape your day. Tap any card later to explore it.',
+        revealGroups: ['pinned', 'today'],
+        anchor: 'pinned',
+        primaryAction: 'Next',
       },
       {
         id: 'logging',
         progress: '3 of 4',
         title: 'Log in a tap',
+        body: 'Use a common amount, or open Custom Entry when you need more detail.',
+        revealGroups: ['logging', 'recent'],
+        anchor: 'logging',
+        primaryAction: 'Next',
       },
       {
         id: 'explore',
         progress: '4 of 4',
         title: 'Keep exploring',
+        body: 'Sleep manages rest data, Log records caffeine, and Insights reveals patterns over time.',
+        revealGroups: [],
+        anchor: 'logging',
+        primaryAction: 'Finish',
       },
     ]);
   });
@@ -92,6 +112,39 @@ describe('Summary walkthrough model', () => {
     expect(
       reduceWalkthrough(
         { stageIndex: 3, phase: 'coaching' },
+        { type: 'FINISH' },
+      ),
+    ).toEqual({ stageIndex: 3, phase: 'complete' });
+  });
+
+  it('does not finish before the final coaching stage', () => {
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 0, phase: 'coaching' },
+        { type: 'FINISH' },
+      ),
+    ).toEqual({ stageIndex: 0, phase: 'coaching' });
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 1, phase: 'coaching' },
+        { type: 'FINISH' },
+      ),
+    ).toEqual({ stageIndex: 1, phase: 'coaching' });
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 2, phase: 'coaching' },
+        { type: 'FINISH' },
+      ),
+    ).toEqual({ stageIndex: 2, phase: 'coaching' });
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 3, phase: 'positioning' },
+        { type: 'FINISH' },
+      ),
+    ).toEqual({ stageIndex: 3, phase: 'positioning' });
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 3, phase: 'complete' },
         { type: 'FINISH' },
       ),
     ).toEqual({ stageIndex: 3, phase: 'complete' });
