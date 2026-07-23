@@ -1,6 +1,9 @@
 import React from 'react';
 import type { RefObject } from 'react';
-import type { Text as TextInstance } from 'react-native';
+import type {
+  LayoutChangeEvent,
+  Text as TextInstance,
+} from 'react-native';
 import { Text, View } from 'react-native';
 
 import Button from '~/components/Button';
@@ -18,6 +21,7 @@ type Props = {
   step: SummaryWalkthroughStep;
   locked: boolean;
   headingRef: RefObject<TextInstance | null>;
+  onLayout?: (event: LayoutChangeEvent) => void;
   onSkip: () => void;
   onPrimary: () => void;
 };
@@ -26,6 +30,7 @@ export default function SummaryWalkthroughCoach({
   step,
   locked,
   headingRef,
+  onLayout,
   onSkip,
   onPrimary,
 }: Props) {
@@ -34,6 +39,7 @@ export default function SummaryWalkthroughCoach({
   return (
     <View
       accessibilityViewIsModal
+      onLayout={onLayout}
       style={{
         width: '100%',
         maxWidth: 560,

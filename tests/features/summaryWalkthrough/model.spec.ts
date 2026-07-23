@@ -199,12 +199,14 @@ describe('Summary walkthrough model', () => {
     ).toBe(false);
   });
 
-  it('ignores duplicate settle and finish events', () => {
+  it('ignores a duplicate settle event', () => {
     const coaching = { stageIndex: 1, phase: 'coaching' } as const;
     expect(
       reduceWalkthrough(coaching, { type: 'SETTLED' }),
     ).toEqual(coaching);
+  });
 
+  it('keeps duplicate Finish referentially idempotent', () => {
     const complete = { stageIndex: 3, phase: 'complete' } as const;
     expect(
       reduceWalkthrough(complete, { type: 'FINISH' }),

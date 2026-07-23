@@ -1,5 +1,9 @@
 import React, { createRef } from 'react';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import {
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import {
@@ -82,5 +86,21 @@ describe('Summary walkthrough presentation', () => {
 
     expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('forwards coach layout measurements from its root', async () => {
+    const onLayout = jest.fn();
+    await render(
+      <SummaryWalkthroughCoach
+        step={SUMMARY_WALKTHROUGH_STEPS[0]}
+        locked={false}
+        headingRef={createRef()}
+        onLayout={onLayout}
+        onSkip={jest.fn()}
+        onPrimary={jest.fn()}
+      />,
+    );
+    const coachRoot = screen.root;
+    expect(coachRoot).toHaveProp('onLayout', onLayout);
   });
 });

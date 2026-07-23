@@ -21,6 +21,7 @@ import type {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
+import { spacing } from '~/theme/tokens';
 import {
   getRevealedGroups,
   getTargetScrollY,
@@ -40,6 +41,8 @@ import type {
 } from './model';
 
 type AnchorMeasurement = { y: number; height: number };
+
+const WALKTHROUGH_COACH_FALLBACK_CLEARANCE = 180;
 
 type Options = {
   enabled: boolean;
@@ -64,10 +67,16 @@ export default function useSummaryWalkthrough({
   );
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [scrollY, setScrollY] = useState(0);
-  const [anchors, setAnchors] = useState<
+  const viewportHeightRef = useRef(0);
+  const scrollYRef = useRef(0);
+  const anchorsRef = useRef<
     Partial<Record<SummaryAnchorId, AnchorMeasurement>>
   >({ top: { y: 0, height: 1 } });
+  const coachHeightRef = useRef(0);
+  const enabledRef = useRef(enabled);
+  const reduceMotionRef = useRef(reduceMotion);
+  const scrollViewRef = useRef(scrollRef);
+  const positioningStageRef = useRef<number | null>(null);
   const coachHeadingRef = useRef<Text | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -78,18 +87,28 @@ export default function useSummaryWalkthrough({
   const completedRef = useRef(false);
   const announcedStagesRef = useRef(new Set<number>());
 
+  enabledRef.current = enabled;
+  reduceMotionRef.current = reduceMotion;
+  scrollViewRef.current = scrollRef;
+
   useEffect(() => {
     let alive = true;
+    let receivedSystemEvent = false;
+    const onReduceMotionChanged = (value: boolean) => {
+      receivedSystemEvent = true;
+      if (alive) setReduceMotion(value);
+    };
+
     AccessibilityInfo.isReduceMotionEnabled()
       .then((value) => {
-        if (alive) setReduceMotion(value);
+        if (alive && !receivedSystemEvent) setReduceMotion(value);
       })
       .catch(() => {
-        if (alive) setReduceMotion(true);
+        if (alive && !receivedSystemEvent) setReduceMotion(true);
       });
     const subscription = AccessibilityInfo.addEventListener(
       'reduceMotionChanged',
-      setReduceMotion,
+      onReduceMotionChanged,
     );
     return () => {
       alive = false;
@@ -116,32 +135,44 @@ export default function useSummaryWalkthrough({
     };
   }, [enabled, reduceMotion, state.phase, viewportHeight]);
 
-  const currentStep = SUMMARY_WALKTHROUGH_STEPS[state.stageIndex];
-
   useEffect(() => {
-    if (!enabled || state.phase !== 'positioning' || reduceMotion === null) {
+    const stageIndex = state.stageIndex;
+    const motionReduced = reduceMotionRef.current;
+    if (
+      !enabledRef.current ||
+      state.phase !== 'positioning' ||
+      motionReduced === null ||
+      positioningStageRef.current === stageIndex
+    ) {
       return;
     }
+    positioningStageRef.current = stageIndex;
 
-    const target = anchors[currentStep.anchor];
+    const currentStep = SUMMARY_WALKTHROUGH_STEPS[stageIndex];
+    const target = anchorsRef.current[currentStep.anchor];
+    const currentViewportHeight = viewportHeightRef.current;
     let shouldAnimateScroll = false;
-    if (target && viewportHeight > 0) {
+    if (target && currentViewportHeight > 0) {
+      const measuredCoachHeight = coachHeightRef.current;
       const visible = isTargetFullyVisible({
         targetY: target.y,
         targetHeight: target.height,
-        scrollY,
-        viewportHeight,
+        scrollY: scrollYRef.current,
+        viewportHeight: currentViewportHeight,
         topClearance: WALKTHROUGH_TOP_CLEARANCE,
-        bottomClearance: 180,
+        bottomClearance:
+          measuredCoachHeight > 0
+            ? measuredCoachHeight + spacing.sm
+            : WALKTHROUGH_COACH_FALLBACK_CLEARANCE,
       });
       if (!visible) {
-        shouldAnimateScroll = !reduceMotion;
-        scrollRef.current?.scrollTo({
+        shouldAnimateScroll = !motionReduced;
+        scrollViewRef.current.current?.scrollTo({
           y: getTargetScrollY(
             target.y,
             WALKTHROUGH_TOP_CLEARANCE,
           ),
-          animated: !reduceMotion,
+          animated: !motionReduced,
         });
       }
     }
@@ -154,16 +185,9 @@ export default function useSummaryWalkthrough({
     return () => {
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     };
-  }, [
-    anchors,
-    currentStep.anchor,
-    enabled,
-    reduceMotion,
-    scrollRef,
-    scrollY,
-    state.phase,
-    viewportHeight,
-  ]);
+  }, [state.phase, state.stageIndex]);
+
+  const currentStep = SUMMARY_WALKTHROUGH_STEPS[state.stageIndex];
 
   useEffect(() => {
     if (!enabled || state.phase !== 'revealing' || reduceMotion === null) {
@@ -223,10 +247,10 @@ export default function useSummaryWalkthrough({
       node.measureLayout(
         contentRef.current,
         (_x, y, _width, height) => {
-          setAnchors((current) => ({
-            ...current,
+          anchorsRef.current = {
+            ...anchorsRef.current,
             [id]: { y, height },
-          }));
+          };
         },
         () => {},
       );
@@ -235,15 +259,24 @@ export default function useSummaryWalkthrough({
   );
 
   const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
-    setViewportHeight(event.nativeEvent.layout.height);
+    const height = event.nativeEvent.layout.height;
+    viewportHeightRef.current = height;
+    setViewportHeight(height);
   }, []);
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      setScrollY(event.nativeEvent.contentOffset.y);
+      scrollYRef.current = event.nativeEvent.contentOffset.y;
     },
     [],
   );
+
+  const onCoachLayout = useCallback((event: LayoutChangeEvent) => {
+    coachHeightRef.current = Math.max(
+      0,
+      event.nativeEvent.layout.height,
+    );
+  }, []);
 
   const finish = useCallback(
     (type: 'SKIP' | 'FINISH') => {
@@ -290,6 +323,7 @@ export default function useSummaryWalkthrough({
     isRevealed: (group: SummaryRevealGroup) =>
       revealedGroups.includes(group),
     measureAnchor,
+    onCoachLayout,
     onViewportLayout,
     onScroll,
     onSkip: () => finish('SKIP'),
