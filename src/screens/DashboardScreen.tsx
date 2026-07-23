@@ -182,6 +182,7 @@ export default function DashboardScreen() {
       active={walkthrough.active}
       revealed={walkthrough.isRevealed('alert')}
       reduceMotion={walkthrough.reduceMotion}
+      staggerIndex={1}
     >
       {alertCard}
     </WalkthroughReveal>
@@ -460,7 +461,8 @@ export default function DashboardScreen() {
       active={walkthrough.active}
       revealed={walkthrough.isRevealed('recent')}
       reduceMotion={walkthrough.reduceMotion}
-      staggerIndex={1}
+      staggerIndex={7}
+      style={{ gap: spacing.md }}
     >
       {recentSection}
     </WalkthroughReveal>
@@ -510,6 +512,7 @@ export default function DashboardScreen() {
           active={walkthrough.active}
           revealed={walkthrough.isRevealed('header')}
           reduceMotion={walkthrough.reduceMotion}
+          staggerIndex={0}
         >
           {header}
         </WalkthroughReveal>

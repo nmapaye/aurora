@@ -6,6 +6,8 @@ import {
 import type {
   Text as TextInstance,
 } from 'react-native';
+import { StyleSheet } from 'react-native';
+import type { TestInstance } from 'test-renderer';
 
 import {
   SUMMARY_WALKTHROUGH_STEPS,
@@ -79,6 +81,20 @@ const mockUseSummaryWalkthrough = jest.mocked(
   useSummaryWalkthrough,
 );
 
+function findRevealAncestor(node: TestInstance) {
+  let ancestor = node.parent;
+  while (ancestor) {
+    if (
+      ancestor.props.accessibilityElementsHidden === false &&
+      ancestor.props.importantForAccessibility === 'auto'
+    ) {
+      return ancestor;
+    }
+    ancestor = ancestor.parent;
+  }
+  throw new Error('Expected a real WalkthroughReveal ancestor');
+}
+
 describe('DashboardScreen summary walkthrough composition', () => {
   const onCoachLayout = jest.fn();
 
@@ -136,5 +152,16 @@ describe('DashboardScreen summary walkthrough composition', () => {
       'pointerEvents',
       'none',
     );
+  });
+
+  it('preserves the real Recent Activity section gap inside its reveal', async () => {
+    await render(<DashboardScreen />);
+
+    const recentReveal = findRevealAncestor(
+      screen.getByText('Recent Activity'),
+    );
+    expect(StyleSheet.flatten(recentReveal.props.style)).toMatchObject({
+      gap: 16,
+    });
   });
 });
