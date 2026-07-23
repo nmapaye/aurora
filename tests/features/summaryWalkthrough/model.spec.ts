@@ -185,4 +185,29 @@ describe('Summary walkthrough model', () => {
     expect(getTargetScrollY(20, 32)).toBe(0);
     expect(getTargetScrollY(420, 32)).toBe(388);
   });
+
+  it('treats a target hidden behind the coach card as not fully visible', () => {
+    expect(
+      isTargetFullyVisible({
+        targetY: 500,
+        targetHeight: 120,
+        scrollY: 100,
+        viewportHeight: 600,
+        topClearance: 24,
+        bottomClearance: 180,
+      }),
+    ).toBe(false);
+  });
+
+  it('ignores duplicate settle and finish events', () => {
+    const coaching = { stageIndex: 1, phase: 'coaching' } as const;
+    expect(
+      reduceWalkthrough(coaching, { type: 'SETTLED' }),
+    ).toEqual(coaching);
+
+    const complete = { stageIndex: 3, phase: 'complete' } as const;
+    expect(
+      reduceWalkthrough(complete, { type: 'FINISH' }),
+    ).toBe(complete);
+  });
 });
