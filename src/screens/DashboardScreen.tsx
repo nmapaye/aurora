@@ -479,11 +479,11 @@ export default function DashboardScreen() {
     </WalkthroughReveal>
   );
 
-  const walkthroughCoach = walkthrough.coachVisible ? (
+  const walkthroughCoach = walkthrough.active ? (
     <WalkthroughReveal
       key={walkthrough.step.id}
       active
-      revealed
+      revealed={walkthrough.coachVisible}
       reduceMotion={walkthrough.reduceMotion}
     >
       <SummaryWalkthroughCoach

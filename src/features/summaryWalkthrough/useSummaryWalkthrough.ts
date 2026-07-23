@@ -41,8 +41,14 @@ import type {
 } from './model';
 
 type AnchorMeasurement = { y: number; height: number };
+type ViewportMeasurement = { width: number; height: number };
 
 const WALKTHROUGH_COACH_FALLBACK_CLEARANCE = 180;
+const GEOMETRY_EPSILON = 0.5;
+
+function geometryValueChanged(previous: number, next: number) {
+  return Math.abs(previous - next) >= GEOMETRY_EPSILON;
+}
 
 type Options = {
   enabled: boolean;
@@ -66,8 +72,13 @@ export default function useSummaryWalkthrough({
     initialWalkthroughState,
   );
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  const [geometryRevision, setGeometryRevision] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportHeightRef = useRef(0);
+  const viewportRef = useRef<ViewportMeasurement>({
+    width: 0,
+    height: 0,
+  });
   const scrollYRef = useRef(0);
   const anchorsRef = useRef<
     Partial<Record<SummaryAnchorId, AnchorMeasurement>>
@@ -83,8 +94,14 @@ export default function useSummaryWalkthrough({
   );
   const completedRef = useRef(false);
   const announcedStagesRef = useRef(new Set<number>());
+  const isWideLayoutRef = useRef(isWideLayout);
 
   scrollViewRef.current = scrollRef;
+
+  const markGeometryChanged = useCallback(() => {
+    setGeometryRevision((current) => current + 1);
+    dispatch({ type: 'GEOMETRY_CHANGED' });
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -121,14 +138,24 @@ export default function useSummaryWalkthrough({
       return;
     }
 
-    startTimerRef.current = setTimeout(() => {
+    const startTimer = setTimeout(() => {
       dispatch({ type: 'START' });
     }, WALKTHROUGH_START_DELAY_MS);
+    startTimerRef.current = startTimer;
 
     return () => {
-      if (startTimerRef.current) clearTimeout(startTimerRef.current);
+      clearTimeout(startTimer);
+      if (startTimerRef.current === startTimer) {
+        startTimerRef.current = null;
+      }
     };
   }, [enabled, reduceMotion, state.phase, viewportHeight]);
+
+  useEffect(() => {
+    if (isWideLayoutRef.current === isWideLayout) return;
+    isWideLayoutRef.current = isWideLayout;
+    markGeometryChanged();
+  }, [isWideLayout, markGeometryChanged]);
 
   useEffect(() => {
     const stageIndex = state.stageIndex;
@@ -157,27 +184,43 @@ export default function useSummaryWalkthrough({
             ? measuredCoachHeight + spacing.sm
             : WALKTHROUGH_COACH_FALLBACK_CLEARANCE,
       });
-      if (!visible) {
+      const targetScrollY = getTargetScrollY(
+        target.y,
+        WALKTHROUGH_TOP_CLEARANCE,
+      );
+      const alreadyAtTarget =
+        !geometryValueChanged(
+          scrollYRef.current,
+          targetScrollY,
+        );
+      if (!visible && !alreadyAtTarget) {
         shouldAnimateScroll = !reduceMotion;
         scrollViewRef.current.current?.scrollTo({
-          y: getTargetScrollY(
-            target.y,
-            WALKTHROUGH_TOP_CLEARANCE,
-          ),
+          y: targetScrollY,
           animated: !reduceMotion,
         });
       }
     }
 
-    settleTimerRef.current = setTimeout(
+    const settleTimer = setTimeout(
       () => dispatch({ type: 'POSITIONED' }),
       shouldAnimateScroll ? WALKTHROUGH_SCROLL_SETTLE_MS : 0,
     );
+    settleTimerRef.current = settleTimer;
 
     return () => {
-      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      clearTimeout(settleTimer);
+      if (settleTimerRef.current === settleTimer) {
+        settleTimerRef.current = null;
+      }
     };
-  }, [enabled, reduceMotion, state.phase, state.stageIndex]);
+  }, [
+    enabled,
+    geometryRevision,
+    reduceMotion,
+    state.phase,
+    state.stageIndex,
+  ]);
 
   const currentStep = SUMMARY_WALKTHROUGH_STEPS[state.stageIndex];
 
@@ -186,15 +229,19 @@ export default function useSummaryWalkthrough({
       return;
     }
 
-    settleTimerRef.current = setTimeout(
+    const settleTimer = setTimeout(
       () => dispatch({ type: 'SETTLED' }),
       reduceMotion
         ? WALKTHROUGH_REDUCED_MOTION_SETTLE_MS
         : WALKTHROUGH_REVEAL_SETTLE_MS,
     );
+    settleTimerRef.current = settleTimer;
 
     return () => {
-      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      clearTimeout(settleTimer);
+      if (settleTimerRef.current === settleTimer) {
+        settleTimerRef.current = null;
+      }
     };
   }, [enabled, reduceMotion, state.phase]);
 
@@ -239,22 +286,38 @@ export default function useSummaryWalkthrough({
       node.measureLayout(
         contentRef.current,
         (_x, y, _width, height) => {
+          const current = anchorsRef.current[id];
+          if (
+            current &&
+            !geometryValueChanged(current.y, y) &&
+            !geometryValueChanged(current.height, height)
+          ) {
+            return;
+          }
           anchorsRef.current = {
             ...anchorsRef.current,
             [id]: { y, height },
           };
+          markGeometryChanged();
         },
         () => {},
       );
     },
-    [contentRef],
+    [contentRef, markGeometryChanged],
   );
 
   const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
     const height = event.nativeEvent.layout.height;
+    const previous = viewportRef.current;
+    const changed =
+      geometryValueChanged(previous.width, width) ||
+      geometryValueChanged(previous.height, height);
+    viewportRef.current = { width, height };
     viewportHeightRef.current = height;
     setViewportHeight(height);
-  }, []);
+    if (changed) markGeometryChanged();
+  }, [markGeometryChanged]);
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -264,11 +327,16 @@ export default function useSummaryWalkthrough({
   );
 
   const onCoachLayout = useCallback((event: LayoutChangeEvent) => {
-    coachHeightRef.current = Math.max(
+    const height = Math.max(
       0,
       event.nativeEvent.layout.height,
     );
-  }, []);
+    if (!geometryValueChanged(coachHeightRef.current, height)) {
+      return;
+    }
+    coachHeightRef.current = height;
+    markGeometryChanged();
+  }, [markGeometryChanged]);
 
   const finish = useCallback(
     (type: 'SKIP' | 'FINISH') => {

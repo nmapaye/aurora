@@ -33,10 +33,10 @@ const contentRef = {
 } as RefObject<View | null>;
 let removeReduceMotionListener: jest.Mock;
 
-function viewportEvent(height = 640) {
+function viewportEvent(height = 640, width = 390) {
   return {
     nativeEvent: {
-      layout: { x: 0, y: 0, width: 390, height },
+      layout: { x: 0, y: 0, width, height },
     },
   } as LayoutChangeEvent;
 }
@@ -181,6 +181,24 @@ describe('useSummaryWalkthrough', () => {
       'Your day at a glance. Aurora brings caffeine, sleep, and alertness together.',
     );
     expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not issue a redundant animated scroll for stage one at the top', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await advanceToFirstCoach(result);
+
+    expect(scrollRef.current?.scrollTo).not.toHaveBeenCalled();
+    expect(result.current.coachVisible).toBe(true);
   });
 
   it('waits for the final index-7 stage-three reveal to settle before coaching', async () => {
@@ -391,6 +409,158 @@ describe('useSummaryWalkthrough', () => {
     expect(result.current.coachVisible).toBe(false);
   });
 
+  it('restarts positioning after rotation and cancels the stale settle', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await act(() => {
+      result.current.measureAnchor('pinned', anchorNode(900));
+    });
+    await advanceToFirstCoach(result);
+    jest.mocked(scrollRef.current!.scrollTo).mockClear();
+
+    await act(() => {
+      result.current.onPrimary();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(100);
+      result.current.onViewportLayout(viewportEvent(500, 844));
+    });
+
+    expect(scrollRef.current?.scrollTo).toHaveBeenCalledTimes(2);
+
+    await act(() => {
+      jest.advanceTimersByTime(
+        WALKTHROUGH_SCROLL_SETTLE_MS - 100,
+      );
+    });
+    expect(result.current.isRevealed('pinned')).toBe(false);
+
+    await act(() => {
+      jest.advanceTimersByTime(100);
+    });
+    expect(result.current.isRevealed('pinned')).toBe(true);
+    expect(result.current.step.id).toBe('signals');
+  });
+
+  it('repositions a coaching stage after rotation without repeating cues', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await advanceToFirstCoach(result);
+    expect(result.current.coachVisible).toBe(true);
+
+    await act(() => {
+      result.current.onViewportLayout(viewportEvent(390, 844));
+    });
+    expect(result.current.step.id).toBe('orientation');
+    expect(result.current.coachVisible).toBe(false);
+
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(WALKTHROUGH_REVEAL_SETTLE_MS);
+    });
+
+    expect(result.current.coachVisible).toBe(true);
+    expect(
+      AccessibilityInfo.announceForAccessibility,
+    ).toHaveBeenCalledTimes(1);
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('repositions the current stage when compact layout becomes wide', async () => {
+    const { result, rerender } = await renderHook(
+      (isWideLayout: boolean) =>
+        useSummaryWalkthrough({
+          enabled: true,
+          hasAlert: false,
+          isWideLayout,
+          scrollRef,
+          contentRef,
+          onComplete: jest.fn(),
+        }),
+      { initialProps: false },
+    );
+
+    await advanceToFirstCoach(result);
+    await advanceToNextCoach(result);
+    expect(result.current.step.id).toBe('signals');
+    expect(result.current.coachVisible).toBe(true);
+    expect(result.current.isRevealed('today')).toBe(false);
+
+    await rerender(true);
+    expect(result.current.step.id).toBe('signals');
+    expect(result.current.coachVisible).toBe(false);
+
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(WALKTHROUGH_REVEAL_SETTLE_MS);
+    });
+
+    expect(result.current.coachVisible).toBe(true);
+    expect(result.current.isRevealed('today')).toBe(true);
+    expect(
+      AccessibilityInfo.announceForAccessibility,
+    ).toHaveBeenCalledTimes(2);
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('restarts positioning when the active anchor measurement changes', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await act(() => {
+      result.current.measureAnchor('pinned', anchorNode(900));
+    });
+    await advanceToFirstCoach(result);
+    jest.mocked(scrollRef.current!.scrollTo).mockClear();
+
+    await act(() => {
+      result.current.onPrimary();
+    });
+    await act(() => {
+      jest.advanceTimersByTime(100);
+      result.current.measureAnchor('pinned', anchorNode(500));
+    });
+
+    expect(scrollRef.current?.scrollTo).toHaveBeenNthCalledWith(1, {
+      y: 876,
+      animated: true,
+    });
+    expect(scrollRef.current?.scrollTo).toHaveBeenNthCalledWith(2, {
+      y: 476,
+      animated: true,
+    });
+  });
+
   it('cancels positioning while disabled and restarts cleanly when re-enabled', async () => {
     const { result, rerender } = await renderHook(
       (enabled: boolean) =>
@@ -565,11 +735,9 @@ describe('useSummaryWalkthrough', () => {
 
     await act(() => {
       result.current.measureAnchor('pinned', anchorNode(300));
-    });
-    await advanceToFirstCoach(result);
-    await act(() => {
       result.current.onCoachLayout(viewportEvent(300));
     });
+    await advanceToFirstCoach(result);
     await act(() => {
       result.current.onPrimary();
     });
@@ -578,6 +746,41 @@ describe('useSummaryWalkthrough', () => {
       y: 276,
       animated: true,
     });
+  });
+
+  it('restarts positioning with the current step coach height', async () => {
+    const { result } = await renderHook(() =>
+      useSummaryWalkthrough({
+        enabled: true,
+        hasAlert: false,
+        isWideLayout: false,
+        scrollRef,
+        contentRef,
+        onComplete: jest.fn(),
+      }),
+    );
+
+    await act(() => {
+      result.current.measureAnchor('pinned', anchorNode(300));
+      result.current.onCoachLayout(viewportEvent(100));
+    });
+    await advanceToFirstCoach(result);
+    jest.mocked(scrollRef.current!.scrollTo).mockClear();
+
+    await act(() => {
+      result.current.onPrimary();
+    });
+    expect(scrollRef.current?.scrollTo).not.toHaveBeenCalled();
+
+    await act(() => {
+      result.current.onCoachLayout(viewportEvent(300));
+    });
+
+    expect(scrollRef.current?.scrollTo).toHaveBeenCalledWith({
+      y: 276,
+      animated: true,
+    });
+    expect(result.current.coachVisible).toBe(false);
   });
 
   it('persists only once for duplicate Finish actions', async () => {

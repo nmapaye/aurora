@@ -4,7 +4,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import {
   SUMMARY_WALKTHROUGH_STEPS,
@@ -102,5 +102,35 @@ describe('Summary walkthrough presentation', () => {
     );
     const coachRoot = screen.root;
     expect(coachRoot).toHaveProp('onLayout', onLayout);
+  });
+
+  it('wraps large accessibility-size actions without shrinking touch targets', async () => {
+    await render(
+      <SummaryWalkthroughCoach
+        step={SUMMARY_WALKTHROUGH_STEPS[3]}
+        locked={false}
+        headingRef={createRef()}
+        onSkip={jest.fn()}
+        onPrimary={jest.fn()}
+      />,
+    );
+
+    const skip = screen.getByRole('button', { name: 'Skip' });
+    const finish = screen.getByRole('button', { name: 'Finish' });
+    const actions = skip.parent;
+
+    expect(StyleSheet.flatten(actions?.props.style)).toMatchObject({
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+    });
+    expect(skip).toHaveStyle({ minHeight: 44 });
+    expect(finish).toHaveStyle({ minHeight: 44 });
+    expect(screen.getByText('Skip')).not.toHaveProp(
+      'maxFontSizeMultiplier',
+    );
+    expect(screen.getByText('Finish')).not.toHaveProp(
+      'maxFontSizeMultiplier',
+    );
   });
 });

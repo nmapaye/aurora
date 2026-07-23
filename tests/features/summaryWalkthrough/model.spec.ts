@@ -206,6 +206,33 @@ describe('Summary walkthrough model', () => {
     ).toEqual(coaching);
   });
 
+  it('repositions the same semantic stage after geometry changes', () => {
+    const positioning = {
+      stageIndex: 1,
+      phase: 'positioning',
+    } as const;
+    expect(
+      reduceWalkthrough(
+        positioning,
+        { type: 'GEOMETRY_CHANGED' },
+      ),
+    ).toBe(positioning);
+
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 2, phase: 'revealing' },
+        { type: 'GEOMETRY_CHANGED' },
+      ),
+    ).toEqual({ stageIndex: 2, phase: 'positioning' });
+
+    expect(
+      reduceWalkthrough(
+        { stageIndex: 3, phase: 'coaching' },
+        { type: 'GEOMETRY_CHANGED' },
+      ),
+    ).toEqual({ stageIndex: 3, phase: 'positioning' });
+  });
+
   it('keeps duplicate Finish referentially idempotent', () => {
     const complete = { stageIndex: 3, phase: 'complete' } as const;
     expect(

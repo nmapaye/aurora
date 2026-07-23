@@ -166,6 +166,10 @@ export default function AppScreen({
           testID="app-screen-content"
           ref={contentRef}
           pointerEvents={interactionEnabled ? 'auto' : 'none'}
+          accessibilityElementsHidden={!interactionEnabled}
+          importantForAccessibility={
+            interactionEnabled ? 'auto' : 'no-hide-descendants'
+          }
           style={{
             width: '100%',
             maxWidth: layout.contentMaxWidth,

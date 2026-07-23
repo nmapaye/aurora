@@ -125,7 +125,9 @@ function findRevealProbe(node: TestInstance) {
 
 function staggerForText(text: string) {
   return findRevealProbe(
-    screen.getByText(text),
+    screen.getByText(text, {
+      includeHiddenElements: true,
+    }),
   ).props.walkthroughStaggerIndex;
 }
 
@@ -191,7 +193,9 @@ describe.each([
       ).toEqual([2, 3, 4, 5, 6, 7]);
 
       const firstQuickAddProbe = findRevealProbe(
-        screen.getByText('Espresso 60mg'),
+        screen.getByText('Espresso 60mg', {
+          includeHiddenElements: true,
+        }),
       );
       expect(
         findRevealProbe(firstQuickAddProbe).props
@@ -199,10 +203,16 @@ describe.each([
       ).toBe(1);
 
       if (isWideLayout) {
-        expect(screen.getByText('Caffeine graph')).toBeOnTheScreen();
+        expect(
+          screen.getByText('Caffeine graph', {
+            includeHiddenElements: true,
+          }),
+        ).toBeOnTheScreen();
       } else {
         expect(
-          screen.queryByText('Caffeine graph'),
+          screen.queryByText('Caffeine graph', {
+            includeHiddenElements: true,
+          }),
         ).not.toBeOnTheScreen();
       }
     });

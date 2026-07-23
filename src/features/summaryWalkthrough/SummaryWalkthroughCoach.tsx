@@ -90,6 +90,7 @@ export default function SummaryWalkthroughCoach({
       <View
         style={{
           flexDirection: 'row',
+          flexWrap: 'wrap',
           justifyContent: 'flex-end',
           alignItems: 'center',
           gap: spacing.sm,

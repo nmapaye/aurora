@@ -85,6 +85,7 @@ export type WalkthroughEvent =
   | { type: 'START' }
   | { type: 'POSITIONED' }
   | { type: 'SETTLED' }
+  | { type: 'GEOMETRY_CHANGED' }
   | { type: 'NEXT' }
   | { type: 'SKIP' }
   | { type: 'FINISH' };
@@ -110,6 +111,11 @@ export function reduceWalkthrough(
     case 'SETTLED':
       return state.phase === 'revealing'
         ? { ...state, phase: 'coaching' }
+        : state;
+    case 'GEOMETRY_CHANGED':
+      return state.phase === 'revealing' ||
+        state.phase === 'coaching'
+        ? { ...state, phase: 'positioning' }
         : state;
     case 'NEXT':
       return state.phase === 'coaching' &&
