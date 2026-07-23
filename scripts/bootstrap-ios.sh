@@ -7,6 +7,7 @@ IOS_DIR="$ROOT_DIR/ios"
 WORKSPACE="$IOS_DIR/AURORA.xcworkspace"
 LOCAL_ENV="$IOS_DIR/.xcode.env.local"
 POD_INSTALL_ARGS=(install)
+COCOAPODS_VERSION="1.16.2"
 
 fail() {
   printf 'error: %s\n' "$1" >&2
@@ -44,22 +45,12 @@ NODE_MAJOR="${NODE_VERSION%%.*}"
   fail "Node.js 24 is required; active version is $NODE_VERSION."
 
 command -v pod >/dev/null 2>&1 ||
-  fail "CocoaPods 1.16.2 or newer is required but pod was not found."
-POD_VERSION="$(pod --version)"
-node - "$POD_VERSION" <<'NODE' ||
-const [major, minor, patch] = process.argv[2].split('.').map(Number);
-if (
-  !Number.isInteger(major) ||
-  !Number.isInteger(minor) ||
-  !Number.isInteger(patch) ||
-  major < 1 ||
-  (major === 1 && minor < 16) ||
-  (major === 1 && minor === 16 && patch < 2)
-) {
-  process.exit(1);
-}
-NODE
-  fail "CocoaPods 1.16.2 or newer is required; active version is $POD_VERSION."
+  fail "CocoaPods $COCOAPODS_VERSION is required but pod was not found."
+if ! POD_VERSION="$(pod "_${COCOAPODS_VERSION}_" --version 2>/dev/null)"; then
+  fail "CocoaPods $COCOAPODS_VERSION is required. Install that exact version before continuing."
+fi
+[[ "$POD_VERSION" == "$COCOAPODS_VERSION" ]] ||
+  fail "CocoaPods $COCOAPODS_VERSION is required; active version is $POD_VERSION."
 
 [[ -d "$WORKSPACE" ]] ||
   fail "Missing $WORKSPACE. Restore the committed Xcode workspace before continuing."
@@ -75,7 +66,7 @@ printf 'export NODE_BINARY="%s"\n' "$NODE_BINARY" > "$LOCAL_ENV"
 
 (
   cd "$IOS_DIR"
-  pod "${POD_INSTALL_ARGS[@]}"
+  pod "_${COCOAPODS_VERSION}_" "${POD_INSTALL_ARGS[@]}"
 )
 
 printf 'Aurora iOS environment is ready.\n'

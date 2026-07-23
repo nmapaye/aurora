@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - '.github/workflows/app-ci.yml'
+      - '.node-version'
       - 'App.tsx'
       - 'app.json'
       - 'assets/**'
       - 'babel.config.js'
+      - 'eas.json'
       - 'eslint.config.mjs'
       - 'expo-env.d.ts'
       - 'jest.config.ts'
@@ -22,10 +24,12 @@ on:
   pull_request:
     paths:
       - '.github/workflows/app-ci.yml'
+      - '.node-version'
       - 'App.tsx'
       - 'app.json'
       - 'assets/**'
       - 'babel.config.js'
+      - 'eas.json'
       - 'eslint.config.mjs'
       - 'expo-env.d.ts'
       - 'jest.config.ts'
@@ -59,7 +63,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -74,3 +78,39 @@ jobs:
 
       - name: Test app
         run: npm test -- --runInBand
+
+  ios-native:
+    name: iOS Xcode
+    needs: test
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      COCOAPODS_DISABLE_STATS: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install locked CocoaPods
+        run: gem install cocoapods -v 1.16.2 --no-document
+
+      - name: Bootstrap locked iOS dependencies
+        run: npm run ios:bootstrap -- --deployment
+
+      - name: Reject native dependency drift
+        run: git diff --exit-code -- ios
+
+      - name: Build Debug for iOS Simulator
+        run: npm run ios:build:debug
+
+      - name: Build Release for iOS Simulator
+        run: npm run ios:build:release
