@@ -4,6 +4,8 @@ node_modules/
 dist/
 build/
 coverage/
+.worktrees/
+.superpowers/
 *.log
 *.tmp
 npm-debug.log*
