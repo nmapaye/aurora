@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -12,7 +13,7 @@ import {
   HealthRangeControl,
 } from '~/components/health';
 import { createManualSleepDraft, createManualSleepId, validateManualSleep } from '~/features/sleep/manualSleep';
-import { formatSleepDuration, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
+import { formatSleepDuration, getCaffeineImpact, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
@@ -34,9 +35,10 @@ function formatDifference(differenceMs: number) {
   return differenceMs > 0 ? `${value} over target` : `${value} under target`;
 }
 
-function numberInput(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
+function formatDateTime(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  }).format(new Date(timestamp));
 }
 
 export default function SleepScreen() {
@@ -65,6 +67,7 @@ export default function SleepScreen() {
   const [healthAvailable, setHealthAvailable] = useState<boolean | undefined>();
   const [loading, setLoading] = useState(false);
   const [refreshError, setRefreshError] = useState<string | undefined>();
+  const [pickerField, setPickerField] = useState<'start' | 'end' | undefined>();
 
   useEffect(() => {
     let active = true;
@@ -78,6 +81,10 @@ export default function SleepScreen() {
     [sleeps, prefs.targetSleep, range, now],
   );
   const validation = validateManualSleep(draft, now);
+  const caffeineImpact = useMemo(
+    () => getCaffeineImpact(sleeps, doses, range, now),
+    [doses, now, range, sleeps],
+  );
   const todayTotal = useMemo(() => {
     const today = new Date(now).toDateString();
     return doses.filter((dose) => new Date(dose.timestamp).toDateString() === today).reduce((sum, dose) => sum + dose.mg, 0);
@@ -96,15 +103,17 @@ export default function SleepScreen() {
       return [...items, { time, mg: allowed, label: ['Kickstart', 'Sustain', 'Top-up'][index] ?? 'Plan' }];
     }, []);
   }, [cutoff?.nextCutoff, now, presentation.lastNight?.wakeTime, todayTotal]);
-  const healthState = demoMode
-    ? 'Sample Data'
-    : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
-      ? 'Health unavailable'
-      : onboarding.permissionStatus === 'denied'
-        ? 'Health access denied'
-        : onboarding.permissionStatus === 'granted'
-          ? 'Health connected'
-          : 'Manual mode';
+  const healthState = refreshError
+    ? 'Health refresh failed'
+    : demoMode
+      ? 'Sample Data'
+      : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
+        ? 'Health unavailable'
+        : onboarding.permissionStatus === 'denied'
+          ? 'Health access denied'
+          : onboarding.permissionStatus === 'granted'
+            ? 'Health connected'
+            : 'Manual mode';
   const healthDescription = refreshError
     ? `Health refresh failed. ${refreshError}`
     : healthState === 'Health connected'
@@ -183,7 +192,19 @@ export default function SleepScreen() {
           <HealthHighlightCard label="Wake Time" value={formatTime(presentation.lastNight.wakeTime)} detail="Used to anchor your plan" accentColor={palette.sleepAccent} />
         </View>
       ) : <HealthEmptyState message="No recent sleep session." />}
-      <HealthHighlightCard label="Caffeine Impact" value={sleeps.length >= 14 ? 'Review your timing' : `${sleeps.length}/14 nights`} detail={sleeps.length >= 14 ? 'Compare your logged timing with sleep duration.' : 'Keep logging for at least 14 nights before reading a pattern.'} accentColor={palette.sleepAccent} />
+      <HealthHighlightCard
+        label="Caffeine Impact"
+        value={caffeineImpact.qualifyingNights ? `${caffeineImpact.medianDeltaMin} min` : 'No timing data'}
+        detail={caffeineImpact.showCorrelation
+          ? 'Timing pattern ready to review.'
+          : `${caffeineImpact.qualifyingNights}/14 qualifying nights. Keep logging before reading a pattern.`}
+        accentColor={palette.sleepAccent}
+      />
+      {caffeineImpact.qualifyingNights ? <HealthGroupedList rows={[
+        { title: 'Last-dose timing', subtitle: 'Median time between final dose and sleep', value: `${caffeineImpact.medianDeltaMin} min` },
+        { title: 'Typical range', subtitle: '10th to 90th percentile', value: `${caffeineImpact.p10}–${caffeineImpact.p90} min` },
+        { title: 'Median sleep span', subtitle: 'Across qualifying nights', value: `${Math.round(caffeineImpact.medianSleepMin / 60)}h` },
+      ]} /> : null}
     </View>
   );
 
@@ -217,9 +238,10 @@ export default function SleepScreen() {
         </View>
       </View>
       <HealthFormSheet visible={showForm} title="Add Sleep" onCancel={() => setShowForm(false)} onSave={saveManualSleep} saveDisabled={!validation.valid}>
-        <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Enter local start and end times as milliseconds since 1970.</Text>
-        <TextInput accessibilityLabel="Start time" keyboardType="numeric" value={String(draft.start)} onChangeText={(value) => setDraft((current) => ({ ...current, start: numberInput(value) }))} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
-        <TextInput accessibilityLabel="End time" keyboardType="numeric" value={String(draft.end)} onChangeText={(value) => setDraft((current) => ({ ...current, end: numberInput(value) }))} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
+        <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Choose the local start and end time for this sleep session.</Text>
+        <Button title={`Start · ${formatDateTime(draft.start)}`} accessibilityLabel="Start time" variant="tinted" onPress={() => setPickerField('start')} />
+        <Button title={`End · ${formatDateTime(draft.end)}`} accessibilityLabel="End time" variant="tinted" onPress={() => setPickerField('end')} />
+        {pickerField ? <DateTimePicker testID={`sleep-${pickerField}-picker`} value={new Date(draft[pickerField])} mode="datetime" display="spinner" onChange={(_event, date) => { if (date) setDraft((current) => ({ ...current, [pickerField]: date.getTime() })); }} /> : null}
         <TextInput accessibilityLabel="Sleep note" value={draft.note} onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="Optional note" placeholderTextColor={palette.textTertiary} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
         {!validation.valid ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{validation.message}</Text> : null}
       </HealthFormSheet>

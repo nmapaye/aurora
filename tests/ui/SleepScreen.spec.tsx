@@ -1,10 +1,15 @@
 import React from 'react';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 
 import AppleHealth from '~/services/platform/health/appleHealth';
 import SleepScreen from '~/screens/SleepScreen';
 import { useStore } from '~/state/store';
 
+jest.mock('@react-native-community/datetimepicker', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return { __esModule: true, default: (props: object) => React.createElement(View, props) };
+});
 jest.mock('~/services/platform/health/appleHealth', () => ({
   __esModule: true,
   default: {
@@ -57,6 +62,7 @@ describe('SleepScreen', () => {
     expect(screen.getAllByText('Sleep').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Add Data' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'W' })).toHaveProp('accessibilityState', { selected: true });
+    expect(screen.getByTestId('sleep-compact-layout')).toBeOnTheScreen();
     expect(screen.getByLabelText(/No sleep data is available/)).toBeOnTheScreen();
     expect(screen.getByText('Highlights')).toBeOnTheScreen();
     expect(screen.getByText('Next Best Actions')).toBeOnTheScreen();
@@ -69,7 +75,8 @@ describe('SleepScreen', () => {
 
     await user.press(screen.getByRole('button', { name: 'Add Data' }));
     expect(screen.getByRole('header', { name: 'Add Sleep' })).toBeOnTheScreen();
-    expect(screen.getByDisplayValue(String(now - 8 * 60 * 60 * 1000))).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Start time' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'End time' })).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Save' }));
 
     expect(useStore.getState().sleeps[0]).toMatchObject({
@@ -83,8 +90,8 @@ describe('SleepScreen', () => {
     const user = userEvent.setup();
     await render(<SleepScreen />);
     await user.press(screen.getByRole('button', { name: 'Add Data' }));
-    await user.clear(screen.getByLabelText('End time'));
-    await user.type(screen.getByLabelText('End time'), String(now + 1));
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    await act(() => screen.getByTestId('sleep-end-picker').props.onChange({}, new Date(now + 1)));
 
     expect(screen.getByText('End time cannot be in the future.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -103,6 +110,18 @@ describe('SleepScreen', () => {
     expect(screen.getByText('Health connected with 0 imported sleep samples.')).toBeOnTheScreen();
   });
 
+  it('keeps a Health query error distinct from a successful zero-result refresh', async () => {
+    health.getSleepSamples.mockRejectedValueOnce(new Error('Health database unavailable'));
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
+
+    await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
+  });
+
   it.each([
     ['unsupported', 'Health unavailable'],
     ['denied', 'Health access denied'],
@@ -111,5 +130,27 @@ describe('SleepScreen', () => {
     await render(<SleepScreen />);
 
     expect(screen.getByText(expected)).toBeOnTheScreen();
+  });
+
+  it('shows sample-data state distinctly from manual and Health states', async () => {
+    useStore.setState({ demoMode: true });
+    await render(<SleepScreen />);
+    await userEvent.setup().press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+
+    expect(screen.getAllByText('Sample Data').length).toBeGreaterThan(0);
+    expect(screen.getByText('Example sleep and caffeine data is active.')).toBeOnTheScreen();
+  });
+
+  it('shows timing metrics but withholds a pattern claim before 14 qualifying nights', async () => {
+    useStore.setState({
+      sleeps: [{ id: 'manual:sleep:timing', start: now - 8 * 60 * 60 * 1000, end: now, type: 'sleep' }],
+      doses: [{ id: 'dose:timing', timestamp: now - 11 * 60 * 60 * 1000, mg: 80 }],
+    });
+    await render(<SleepScreen />);
+
+    expect(screen.getByText('Last-dose timing')).toBeOnTheScreen();
+    expect(screen.getByText('Typical range')).toBeOnTheScreen();
+    expect(screen.getByText('Median sleep span')).toBeOnTheScreen();
+    expect(screen.getByText('1/14 qualifying nights. Keep logging before reading a pattern.')).toBeOnTheScreen();
   });
 });

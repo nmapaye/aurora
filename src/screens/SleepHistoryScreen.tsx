@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -12,9 +13,10 @@ import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
-function inputTimestamp(value: string) {
-  const result = Number(value);
-  return Number.isFinite(result) ? result : Number.NaN;
+function formatDateTime(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  }).format(new Date(timestamp));
 }
 
 export default function SleepHistoryScreen() {
@@ -24,25 +26,26 @@ export default function SleepHistoryScreen() {
   const removeManualSleep = useStore((state) => state.removeManualSleep);
   const [editingId, setEditingId] = useState<string | undefined>();
   const editing = sleeps.find((sleep) => sleep.id === editingId);
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  const [start, setStart] = useState(0);
+  const [end, setEnd] = useState(0);
   const [note, setNote] = useState('');
-  const validation = validateManualSleep({ start: inputTimestamp(start), end: inputTimestamp(end) });
+  const [pickerField, setPickerField] = useState<'start' | 'end' | undefined>();
+  const validation = validateManualSleep({ start, end });
   const sorted = useMemo(() => [...sleeps].sort((left, right) => right.end - left.end), [sleeps]);
 
   const edit = (id: string) => {
     const item = sleeps.find((sleep) => sleep.id === id);
     if (!item || !isManualSleep(item.id)) return;
     setEditingId(item.id);
-    setStart(String(item.start));
-    setEnd(String(item.end));
+    setStart(item.start);
+    setEnd(item.end);
     setNote(item.note ?? '');
   };
   const save = () => {
     if (!editing || !validation.valid) return;
     updateManualSleep(editing.id, {
-      start: inputTimestamp(start),
-      end: inputTimestamp(end),
+      start,
+      end,
       ...(note.trim() ? { note: note.trim() } : { note: undefined }),
     });
     setEditingId(undefined);
@@ -70,8 +73,9 @@ export default function SleepHistoryScreen() {
         })}
       </View> : <HealthEmptyState message="No sleep sessions yet." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}
       <HealthFormSheet visible={Boolean(editing)} title="Edit Sleep" onCancel={() => setEditingId(undefined)} onSave={save} saveLabel="Save changes" saveDisabled={!validation.valid}>
-        <TextInput accessibilityLabel="Start time" keyboardType="numeric" value={start} onChangeText={setStart} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
-        <TextInput accessibilityLabel="End time" keyboardType="numeric" value={end} onChangeText={setEnd} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
+        <Button title={`Start · ${formatDateTime(start)}`} accessibilityLabel="Start time" variant="tinted" onPress={() => setPickerField('start')} />
+        <Button title={`End · ${formatDateTime(end)}`} accessibilityLabel="End time" variant="tinted" onPress={() => setPickerField('end')} />
+        {pickerField ? <DateTimePicker testID={`history-${pickerField}-picker`} value={new Date(pickerField === 'start' ? start : end)} mode="datetime" display="spinner" onChange={(_event, date) => { if (date) { if (pickerField === 'start') setStart(date.getTime()); else setEnd(date.getTime()); } }} /> : null}
         <TextInput accessibilityLabel="Sleep note" value={note} onChangeText={setNote} placeholder="Optional note" placeholderTextColor={palette.textTertiary} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
         {!validation.valid ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{validation.message}</Text> : null}
       </HealthFormSheet>

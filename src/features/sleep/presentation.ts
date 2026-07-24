@@ -1,14 +1,60 @@
-import type { SleepSession } from '~/domain/models';
+import type { Dose, SleepSession } from '~/domain/models';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
 export type SleepRange = 'week' | 'month';
 export type SleepChartPoint = { date: number; durationMs: number | null };
 
-function startOfDay(timestamp: number) {
+function localDayKey(timestamp: number) {
   const date = new Date(timestamp);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+export function getLocalCalendarDayStarts(now: number, days: number) {
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+  return Array.from({ length: days }, (_, index) => {
+    const day = new Date(end);
+    day.setDate(end.getDate() - (days - 1 - index));
+    return day.getTime();
+  });
+}
+
+function rangeDays(range: SleepRange) {
+  return range === 'week' ? 7 : 30;
+}
+
+function selectRangeSessions(sessions: readonly SleepSession[], range: SleepRange, now: number) {
+  const starts = getLocalCalendarDayStarts(now, rangeDays(range));
+  const dayKeys = new Set(starts.map(localDayKey));
+  return sessions.filter((session) =>
+    Number.isFinite(session.start) &&
+    Number.isFinite(session.end) &&
+    session.end > session.start &&
+    session.end <= now &&
+    dayKeys.has(localDayKey(session.end)),
+  );
+}
+
+function selectLatestSessionByNight(sessions: readonly SleepSession[]) {
+  const selected = new Map<string, SleepSession>();
+  for (const session of sessions) {
+    const key = localDayKey(session.end);
+    const current = selected.get(key);
+    if (!current || session.end > current.end) selected.set(key, session);
+  }
+  return selected;
+}
+
+function median(values: readonly number[]) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+}
+
+function percentile(values: readonly number[], q: number) {
+  const sorted = [...values].sort((left, right) => left - right);
+  if (!sorted.length) return 0;
+  return sorted[Math.max(0, Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))))] ?? 0;
 }
 
 export function formatSleepDuration(durationMs: number) {
@@ -22,39 +68,53 @@ export function sleepSourceLabel(id: string) {
   return id.startsWith('healthkit:sleep:') ? 'Health' : 'Manual';
 }
 
+export function getCaffeineImpact(
+  sessions: readonly SleepSession[],
+  doses: readonly Dose[],
+  range: SleepRange,
+  now: number,
+) {
+  const nights = selectLatestSessionByNight(selectRangeSessions(sessions, range, now));
+  const pairs = [...nights.values()].flatMap((session) => {
+    const lastDose = doses
+      .filter((dose) => dose.timestamp <= session.start && dose.timestamp >= session.start - 12 * HOUR_MS)
+      .sort((left, right) => right.timestamp - left.timestamp)[0];
+    if (!lastDose) return [];
+    return [{
+      deltaMin: Math.round((session.start - lastDose.timestamp) / 60_000),
+      sleepMin: Math.round((session.end - session.start) / 60_000),
+    }];
+  });
+  const deltas = pairs.map((pair) => pair.deltaMin);
+  const durations = pairs.map((pair) => pair.sleepMin);
+  return {
+    qualifyingNights: pairs.length,
+    medianDeltaMin: median(deltas),
+    p10: percentile(deltas, 0.1),
+    p90: percentile(deltas, 0.9),
+    medianSleepMin: median(durations),
+    showCorrelation: pairs.length >= 14,
+  };
+}
+
 export function getSleepPresentation(
   sessions: readonly SleepSession[],
   targetSleepHours: number,
   range: SleepRange,
   now: number,
 ) {
-  const days = range === 'week' ? 7 : 30;
-  const endDay = startOfDay(now);
-  const startDay = endDay - (days - 1) * DAY_MS;
-  const points: SleepChartPoint[] = Array.from({ length: days }, (_, index) => ({
-    date: startDay + index * DAY_MS,
-    durationMs: null,
-  }));
-
-  const sessionsByDay = new Map<number, SleepSession>();
-  for (const session of sessions) {
-    if (!Number.isFinite(session.start) || !Number.isFinite(session.end) || session.end <= session.start) continue;
-    const day = startOfDay(session.end);
-    if (day < startDay || day > endDay) continue;
-    const existing = sessionsByDay.get(day);
-    if (!existing || session.end > existing.end) sessionsByDay.set(day, session);
-  }
+  const days = rangeDays(range);
+  const points: SleepChartPoint[] = getLocalCalendarDayStarts(now, days).map((date) => ({ date, durationMs: null }));
+  const sessionsByDay = selectLatestSessionByNight(selectRangeSessions(sessions, range, now));
   points.forEach((point) => {
-    const session = sessionsByDay.get(point.date);
+    const session = sessionsByDay.get(localDayKey(point.date));
     if (session) point.durationMs = session.end - session.start;
   });
 
   const recorded = points.filter((point) => point.durationMs !== null);
-  const latest = [...sessions]
-    .filter((session) => session.end <= now && session.end > session.start)
-    .sort((left, right) => right.end - left.end)[0];
+  const latest = [...sessionsByDay.values()].sort((left, right) => right.end - left.end)[0];
   const durationMs = latest ? latest.end - latest.start : 0;
-  const targetDifferenceMs = latest ? durationMs - targetSleepHours * 60 * 60 * 1000 : null;
+  const targetDifferenceMs = latest ? durationMs - targetSleepHours * HOUR_MS : null;
   const dateRange = `${days} days ending ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(now))}`;
   const noun = recorded.length === 1 ? 'night' : 'nights';
   const accessibilitySummary = recorded.length
@@ -68,12 +128,7 @@ export function getSleepPresentation(
     headline: latest ? formatSleepDuration(durationMs) : 'No Data',
     accessibilitySummary,
     lastNight: latest
-      ? {
-          session: latest,
-          durationMs,
-          wakeTime: latest.end,
-          targetDifferenceMs,
-        }
+      ? { session: latest, durationMs, wakeTime: latest.end, targetDifferenceMs }
       : null,
   };
 }

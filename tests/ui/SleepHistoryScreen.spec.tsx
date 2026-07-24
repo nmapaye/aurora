@@ -47,6 +47,10 @@ describe('SleepHistoryScreen', () => {
     const user = userEvent.setup();
     await render(<SleepHistoryScreen />);
     await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
+    expect(screen.getByRole('button', { name: 'Start time' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'End time' })).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    expect(screen.getByTestId('history-end-picker')).toBeOnTheScreen();
     await user.clear(screen.getByLabelText('Sleep note'));
     await user.type(screen.getByLabelText('Sleep note'), 'Edited note');
     await user.press(screen.getByRole('button', { name: 'Save changes' }));

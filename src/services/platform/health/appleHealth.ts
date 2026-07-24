@@ -176,6 +176,15 @@ export function makeHealthSleepSessionId(sample: Pick<SleepSample, 'start' | 'en
   return `healthkit:sleep:${Math.round(sample.start)}:${Math.round(sample.end)}`;
 }
 
+export async function getNativeSleepSamples(
+  query: (startMs: number, endMs: number) => unknown[] | Promise<unknown[]>,
+  startMs: number,
+  endMs: number,
+): Promise<SleepSample[]> {
+  const samples = await query(startMs, endMs);
+  return Array.isArray(samples) ? normalizeSleepSamples(samples) : [];
+}
+
 export async function isAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') {
     return false;
@@ -226,12 +235,9 @@ export async function getSleepSamples(
   startMs: number,
   endMs: number,
 ): Promise<SleepSample[]> {
-  try {
-    const nativeSamples = await Native?.getSleepSamples?.(startMs, endMs);
-    if (Array.isArray(nativeSamples)) {
-      return normalizeSleepSamples(nativeSamples);
-    }
-  } catch {}
+  if (Native?.getSleepSamples) {
+    return getNativeSleepSamples(Native.getSleepSamples, startMs, endMs);
+  }
 
   const mod = getHealthModule();
   const client = mod?.default ?? mod;
@@ -240,14 +246,18 @@ export async function getSleepSamples(
     return [];
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     getter(
       {
         startDate: new Date(startMs).toISOString(),
         endDate: new Date(endMs).toISOString(),
       },
       (error: unknown, results?: unknown[]) => {
-        if (error || !Array.isArray(results)) {
+        if (error) {
+          reject(error instanceof Error ? error : new Error('Health sleep query failed.'));
+          return;
+        }
+        if (!Array.isArray(results)) {
           resolve([]);
           return;
         }

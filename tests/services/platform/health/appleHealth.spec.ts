@@ -1,7 +1,18 @@
 import {
+  getNativeSleepSamples,
   makeHealthSleepSessionId,
   normalizeSleepSamples,
 } from '~/services/platform/health/appleHealth';
+
+describe('Health sleep query errors', () => {
+  test('propagates a native query failure instead of reporting an empty successful result', async () => {
+    await expect(
+      getNativeSleepSamples(async () => {
+        throw new Error('Health database unavailable');
+      }, 1, 2),
+    ).rejects.toThrow('Health database unavailable');
+  });
+});
 
 describe('normalizeSleepSamples', () => {
   test('accepts start/end and startDate/endDate aliases with number and string dates', () => {

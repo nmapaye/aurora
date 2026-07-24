@@ -1,6 +1,8 @@
 import type { SleepSession } from '~/domain/models';
 import {
+  getCaffeineImpact,
   getSleepPresentation,
+  getLocalCalendarDayStarts,
   sleepSourceLabel,
 } from '~/features/sleep/presentation';
 
@@ -56,5 +58,63 @@ describe('sleep presentation', () => {
       }),
     );
     expect(presentation.headline).toBe('7h 30m');
+  });
+
+  it('does not borrow the headline or highlights from outside the selected range', () => {
+    const presentation = getSleepPresentation([sleep('manual:sleep:old', 8, 9)], 8, 'week', now);
+
+    expect(presentation.headline).toBe('No Data');
+    expect(presentation.lastNight).toBeNull();
+  });
+
+  it('builds calendar days safely across a daylight-saving transition', () => {
+    const previousZone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    const starts = getLocalCalendarDayStarts(Date.parse('2026-03-09T12:00:00-04:00'), 3);
+    process.env.TZ = previousZone;
+
+    expect(starts.map((timestamp) => new Date(timestamp).getDate())).toEqual([7, 8, 9]);
+    expect(starts.map((timestamp) => new Date(timestamp).getHours())).toEqual([0, 0, 0]);
+  });
+
+  it('derives caffeine impact from one qualifying dose-to-sleep pair per local night', () => {
+    const sessions: SleepSession[] = [
+      sleep('manual:sleep:first', 1, 8),
+      { ...sleep('manual:sleep:first-duplicate', 1, 1), start: now - 25 * hour, end: now - 24 * hour },
+      sleep('manual:sleep:second', 2, 7),
+    ];
+    const impact = getCaffeineImpact(
+      sessions,
+      [
+        { id: 'dose:1', timestamp: now - 1 * 24 * hour - 11 * hour, mg: 80 },
+        { id: 'dose:2', timestamp: now - 2 * 24 * hour - 11 * hour, mg: 95 },
+      ],
+      'week',
+      now,
+    );
+
+    expect(impact).toMatchObject({
+      qualifyingNights: 2,
+      medianDeltaMin: 240,
+      p10: 180,
+      p90: 240,
+      medianSleepMin: 480,
+      showCorrelation: false,
+    });
+  });
+
+  it('withholds pattern language until 14 distinct qualifying local nights', () => {
+    const sessions = Array.from({ length: 14 }, (_, index) => sleep(`manual:sleep:${index}`, index + 1));
+    const doses = sessions.map((session, index) => ({
+      id: `dose:${index}`,
+      timestamp: session.start - 3 * hour,
+      mg: 80,
+    }));
+
+    expect(getCaffeineImpact(sessions, doses, 'month', now)).toMatchObject({
+      qualifyingNights: 14,
+      showCorrelation: true,
+      medianDeltaMin: 180,
+    });
   });
 });
