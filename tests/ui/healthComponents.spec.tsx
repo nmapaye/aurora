@@ -1,21 +1,24 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
-import { render, screen } from '@testing-library/react-native';
+import { Text } from 'react-native';
+import { render, screen, userEvent } from '@testing-library/react-native';
 
 import {
   HealthChartCard,
   HealthEmptyState,
   HealthFormSheet,
   HealthGroupedList,
+  HealthHighlightCard,
   HealthRangeControl,
 } from '~/components/health';
 
 describe('HealthRangeControl', () => {
   it('exposes selected state on 44-point range targets', async () => {
+    const onChange = jest.fn();
+    const user = userEvent.setup();
     await render(
       <HealthRangeControl
         value="week"
-        onChange={jest.fn()}
+        onChange={onChange}
         options={[
           { value: 'week', label: 'W' },
           { value: 'month', label: 'M' },
@@ -31,19 +34,26 @@ describe('HealthRangeControl', () => {
       'accessibilityState',
       { selected: false },
     );
-    expect(
-      StyleSheet.flatten(screen.getByRole('button', { name: 'W' }).props.style),
-    ).toMatchObject({ minHeight: 44, minWidth: 44 });
+    expect(screen.getByRole('button', { name: 'W' })).toHaveStyle({
+      minHeight: 44,
+      minWidth: 44,
+    });
+
+    await user.press(screen.getByRole('button', { name: 'M' }));
+
+    expect(onChange).toHaveBeenCalledWith('month');
   });
 });
 
 describe('HealthGroupedList', () => {
   it('uses button and disclosure semantics only for pressable rows', async () => {
+    const onShowAllData = jest.fn();
+    const user = userEvent.setup();
     await render(
       <HealthGroupedList
         rows={[
           { title: 'Health source', value: 'Connected' },
-          { title: 'Show all data', onPress: jest.fn() },
+          { title: 'Show all data', onPress: onShowAllData },
         ]}
       />,
     );
@@ -57,6 +67,26 @@ describe('HealthGroupedList', () => {
     );
     expect(screen.queryByTestId('health-row-disclosure-0')).not.toBeOnTheScreen();
     expect(screen.getByTestId('health-row-disclosure-1')).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Show all data' }));
+
+    expect(onShowAllData).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('HealthHighlightCard', () => {
+  it('presents its label, value, and detail as one concise highlight', async () => {
+    await render(
+      <HealthHighlightCard
+        label="Sleep duration"
+        value="7h 20m"
+        detail="40 min under target"
+      />,
+    );
+
+    expect(
+      screen.getByLabelText('Sleep duration: 7h 20m. 40 min under target.'),
+    ).toBeOnTheScreen();
   });
 });
 
@@ -82,12 +112,15 @@ describe('HealthChartCard', () => {
 
 describe('HealthFormSheet', () => {
   it('exposes modal semantics, a heading, Cancel, and Save', async () => {
+    const onCancel = jest.fn();
+    const onSave = jest.fn();
+    const user = userEvent.setup();
     await render(
       <HealthFormSheet
         visible
         title="Add sleep"
-        onCancel={jest.fn()}
-        onSave={jest.fn()}
+        onCancel={onCancel}
+        onSave={onSave}
       >
         <Text>Form fields</Text>
       </HealthFormSheet>,
@@ -100,5 +133,11 @@ describe('HealthFormSheet', () => {
     expect(screen.getByRole('header', { name: 'Add sleep' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save' })).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Cancel' }));
+    await user.press(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 });

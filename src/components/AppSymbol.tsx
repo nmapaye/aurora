@@ -19,9 +19,11 @@ export default function AppSymbol({
   size = 24,
   tintColor,
   style,
-  accessible = false,
+  accessible,
   ...props
 }: Props) {
+  const isAccessible = accessible ?? Boolean(props.accessibilityLabel);
+
   if (Platform.OS !== 'ios') {
     return (
       <Ionicons
@@ -29,7 +31,7 @@ export default function AppSymbol({
         size={size}
         color={tintColor}
         style={style as ComponentProps<typeof Ionicons>['style']}
-        accessible={accessible}
+        accessible={isAccessible}
         {...props}
       />
     );
@@ -41,7 +43,7 @@ export default function AppSymbol({
       size={size}
       tintColor={tintColor}
       style={[{ width: size, height: size }, style]}
-      accessible={accessible}
+      accessible={isAccessible}
       {...props}
     />
   );

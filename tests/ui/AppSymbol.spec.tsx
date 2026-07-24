@@ -40,6 +40,34 @@ describe('AppSymbol', () => {
     expect(screen.getByTestId('sf-symbol')).toHaveProp('tintColor', '#0A84FF');
     expect(screen.getByTestId('sf-symbol')).toHaveStyle({ width: 20, height: 20 });
     expect(screen.getByLabelText('Espresso')).toBeOnTheScreen();
+    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', true);
+  });
+
+  it('keeps unlabeled symbols decorative and lets an explicit accessible prop win', async () => {
+    (Platform as { OS: string }).OS = 'ios';
+
+    const { rerender } = await render(
+      <AppSymbol name="leaf.fill" fallback="leaf" />,
+    );
+
+    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', false);
+
+    await rerender(
+      <AppSymbol
+        name="leaf.fill"
+        fallback="leaf"
+        accessibilityLabel="Matcha"
+        accessible={false}
+      />,
+    );
+
+    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', false);
+
+    await rerender(
+      <AppSymbol name="leaf.fill" fallback="leaf" accessible />,
+    );
+
+    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', true);
   });
 
   it('renders its Ionicons fallback outside iOS', async () => {

@@ -18,6 +18,8 @@ export function HealthHighlightCard({ label, value, detail, accentColor }: Props
 
   return (
     <View
+      accessible
+      accessibilityLabel={`${label}: ${value}${detail ? `. ${detail}.` : '.'}`}
       style={{
         flex: 1,
         minHeight: 112,
