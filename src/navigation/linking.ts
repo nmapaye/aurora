@@ -17,6 +17,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       },
       VigilanceTest: 'vigilance',
       Settings: 'settings',
+      SleepHistory: 'sleep/history',
     },
   },
   async getInitialURL() {

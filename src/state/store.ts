@@ -45,6 +45,11 @@ type State = {
   removeDose: (id: string) => void;
   addSleep: (s: SleepSession) => void;
   upsertSleepSessions: (items: SleepSession[]) => void;
+  updateManualSleep: (
+    id: string,
+    patch: Partial<Pick<SleepSession, 'start' | 'end' | 'note'>>,
+  ) => void;
+  removeManualSleep: (id: string) => void;
   addVigilanceSession: (session: VigilanceSession) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   setOnboarding: (p: Partial<Onboarding>) => void;
@@ -150,6 +155,22 @@ export const useStore = create<State>()(
             sleeps: [...deduped.values()].sort((a, b) => b.end - a.end),
           };
         }),
+      updateManualSleep: (id, patch) => {
+        if (!id.startsWith('manual:sleep:')) return;
+        set((s) => ({
+          sleeps: s.sleeps.map((sleep) =>
+            sleep.id === id && sleep.id.startsWith('manual:sleep:')
+              ? { ...sleep, ...patch, id: sleep.id, type: sleep.type }
+              : sleep,
+          ),
+        }));
+      },
+      removeManualSleep: (id) => {
+        if (!id.startsWith('manual:sleep:')) return;
+        set((s) => ({
+          sleeps: s.sleeps.filter((sleep) => sleep.id !== id || !sleep.id.startsWith('manual:sleep:')),
+        }));
+      },
       addVigilanceSession: (session) =>
         set((s) => ({
           vigilanceSessions: [session, ...s.vigilanceSessions].sort(

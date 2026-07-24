@@ -16,7 +16,7 @@ export function navigate<RouteName extends AppRouteName>(
     : never
 ) {
   if (!navigationRef.isReady()) return;
-  if (name === 'VigilanceTest' || name === 'Settings') {
+  if (name === 'VigilanceTest' || name === 'Settings' || name === 'SleepHistory') {
     (navigationRef as any).navigate(name as any, params as any);
     return;
   }

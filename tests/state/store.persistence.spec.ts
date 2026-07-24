@@ -13,6 +13,7 @@ const nonDefaultPersistedState = {
       start: 1_700_000_000_000 - 8 * 3_600_000,
       end: 1_700_000_000_000,
       type: 'sleep' as const,
+      note: 'Restful',
     },
   ],
   vigilanceSessions: [

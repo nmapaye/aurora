@@ -5,6 +5,7 @@ import RootTabs from './RootTabs';
 import type { RootStackParamList } from './types';
 import VigilanceTestScreen from '~/screens/VigilanceTestScreen';
 import SettingsScreen from '~/screens/SettingsScreen';
+import SleepHistoryScreen from '~/screens/SleepHistoryScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -21,6 +22,11 @@ export default function RootNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+      />
+      <Stack.Screen
+        name="SleepHistory"
+        component={SleepHistoryScreen}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
       />
     </Stack.Navigator>
   );
