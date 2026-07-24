@@ -107,6 +107,9 @@ describe('app walkthrough persistence', () => {
     expect(
       useStore.getState().onboarding.appWalkthroughCompleted,
     ).toBe(true);
+    expect(useStore.getState().onboarding).not.toHaveProperty(
+      'summaryWalkthroughCompleted',
+    );
   });
 
   it('migrates an incomplete legacy user as incomplete at step zero', async () => {

@@ -97,4 +97,29 @@ describe('store persistence round-trip', () => {
 
     expect(useStore.getState().onboarding.appWalkthroughStep).toBe(expectedStep);
   });
+
+  it('strips a legacy Summary completion field from a version 5 payload', async () => {
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          onboarding: {
+            completed: true,
+            source: 'manual',
+            permissionStatus: 'unsupported',
+            appWalkthroughCompleted: false,
+            appWalkthroughStep: 3,
+            summaryWalkthroughCompleted: true,
+          },
+        },
+        version: 5,
+      }),
+    );
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState().onboarding).not.toHaveProperty(
+      'summaryWalkthroughCompleted',
+    );
+  });
 });
