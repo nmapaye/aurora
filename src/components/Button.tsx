@@ -8,6 +8,7 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
+  AccessibilityValue,
 } from 'react-native';
 import {
   getAppPalette,
@@ -31,6 +32,7 @@ type Props = {
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
   accessibilityLabel?: string;
+  accessibilityValue?: AccessibilityValue;
   testID?: string;
   role?: ButtonRole;
 };
@@ -46,6 +48,7 @@ export default function Button({
   iconLeft,
   iconRight,
   accessibilityLabel,
+  accessibilityValue,
   testID,
   role = 'default',
 }: Props) {
@@ -89,6 +92,7 @@ export default function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityValue={accessibilityValue}
       testID={testID}
       disabled={disabled || loading}
       onPress={onPress}

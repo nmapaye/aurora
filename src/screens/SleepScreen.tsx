@@ -165,6 +165,7 @@ export default function SleepScreen() {
   const saveManualSleep = () => {
     if (!validation.valid) return;
     addSleep({ id: createManualSleepId(now), start: draft.start, end: draft.end, type: 'sleep', ...(draft.note.trim() ? { note: draft.note.trim() } : {}) });
+    setPickerField(undefined);
     setShowForm(false);
     setAnnouncement('Sleep session saved.');
   };
@@ -237,10 +238,10 @@ export default function SleepScreen() {
           </View> : null}
         </View>
       </View>
-      <HealthFormSheet visible={showForm} title="Add Sleep" onCancel={() => setShowForm(false)} onSave={saveManualSleep} saveDisabled={!validation.valid}>
+      <HealthFormSheet visible={showForm} title="Add Sleep" onCancel={() => { setPickerField(undefined); setShowForm(false); }} onSave={saveManualSleep} saveDisabled={!validation.valid}>
         <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Choose the local start and end time for this sleep session.</Text>
-        <Button title={`Start · ${formatDateTime(draft.start)}`} accessibilityLabel="Start time" variant="tinted" onPress={() => setPickerField('start')} />
-        <Button title={`End · ${formatDateTime(draft.end)}`} accessibilityLabel="End time" variant="tinted" onPress={() => setPickerField('end')} />
+        <Button title={`Start · ${formatDateTime(draft.start)}`} accessibilityLabel="Start time" accessibilityValue={{ text: formatDateTime(draft.start) }} variant="tinted" onPress={() => setPickerField('start')} />
+        <Button title={`End · ${formatDateTime(draft.end)}`} accessibilityLabel="End time" accessibilityValue={{ text: formatDateTime(draft.end) }} variant="tinted" onPress={() => setPickerField('end')} />
         {pickerField ? <DateTimePicker testID={`sleep-${pickerField}-picker`} value={new Date(draft[pickerField])} mode="datetime" display="spinner" onChange={(_event, date) => { if (date) setDraft((current) => ({ ...current, [pickerField]: date.getTime() })); }} /> : null}
         <TextInput accessibilityLabel="Sleep note" value={draft.note} onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="Optional note" placeholderTextColor={palette.textTertiary} style={{ minHeight: 44, borderWidth: 1, borderColor: palette.separator, borderRadius: radii.control, color: palette.textPrimary, paddingHorizontal: spacing.sm }} />
         {!validation.valid ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{validation.message}</Text> : null}

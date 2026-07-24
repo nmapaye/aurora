@@ -77,6 +77,8 @@ describe('SleepScreen', () => {
     expect(screen.getByRole('header', { name: 'Add Sleep' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Start time' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'End time' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Start time' }).props.accessibilityValue?.text).toContain('Jul');
+    expect(screen.getByRole('button', { name: 'End time' }).props.accessibilityValue?.text).toContain('Jul');
     await user.press(screen.getByRole('button', { name: 'Save' }));
 
     expect(useStore.getState().sleeps[0]).toMatchObject({
@@ -84,6 +86,21 @@ describe('SleepScreen', () => {
       type: 'sleep',
     });
     expect(screen.getByLabelText('Sleep session saved.')).toBeOnTheScreen();
+  });
+
+  it('does not retain an Add Sleep picker after cancel or save', async () => {
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Add Data' }));
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    expect(screen.getByTestId('sleep-end-picker')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Cancel' }));
+    await user.press(screen.getByRole('button', { name: 'Add Data' }));
+    expect(screen.queryByTestId('sleep-end-picker')).not.toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    await user.press(screen.getByRole('button', { name: 'Save' }));
+    await user.press(screen.getByRole('button', { name: 'Add Data' }));
+    expect(screen.queryByTestId('sleep-end-picker')).not.toBeOnTheScreen();
   });
 
   it('shows a validation message and disables save when the end is in the future', async () => {
@@ -120,6 +137,17 @@ describe('SleepScreen', () => {
     await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
     expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
     expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
+  });
+
+  it('surfaces a malformed Health payload as a refresh error instead of a zero result', async () => {
+    health.getSleepSamples.mockResolvedValueOnce(undefined as never);
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
+
+    await waitFor(() => expect(screen.getAllByText(/Health refresh failed/).length).toBeGreaterThan(0));
+    expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
   });
 
   it.each([

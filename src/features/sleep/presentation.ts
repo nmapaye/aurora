@@ -65,6 +65,7 @@ export function formatSleepDuration(durationMs: number) {
 }
 
 export function sleepSourceLabel(id: string) {
+  if (id.startsWith('demo:sleep:')) return 'Sample Data';
   return id.startsWith('healthkit:sleep:') ? 'Health' : 'Manual';
 }
 

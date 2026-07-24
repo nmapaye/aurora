@@ -43,12 +43,23 @@ describe('SleepHistoryScreen', () => {
     expect(screen.queryByRole('button', { name: 'Edit Health sleep' })).not.toBeOnTheScreen();
   });
 
+  it('labels demo sleep as sample data and keeps it read-only', async () => {
+    useStore.setState({
+      sleeps: [{ id: 'demo:sleep:sample', start: 1_700_000_000_000, end: 1_700_028_800_000, type: 'sleep' }],
+    });
+    await render(<SleepHistoryScreen />);
+
+    expect(screen.getByText('Sample Data')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Edit manual sleep' })).not.toBeOnTheScreen();
+  });
+
   it('edits a manual record after validation', async () => {
     const user = userEvent.setup();
     await render(<SleepHistoryScreen />);
     await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
     expect(screen.getByRole('button', { name: 'Start time' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'End time' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Start time' }).props.accessibilityValue?.text).toContain('Nov');
     await user.press(screen.getByRole('button', { name: 'End time' }));
     expect(screen.getByTestId('history-end-picker')).toBeOnTheScreen();
     await user.clear(screen.getByLabelText('Sleep note'));
@@ -56,6 +67,21 @@ describe('SleepHistoryScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(useStore.getState().sleeps[0]?.note).toBe('Edited note');
+  });
+
+  it('does not retain an Edit Sleep picker after cancel or save', async () => {
+    const user = userEvent.setup();
+    await render(<SleepHistoryScreen />);
+    await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    expect(screen.getByTestId('history-end-picker')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Cancel' }));
+    await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
+    expect(screen.queryByTestId('history-end-picker')).not.toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'End time' }));
+    await user.press(screen.getByRole('button', { name: 'Save changes' }));
+    await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
+    expect(screen.queryByTestId('history-end-picker')).not.toBeOnTheScreen();
   });
 
   it('confirms before deleting a manual record', async () => {

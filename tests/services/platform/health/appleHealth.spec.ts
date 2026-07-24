@@ -12,6 +12,16 @@ describe('Health sleep query errors', () => {
       }, 1, 2),
     ).rejects.toThrow('Health database unavailable');
   });
+
+  test.each([undefined, { samples: [] }, 'not an array'])('rejects malformed native response payload %p', async (payload) => {
+    await expect(
+      getNativeSleepSamples(async () => payload as unknown as unknown[], 1, 2),
+    ).rejects.toThrow('Health sleep query returned an invalid payload.');
+  });
+
+  test('preserves an actual empty array as a successful zero-result response', async () => {
+    await expect(getNativeSleepSamples(async () => [], 1, 2)).resolves.toEqual([]);
+  });
 });
 
 describe('normalizeSleepSamples', () => {

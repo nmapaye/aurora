@@ -19,6 +19,7 @@ describe('sleep presentation', () => {
   it('labels manual and imported sessions without relying on user-entered copy', () => {
     expect(sleepSourceLabel('manual:sleep:1')).toBe('Manual');
     expect(sleepSourceLabel('healthkit:sleep:1')).toBe('Health');
+    expect(sleepSourceLabel('demo:sleep:1')).toBe('Sample Data');
   });
 
   it('uses a seven-day week window and does not fabricate missing data', () => {

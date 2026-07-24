@@ -177,12 +177,15 @@ export function makeHealthSleepSessionId(sample: Pick<SleepSample, 'start' | 'en
 }
 
 export async function getNativeSleepSamples(
-  query: (startMs: number, endMs: number) => unknown[] | Promise<unknown[]>,
+  query: (startMs: number, endMs: number) => unknown | Promise<unknown>,
   startMs: number,
   endMs: number,
 ): Promise<SleepSample[]> {
   const samples = await query(startMs, endMs);
-  return Array.isArray(samples) ? normalizeSleepSamples(samples) : [];
+  if (!Array.isArray(samples)) {
+    throw new Error('Health sleep query returned an invalid payload.');
+  }
+  return normalizeSleepSamples(samples);
 }
 
 export async function isAvailable(): Promise<boolean> {
@@ -258,7 +261,7 @@ export async function getSleepSamples(
           return;
         }
         if (!Array.isArray(results)) {
-          resolve([]);
+          reject(new Error('Health sleep query returned an invalid payload.'));
           return;
         }
         resolve(normalizeSleepSamples(results));
