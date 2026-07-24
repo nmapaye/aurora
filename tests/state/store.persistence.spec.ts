@@ -46,7 +46,8 @@ const nonDefaultPersistedState = {
     source: 'manual' as const,
     permissionStatus: 'denied' as const,
     completedAt: 1_700_000_000_000,
-    summaryWalkthroughCompleted: true,
+    appWalkthroughCompleted: true,
+    appWalkthroughStep: 7,
   },
   healthSync: { importedCount: 5, lastSyncedAt: 1_700_000_000_000, lastMessage: 'Synced' },
   demoMode: true,
@@ -62,12 +63,38 @@ describe('store persistence round-trip', () => {
   it('preserves every persisted key through rehydrate (merge + normalize)', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
-      JSON.stringify({ state: nonDefaultPersistedState, version: 4 })
+      JSON.stringify({ state: nonDefaultPersistedState, version: 5 })
     );
 
     await useStore.persist.rehydrate();
 
     const persisted = useStore.persist.getOptions().partialize!(useStore.getState());
     expect(persisted).toEqual(nonDefaultPersistedState);
+  });
+
+  it.each([
+    [-3, 0],
+    [4.9, 4],
+    [27, 9],
+  ])('normalizes persisted walkthrough cursor %p to %p', async (step, expectedStep) => {
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          onboarding: {
+            completed: true,
+            source: 'manual',
+            permissionStatus: 'unsupported',
+            appWalkthroughCompleted: false,
+            appWalkthroughStep: step,
+          },
+        },
+        version: 5,
+      }),
+    );
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState().onboarding.appWalkthroughStep).toBe(expectedStep);
   });
 });

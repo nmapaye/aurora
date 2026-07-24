@@ -163,7 +163,7 @@ describe('Summary walkthrough model', () => {
     expect(
       isSummaryWalkthroughPending({
         completed: true,
-        summaryWalkthroughCompleted: false,
+        appWalkthroughCompleted: false,
       }),
     ).toBe(true);
     expect(isWalkthroughTabDisabled('Summary', true)).toBe(false);

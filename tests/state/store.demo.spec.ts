@@ -18,7 +18,8 @@ function resetStore() {
       completed: false,
       source: 'healthkit',
       permissionStatus: 'idle',
-      summaryWalkthroughCompleted: false,
+      appWalkthroughCompleted: false,
+      appWalkthroughStep: 0,
     },
     healthSync: { importedCount: 0 },
     demoMode: false,
@@ -38,6 +39,8 @@ describe('sample data store actions', () => {
     expect(state.demoMode).toBe(true);
     expect(state.onboarding.completed).toBe(true);
     expect(state.onboarding.source).toBe('manual');
+    expect(state.onboarding.appWalkthroughCompleted).toBe(false);
+    expect(state.onboarding.appWalkthroughStep).toBe(0);
     expect(state.healthSync.importedCount).toBeGreaterThan(0);
     expect(state.doses.every((dose) => dose.id.startsWith('demo:'))).toBe(true);
     expect(state.sleeps.every((sleep) => sleep.id.startsWith('demo:'))).toBe(true);
@@ -204,7 +207,7 @@ describe('sample data store actions', () => {
       source: 'healthkit',
       permissionStatus: 'idle',
     });
-    expect(state.onboarding.summaryWalkthroughCompleted).toBe(true);
+    expect(state.onboarding.appWalkthroughCompleted).toBe(true);
   });
 
   it('migrates older persisted states with health sync and demo mode fallbacks', async () => {
@@ -236,7 +239,7 @@ describe('sample data store actions', () => {
       cutoffHour: 16,
       notifyCutoff: false,
     });
-    expect(state.onboarding.summaryWalkthroughCompleted).toBe(false);
+    expect(state.onboarding.appWalkthroughCompleted).toBe(false);
   });
 
   it('updates and persists appearance mode choices', async () => {

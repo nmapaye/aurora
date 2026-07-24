@@ -11,7 +11,8 @@ describe('store onboarding and logging flow', () => {
         completed: false,
         source: 'healthkit',
         permissionStatus: 'idle',
-        summaryWalkthroughCompleted: false,
+        appWalkthroughCompleted: false,
+        appWalkthroughStep: 0,
       },
     });
   });

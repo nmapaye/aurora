@@ -1,8 +1,8 @@
 import { jsonStringStorage } from '~/services/storage';
 import {
-  isSummaryWalkthroughPending,
+  isAppWalkthroughPending,
   isWalkthroughTabDisabled,
-} from '~/features/summaryWalkthrough';
+} from '~/features/appWalkthrough';
 import { useStore } from '~/state/store';
 
 jest.mock(
@@ -24,26 +24,32 @@ function resetOnboarding() {
       completed: false,
       source: 'healthkit',
       permissionStatus: 'idle',
-      summaryWalkthroughCompleted: false,
+      appWalkthroughCompleted: false,
+      appWalkthroughStep: 0,
     },
   });
 }
 
-describe('summary walkthrough persistence', () => {
+describe('app walkthrough persistence', () => {
   beforeEach(() => {
     resetOnboarding();
   });
 
-  it('starts incomplete and completes through its focused action', () => {
-    expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
-    ).toBe(false);
+  it('starts incomplete at step zero, advances through the final step, and completes without changing user data', () => {
+    const originalDoses = useStore.getState().doses;
+    expect(useStore.getState().onboarding).toMatchObject({
+      appWalkthroughCompleted: false,
+      appWalkthroughStep: 0,
+    });
 
-    useStore.getState().completeSummaryWalkthrough();
+    for (let index = 0; index < 12; index += 1) {
+      useStore.getState().advanceAppWalkthrough();
+    }
 
-    expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
-    ).toBe(true);
+    expect(useStore.getState().onboarding.appWalkthroughStep).toBe(9);
+    useStore.getState().completeAppWalkthrough();
+    expect(useStore.getState().onboarding.appWalkthroughCompleted).toBe(true);
+    expect(useStore.getState().doses).toBe(originalDoses);
   });
 
   it('does not complete the walkthrough when setup completes', () => {
@@ -51,7 +57,7 @@ describe('summary walkthrough persistence', () => {
 
     expect(useStore.getState().onboarding.completed).toBe(true);
     expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
+      useStore.getState().onboarding.appWalkthroughCompleted,
     ).toBe(false);
   });
 
@@ -60,27 +66,27 @@ describe('summary walkthrough persistence', () => {
 
     expect(useStore.getState().onboarding.completed).toBe(true);
     expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
+      useStore.getState().onboarding.appWalkthroughCompleted,
     ).toBe(false);
   });
 
-  it('re-enables non-Summary tabs as soon as completion is persisted', () => {
+  it('re-enables every tab as soon as completion is persisted', () => {
     useStore.getState().completeOnboarding();
 
-    const pendingBefore = isSummaryWalkthroughPending(
+    const pendingBefore = isAppWalkthroughPending(
       useStore.getState().onboarding,
     );
-    expect(isWalkthroughTabDisabled('Sleep', pendingBefore)).toBe(true);
+    expect(isWalkthroughTabDisabled('Summary', pendingBefore)).toBe(true);
 
-    useStore.getState().completeSummaryWalkthrough();
+    useStore.getState().completeAppWalkthrough();
 
-    const pendingAfter = isSummaryWalkthroughPending(
+    const pendingAfter = isAppWalkthroughPending(
       useStore.getState().onboarding,
     );
     expect(isWalkthroughTabDisabled('Sleep', pendingAfter)).toBe(false);
   });
 
-  it('migrates a version 3 completed user as walkthrough-complete', async () => {
+  it('migrates a version 4 completed Summary walkthrough as complete', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
       JSON.stringify({
@@ -89,20 +95,21 @@ describe('summary walkthrough persistence', () => {
             completed: true,
             source: 'manual',
             permissionStatus: 'unsupported',
+            summaryWalkthroughCompleted: true,
           },
         },
-        version: 3,
+        version: 4,
       }),
     );
 
     await useStore.persist.rehydrate();
 
     expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
+      useStore.getState().onboarding.appWalkthroughCompleted,
     ).toBe(true);
   });
 
-  it('migrates a version 3 incomplete user as walkthrough-incomplete', async () => {
+  it('migrates an incomplete legacy user as incomplete at step zero', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
       JSON.stringify({
@@ -113,14 +120,14 @@ describe('summary walkthrough persistence', () => {
             permissionStatus: 'idle',
           },
         },
-        version: 3,
+        version: 4,
       }),
     );
 
     await useStore.persist.rehydrate();
 
     expect(
-      useStore.getState().onboarding.summaryWalkthroughCompleted,
-    ).toBe(false);
+      useStore.getState().onboarding,
+    ).toMatchObject({ appWalkthroughCompleted: false, appWalkthroughStep: 0 });
   });
 });

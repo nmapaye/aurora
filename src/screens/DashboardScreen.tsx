@@ -90,8 +90,8 @@ export default function DashboardScreen() {
   const demoMode = useStore((s) => s.demoMode);
   const loadDemoData = useStore((s) => s.loadDemoData);
   const onboarding = useStore((state) => state.onboarding);
-  const completeSummaryWalkthrough = useStore(
-    (state) => state.completeSummaryWalkthrough,
+  const completeAppWalkthrough = useStore(
+    (state) => state.completeAppWalkthrough,
   );
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
@@ -166,7 +166,7 @@ export default function DashboardScreen() {
     isWideLayout: layout.isWideLayout,
     scrollRef,
     contentRef,
-    onComplete: completeSummaryWalkthrough,
+    onComplete: completeAppWalkthrough,
   });
 
   const measurePinned = (_event: LayoutChangeEvent) => {

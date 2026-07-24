@@ -5,9 +5,9 @@ import { PlatformPressable } from '@react-navigation/elements';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  isSummaryWalkthroughPending,
+  isAppWalkthroughPending,
   isWalkthroughTabDisabled,
-} from '~/features/summaryWalkthrough';
+} from '~/features/appWalkthrough';
 import DashboardScreen from '~/screens/DashboardScreen';
 import LogIntakeScreen from '~/screens/LogIntakeScreen';
 import SleepScreen from '~/screens/SleepScreen';
@@ -41,7 +41,7 @@ export default function RootTabs() {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const walkthroughPending = useStore((state) =>
-    isSummaryWalkthroughPending(state.onboarding),
+    isAppWalkthroughPending(state.onboarding),
   );
   const inset = insets.bottom || 0;
   const tabBarHeight = 54 + Math.floor(inset);

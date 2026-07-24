@@ -143,7 +143,8 @@ describe('DashboardScreen summary walkthrough composition', () => {
         completed: true,
         source: 'manual',
         permissionStatus: 'unsupported',
-        summaryWalkthroughCompleted: false,
+        appWalkthroughCompleted: false,
+        appWalkthroughStep: 0,
       },
     });
     onCoachLayout.mockClear();

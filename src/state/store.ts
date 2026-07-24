@@ -22,12 +22,13 @@ type HealthSync = {
   lastMessage?: string;
   importedCount: number;
 };
-type Onboarding = {
+export type Onboarding = {
   completed: boolean;
   source: OnboardingSource;
   permissionStatus: HealthPermissionStatus;
   completedAt?: number;
-  summaryWalkthroughCompleted: boolean;
+  appWalkthroughCompleted: boolean;
+  appWalkthroughStep: number;
 };
 
 type State = {
@@ -52,7 +53,8 @@ type State = {
   loadDemoData: () => void;
   clearDemoData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
-  completeSummaryWalkthrough: () => void;
+  advanceAppWalkthrough: () => void;
+  completeAppWalkthrough: () => void;
 };
 
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
@@ -79,7 +81,8 @@ const defaultOnboarding: Onboarding = {
   completed: false,
   source: 'healthkit',
   permissionStatus: 'idle',
-  summaryWalkthroughCompleted: false,
+  appWalkthroughCompleted: false,
+  appWalkthroughStep: 0,
 };
 const defaultHealthSync: HealthSync = { importedCount: 0 };
 const demoIdPrefix = 'demo:';
@@ -88,13 +91,32 @@ function withoutDemoId<T extends { id: string }>(items: T[]) {
   return items.filter((item) => !item.id.startsWith(demoIdPrefix));
 }
 
-function normalizePersistedState(persistedState?: Partial<PersistedState>): PersistedState {
+type PersistedOnboarding = Partial<Onboarding> & {
+  summaryWalkthroughCompleted?: boolean;
+};
+type MigratingPersistedState = Omit<Partial<PersistedState>, 'onboarding'> & {
+  onboarding?: PersistedOnboarding;
+};
+
+function clampAppWalkthroughStep(step: unknown) {
+  if (typeof step !== 'number' || !Number.isFinite(step)) return 0;
+  return Math.max(0, Math.min(9, Math.floor(step)));
+}
+
+function normalizePersistedState(persistedState?: MigratingPersistedState): PersistedState {
+  const { summaryWalkthroughCompleted: _legacyWalkthrough, ...persistedOnboarding } =
+    persistedState?.onboarding ?? {};
+
   return {
     doses: persistedState?.doses ?? [],
     sleeps: persistedState?.sleeps ?? [],
     vigilanceSessions: persistedState?.vigilanceSessions ?? [],
     prefs: { ...defaultPrefs, ...persistedState?.prefs },
-    onboarding: { ...defaultOnboarding, ...persistedState?.onboarding },
+    onboarding: {
+      ...defaultOnboarding,
+      ...persistedOnboarding,
+      appWalkthroughStep: clampAppWalkthroughStep(persistedOnboarding.appWalkthroughStep),
+    },
     healthSync: { ...defaultHealthSync, ...persistedState?.healthSync },
     demoMode: persistedState?.demoMode ?? false,
     appearanceMode: persistedState?.appearanceMode ?? 'system',
@@ -183,17 +205,24 @@ export const useStore = create<State>()(
             completedAt: Date.now(),
           },
         })),
-      completeSummaryWalkthrough: () =>
+      advanceAppWalkthrough: () =>
         set((s) => ({
           onboarding: {
             ...s.onboarding,
-            summaryWalkthroughCompleted: true,
+            appWalkthroughStep: clampAppWalkthroughStep(s.onboarding.appWalkthroughStep + 1),
+          },
+        })),
+      completeAppWalkthrough: () =>
+        set((s) => ({
+          onboarding: {
+            ...s.onboarding,
+            appWalkthroughCompleted: true,
           },
         })),
     }),
     {
       name: 'aurora/state',
-      version: 4,
+      version: 5,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
@@ -206,25 +235,36 @@ export const useStore = create<State>()(
         appearanceMode: s.appearanceMode,
       }),
       migrate: (persistedState, version) => {
-        let nextState = (persistedState ?? {}) as Partial<PersistedState>;
+        let nextState = (persistedState ?? {}) as MigratingPersistedState;
         if (version < 2) {
           nextState = { ...nextState, vigilanceSessions: [] };
         }
         if (version < 4) {
-          const legacyOnboarding = nextState.onboarding as Partial<Onboarding> | undefined;
+          const legacyOnboarding = nextState.onboarding;
           nextState = {
             ...nextState,
             onboarding: {
               ...legacyOnboarding,
               summaryWalkthroughCompleted: legacyOnboarding?.completed === true,
-            } as Onboarding,
+            },
+          };
+        }
+        if (version < 5) {
+          const legacyOnboarding = nextState.onboarding;
+          nextState = {
+            ...nextState,
+            onboarding: {
+              ...legacyOnboarding,
+              appWalkthroughCompleted: legacyOnboarding?.summaryWalkthroughCompleted === true,
+              appWalkthroughStep: 0,
+            },
           };
         }
         return normalizePersistedState(nextState);
       },
       merge: (persistedState, currentState) => ({
         ...currentState,
-        ...normalizePersistedState((persistedState ?? {}) as Partial<PersistedState>),
+        ...normalizePersistedState((persistedState ?? {}) as MigratingPersistedState),
       }),
     }
   )

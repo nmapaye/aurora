@@ -147,7 +147,8 @@ describe.each([
           completed: true,
           source: 'manual',
           permissionStatus: 'unsupported',
-          summaryWalkthroughCompleted: false,
+          appWalkthroughCompleted: false,
+          appWalkthroughStep: 0,
         },
       });
       mockUseAdaptiveLayout.mockReturnValue(

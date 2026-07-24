@@ -78,12 +78,13 @@ describe('RootTabs summary walkthrough gating', () => {
         completed: true,
         source: 'manual',
         permissionStatus: 'unsupported',
-        summaryWalkthroughCompleted: false,
+        appWalkthroughCompleted: false,
+        appWalkthroughStep: 0,
       },
     });
   });
 
-  it('keeps Summary enabled while disabling the other real tab buttons', async () => {
+  it('disables every tab button until completion is persisted', async () => {
     await render(
       <NavigationContainer>
         <RootTabs />
@@ -94,7 +95,7 @@ describe('RootTabs summary walkthrough gating', () => {
       screen.getByRole('button', {
         name: 'Summary, tab, 1 of 4',
       }),
-    ).toBeEnabled();
+    ).toBeDisabled();
     expect(
       screen.getByRole('button', {
         name: 'Sleep, tab, 2 of 4',
@@ -112,7 +113,7 @@ describe('RootTabs summary walkthrough gating', () => {
     ).toBeDisabled();
 
     await act(async () => {
-      useStore.getState().completeSummaryWalkthrough();
+      useStore.getState().completeAppWalkthrough();
     });
 
     expect(

@@ -150,9 +150,9 @@ export function getRevealedGroups(
 
 export function isSummaryWalkthroughPending(onboarding: {
   completed: boolean;
-  summaryWalkthroughCompleted: boolean;
+  appWalkthroughCompleted: boolean;
 }) {
-  return onboarding.completed && !onboarding.summaryWalkthroughCompleted;
+  return onboarding.completed && !onboarding.appWalkthroughCompleted;
 }
 
 export function isWalkthroughTabDisabled(routeName: string, pending: boolean) {
