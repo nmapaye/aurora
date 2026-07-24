@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, View } from 'react-native';
+import { Modal, Text, TextInput, View } from 'react-native';
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
@@ -7,238 +7,227 @@ import * as Haptics from 'expo-haptics';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
-import useAppScheme from '~/hooks/useAppScheme';
+import { HealthFormSheet, HealthGroupedList } from '~/components/health';
+import { HealthOptionCard, ListRow, SectionCard, SectionHeader, SegmentedControl } from '~/components/ui';
 import {
-  FieldInput,
-  FormField,
-  HealthOptionCard,
-  SectionHeader,
-  SectionCard,
-  SegmentedControl,
-  StepperControl,
-} from '~/components/ui';
-import { getAppPalette } from '~/theme/colors';
-import { spacing } from '~/theme/tokens';
+  buildCustomDose,
+  buildQuickAddDose,
+  createCustomDoseDraft,
+  getRemainingDailyCaffeineLimit,
+  getTodayCaffeineTotal,
+  validateCustomDoseDraft,
+} from '~/features/caffeine/logging';
+import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
+import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import useAppScheme from '~/hooks/useAppScheme';
+import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
+import { getAppPalette } from '~/theme/colors';
+import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 
-type SourceOption =
-  | 'Espresso'
-  | 'Drip'
-  | 'Cold Brew'
-  | 'Tea'
-  | 'Matcha'
-  | 'Other';
+const SOURCE_OPTIONS = ['Espresso', 'Drip', 'Cold Brew', 'Tea', 'Matcha', 'Other'] as const;
+
+function makeDoseId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 function fmtTime(timestamp: number) {
   try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(timestamp));
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
+  } catch {
+    return new Date(timestamp).toLocaleTimeString();
+  }
+}
+
+function fmtDateTime(timestamp: number) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
   } catch {
     return new Date(timestamp).toLocaleTimeString();
   }
 }
 
 export default function LogIntakeScreen() {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  const addDose = useStore((s) => s.addDose);
-
-  const [mg, setMg] = useState(80);
-  const [source, setSource] = useState<SourceOption>('Drip');
-  const [note, setNote] = useState('');
-  const [timestamp, setTimestamp] = useState<number>(Date.now());
+  const layout = useAdaptiveLayout();
+  const palette = getAppPalette(useAppScheme());
+  const doses = useStore((state) => state.doses);
+  const dailyLimitMg = useStore((state) => state.prefs.dailyLimitMg ?? 400);
+  const addDose = useStore((state) => state.addDose);
+  const [customVisible, setCustomVisible] = useState(false);
+  const [draft, setDraft] = useState(() => createCustomDoseDraft(Date.now()));
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pendingTime, setPendingTime] = useState<Date>(new Date());
+  const [pendingTime, setPendingTime] = useState(() => new Date(Date.now()));
+  const [confirmation, setConfirmation] = useState('');
 
-  const canSave = useMemo(
-    () => Number.isFinite(mg) && mg > 0 && mg < 2000,
-    [mg],
+  const now = Date.now();
+  const validation = validateCustomDoseDraft(draft, now);
+  const todayTotal = getTodayCaffeineTotal(doses, now);
+  const remaining = getRemainingDailyCaffeineLimit(doses, now, dailyLimitMg);
+  const recent = useMemo(
+    () => [...doses].sort((a, b) => b.timestamp - a.timestamp).slice(0, 4),
+    [doses],
   );
 
-  const commitDose = async (amount: number, presetSource?: string) => {
-    const id = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2)}`;
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-    addDose({
-      id,
-      timestamp: presetSource ? Date.now() : timestamp,
-      mg: amount,
-      source: presetSource ?? source,
-      note: presetSource ? undefined : note || undefined,
-    });
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+  const announceSaved = () => {
+    setConfirmation('Caffeine intake saved.');
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
-  const reset = () => {
-    setMg(80);
-    setSource('Drip');
-    setNote('');
-    setTimestamp(Date.now());
+  const saveQuickAdd = (preset: (typeof CAFFEINE_PRESETS)[number]) => {
+    const savedNow = Date.now();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    addDose(buildQuickAddDose(preset, savedNow, makeDoseId));
+    announceSaved();
   };
 
-  const openTimePicker = () => {
-    setPendingTime(new Date(timestamp));
-    setPickerVisible(true);
+  const openCustomEntry = () => {
+    setConfirmation('');
+    setPendingTime(new Date(draft.timestamp));
+    setCustomVisible(true);
   };
 
-  const onPickerChange = (_event: DateTimePickerEvent, date?: Date) => {
-    if (date) setPendingTime(date);
+  const saveCustomEntry = () => {
+    const savedNow = Date.now();
+    if (!validateCustomDoseDraft(draft, savedNow).valid) return;
+    addDose(buildCustomDose(draft, makeDoseId));
+    setCustomVisible(false);
+    setPickerVisible(false);
+    setDraft(createCustomDoseDraft(savedNow));
+    announceSaved();
   };
 
-  return (
-    <AppScreen title="Log">
-      <SectionHeader prominence="prominent" title="Quick Add" />
-      <View style={{ gap: spacing.sm }}>
-        {[
-          ['Espresso', 60],
-          ['Drip', 95],
-          ['Tea', 40],
-          ['Energy', 160],
-        ].map(([label, amount]) => (
-          <HealthOptionCard
-            key={label}
-            icon={label === 'Energy' ? 'flash' : 'cafe'}
-            title={label as string}
-            subtitle={`${amount} mg`}
-            onPress={() => commitDose(amount as number, label as string)}
-          />
-        ))}
-      </View>
+  const todayCard = (
+    <SectionCard style={{ borderRadius: radii.hero, padding: spacing.lg }}>
+      <Text style={{ ...typeRamp.headline, color: palette.textSecondary }}>Caffeine Today</Text>
+      <Text style={{ ...typeRamp.largeTitle, fontVariant: ['tabular-nums'], color: palette.textPrimary }}>
+        {todayTotal} mg
+      </Text>
+      <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>
+        {remaining} mg remaining of {dailyLimitMg} mg
+      </Text>
+    </SectionCard>
+  );
 
-      <SectionHeader prominence="prominent" title="Custom Entry" />
-      <SectionCard>
-        <FormField label="Amount">
-          <StepperControl
-            decrementLabel="Decrease caffeine amount"
-            incrementLabel="Increase caffeine amount"
-            onDecrement={() => setMg((value) => Math.max(1, value - 10))}
-            onIncrement={() => setMg((value) => Math.min(2000, value + 10))}
-          >
-            <View style={{ flex: 1 }}>
-              <FieldInput
-                value={String(mg)}
-                onChangeText={(value) =>
-                  setMg(Math.max(0, parseInt(value || '0', 10)))
-                }
-                keyboardType="number-pad"
-              />
-            </View>
-          </StepperControl>
-        </FormField>
-
-        <FormField label="Source">
-          <SegmentedControl
-            value={source}
-            onChange={setSource}
-            options={[
-              { key: 'Espresso', label: 'Espresso' },
-              { key: 'Drip', label: 'Drip' },
-              { key: 'Cold Brew', label: 'Cold Brew' },
-              { key: 'Tea', label: 'Tea' },
-              { key: 'Matcha', label: 'Matcha' },
-              { key: 'Other', label: 'Other' },
-            ]}
-          />
-        </FormField>
-
-        <FormField label="Time">
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Button
-                title={fmtTime(timestamp)}
-                variant="tinted"
-                onPress={openTimePicker}
-              />
-            </View>
-            <Button
-              title="Now"
-              variant="tinted"
-              onPress={() => setTimestamp(Date.now())}
+  const quickAdd = (
+    <View style={{ gap: spacing.sm }}>
+      <SectionHeader title="Quick Add" />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        {CAFFEINE_PRESETS.map((preset) => (
+          <View key={preset.id} style={{ width: layout.isWideLayout ? '47%' : '48%' }}>
+            <HealthOptionCard
+              icon={preset.id === 'energy' ? 'flash' : 'cafe'}
+              title={preset.label}
+              subtitle={`${preset.mg} mg`}
+              accessibilityLabel={`${preset.label} ${preset.mg} mg`}
+              onPress={() => saveQuickAdd(preset)}
             />
           </View>
-        </FormField>
+        ))}
+      </View>
+    </View>
+  );
 
-        <FormField label="Note">
-          <FieldInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Double shot, pre-workout, after lunch..."
-            multiline
-          />
-        </FormField>
+  const details = (
+    <View style={{ gap: spacing.sm }}>
+      <SectionHeader title="Add Details" />
+      <HealthGroupedList
+        rows={[
+          { title: 'Custom Entry', subtitle: 'Amount, source, time, and note', onPress: openCustomEntry },
+          { title: 'Show All Caffeine Data', onPress: () => navigate('CaffeineHistory') },
+        ]}
+      />
+    </View>
+  );
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button
-            title="Reset"
-            variant="tinted"
-            onPress={reset}
-            style={{ flex: 1 }}
-          />
-          <Button
-            title="Save Intake"
-            variant="primary"
-            onPress={() => {
-              if (canSave) void commitDose(mg);
-            }}
-            disabled={!canSave}
-            style={{ flex: 1 }}
-          />
-        </View>
-      </SectionCard>
-
-      <Modal
-        animationType="fade"
-        transparent
-        visible={pickerVisible}
-        onRequestClose={() => setPickerVisible(false)}
+  return (
+    <AppScreen
+      title="Log"
+      trailing={<Button title="Add Data" variant="plain" onPress={openCustomEntry} />}
+    >
+      <View
+        testID={layout.isWideLayout ? 'log-wide-layout' : 'log-compact-layout'}
+        style={layout.isWideLayout ? { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl } : { gap: spacing.md }}
       >
-        <View
-          style={{
-            flex: 1,
-            justifyContent: 'flex-end',
-            backgroundColor: palette.modalScrim,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: palette.modalBackground,
-              borderTopLeftRadius: 22,
-              borderTopRightRadius: 22,
-              paddingHorizontal: spacing.md,
-              paddingTop: spacing.sm,
-              paddingBottom: spacing.md,
-              gap: spacing.sm,
-            }}
-          >
-            <View
-              style={{ flexDirection: 'row', justifyContent: 'space-between' }}
-            >
-              <Button
-                title="Cancel"
-                variant="plain"
-                onPress={() => setPickerVisible(false)}
-              />
-              <Button
-                title="Done"
-                variant="plain"
-                onPress={() => {
-                  setTimestamp(pendingTime.getTime());
-                  setPickerVisible(false);
-                }}
-              />
+        <View style={{ flex: 1, gap: spacing.md }}>
+          {todayCard}
+          {quickAdd}
+        </View>
+        <View style={{ flex: 1, gap: spacing.md }}>
+          <View style={{ gap: spacing.sm }}>
+            <SectionHeader title="Recent" />
+            <SectionCard>
+              {recent.length ? recent.map((dose) => (
+                <ListRow key={dose.id} title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`} subtitle={fmtDateTime(dose.timestamp)} />
+              )) : (
+                <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>No caffeine logged yet.</Text>
+              )}
+            </SectionCard>
+          </View>
+          {details}
+        </View>
+      </View>
+
+      {confirmation ? (
+        <Text accessibilityLiveRegion="polite" accessibilityLabel={confirmation} style={{ ...typeRamp.subheadline, color: palette.statusSuccessText }}>
+          {confirmation}
+        </Text>
+      ) : null}
+
+      <HealthFormSheet
+        visible={customVisible}
+        title="Custom Entry"
+        onCancel={() => { setPickerVisible(false); setCustomVisible(false); }}
+        onSave={saveCustomEntry}
+        saveDisabled={!validation.valid}
+      >
+        <View style={{ gap: spacing.sm }}>
+          <TextInput
+            accessibilityLabel="Amount"
+            value={draft.mg}
+            onChangeText={(mg) => setDraft((current) => ({ ...current, mg }))}
+            keyboardType="number-pad"
+            placeholder="Amount in mg"
+            style={{ minHeight: controlSizes.inputHeight, borderRadius: radii.control, paddingHorizontal: spacing.sm, backgroundColor: palette.fieldBackground, color: palette.textPrimary, ...typeRamp.body }}
+          />
+          <SegmentedControl
+            value={draft.source}
+            onChange={(source) => setDraft((current) => ({ ...current, source }))}
+            options={SOURCE_OPTIONS.map((source) => ({ key: source, label: source }))}
+          />
+          <Button
+            title={fmtTime(draft.timestamp)}
+            accessibilityLabel="Time"
+            accessibilityValue={{ text: fmtTime(draft.timestamp) }}
+            variant="tinted"
+            onPress={() => { setPendingTime(new Date(draft.timestamp)); setPickerVisible(true); }}
+          />
+          <TextInput
+            accessibilityLabel="Note"
+            value={draft.note}
+            onChangeText={(note) => setDraft((current) => ({ ...current, note }))}
+            placeholder="Optional note"
+            multiline
+            style={{ minHeight: 96, borderRadius: radii.control, padding: spacing.sm, backgroundColor: palette.fieldBackground, color: palette.textPrimary, ...typeRamp.body }}
+          />
+          {!validation.valid ? (
+            <Text style={{ ...typeRamp.footnote, color: palette.destructive }}>{validation.message}</Text>
+          ) : null}
+        </View>
+      </HealthFormSheet>
+
+      <Modal transparent visible={pickerVisible} animationType="fade" onRequestClose={() => setPickerVisible(false)}>
+        <View accessibilityViewIsModal style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}>
+          <View style={{ backgroundColor: palette.modalBackground, padding: spacing.md, gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Button title="Cancel" variant="plain" onPress={() => setPickerVisible(false)} />
+              <Button title="Done" variant="plain" onPress={() => { setDraft((current) => ({ ...current, timestamp: pendingTime.getTime() })); setPickerVisible(false); }} />
             </View>
             <DateTimePicker
+              testID="caffeine-time-picker"
               mode="time"
               display="spinner"
               value={pendingTime}
-              onChange={onPickerChange}
+              onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setPendingTime(date); }}
             />
           </View>
         </View>

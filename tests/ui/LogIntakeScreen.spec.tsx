@@ -1,0 +1,151 @@
+import React from 'react';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import * as Haptics from 'expo-haptics';
+
+import LogIntakeScreen from '~/screens/LogIntakeScreen';
+import { useStore } from '~/state/store';
+import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import { navigate } from '~/navigation';
+
+jest.mock('@react-native-community/datetimepicker', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return { __esModule: true, default: (props: object) => React.createElement(View, props) };
+});
+jest.mock('~/navigation', () => ({ navigate: jest.fn() }));
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn().mockResolvedValue(undefined),
+  notificationAsync: jest.fn().mockResolvedValue(undefined),
+  ImpactFeedbackStyle: { Light: 'light' },
+  NotificationFeedbackType: { Success: 'success' },
+}));
+jest.mock('~/hooks/useAdaptiveLayout', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+const now = Date.parse('2026-07-24T12:00:00.000Z');
+
+describe('LogIntakeScreen', () => {
+  beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    useStore.setState({
+      doses: [{ id: 'recent', timestamp: now - 60_000, mg: 60, source: 'Espresso' }],
+      onboarding: {
+        completed: true,
+        source: 'manual',
+        permissionStatus: 'idle',
+        appWalkthroughCompleted: true,
+        appWalkthroughStep: 9,
+      },
+    });
+    jest.mocked(useAdaptiveLayout).mockReturnValue({
+      width: 390, height: 844, isPad: false, isWideLayout: false,
+      isIpadWindowed: false, contentMaxWidth: 600, topChromeBuffer: 0,
+      horizontalPadding: 16, leftColumnWidth: 358, rightColumnWidth: 358,
+    });
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('presents Today, shared Quick Add, Recent, and Add Details on a compact layout', async () => {
+    await render(<LogIntakeScreen />);
+
+    expect(screen.getByTestId('log-compact-layout')).toBeOnTheScreen();
+    expect(screen.getByText('Caffeine Today')).toBeOnTheScreen();
+    expect(screen.getByText('Quick Add')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Espresso 60 mg' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Drip 95 mg' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Matcha 70 mg' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Energy 160 mg' })).toBeOnTheScreen();
+    expect(screen.getByText('Recent')).toBeOnTheScreen();
+    expect(screen.getByText('Add Details')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Custom Entry' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Show All Caffeine Data' })).toBeOnTheScreen();
+  });
+
+  it('keeps Today primary while placing Quick Add and details beside it on a wide layout', async () => {
+    jest.mocked(useAdaptiveLayout).mockReturnValue({
+      width: 1180, height: 820, isPad: true, isWideLayout: true,
+      isIpadWindowed: false, contentMaxWidth: 1220, topChromeBuffer: 0,
+      horizontalPadding: 20, leftColumnWidth: 600, rightColumnWidth: 540,
+    });
+    await render(<LogIntakeScreen />);
+
+    expect(screen.getByTestId('log-wide-layout')).toBeOnTheScreen();
+    expect(screen.getByText('Caffeine Today')).toBeOnTheScreen();
+    expect(screen.getByText('Quick Add')).toBeOnTheScreen();
+  });
+
+  it('opens the full-screen Caffeine History route from Add Details', async () => {
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Show All Caffeine Data' }));
+
+    expect(navigate).toHaveBeenCalledWith('CaffeineHistory');
+  });
+
+  it('saves custom timestamp and note, announces success, then resets after save', async () => {
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+    await user.clear(screen.getByLabelText('Amount'));
+    await user.type(screen.getByLabelText('Amount'), '80');
+    await user.clear(screen.getByLabelText('Note'));
+    await user.type(screen.getByLabelText('Note'), 'After lunch');
+    await user.press(screen.getByRole('button', { name: 'Save' }));
+
+    expect(useStore.getState().doses.at(-1)).toMatchObject({
+      timestamp: now,
+      mg: 80,
+      source: 'Drip',
+      note: 'After lunch',
+    });
+    expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+    expect(screen.getByLabelText('Amount')).toHaveProp('value', '80');
+    expect(screen.getByLabelText('Note')).toHaveProp('value', '');
+  });
+
+  it('retains a custom draft after the sheet is cancelled', async () => {
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+    await user.clear(screen.getByLabelText('Amount'));
+    await user.type(screen.getByLabelText('Amount'), '125');
+    await user.press(screen.getByRole('button', { name: 'Cancel' }));
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+
+    expect(screen.getByLabelText('Amount')).toHaveProp('value', '125');
+  });
+
+  it('still saves when best-effort haptics rejects', async () => {
+    jest.mocked(Haptics.impactAsync).mockRejectedValueOnce(new Error('unavailable'));
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
+
+    expect(useStore.getState().doses.at(-1)).toMatchObject({ timestamp: now, mg: 95, source: 'Drip' });
+    expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
+  });
+
+  it('keeps custom save disabled and explains an invalid future time', async () => {
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+    await user.press(screen.getByRole('button', { name: 'Time' }));
+    await act(() => screen.getByTestId('caffeine-time-picker').props.onChange({}, new Date(now + 1)));
+    await user.press(screen.getByRole('button', { name: 'Done' }));
+
+    expect(screen.getByText('Time cannot be in the future.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+});

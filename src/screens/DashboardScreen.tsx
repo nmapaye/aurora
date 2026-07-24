@@ -24,6 +24,7 @@ import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
+import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
@@ -311,13 +312,6 @@ export default function DashboardScreen() {
     </>
   );
 
-  const quickAddOptions = [
-    ['Espresso', 60],
-    ['Drip', 95],
-    ['Matcha', 70],
-    ['Energy', 160],
-  ] as const;
-
   const revealedLogSection = (
     <>
       <WalkthroughReveal
@@ -341,18 +335,18 @@ export default function DashboardScreen() {
               gap: spacing.sm,
             }}
           >
-            {quickAddOptions.map(([label, mg], index) => (
+            {CAFFEINE_PRESETS.map((preset, index) => (
               <WalkthroughReveal
-                key={label}
+                key={preset.id}
                 active={walkthrough.active}
                 revealed={walkthrough.isRevealed('logging')}
                 reduceMotion={walkthrough.reduceMotion}
                 staggerIndex={index + 2}
               >
                 <Button
-                  title={`${label} ${mg}mg`}
+                  title={`${preset.label} ${preset.mg}mg`}
                   variant="plain"
-                  onPress={() => quickAdd(mg, label)}
+                  onPress={() => quickAdd(preset.mg, preset.label)}
                 />
               </WalkthroughReveal>
             ))}

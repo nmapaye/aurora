@@ -220,6 +220,7 @@ export function HealthOptionCard({
   selected = false,
   onPress,
   color,
+  accessibilityLabel,
 }: {
   icon?: AppIconName;
   title: string;
@@ -227,6 +228,7 @@ export function HealthOptionCard({
   selected?: boolean;
   onPress?: () => void;
   color?: string;
+  accessibilityLabel?: string;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
@@ -234,6 +236,7 @@ export function HealthOptionCard({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
       onPress={onPress}
       style={({ pressed }) => ({

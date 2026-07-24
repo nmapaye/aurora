@@ -12,4 +12,5 @@ export type RootStackParamList = {
   VigilanceTest: undefined;
   Settings: undefined;
   SleepHistory: undefined;
+  CaffeineHistory: undefined;
 };

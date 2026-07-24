@@ -18,6 +18,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       VigilanceTest: 'vigilance',
       Settings: 'settings',
       SleepHistory: 'sleep/history',
+      CaffeineHistory: 'caffeine/history',
     },
   },
   async getInitialURL() {
