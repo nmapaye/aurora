@@ -1,6 +1,6 @@
 # Aurora — Agent Handoff
 
-Last updated: 2026-07-23 (branch `codex/xcode-first-ios`)
+Last updated: 2026-07-25 (branch `codex/health-style-secondary-pages`)
 
 ## What this is
 
@@ -13,6 +13,80 @@ logging, a 60-second vigilance reaction test, and the pure alertness model in
 
 The target is a paid App Store v0.1.0 release, free TestFlight beta testing,
 and an optional Gumroad companion guide/support package.
+
+## Active feature handoff
+
+The current effort is the Apple Health-style rebuild of Sleep, Log, and
+Insights plus a one-time ten-step walkthrough across Summary, Sleep, Log, and
+Insights.
+
+- Isolated worktree:
+  `.worktrees/health-style-secondary-pages`
+- Branch: `codex/health-style-secondary-pages`
+- Main baseline: `2d523bbb`
+- Approved design:
+  `docs/superpowers/specs/2026-07-24-health-style-secondary-pages-design.md`
+- Execution plan:
+  `docs/superpowers/plans/2026-07-24-health-style-secondary-pages.md`
+- Subagent ledger and review artifacts:
+  `.superpowers/sdd/` (ignored)
+
+Do not modify the dirty primary checkout or `.worktrees/main-merge`; their
+unrelated/generated changes belong to the user.
+
+### Progress
+
+1. Foundation complete and reviewed through `2b63d99`: `expo-symbols`,
+   `AppSymbol`, shared Health-style components, and the exact shared presets
+   Espresso 60 mg, Drip 95 mg, Matcha 70 mg, Energy 160 mg.
+2. Walkthrough state/model complete and reviewed through `d15e4c1`: persisted
+   version 5, ten exact steps, legacy Summary completion migration, cursor
+   clamping, and tab-gating helpers. The old Summary-only controller remains
+   intentionally until integration task 6.
+3. Sleep complete and reviewed through `8bc49de`: W/M 7-/30-day presentation,
+   30-day read-only Health refresh, honest Health states, manual Add/Edit/Delete
+   with notes and `manual:sleep:` IDs, `SleepHistory`, caffeine-impact
+   baseline, DST-safe calendar days, native date/time controls, accessibility,
+   and compact/wide coverage. The Task 3 gate passed 36 suites / 164 tests.
+4. Log redesign is currently in progress from `8bc49de` with the fresh
+   `task4_log_redesign` subagent. It owns the shared preset integration,
+   Today/Quick Add/Recent/Add Details hierarchy, custom-entry sheet,
+   confirmation behavior, and `CaffeineHistory`.
+5. Remaining sequential gates: review/fix Log; implement/review Insights and
+   history; integrate/review the ten-step walkthrough and accessibility; then
+   final whole-branch review and full delivery verification.
+
+Each implementation task uses a fresh subagent, strict red-green-refactor TDD,
+an independent specification/code-quality review, and fix/re-review loops
+before the next task begins. Keep implementation tasks sequential because they
+share navigation, screens, and tests.
+
+### Current feature constraints
+
+- Keep everything React Native and Expo Go-previewable; do not add `@expo/ui`
+  or a SwiftUI bridge.
+- Keep HealthKit read-only. Add no analytics, telemetry, or synthetic
+  walkthrough data.
+- Manual sleep alone is editable/deletable; Health and Sample Data remain
+  labeled and read-only.
+- The walkthrough has exactly ten steps: Summary 1–4, Sleep 5–6, Log 7–8,
+  Insights 9–10. Skip completes globally; Finish appears only at step 10.
+- Disable data-changing controls during the walkthrough. Resume the persisted
+  step after relaunch and honor Reduce Motion and VoiceOver.
+- W/M Sleep means 7/30 days. W/2W/M Insights means 7/14/30 days and defaults
+  to 2W.
+- Track shared `HealthFormSheet` trigger-focus restoration for task 6's
+  cross-screen accessibility pass.
+
+### Local command note
+
+The default shell may select Node 25, but the repository requires Node 24.
+Run npm commands with:
+
+```bash
+/opt/homebrew/opt/node@24/bin/node \
+  /opt/homebrew/opt/node@24/lib/node_modules/npm/bin/npm-cli.js <command>
+```
 
 ## Native development model
 
@@ -40,9 +114,9 @@ See `docs/xcode-development.md` for exact ownership boundaries.
 - `npm run site:type-check`
 - `npm run site:build`
 
-The JavaScript checks currently cover 15 suites and 47 tests. Native build
-checks require stable Xcode 26.6 with the iOS 26 SDK; do not use Xcode 27 beta
-for release work.
+The last reviewed feature checkpoint (`8bc49de`) covered 36 suites and 164
+tests. Native build checks require stable Xcode 26.6 with the iOS 26 SDK; do
+not use Xcode 27 beta for release work.
 
 ## Landmines and repository knowledge
 
