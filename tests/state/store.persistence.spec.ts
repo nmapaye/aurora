@@ -167,6 +167,12 @@ describe('store persistence round-trip', () => {
       'failed',
     ],
     [
+      'refresh failure message',
+      'granted',
+      { importedCount: 0, lastMessage: 'hEaLtH ReFrEsH FaIlEd. Database unavailable.' },
+      'failed',
+    ],
+    [
       'successful import message',
       'granted',
       { importedCount: 1, lastMessage: 'Imported 1 recent sleep sample from Health.' },
@@ -230,5 +236,36 @@ describe('store persistence round-trip', () => {
     await useStore.persist.rehydrate();
 
     expect(useStore.getState().healthSync.importStatus).toBe('idle');
+  });
+
+  it('hydrates an interrupted import as idle with neutral retry copy', async () => {
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          onboarding: {
+            completed: false,
+            source: 'healthkit',
+            permissionStatus: 'granted',
+            appWalkthroughCompleted: false,
+            appWalkthroughStep: 0,
+          },
+          healthSync: {
+            importedCount: 0,
+            importStatus: 'importing',
+            lastMessage: 'Importing recent sleep from Health.',
+          },
+        },
+        version: 6,
+      }),
+    );
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState().onboarding.permissionStatus).toBe('granted');
+    expect(useStore.getState().healthSync).toMatchObject({
+      importStatus: 'idle',
+      lastMessage: 'Health import was interrupted. Try again.',
+    });
   });
 });

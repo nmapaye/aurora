@@ -13,6 +13,7 @@ import SleepHistoryScreen from '~/screens/SleepHistoryScreen';
 import SleepScreen from '~/screens/SleepScreen';
 import AppleHealth from '~/services/platform/health/appleHealth';
 import { requestHealthPermissions } from '~/services/permissions';
+import { jsonStringStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
 
 jest.mock('@react-native-community/datetimepicker', () => {
@@ -243,6 +244,40 @@ describe('onboarding Health import flow', () => {
     await openPermissions();
 
     expect(screen.getByText('Status: Import pending')).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
+  });
+
+  it('remounts an interrupted persisted import as pending instead of importing forever', async () => {
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          onboarding: {
+            completed: false,
+            source: 'healthkit',
+            permissionStatus: 'granted',
+            appWalkthroughCompleted: false,
+            appWalkthroughStep: 0,
+          },
+          healthSync: {
+            importedCount: 0,
+            importStatus: 'importing',
+            lastMessage: 'Importing recent sleep from Health.',
+          },
+        },
+        version: 6,
+      }),
+    );
+    await useStore.persist.rehydrate();
+    await render(<OnboardingScreen />);
+    await openPermissions();
+
+    expect(screen.getByText('Status: Import pending')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Health access is granted. Recent sleep import is pending.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Importing')).not.toBeOnTheScreen();
     expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
     expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
   });

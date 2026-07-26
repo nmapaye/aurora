@@ -130,15 +130,21 @@ function normalizeHealthImportStatus(
 ): HealthImportStatus {
   if (permissionStatus !== 'granted') return 'idle';
   if (value !== undefined) {
-    return value === 'idle' ||
-      value === 'importing' ||
+    return value === 'importing'
+      ? 'idle'
+      : value === 'idle' ||
       value === 'succeeded' ||
       value === 'failed'
       ? value
       : 'idle';
   }
   const normalizedMessage = lastMessage?.toLowerCase() ?? '';
-  if (normalizedMessage.startsWith('health import failed.')) return 'failed';
+  if (
+    normalizedMessage.startsWith('health import failed.') ||
+    normalizedMessage.startsWith('health refresh failed.')
+  ) {
+    return 'failed';
+  }
   if (
     normalizedMessage.startsWith('imported ') ||
     normalizedMessage.startsWith('health connected')
@@ -159,6 +165,7 @@ function normalizePersistedState(persistedState?: MigratingPersistedState): Pers
     ),
   };
   const persistedHealthSync = persistedState?.healthSync;
+  const interruptedImport = persistedHealthSync?.importStatus === 'importing';
 
   return {
     doses: persistedState?.doses ?? [],
@@ -169,6 +176,9 @@ function normalizePersistedState(persistedState?: MigratingPersistedState): Pers
     healthSync: {
       ...defaultHealthSync,
       ...persistedHealthSync,
+      ...(interruptedImport
+        ? { lastMessage: 'Health import was interrupted. Try again.' }
+        : {}),
       importStatus: normalizeHealthImportStatus(
         persistedHealthSync?.importStatus,
         onboarding.permissionStatus,

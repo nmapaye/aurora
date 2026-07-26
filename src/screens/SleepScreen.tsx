@@ -120,7 +120,12 @@ export default function SleepScreen() {
       return [...items, { time, mg: allowed, label: ['Kickstart', 'Sustain', 'Top-up'][index] ?? 'Plan' }];
     }, []);
   }, [cutoff?.nextCutoff, now, presentation.lastNight?.wakeTime, todayTotal]);
-  const healthState = refreshError
+  const refreshFailureMessage = refreshError
+    ? `Health refresh failed. ${refreshError}`
+    : healthSync.importStatus === 'failed'
+      ? healthSync.lastMessage ?? 'Health refresh failed. Try again.'
+      : undefined;
+  const healthState = refreshFailureMessage
     ? 'Health refresh failed'
     : demoMode
       ? 'Sample Data'
@@ -131,8 +136,8 @@ export default function SleepScreen() {
           : onboarding.permissionStatus === 'granted'
             ? 'Health connected'
             : 'Manual mode';
-  const healthDescription = refreshError
-    ? `Health refresh failed. ${refreshError}`
+  const healthDescription = refreshFailureMessage
+    ? refreshFailureMessage
     : healthState === 'Health connected'
       ? 'Aurora can refresh the most recent 30 days of read-only sleep data.'
       : healthState === 'Health access denied'
@@ -159,6 +164,7 @@ export default function SleepScreen() {
         setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access was denied. No sleep samples were imported.' });
         return;
       }
+      setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
       setHealthSync({
         importStatus: 'importing',
         lastMessage: 'Importing recent sleep from Health.',
@@ -168,7 +174,6 @@ export default function SleepScreen() {
         id: makeHealthSleepSessionId(sample), start: sample.start, end: sample.end, type: 'sleep' as const,
       }));
       upsertSleepSessions(sessions);
-      setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
       setHealthSync({
         importedCount: sessions.length,
         importStatus: 'succeeded',

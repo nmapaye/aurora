@@ -1,9 +1,17 @@
 import React from 'react';
-import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 
 import AppleHealth from '~/services/platform/health/appleHealth';
 import SleepScreen from '~/screens/SleepScreen';
+import { jsonStringStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
 
 jest.mock('@react-native-community/datetimepicker', () => {
@@ -34,8 +42,19 @@ jest.mock('react-native-safe-area-context', () => ({
 const health = jest.mocked(AppleHealth);
 const now = Date.parse('2026-07-24T12:00:00.000Z');
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('SleepScreen', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.spyOn(Date, 'now').mockReturnValue(now);
     jest
       .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
@@ -161,20 +180,79 @@ describe('SleepScreen', () => {
     expect(useStore.getState().healthSync.importStatus).toBe('succeeded');
   });
 
-  it('keeps a Health query error distinct from a successful zero-result refresh', async () => {
-    health.getSleepSamples.mockRejectedValueOnce(new Error('Health database unavailable'));
+  it('persists first-time granted authorization before a deferred query fails and remounts', async () => {
+    const query = deferred<Awaited<ReturnType<typeof AppleHealth.getSleepSamples>>>();
+    health.getSleepSamples.mockReturnValueOnce(query.promise);
     const user = userEvent.setup();
     await render(<SleepScreen />);
     await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
     await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
 
+    await waitFor(() =>
+      expect(useStore.getState()).toMatchObject({
+        onboarding: {
+          source: 'healthkit',
+          permissionStatus: 'granted',
+        },
+        healthSync: { importStatus: 'importing' },
+      }),
+    );
+
+    await act(() => query.reject(new Error('Health database unavailable')));
+
     await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
     expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
     expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
-    expect(useStore.getState().healthSync.importStatus).toBe('failed');
+    expect(useStore.getState()).toMatchObject({
+      onboarding: {
+        source: 'healthkit',
+        permissionStatus: 'granted',
+      },
+      healthSync: { importStatus: 'failed' },
+    });
+
+    const persisted = useStore.persist.getOptions().partialize!(
+      useStore.getState(),
+    );
+    const serializedPersistedState = JSON.stringify({
+      state: persisted,
+      version: 6,
+    });
+    await cleanup();
+    useStore.setState({
+      onboarding: {
+        completed: true,
+        source: 'manual',
+        permissionStatus: 'idle',
+        appWalkthroughCompleted: true,
+        appWalkthroughStep: 9,
+      },
+      healthSync: { importedCount: 0, importStatus: 'idle' },
+    });
+    jsonStringStorage.setItem('aurora/state', serializedPersistedState);
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState()).toMatchObject({
+      onboarding: {
+        source: 'healthkit',
+        permissionStatus: 'granted',
+      },
+      healthSync: { importStatus: 'failed' },
+    });
+    await render(<SleepScreen />);
+    await userEvent
+      .setup()
+      .press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    expect(
+      screen.getAllByText(
+        'Health refresh failed. Health database unavailable',
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
   });
 
-  it('surfaces a malformed Health payload as a refresh error instead of a zero result', async () => {
+  it('keeps granted authorization when a first-time query payload is malformed', async () => {
     health.getSleepSamples.mockResolvedValueOnce(undefined as never);
     const user = userEvent.setup();
     await render(<SleepScreen />);
@@ -183,7 +261,87 @@ describe('SleepScreen', () => {
 
     await waitFor(() => expect(screen.getAllByText(/Health refresh failed/).length).toBeGreaterThan(0));
     expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
-    expect(useStore.getState().healthSync.importStatus).toBe('failed');
+    expect(useStore.getState()).toMatchObject({
+      onboarding: {
+        source: 'healthkit',
+        permissionStatus: 'granted',
+      },
+      healthSync: { importStatus: 'failed' },
+    });
+  });
+
+  it('recovers a failed first-time import on a valid retry', async () => {
+    const sample = {
+      start: now - 8 * 60 * 60 * 1000,
+      end: now,
+    };
+    health.getSleepSamples
+      .mockRejectedValueOnce(new Error('Health database unavailable'))
+      .mockResolvedValueOnce([sample]);
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
+    await waitFor(() =>
+      expect(useStore.getState().healthSync.importStatus).toBe('failed'),
+    );
+
+    await user.press(screen.getByRole('button', { name: 'Refresh Sleep' }));
+
+    await waitFor(() =>
+      expect(useStore.getState().healthSync.importStatus).toBe('succeeded'),
+    );
+    expect(useStore.getState().onboarding).toMatchObject({
+      source: 'healthkit',
+      permissionStatus: 'granted',
+    });
+    expect(useStore.getState().sleeps).toEqual([
+      {
+        id: `healthkit:sleep:${sample.start}:${sample.end}`,
+        ...sample,
+        type: 'sleep',
+      },
+    ]);
+  });
+
+  it('keeps an unavailable first connection on the manual unsupported path', async () => {
+    health.isAvailable
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
+
+    await waitFor(() =>
+      expect(useStore.getState()).toMatchObject({
+        onboarding: {
+          source: 'manual',
+          permissionStatus: 'unsupported',
+        },
+        healthSync: { importStatus: 'idle' },
+      }),
+    );
+    expect(health.getSleepSamples).not.toHaveBeenCalled();
+  });
+
+  it('keeps denied first-time authorization on the manual denied path', async () => {
+    health.requestAuthorization.mockResolvedValueOnce(false);
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await user.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
+
+    await waitFor(() =>
+      expect(useStore.getState()).toMatchObject({
+        onboarding: {
+          source: 'manual',
+          permissionStatus: 'denied',
+        },
+        healthSync: { importStatus: 'idle' },
+      }),
+    );
+    expect(health.getSleepSamples).not.toHaveBeenCalled();
   });
 
   it.each([
