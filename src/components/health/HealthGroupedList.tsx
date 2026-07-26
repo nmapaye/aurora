@@ -1,4 +1,5 @@
 import React from 'react';
+import type { RefObject } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import AppSymbol from '~/components/AppSymbol';
@@ -13,6 +14,7 @@ export type HealthGroupedListRow = {
   onPress?: () => void;
   accessibilityLabel?: string;
   accessory?: React.ReactNode;
+  ref?: RefObject<View | null>;
 };
 
 type Props = {
@@ -88,6 +90,7 @@ export function HealthGroupedList({ rows }: Props) {
 
         return (
           <Pressable
+            ref={row.ref}
             key={row.title}
             accessibilityRole="button"
             accessibilityLabel={row.accessibilityLabel ?? row.title}

@@ -6,7 +6,7 @@ import {
   isAppWalkthroughPending,
   isWalkthroughTabDisabled,
   reduceAppWalkthrough,
-} from '~/features/appWalkthrough';
+} from '~/features/appWalkthrough/model';
 
 describe('app walkthrough model', () => {
   it('defines the ten approved steps in route order', () => {

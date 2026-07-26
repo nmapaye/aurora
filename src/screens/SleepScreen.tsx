@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
@@ -12,6 +12,11 @@ import {
   HealthHighlightCard,
   HealthRangeControl,
 } from '~/components/health';
+import {
+  AppWalkthroughCoach,
+  useAppWalkthrough,
+  WalkthroughReveal,
+} from '~/features/appWalkthrough';
 import { createManualSleepDraft, createManualSleepId, validateManualSleep } from '~/features/sleep/manualSleep';
 import { formatSleepDuration, getCaffeineImpact, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
@@ -68,6 +73,16 @@ export default function SleepScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshError, setRefreshError] = useState<string | undefined>();
   const [pickerField, setPickerField] = useState<'start' | 'end' | undefined>();
+  const addDataRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const sourcesAnchorRef = useRef<View>(null);
+  const walkthrough = useAppWalkthrough({
+    route: 'Sleep',
+    isWideLayout: layout.isWideLayout,
+    scrollRef,
+    contentRef,
+  });
 
   useEffect(() => {
     let active = true;
@@ -209,36 +224,79 @@ export default function SleepScreen() {
     </View>
   );
 
+  const walkthroughCoach = walkthrough.active ? (
+    <WalkthroughReveal
+      key={walkthrough.step.id}
+      active
+      revealed={walkthrough.coachVisible}
+      reduceMotion={walkthrough.reduceMotion}
+    >
+      <AppWalkthroughCoach
+        step={walkthrough.step}
+        locked={walkthrough.locked}
+        headingRef={walkthrough.coachHeadingRef}
+        onLayout={walkthrough.onCoachLayout}
+        onSkip={walkthrough.onSkip}
+        onPrimary={walkthrough.onPrimary}
+      />
+    </WalkthroughReveal>
+  ) : null;
+
   return (
-    <AppScreen title="Sleep" trailing={<Button title="Add Data" variant="plain" onPress={() => { setDraft(createManualSleepDraft(Date.now())); setShowForm(true); }} />}>
+    <AppScreen
+      title="Sleep"
+      trailing={<Button ref={addDataRef} title="Add Data" variant="plain" onPress={() => { setDraft(createManualSleepDraft(Date.now())); setShowForm(true); }} />}
+      scrollRef={scrollRef}
+      contentRef={contentRef}
+      scrollEnabled={!walkthrough.active}
+      interactionEnabled={!walkthrough.active}
+      bottomOverlay={walkthroughCoach}
+      onScroll={walkthrough.onScroll}
+      onViewportLayout={walkthrough.onViewportLayout}
+      headerTransform={(header) => (
+        <WalkthroughReveal
+          active={walkthrough.active}
+          revealed={walkthrough.isRevealed('sleep-header')}
+          reduceMotion={walkthrough.reduceMotion}
+        >
+          {header}
+        </WalkthroughReveal>
+      )}
+    >
       <View style={{ gap: spacing.md }}>
-        <HealthRangeControl accessibilityLabel="Sleep range" value={range} onChange={setRange} options={[{ value: 'week', label: 'W' }, { value: 'month', label: 'M' }]} />
-        <View testID={layout.isWideLayout ? 'sleep-wide-layout' : 'sleep-compact-layout'} style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.md }}>
-          <View style={{ flex: 1 }}>{chart}</View>
-          {layout.isWideLayout ? <View style={{ flex: 1 }}>{highlights}</View> : null}
-        </View>
-        {!layout.isWideLayout ? highlights : null}
-        <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Next Best Actions</Text>
-          {plan.length ? <HealthGroupedList rows={plan.map((item) => ({ title: item.label, subtitle: `Recommended at ${formatTime(item.time)}`, value: `${item.mg} mg` }))} /> : <HealthEmptyState message="Add a wake time to see your 200 mg plan." />}
-          {plan[0] ? <Button title="Log First Dose Now" variant="tinted" onPress={logFirstPlanDose} /> : null}
-          {plan[0] ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Based on today’s intake and your cutoff.</Text> : null}
-        </View>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
-          <HealthGroupedList rows={[{ title: 'Data Sources & Access', subtitle: healthState, onPress: () => setShowSources((visible) => !visible) }, { title: 'Show All Data', subtitle: `${sleeps.length} sessions`, onPress: () => navigate('SleepHistory') }]} />
-          {showSources ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
-            <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
-            <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>
-            <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Imported: {healthSync.importedCount} sleep samples</Text>
-            {healthSync.lastSyncedAt ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Last sync: {formatTime(healthSync.lastSyncedAt)}</Text> : null}
-            {healthSync.lastMessage ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>{healthSync.lastMessage}</Text> : null}
-            <Button title={onboarding.permissionStatus === 'granted' ? 'Refresh Sleep' : 'Connect to Health'} variant="primary" onPress={connectHealth} disabled={loading || healthAvailable === false} loading={loading} />
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}><Button title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'} onPress={loadDemoData} /><Button title="Clear Samples" variant="plain" role="destructive" onPress={clearDemoData} disabled={!demoMode} /></View>
-          </View> : null}
-        </View>
+        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-history')} reduceMotion={walkthrough.reduceMotion} style={{ gap: spacing.md }}>
+          <HealthRangeControl accessibilityLabel="Sleep range" value={range} onChange={setRange} options={[{ value: 'week', label: 'W' }, { value: 'month', label: 'M' }]} />
+          <View testID={layout.isWideLayout ? 'sleep-wide-layout' : 'sleep-compact-layout'} style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.md }}>
+            <View style={{ flex: 1 }}>{chart}</View>
+            {layout.isWideLayout ? <View style={{ flex: 1 }}>{highlights}</View> : null}
+          </View>
+          {!layout.isWideLayout ? highlights : null}
+        </WalkthroughReveal>
+        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-sources')} reduceMotion={walkthrough.reduceMotion}>
+          <View ref={sourcesAnchorRef} collapsable={false} onLayout={() => walkthrough.measureAnchor('sleep-sources', sourcesAnchorRef.current)} style={{ gap: spacing.md }}>
+            <View style={{ gap: spacing.sm }}>
+              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Next Best Actions</Text>
+              {plan.length ? <HealthGroupedList rows={plan.map((item) => ({ title: item.label, subtitle: `Recommended at ${formatTime(item.time)}`, value: `${item.mg} mg` }))} /> : <HealthEmptyState message="Add a wake time to see your 200 mg plan." />}
+              {plan[0] ? <Button title="Log First Dose Now" variant="tinted" onPress={logFirstPlanDose} /> : null}
+              {plan[0] ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Based on today’s intake and your cutoff.</Text> : null}
+            </View>
+            <View style={{ gap: spacing.sm }}>
+              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
+              <HealthGroupedList rows={[{ title: 'Data Sources & Access', subtitle: healthState, onPress: () => setShowSources((visible) => !visible) }, { title: 'Show All Data', subtitle: `${sleeps.length} sessions`, onPress: () => navigate('SleepHistory') }]} />
+              {showSources ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
+                <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
+                <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>
+                <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Imported: {healthSync.importedCount} sleep samples</Text>
+                {healthSync.lastSyncedAt ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Last sync: {formatTime(healthSync.lastSyncedAt)}</Text> : null}
+                {healthSync.lastMessage ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>{healthSync.lastMessage}</Text> : null}
+                <Button title={onboarding.permissionStatus === 'granted' ? 'Refresh Sleep' : 'Connect to Health'} variant="primary" onPress={connectHealth} disabled={loading || healthAvailable === false} loading={loading} />
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}><Button title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'} onPress={loadDemoData} /><Button title="Clear Samples" variant="plain" role="destructive" onPress={clearDemoData} disabled={!demoMode} /></View>
+              </View> : null}
+            </View>
+          </View>
+        </WalkthroughReveal>
       </View>
-      <HealthFormSheet visible={showForm} title="Add Sleep" onCancel={() => { setPickerField(undefined); setShowForm(false); }} onSave={saveManualSleep} saveDisabled={!validation.valid}>
+      <HealthFormSheet visible={showForm} title="Add Sleep" returnFocusRef={addDataRef} onCancel={() => { setPickerField(undefined); setShowForm(false); }} onSave={saveManualSleep} saveDisabled={!validation.valid}>
         <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Choose the local start and end time for this sleep session.</Text>
         <Button title={`Start · ${formatDateTime(draft.start)}`} accessibilityLabel="Start time" accessibilityValue={{ text: formatDateTime(draft.start) }} variant="tinted" onPress={() => setPickerField('start')} />
         <Button title={`End · ${formatDateTime(draft.end)}`} accessibilityLabel="End time" accessibilityValue={{ text: formatDateTime(draft.end) }} variant="tinted" onPress={() => setPickerField('end')} />

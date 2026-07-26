@@ -13,11 +13,10 @@ import {
   SectionHeader,
 } from '~/components/ui';
 import {
-  isSummaryWalkthroughPending,
-  SummaryWalkthroughCoach,
-  useSummaryWalkthrough,
+  AppWalkthroughCoach,
+  useAppWalkthrough,
   WalkthroughReveal,
-} from '~/features/summaryWalkthrough';
+} from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
@@ -90,16 +89,10 @@ export default function DashboardScreen() {
   const addDose = useStore((s) => s.addDose);
   const demoMode = useStore((s) => s.demoMode);
   const loadDemoData = useStore((s) => s.loadDemoData);
-  const onboarding = useStore((state) => state.onboarding);
-  const completeAppWalkthrough = useStore(
-    (state) => state.completeAppWalkthrough,
-  );
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
   const pinnedAnchorRef = useRef<View>(null);
   const loggingAnchorRef = useRef<View>(null);
-  const walkthroughEnabled =
-    isSummaryWalkthroughPending(onboarding);
 
   const todaySummary = useMemo(() => {
     const now = new Date();
@@ -161,27 +154,25 @@ export default function DashboardScreen() {
       />
     ) : null;
 
-  const walkthrough = useSummaryWalkthrough({
-    enabled: walkthroughEnabled,
-    hasAlert: alertCard !== null,
+  const walkthrough = useAppWalkthrough({
+    route: 'Summary',
     isWideLayout: layout.isWideLayout,
     scrollRef,
     contentRef,
-    onComplete: completeAppWalkthrough,
   });
 
   const measurePinned = (_event: LayoutChangeEvent) => {
-    walkthrough.measureAnchor('pinned', pinnedAnchorRef.current);
+    walkthrough.measureAnchor('summary-pinned', pinnedAnchorRef.current);
   };
 
   const measureLogging = (_event: LayoutChangeEvent) => {
-    walkthrough.measureAnchor('logging', loggingAnchorRef.current);
+    walkthrough.measureAnchor('summary-logging', loggingAnchorRef.current);
   };
 
   const revealedAlert = alertCard ? (
     <WalkthroughReveal
       active={walkthrough.active}
-      revealed={walkthrough.isRevealed('alert')}
+      revealed={walkthrough.isRevealed('summary-alert')}
       reduceMotion={walkthrough.reduceMotion}
       staggerIndex={1}
     >
@@ -286,7 +277,7 @@ export default function DashboardScreen() {
     <>
       <WalkthroughReveal
         active={walkthrough.active}
-        revealed={walkthrough.isRevealed('pinned')}
+        revealed={walkthrough.isRevealed('summary-pinned')}
         reduceMotion={walkthrough.reduceMotion}
         staggerIndex={0}
       >
@@ -301,7 +292,7 @@ export default function DashboardScreen() {
           <WalkthroughReveal
             key={card.key}
             active={walkthrough.active}
-            revealed={walkthrough.isRevealed('pinned')}
+            revealed={walkthrough.isRevealed('summary-pinned')}
             reduceMotion={walkthrough.reduceMotion}
             staggerIndex={index + 1}
           >
@@ -316,14 +307,14 @@ export default function DashboardScreen() {
     <>
       <WalkthroughReveal
         active={walkthrough.active}
-        revealed={walkthrough.isRevealed('logging')}
+        revealed={walkthrough.isRevealed('summary-logging')}
         reduceMotion={walkthrough.reduceMotion}
       >
         <SectionHeader title="Log" />
       </WalkthroughReveal>
       <WalkthroughReveal
         active={walkthrough.active}
-        revealed={walkthrough.isRevealed('logging')}
+        revealed={walkthrough.isRevealed('summary-logging')}
         reduceMotion={walkthrough.reduceMotion}
         staggerIndex={1}
       >
@@ -339,7 +330,7 @@ export default function DashboardScreen() {
               <WalkthroughReveal
                 key={preset.id}
                 active={walkthrough.active}
-                revealed={walkthrough.isRevealed('logging')}
+                revealed={walkthrough.isRevealed('summary-logging')}
                 reduceMotion={walkthrough.reduceMotion}
                 staggerIndex={index + 2}
               >
@@ -353,7 +344,7 @@ export default function DashboardScreen() {
           </View>
           <WalkthroughReveal
             active={walkthrough.active}
-            revealed={walkthrough.isRevealed('logging')}
+            revealed={walkthrough.isRevealed('summary-logging')}
             reduceMotion={walkthrough.reduceMotion}
             staggerIndex={6}
           >
@@ -453,7 +444,7 @@ export default function DashboardScreen() {
   const revealedRecentSection = (
     <WalkthroughReveal
       active={walkthrough.active}
-      revealed={walkthrough.isRevealed('recent')}
+      revealed={walkthrough.isRevealed('summary-recent')}
       reduceMotion={walkthrough.reduceMotion}
       staggerIndex={7}
       style={{ gap: spacing.md }}
@@ -465,7 +456,7 @@ export default function DashboardScreen() {
   const revealedTodayPanel = (
     <WalkthroughReveal
       active={walkthrough.active}
-      revealed={walkthrough.isRevealed('today')}
+      revealed={walkthrough.isRevealed('summary-today')}
       reduceMotion={walkthrough.reduceMotion}
       staggerIndex={1}
     >
@@ -480,7 +471,7 @@ export default function DashboardScreen() {
       revealed={walkthrough.coachVisible}
       reduceMotion={walkthrough.reduceMotion}
     >
-      <SummaryWalkthroughCoach
+      <AppWalkthroughCoach
         step={walkthrough.step}
         locked={walkthrough.locked}
         headingRef={walkthrough.coachHeadingRef}
@@ -504,7 +495,7 @@ export default function DashboardScreen() {
       headerTransform={(header) => (
         <WalkthroughReveal
           active={walkthrough.active}
-          revealed={walkthrough.isRevealed('header')}
+          revealed={walkthrough.isRevealed('summary-header')}
           reduceMotion={walkthrough.reduceMotion}
           staggerIndex={0}
         >

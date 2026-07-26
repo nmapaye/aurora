@@ -122,4 +122,25 @@ describe('RootTabs summary walkthrough gating', () => {
       }),
     ).toBeEnabled();
   });
+
+  it.each([
+    [4, 'Sleep screen'],
+    [6, 'Log screen'],
+    [8, 'Insights screen'],
+  ] as const)('selects the owning tab when relaunching at step %i', async (step, screenName) => {
+    useStore.setState({
+      onboarding: {
+        ...useStore.getState().onboarding,
+        appWalkthroughStep: step,
+      },
+    });
+
+    await render(
+      <NavigationContainer>
+        <RootTabs />
+      </NavigationContainer>,
+    );
+
+    expect(screen.getByText(screenName)).toBeOnTheScreen();
+  });
 });

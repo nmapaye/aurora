@@ -2,21 +2,8 @@ import { jsonStringStorage } from '~/services/storage';
 import {
   isAppWalkthroughPending,
   isWalkthroughTabDisabled,
-} from '~/features/appWalkthrough';
+} from '~/features/appWalkthrough/model';
 import { useStore } from '~/state/store';
-
-jest.mock(
-  '~/features/summaryWalkthrough/SummaryWalkthroughCoach',
-  () => null,
-);
-jest.mock(
-  '~/features/summaryWalkthrough/useSummaryWalkthrough',
-  () => null,
-);
-jest.mock(
-  '~/features/summaryWalkthrough/WalkthroughReveal',
-  () => null,
-);
 
 function resetOnboarding() {
   useStore.setState({

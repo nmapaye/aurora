@@ -7,17 +7,17 @@ import {
 import { StyleSheet, Text } from 'react-native';
 
 import {
-  SUMMARY_WALKTHROUGH_STEPS,
-  SummaryWalkthroughCoach,
-  WalkthroughReveal,
-} from '~/features/summaryWalkthrough';
+  APP_WALKTHROUGH_STEPS,
+} from '~/features/appWalkthrough/model';
+import AppWalkthroughCoach from '~/features/appWalkthrough/AppWalkthroughCoach';
+import WalkthroughReveal from '~/features/appWalkthrough/WalkthroughReveal';
 
 jest.mock('~/hooks/useAppScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
 
-describe('Summary walkthrough presentation', () => {
+describe('App walkthrough presentation', () => {
   it('hides unrevealed content from touch and accessibility', async () => {
     await render(
       <WalkthroughReveal
@@ -54,8 +54,8 @@ describe('Summary walkthrough presentation', () => {
     const user = userEvent.setup();
 
     await render(
-      <SummaryWalkthroughCoach
-        step={SUMMARY_WALKTHROUGH_STEPS[0]}
+      <AppWalkthroughCoach
+        step={APP_WALKTHROUGH_STEPS[0]}
         locked={false}
         headingRef={createRef()}
         onSkip={onSkip}
@@ -66,7 +66,7 @@ describe('Summary walkthrough presentation', () => {
     expect(
       screen.getByRole('header', { name: 'Your day at a glance' }),
     ).toBeOnTheScreen();
-    expect(screen.getByText('1 of 4')).toBeOnTheScreen();
+    expect(screen.getByText('1 of 10')).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Skip' }));
     await user.press(screen.getByRole('button', { name: 'Next' }));
     expect(onSkip).toHaveBeenCalledTimes(1);
@@ -75,8 +75,8 @@ describe('Summary walkthrough presentation', () => {
 
   it('disables both actions while a transition is locked', async () => {
     await render(
-      <SummaryWalkthroughCoach
-        step={SUMMARY_WALKTHROUGH_STEPS[1]}
+      <AppWalkthroughCoach
+        step={APP_WALKTHROUGH_STEPS[1]}
         locked
         headingRef={createRef()}
         onSkip={jest.fn()}
@@ -91,8 +91,8 @@ describe('Summary walkthrough presentation', () => {
   it('forwards coach layout measurements from its root', async () => {
     const onLayout = jest.fn();
     await render(
-      <SummaryWalkthroughCoach
-        step={SUMMARY_WALKTHROUGH_STEPS[0]}
+      <AppWalkthroughCoach
+        step={APP_WALKTHROUGH_STEPS[0]}
         locked={false}
         headingRef={createRef()}
         onLayout={onLayout}
@@ -106,8 +106,8 @@ describe('Summary walkthrough presentation', () => {
 
   it('wraps large accessibility-size actions without shrinking touch targets', async () => {
     await render(
-      <SummaryWalkthroughCoach
-        step={SUMMARY_WALKTHROUGH_STEPS[3]}
+      <AppWalkthroughCoach
+        step={APP_WALKTHROUGH_STEPS[9]}
         locked={false}
         headingRef={createRef()}
         onSkip={jest.fn()}

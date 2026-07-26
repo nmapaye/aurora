@@ -37,7 +37,7 @@ type Props = {
   role?: ButtonRole;
 };
 
-export default function Button({
+const Button = React.forwardRef<View, Props>(function Button({
   title,
   onPress,
   variant = 'tinted',
@@ -51,7 +51,7 @@ export default function Button({
   accessibilityValue,
   testID,
   role = 'default',
-}: Props) {
+}: Props, ref) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const primary = getPrimaryButtonColors(scheme, disabled || loading);
@@ -90,6 +90,7 @@ export default function Button({
 
   return (
     <Pressable
+      ref={ref}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityValue={accessibilityValue}
@@ -117,7 +118,9 @@ export default function Button({
       </View>
     </Pressable>
   );
-}
+});
+
+export default Button;
 
 const styles = StyleSheet.create({
   base: {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { createRef, useMemo, useRef, useState } from 'react';
 import { Alert, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -31,6 +31,10 @@ export default function SleepHistoryScreen() {
   const [note, setNote] = useState('');
   const [pickerField, setPickerField] = useState<'start' | 'end' | undefined>();
   const validation = validateManualSleep({ start, end });
+  const editTriggerRefs = useRef(new Map<string, React.RefObject<View | null>>());
+  const returnFocusRef = editingId
+    ? editTriggerRefs.current.get(editingId)
+    : undefined;
   const sorted = useMemo(() => [...sleeps].sort((left, right) => right.end - left.end), [sleeps]);
 
   const edit = (id: string) => {
@@ -69,11 +73,17 @@ export default function SleepHistoryScreen() {
               { title: sleepSourceLabel(sleep.id), subtitle: `${new Date(sleep.start).toLocaleDateString()} · ${formatSleepDuration(sleep.end - sleep.start)}`, value: manual ? 'Editable' : 'Read-only' },
               ...(sleep.note ? [{ title: 'Note', subtitle: sleep.note }] : []),
             ]} />
-            {manual ? <View style={{ flexDirection: 'row', gap: spacing.sm }}><Button title="Edit manual sleep" variant="plain" onPress={() => edit(sleep.id)} /><Button title="Delete manual sleep" variant="plain" role="destructive" onPress={() => remove(sleep.id)} /></View> : null}
+            {manual ? <View style={{ flexDirection: 'row', gap: spacing.sm }}><Button ref={(() => {
+              const existing = editTriggerRefs.current.get(sleep.id);
+              if (existing) return existing;
+              const created = createRef<View>();
+              editTriggerRefs.current.set(sleep.id, created);
+              return created;
+            })()} title="Edit manual sleep" variant="plain" onPress={() => edit(sleep.id)} /><Button title="Delete manual sleep" variant="plain" role="destructive" onPress={() => remove(sleep.id)} /></View> : null}
           </View>;
         })}
       </View> : <HealthEmptyState message="No sleep sessions yet." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}
-      <HealthFormSheet visible={Boolean(editing)} title="Edit Sleep" onCancel={() => { setPickerField(undefined); setEditingId(undefined); }} onSave={save} saveLabel="Save changes" saveDisabled={!validation.valid}>
+      <HealthFormSheet visible={Boolean(editing)} title="Edit Sleep" returnFocusRef={returnFocusRef} onCancel={() => { setPickerField(undefined); setEditingId(undefined); }} onSave={save} saveLabel="Save changes" saveDisabled={!validation.valid}>
         <Button title={`Start · ${formatDateTime(start)}`} accessibilityLabel="Start time" accessibilityValue={{ text: formatDateTime(start) }} variant="tinted" onPress={() => setPickerField('start')} />
         <Button title={`End · ${formatDateTime(end)}`} accessibilityLabel="End time" accessibilityValue={{ text: formatDateTime(end) }} variant="tinted" onPress={() => setPickerField('end')} />
         {pickerField ? <DateTimePicker testID={`history-${pickerField}-picker`} value={new Date(pickerField === 'start' ? start : end)} mode="datetime" display="spinner" onChange={(_event, date) => { if (date) { if (pickerField === 'start') setStart(date.getTime()); else setEnd(date.getTime()); } }} /> : null}

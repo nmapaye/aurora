@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Modal,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -24,6 +25,11 @@ import {
   validateCustomDoseDraft,
 } from '~/features/caffeine/logging';
 import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
+import {
+  AppWalkthroughCoach,
+  useAppWalkthrough,
+  WalkthroughReveal,
+} from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import { navigate } from '~/navigation';
@@ -65,6 +71,18 @@ export default function LogIntakeScreen() {
   const [pendingTime, setPendingTime] = useState(() => new Date(Date.now()));
   const [confirmation, setConfirmation] = useState('');
   const [reduceMotion, setReduceMotion] = useState(true);
+  const addDataRef = useRef<View>(null);
+  const customEntryRef = useRef<View>(null);
+  const returnFocusRef = useRef(addDataRef);
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const detailsAnchorRef = useRef<View>(null);
+  const walkthrough = useAppWalkthrough({
+    route: 'Log',
+    isWideLayout: layout.isWideLayout,
+    scrollRef,
+    contentRef,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -121,7 +139,8 @@ export default function LogIntakeScreen() {
     announceSaved();
   };
 
-  const openCustomEntry = () => {
+  const openCustomEntry = (triggerRef = customEntryRef) => {
+    returnFocusRef.current = triggerRef;
     setConfirmation('');
     setPendingTime(new Date(draft.timestamp));
     setCustomVisible(true);
@@ -174,17 +193,51 @@ export default function LogIntakeScreen() {
       <SectionHeader title="Add Details" />
       <HealthGroupedList
         rows={[
-          { title: 'Custom Entry', subtitle: 'Amount, source, time, and note', onPress: openCustomEntry },
+          { title: 'Custom Entry', subtitle: 'Amount, source, time, and note', ref: customEntryRef, onPress: () => openCustomEntry(customEntryRef) },
           { title: 'Show All Caffeine Data', onPress: () => navigate('CaffeineHistory') },
         ]}
       />
     </View>
   );
 
+  const walkthroughCoach = walkthrough.active ? (
+    <WalkthroughReveal
+      key={walkthrough.step.id}
+      active
+      revealed={walkthrough.coachVisible}
+      reduceMotion={walkthrough.reduceMotion}
+    >
+      <AppWalkthroughCoach
+        step={walkthrough.step}
+        locked={walkthrough.locked}
+        headingRef={walkthrough.coachHeadingRef}
+        onLayout={walkthrough.onCoachLayout}
+        onSkip={walkthrough.onSkip}
+        onPrimary={walkthrough.onPrimary}
+      />
+    </WalkthroughReveal>
+  ) : null;
+
   return (
     <AppScreen
       title="Log"
-      trailing={<Button title="Add Data" variant="plain" onPress={openCustomEntry} />}
+      trailing={<Button ref={addDataRef} title="Add Data" variant="plain" onPress={() => openCustomEntry(addDataRef)} />}
+      scrollRef={scrollRef}
+      contentRef={contentRef}
+      scrollEnabled={!walkthrough.active}
+      interactionEnabled={!walkthrough.active}
+      bottomOverlay={walkthroughCoach}
+      onScroll={walkthrough.onScroll}
+      onViewportLayout={walkthrough.onViewportLayout}
+      headerTransform={(header) => (
+        <WalkthroughReveal
+          active={walkthrough.active}
+          revealed={walkthrough.isRevealed('log-header')}
+          reduceMotion={walkthrough.reduceMotion}
+        >
+          {header}
+        </WalkthroughReveal>
+      )}
     >
       <View
         testID={layout.isWideLayout ? 'log-wide-layout' : 'log-compact-layout'}
@@ -199,8 +252,15 @@ export default function LogIntakeScreen() {
             gap: spacing.md,
           }}
         >
-          {todayCard}
-          {quickAdd}
+          <WalkthroughReveal
+            active={walkthrough.active}
+            revealed={walkthrough.isRevealed('log-quick-add')}
+            reduceMotion={walkthrough.reduceMotion}
+            style={{ gap: spacing.md }}
+          >
+            {todayCard}
+            {quickAdd}
+          </WalkthroughReveal>
         </View>
         <View
           testID="log-supporting-column"
@@ -211,17 +271,30 @@ export default function LogIntakeScreen() {
             gap: spacing.md,
           }}
         >
-          <View style={{ gap: spacing.sm }}>
-            <SectionHeader title="Recent" />
-            <SectionCard>
-              {recent.length ? recent.map((dose) => (
-                <ListRow key={dose.id} title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`} subtitle={fmtDateTime(dose.timestamp)} />
-              )) : (
-                <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>No caffeine logged yet.</Text>
-              )}
-            </SectionCard>
-          </View>
-          {details}
+          <WalkthroughReveal
+            active={walkthrough.active}
+            revealed={walkthrough.isRevealed('log-details')}
+            reduceMotion={walkthrough.reduceMotion}
+          >
+            <View
+              ref={detailsAnchorRef}
+              collapsable={false}
+              onLayout={() => walkthrough.measureAnchor('log-details', detailsAnchorRef.current)}
+              style={{ gap: spacing.md }}
+            >
+              <View style={{ gap: spacing.sm }}>
+                <SectionHeader title="Recent" />
+                <SectionCard>
+                  {recent.length ? recent.map((dose) => (
+                    <ListRow key={dose.id} title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`} subtitle={fmtDateTime(dose.timestamp)} />
+                  )) : (
+                    <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>No caffeine logged yet.</Text>
+                  )}
+                </SectionCard>
+              </View>
+              {details}
+            </View>
+          </WalkthroughReveal>
         </View>
       </View>
 
@@ -234,6 +307,7 @@ export default function LogIntakeScreen() {
       <HealthFormSheet
         visible={customVisible}
         title="Custom Entry"
+        returnFocusRef={returnFocusRef.current}
         onCancel={() => { setPickerVisible(false); setCustomVisible(false); }}
         onSave={saveCustomEntry}
         saveDisabled={!validation.valid}

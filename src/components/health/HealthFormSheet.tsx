@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 import {
   AccessibilityInfo,
   Modal,
@@ -21,6 +22,7 @@ type Props = {
   saveLabel?: string;
   saveDisabled?: boolean;
   reduceMotion?: boolean;
+  returnFocusRef?: RefObject<View | null>;
 };
 
 export function HealthFormSheet({
@@ -32,15 +34,24 @@ export function HealthFormSheet({
   saveLabel = 'Save',
   saveDisabled = false,
   reduceMotion = false,
+  returnFocusRef,
 }: Props) {
   const palette = getAppPalette(useAppScheme());
   const headingRef = useRef<Text>(null);
+  const wasVisibleRef = useRef(false);
+  const lastReturnFocusRef = useRef(returnFocusRef);
 
   useEffect(() => {
-    if (!visible) return;
-    const handle = findNodeHandle(headingRef.current);
-    if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
-  }, [visible]);
+    if (visible) {
+      lastReturnFocusRef.current = returnFocusRef;
+      const handle = findNodeHandle(headingRef.current);
+      if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
+    } else if (wasVisibleRef.current) {
+      const handle = findNodeHandle(lastReturnFocusRef.current?.current ?? null);
+      if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
+    }
+    wasVisibleRef.current = visible;
+  }, [returnFocusRef, visible]);
 
   return (
     <Modal

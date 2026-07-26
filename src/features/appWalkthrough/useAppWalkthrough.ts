@@ -21,14 +21,18 @@ import type {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
+import { navigate } from '~/navigation';
+import { useStore } from '~/state/store';
 import { spacing } from '~/theme/tokens';
 import {
+  APP_WALKTHROUGH_STEPS,
+  clampAppWalkthroughStep,
   getRevealedGroups,
   getTargetScrollY,
-  initialWalkthroughState,
+  initialAppWalkthroughState,
+  isAppWalkthroughPending,
   isTargetFullyVisible,
-  reduceWalkthrough,
-  SUMMARY_WALKTHROUGH_STEPS,
+  reduceAppWalkthrough,
   WALKTHROUGH_REDUCED_MOTION_SETTLE_MS,
   WALKTHROUGH_REVEAL_SETTLE_MS,
   WALKTHROUGH_SCROLL_SETTLE_MS,
@@ -36,8 +40,9 @@ import {
   WALKTHROUGH_TOP_CLEARANCE,
 } from './model';
 import type {
-  SummaryAnchorId,
-  SummaryRevealGroup,
+  AppWalkthroughAnchor,
+  AppWalkthroughRevealGroup,
+  AppWalkthroughRoute,
 } from './model';
 
 type AnchorMeasurement = { y: number; height: number };
@@ -51,26 +56,32 @@ function geometryValueChanged(previous: number, next: number) {
 }
 
 type Options = {
-  enabled: boolean;
-  hasAlert: boolean;
+  route: AppWalkthroughRoute;
   isWideLayout: boolean;
   scrollRef: RefObject<ScrollView | null>;
   contentRef: RefObject<View | null>;
-  onComplete: () => void;
 };
 
-export default function useSummaryWalkthrough({
-  enabled,
-  hasAlert,
+export default function useAppWalkthrough({
+  route,
   isWideLayout,
   scrollRef,
   contentRef,
-  onComplete,
 }: Options) {
-  const [state, dispatch] = useReducer(
-    reduceWalkthrough,
-    initialWalkthroughState,
+  const onboarding = useStore((state) => state.onboarding);
+  const advanceAppWalkthrough = useStore(
+    (state) => state.advanceAppWalkthrough,
   );
+  const completeAppWalkthrough = useStore(
+    (state) => state.completeAppWalkthrough,
+  );
+  const persistedStep = clampAppWalkthroughStep(
+    onboarding.appWalkthroughStep,
+  );
+  const [state, dispatch] = useReducer(reduceAppWalkthrough, {
+    ...initialAppWalkthroughState,
+    stepIndex: persistedStep,
+  });
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [geometryRevision, setGeometryRevision] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -80,9 +91,12 @@ export default function useSummaryWalkthrough({
     height: 0,
   });
   const scrollYRef = useRef(0);
+  const firstRouteStep = APP_WALKTHROUGH_STEPS.find(
+    (step) => step.route === route,
+  );
   const anchorsRef = useRef<
-    Partial<Record<SummaryAnchorId, AnchorMeasurement>>
-  >({ top: { y: 0, height: 1 } });
+    Partial<Record<AppWalkthroughAnchor, AnchorMeasurement>>
+  >(firstRouteStep ? { [firstRouteStep.anchor]: { y: 0, height: 1 } } : {});
   const coachHeightRef = useRef(0);
   const scrollViewRef = useRef(scrollRef);
   const coachHeadingRef = useRef<Text | null>(null);
@@ -93,10 +107,14 @@ export default function useSummaryWalkthrough({
     null,
   );
   const completedRef = useRef(false);
-  const announcedStagesRef = useRef(new Set<number>());
+  const announcedStepsRef = useRef(new Set<number>());
   const isWideLayoutRef = useRef(isWideLayout);
 
   scrollViewRef.current = scrollRef;
+
+  const currentStep = APP_WALKTHROUGH_STEPS[state.stepIndex];
+  const pending = isAppWalkthroughPending(onboarding);
+  const enabled = pending && currentStep.route === route;
 
   const markGeometryChanged = useCallback(() => {
     setGeometryRevision((current) => current + 1);
@@ -104,6 +122,16 @@ export default function useSummaryWalkthrough({
   }, []);
 
   useEffect(() => {
+    if (state.stepIndex === persistedStep) return;
+    dispatch({ type: 'SYNC', stepIndex: persistedStep });
+  }, [persistedStep, state.stepIndex]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setReduceMotion(true);
+      return;
+    }
+
     let alive = true;
     let receivedSystemEvent = false;
     const onReduceMotionChanged = (value: boolean) => {
@@ -126,7 +154,7 @@ export default function useSummaryWalkthrough({
       alive = false;
       subscription.remove();
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     if (
@@ -158,7 +186,6 @@ export default function useSummaryWalkthrough({
   }, [isWideLayout, markGeometryChanged]);
 
   useEffect(() => {
-    const stageIndex = state.stageIndex;
     if (
       !enabled ||
       state.phase !== 'positioning' ||
@@ -167,7 +194,6 @@ export default function useSummaryWalkthrough({
       return;
     }
 
-    const currentStep = SUMMARY_WALKTHROUGH_STEPS[stageIndex];
     const target = anchorsRef.current[currentStep.anchor];
     const currentViewportHeight = viewportHeightRef.current;
     let shouldAnimateScroll = false;
@@ -188,11 +214,10 @@ export default function useSummaryWalkthrough({
         target.y,
         WALKTHROUGH_TOP_CLEARANCE,
       );
-      const alreadyAtTarget =
-        !geometryValueChanged(
-          scrollYRef.current,
-          targetScrollY,
-        );
+      const alreadyAtTarget = !geometryValueChanged(
+        scrollYRef.current,
+        targetScrollY,
+      );
       if (!visible && !alreadyAtTarget) {
         shouldAnimateScroll = !reduceMotion;
         scrollViewRef.current.current?.scrollTo({
@@ -215,14 +240,12 @@ export default function useSummaryWalkthrough({
       }
     };
   }, [
+    currentStep.anchor,
     enabled,
     geometryRevision,
     reduceMotion,
     state.phase,
-    state.stageIndex,
   ]);
-
-  const currentStep = SUMMARY_WALKTHROUGH_STEPS[state.stageIndex];
 
   useEffect(() => {
     if (!enabled || state.phase !== 'revealing' || reduceMotion === null) {
@@ -247,12 +270,13 @@ export default function useSummaryWalkthrough({
 
   useEffect(() => {
     if (
+      !enabled ||
       state.phase !== 'coaching' ||
-      announcedStagesRef.current.has(state.stageIndex)
+      announcedStepsRef.current.has(state.stepIndex)
     ) {
       return;
     }
-    announcedStagesRef.current.add(state.stageIndex);
+    announcedStepsRef.current.add(state.stepIndex);
 
     try {
       AccessibilityInfo.announceForAccessibility(
@@ -267,9 +291,10 @@ export default function useSummaryWalkthrough({
   }, [
     currentStep.body,
     currentStep.title,
+    enabled,
     reduceMotion,
     state.phase,
-    state.stageIndex,
+    state.stepIndex,
   ]);
 
   useEffect(
@@ -281,7 +306,7 @@ export default function useSummaryWalkthrough({
   );
 
   const measureAnchor = useCallback(
-    (id: SummaryAnchorId, node: View | null) => {
+    (id: AppWalkthroughAnchor, node: View | null) => {
       if (!node || !contentRef.current) return;
       node.measureLayout(
         contentRef.current,
@@ -306,18 +331,21 @@ export default function useSummaryWalkthrough({
     [contentRef, markGeometryChanged],
   );
 
-  const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
-    const width = event.nativeEvent.layout.width;
-    const height = event.nativeEvent.layout.height;
-    const previous = viewportRef.current;
-    const changed =
-      geometryValueChanged(previous.width, width) ||
-      geometryValueChanged(previous.height, height);
-    viewportRef.current = { width, height };
-    viewportHeightRef.current = height;
-    setViewportHeight(height);
-    if (changed) markGeometryChanged();
-  }, [markGeometryChanged]);
+  const onViewportLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const width = event.nativeEvent.layout.width;
+      const height = event.nativeEvent.layout.height;
+      const previous = viewportRef.current;
+      const changed =
+        geometryValueChanged(previous.width, width) ||
+        geometryValueChanged(previous.height, height);
+      viewportRef.current = { width, height };
+      viewportHeightRef.current = height;
+      setViewportHeight(height);
+      if (changed) markGeometryChanged();
+    },
+    [markGeometryChanged],
+  );
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -326,49 +354,45 @@ export default function useSummaryWalkthrough({
     [],
   );
 
-  const onCoachLayout = useCallback((event: LayoutChangeEvent) => {
-    const height = Math.max(
-      0,
-      event.nativeEvent.layout.height,
-    );
-    if (!geometryValueChanged(coachHeightRef.current, height)) {
-      return;
-    }
-    coachHeightRef.current = height;
-    markGeometryChanged();
-  }, [markGeometryChanged]);
+  const onCoachLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const height = Math.max(0, event.nativeEvent.layout.height);
+      if (!geometryValueChanged(coachHeightRef.current, height)) {
+        return;
+      }
+      coachHeightRef.current = height;
+      markGeometryChanged();
+    },
+    [markGeometryChanged],
+  );
 
   const finish = useCallback(
     (type: 'SKIP' | 'FINISH') => {
       if (completedRef.current) return;
       completedRef.current = true;
-      onComplete();
+      completeAppWalkthrough();
       dispatch({ type });
     },
-    [onComplete],
+    [completeAppWalkthrough],
   );
 
   const revealedGroups = useMemo(() => {
-    const allGroups: SummaryRevealGroup[] = [
-      'header',
-      'alert',
-      'pinned',
-      'today',
-      'logging',
-      'recent',
+    const routeGroups = [
+      ...new Set(
+        APP_WALKTHROUGH_STEPS.filter((step) => step.route === route).flatMap(
+          (step) => step.revealGroups,
+        ),
+      ),
     ];
-    if (!enabled || state.phase === 'complete') return allGroups;
+    if (!enabled || state.phase === 'complete') return routeGroups;
     if (state.phase === 'waiting') return [];
 
-    const revealedStageIndex =
+    const revealedStepIndex =
       state.phase === 'positioning'
-        ? state.stageIndex - 1
-        : state.stageIndex;
-    return getRevealedGroups(revealedStageIndex, {
-      hasAlert,
-      isWideLayout,
-    });
-  }, [enabled, hasAlert, isWideLayout, state.phase, state.stageIndex]);
+        ? state.stepIndex - 1
+        : state.stepIndex;
+    return getRevealedGroups(revealedStepIndex);
+  }, [enabled, route, state.phase, state.stepIndex]);
 
   const active = enabled && state.phase !== 'complete';
   const locked = state.phase !== 'coaching';
@@ -380,7 +404,7 @@ export default function useSummaryWalkthrough({
     step: currentStep,
     coachVisible: active && state.phase === 'coaching',
     coachHeadingRef,
-    isRevealed: (group: SummaryRevealGroup) =>
+    isRevealed: (group: AppWalkthroughRevealGroup) =>
       revealedGroups.includes(group),
     measureAnchor,
     onCoachLayout,
@@ -391,9 +415,13 @@ export default function useSummaryWalkthrough({
       if (locked) return;
       if (currentStep.primaryAction === 'Finish') {
         finish('FINISH');
-      } else {
-        dispatch({ type: 'NEXT' });
+        return;
       }
+
+      const nextStep = APP_WALKTHROUGH_STEPS[state.stepIndex + 1];
+      advanceAppWalkthrough();
+      dispatch({ type: 'NEXT' });
+      if (nextStep.route !== route) navigate(nextStep.route);
     },
   };
 }

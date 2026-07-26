@@ -10,9 +10,9 @@ import type {
 import type { TestInstance } from 'test-renderer';
 
 import {
-  SUMMARY_WALKTHROUGH_STEPS,
-  useSummaryWalkthrough,
-} from '~/features/summaryWalkthrough';
+  APP_WALKTHROUGH_STEPS,
+  useAppWalkthrough,
+} from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import DashboardScreen from '~/screens/DashboardScreen';
 import { useStore } from '~/state/store';
@@ -60,14 +60,14 @@ jest.mock('react-native-safe-area-context', () => ({
   }),
 }));
 jest.mock(
-  '~/features/summaryWalkthrough/useSummaryWalkthrough',
+  '~/features/appWalkthrough/useAppWalkthrough',
   () => ({
     __esModule: true,
     default: jest.fn(),
   }),
 );
 jest.mock(
-  '~/features/summaryWalkthrough/WalkthroughReveal',
+  '~/features/appWalkthrough/WalkthroughReveal',
   () => {
     const { View } = jest.requireActual('react-native');
     return {
@@ -93,8 +93,8 @@ jest.mock(
 );
 
 const mockUseAdaptiveLayout = jest.mocked(useAdaptiveLayout);
-const mockUseSummaryWalkthrough = jest.mocked(
-  useSummaryWalkthrough,
+const mockUseAppWalkthrough = jest.mocked(
+  useAppWalkthrough,
 );
 
 function layoutFor(isWideLayout: boolean) {
@@ -154,11 +154,11 @@ describe.each([
       mockUseAdaptiveLayout.mockReturnValue(
         layoutFor(isWideLayout),
       );
-      mockUseSummaryWalkthrough.mockReturnValue({
+      mockUseAppWalkthrough.mockReturnValue({
         active: true,
         locked: false,
         reduceMotion: true,
-        step: SUMMARY_WALKTHROUGH_STEPS[0],
+        step: APP_WALKTHROUGH_STEPS[0],
         coachVisible: false,
         coachHeadingRef: createRef<TextInstance>(),
         isRevealed: () => true,

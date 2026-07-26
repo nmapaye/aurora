@@ -12,9 +12,9 @@ import { StyleSheet } from 'react-native';
 import type { TestInstance } from 'test-renderer';
 
 import {
-  SUMMARY_WALKTHROUGH_STEPS,
-  useSummaryWalkthrough,
-} from '~/features/summaryWalkthrough';
+  APP_WALKTHROUGH_STEPS,
+  useAppWalkthrough,
+} from '~/features/appWalkthrough';
 import { navigate } from '~/navigation';
 import DashboardScreen from '~/screens/DashboardScreen';
 import { useStore } from '~/state/store';
@@ -73,15 +73,15 @@ jest.mock('react-native-safe-area-context', () => ({
   }),
 }));
 jest.mock(
-  '~/features/summaryWalkthrough/useSummaryWalkthrough',
+  '~/features/appWalkthrough/useAppWalkthrough',
   () => ({
     __esModule: true,
     default: jest.fn(),
   }),
 );
 
-const mockUseSummaryWalkthrough = jest.mocked(
-  useSummaryWalkthrough,
+const mockUseAppWalkthrough = jest.mocked(
+  useAppWalkthrough,
 );
 
 function findRevealAncestor(node: TestInstance) {
@@ -113,13 +113,13 @@ describe('DashboardScreen summary walkthrough composition', () => {
   const onCoachLayout = jest.fn();
 
   function setWalkthrough(
-    overrides: Partial<ReturnType<typeof useSummaryWalkthrough>> = {},
+    overrides: Partial<ReturnType<typeof useAppWalkthrough>> = {},
   ) {
-    mockUseSummaryWalkthrough.mockReturnValue({
+    mockUseAppWalkthrough.mockReturnValue({
       active: true,
       locked: false,
       reduceMotion: true,
-      step: SUMMARY_WALKTHROUGH_STEPS[0],
+      step: APP_WALKTHROUGH_STEPS[0],
       coachVisible: true,
       coachHeadingRef: createRef<TextInstance>(),
       isRevealed: () => true,

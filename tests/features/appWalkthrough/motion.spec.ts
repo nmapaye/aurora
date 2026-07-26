@@ -1,10 +1,10 @@
-import { getRevealMotionPlan } from '~/features/summaryWalkthrough/motion';
+import { getRevealMotionPlan } from '~/features/appWalkthrough/motion';
 import {
   WALKTHROUGH_REDUCED_MOTION_SETTLE_MS,
   WALKTHROUGH_REVEAL_SETTLE_MS,
-} from '~/features/summaryWalkthrough/model';
+} from '~/features/appWalkthrough/model';
 
-describe('Summary walkthrough motion', () => {
+describe('App walkthrough motion', () => {
   it('uses the approved soft spring cascade', () => {
     expect(getRevealMotionPlan(false, 2)).toEqual({
       delayMs: 160,

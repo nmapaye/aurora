@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Share, Text, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { ScrollView, Share, Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -16,6 +16,11 @@ import {
   getInsightsPresentation,
   type InsightsRange,
 } from '~/features/insights/presentation';
+import {
+  AppWalkthroughCoach,
+  useAppWalkthrough,
+  WalkthroughReveal,
+} from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
@@ -60,6 +65,15 @@ export default function InsightsScreen() {
   const [range, setRange] = useState<InsightsRange>(DEFAULT_INSIGHTS_RANGE);
   const [shareError, setShareError] = useState<string | undefined>();
   const [exportError, setExportError] = useState<string | undefined>();
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const highlightsAnchorRef = useRef<View>(null);
+  const walkthrough = useAppWalkthrough({
+    route: 'Insights',
+    isWideLayout: layout.isWideLayout,
+    scrollRef,
+    contentRef,
+  });
   const now = Date.now();
   const presentation = useMemo(
     () => getInsightsPresentation(doses, vigilanceSessions, dailyLimit, range, now),
@@ -150,65 +164,107 @@ export default function InsightsScreen() {
     </View>
   );
 
+  const walkthroughCoach = walkthrough.active ? (
+    <WalkthroughReveal
+      key={walkthrough.step.id}
+      active
+      revealed={walkthrough.coachVisible}
+      reduceMotion={walkthrough.reduceMotion}
+    >
+      <AppWalkthroughCoach
+        step={walkthrough.step}
+        locked={walkthrough.locked}
+        headingRef={walkthrough.coachHeadingRef}
+        onLayout={walkthrough.onCoachLayout}
+        onSkip={walkthrough.onSkip}
+        onPrimary={walkthrough.onPrimary}
+      />
+    </WalkthroughReveal>
+  ) : null;
+
   return (
     <AppScreen
       title="Insights"
       subtitle="Caffeine, sleep, and alertness trends."
       trailing={<Button title="Share" variant="plain" onPress={shareSummary} />}
+      scrollRef={scrollRef}
+      contentRef={contentRef}
+      scrollEnabled={!walkthrough.active}
+      interactionEnabled={!walkthrough.active}
+      bottomOverlay={walkthroughCoach}
+      onScroll={walkthrough.onScroll}
+      onViewportLayout={walkthrough.onViewportLayout}
+      headerTransform={(header) => (
+        <WalkthroughReveal
+          active={walkthrough.active}
+          revealed={walkthrough.isRevealed('insights-header')}
+          reduceMotion={walkthrough.reduceMotion}
+        >
+          {header}
+        </WalkthroughReveal>
+      )}
     >
       <View style={{ gap: spacing.md }}>
-        <HealthRangeControl
-          accessibilityLabel="Insights range"
-          value={range}
-          onChange={setRange}
-          options={[{ value: '7', label: 'W' }, { value: '14', label: '2W' }, { value: '30', label: 'M' }]}
-        />
+        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-range')} reduceMotion={walkthrough.reduceMotion}>
+          <HealthRangeControl
+            accessibilityLabel="Insights range"
+            value={range}
+            onChange={setRange}
+            options={[{ value: '7', label: 'W' }, { value: '14', label: '2W' }, { value: '30', label: 'M' }]}
+          />
+        </WalkthroughReveal>
 
         <View
           testID={layout.isWideLayout ? 'insights-wide-layout' : 'insights-compact-layout'}
           style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', alignItems: 'flex-start', gap: spacing.xl }}
         >
-          <View testID="insights-primary-column" style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%', gap: spacing.md }}>
-            {chart}
-            <View style={{ gap: spacing.sm }}>
-              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Patterns</Text>
-              <SectionCard>
-                <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Daypart Mix</Text>
-                {presentation.dayparts.map((item) => (
-                  <ListRow key={item.label} title={item.label} subtitle="Selected range" value={`${Math.round(item.mg)} mg`} />
-                ))}
-              </SectionCard>
-              <SectionCard>
-                <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Source Mix</Text>
-                {presentation.sourceMix.length ? presentation.sourceMix.map((item) => (
-                  <ListRow key={item.label} title={item.label} subtitle={`${item.pct}% of intake`} value={`${item.mg} mg`} />
-                )) : <HealthEmptyState message="No logged sources in this range yet." />}
-              </SectionCard>
+          <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-range')} reduceMotion={walkthrough.reduceMotion} style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%' }}>
+            <View testID="insights-primary-column" style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%', gap: spacing.md }}>
+              {chart}
+              <View style={{ gap: spacing.sm }}>
+                <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Patterns</Text>
+                <SectionCard>
+                  <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Daypart Mix</Text>
+                  {presentation.dayparts.map((item) => (
+                    <ListRow key={item.label} title={item.label} subtitle="Selected range" value={`${Math.round(item.mg)} mg`} />
+                  ))}
+                </SectionCard>
+                <SectionCard>
+                  <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Source Mix</Text>
+                  {presentation.sourceMix.length ? presentation.sourceMix.map((item) => (
+                    <ListRow key={item.label} title={item.label} subtitle={`${item.pct}% of intake`} value={`${item.mg} mg`} />
+                  )) : <HealthEmptyState message="No logged sources in this range yet." />}
+                </SectionCard>
+              </View>
             </View>
-          </View>
-          <View testID="insights-supporting-column" style={{ width: layout.isWideLayout ? layout.rightColumnWidth : '100%', gap: spacing.md }}>
-            {supporting}
-          </View>
+          </WalkthroughReveal>
+          <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-highlights')} reduceMotion={walkthrough.reduceMotion} style={{ width: layout.isWideLayout ? layout.rightColumnWidth : '100%' }}>
+            <View ref={highlightsAnchorRef} collapsable={false} onLayout={() => walkthrough.measureAnchor('insights-highlights', highlightsAnchorRef.current)} testID="insights-supporting-column" style={{ width: layout.isWideLayout ? layout.rightColumnWidth : '100%', gap: spacing.md }}>
+              {supporting}
+            </View>
+          </WalkthroughReveal>
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Guidance</Text>
-          <HealthGroupedList rows={[
-            { title: 'Suggested bedtime', subtitle: `Projected active caffeine ${sleepGuidance.mgAtBed} mg`, value: formatClock(sleepGuidance.bedtime) },
-            { title: 'Suggested wake', subtitle: '90-minute sleep cycles, aiming for a normal morning window', value: formatClock(sleepGuidance.wake) },
-          ]} />
-          <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Guidance uses the same selected range as the trends above.</Text>
-        </View>
+        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-highlights')} reduceMotion={walkthrough.reduceMotion} style={{ gap: spacing.md }}>
+          <View style={{ gap: spacing.sm }}>
+            <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Guidance</Text>
+            <HealthGroupedList rows={[
+              { title: 'Suggested bedtime', subtitle: `Projected active caffeine ${sleepGuidance.mgAtBed} mg`, value: formatClock(sleepGuidance.bedtime) },
+              { title: 'Suggested wake', subtitle: '90-minute sleep cycles, aiming for a normal morning window', value: formatClock(sleepGuidance.wake) },
+            ]} />
+            <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Guidance uses the same selected range as the trends above.</Text>
+          </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
-          <HealthGroupedList rows={[
-            { title: 'Show All Data', subtitle: `${doses.length} logged dose${doses.length === 1 ? '' : 's'}`, onPress: () => navigate('CaffeineHistory') },
-            { title: 'Export CSV', subtitle: `Daily totals for ${presentation.days} days`, onPress: exportDailyTotals },
-          ]} />
-          {shareError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{shareError}</Text> : null}
-          {exportError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{exportError}</Text> : null}
-        </View>
+          <View style={{ gap: spacing.sm }}>
+            <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
+            <HealthGroupedList rows={[
+              { title: 'Show All Data', subtitle: `${doses.length} logged dose${doses.length === 1 ? '' : 's'}`, onPress: () => navigate('CaffeineHistory') },
+              { title: 'Export CSV', subtitle: `Daily totals for ${presentation.days} days`, onPress: exportDailyTotals },
+            ]} />
+            {shareError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{shareError}</Text> : null}
+            {exportError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{exportError}</Text> : null}
+          </View>
+        </WalkthroughReveal>
       </View>
     </AppScreen>
   );

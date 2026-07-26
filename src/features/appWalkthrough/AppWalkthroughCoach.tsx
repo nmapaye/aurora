@@ -15,10 +15,10 @@ import {
   spacing,
   typeRamp,
 } from '~/theme/tokens';
-import type { SummaryWalkthroughStep } from './model';
+import type { AppWalkthroughStep } from './model';
 
 type Props = {
-  step: SummaryWalkthroughStep;
+  step: AppWalkthroughStep;
   locked: boolean;
   headingRef: RefObject<TextInstance | null>;
   onLayout?: (event: LayoutChangeEvent) => void;
@@ -26,7 +26,7 @@ type Props = {
   onPrimary: () => void;
 };
 
-export default function SummaryWalkthroughCoach({
+export default function AppWalkthroughCoach({
   step,
   locked,
   headingRef,

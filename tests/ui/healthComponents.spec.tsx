@@ -1,6 +1,7 @@
-import React from 'react';
-import { Text } from 'react-native';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import React, { createRef, useRef, useState } from 'react';
+import { AccessibilityInfo, Text, type View } from 'react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import Button from '~/components/Button';
 import { HealthOptionCard } from '~/components/ui';
 
 import {
@@ -164,6 +165,86 @@ describe('HealthFormSheet', () => {
       'none',
     );
   });
+
+  it.each(['Cancel', 'Save', 'system dismiss'] as const)(
+    'restores focus to the exact semantic invoking control after %s',
+    async (closeAction) => {
+      const setFocus = jest
+        .spyOn(AccessibilityInfo, 'setAccessibilityFocus')
+        .mockImplementation(() => {});
+      const nodeHandle = jest
+        .spyOn(require('react-native'), 'findNodeHandle')
+        .mockImplementation((node) => {
+          const host = node as {
+            props?: { accessibilityLabel?: string };
+          } | null;
+          return host?.props?.accessibilityLabel === 'Custom Entry' ? 72 : 41;
+        });
+
+      function FocusHost() {
+        const addRef = useRef<View>(null);
+        const customRef = useRef<View>(null);
+        const [visible, setVisible] = useState(false);
+        const [triggerRef, setTriggerRef] = useState(createRef<View>());
+        const close = () => setVisible(false);
+
+        return (
+          <>
+            <Button
+              ref={addRef}
+              title="Add Data"
+              onPress={() => {
+                setTriggerRef(addRef);
+                setVisible(true);
+              }}
+            />
+            <Button
+              ref={customRef}
+              title="Custom Entry"
+              onPress={() => {
+                setTriggerRef(customRef);
+                setVisible(true);
+              }}
+            />
+            <HealthFormSheet
+              visible={visible}
+              title="Custom Entry"
+              returnFocusRef={triggerRef}
+              onCancel={close}
+              onSave={close}
+            >
+              <Text>Form fields</Text>
+            </HealthFormSheet>
+          </>
+        );
+      }
+
+      const user = userEvent.setup();
+      await render(<FocusHost />);
+      await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+      setFocus.mockClear();
+
+      if (closeAction === 'system dismiss') {
+        await act(() =>
+          screen.getByTestId('health-form-sheet-modal').props.onRequestClose(),
+        );
+      } else {
+        await user.press(screen.getByRole('button', { name: closeAction }));
+      }
+
+      expect(nodeHandle).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          props: expect.objectContaining({
+            accessibilityLabel: 'Custom Entry',
+          }),
+        }),
+      );
+      expect(setFocus).toHaveBeenCalledWith(72);
+
+      nodeHandle.mockRestore();
+      setFocus.mockRestore();
+    },
+  );
 });
 
 describe('HealthOptionCard', () => {

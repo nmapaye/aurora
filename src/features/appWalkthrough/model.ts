@@ -39,6 +39,12 @@ export type AppWalkthroughStep = {
   primaryAction: 'Next' | 'Finish';
 };
 
+export const WALKTHROUGH_START_DELAY_MS = 300;
+export const WALKTHROUGH_SCROLL_SETTLE_MS = 350;
+export const WALKTHROUGH_REVEAL_SETTLE_MS = 900;
+export const WALKTHROUGH_REDUCED_MOTION_SETTLE_MS = 120;
+export const WALKTHROUGH_TOP_CLEARANCE = 24;
+
 export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
   {
     id: 'summary-orientation',
@@ -146,6 +152,10 @@ export const APP_WALKTHROUGH_ROUTE_OWNERSHIP = APP_WALKTHROUGH_STEPS.map(
   (step) => step.route,
 );
 
+export function getAppWalkthroughRoute(stepIndex: number) {
+  return APP_WALKTHROUGH_STEPS[clampAppWalkthroughStep(stepIndex)].route;
+}
+
 export function clampAppWalkthroughStep(step: number) {
   if (!Number.isFinite(step)) return 0;
   return Math.max(0, Math.min(APP_WALKTHROUGH_STEPS.length - 1, Math.floor(step)));
@@ -179,6 +189,7 @@ export type AppWalkthroughState = {
 
 export type AppWalkthroughEvent =
   | { type: 'START' }
+  | { type: 'SYNC'; stepIndex: number }
   | { type: 'POSITIONED' }
   | { type: 'SETTLED' }
   | { type: 'GEOMETRY_CHANGED' }
@@ -196,6 +207,16 @@ export function reduceAppWalkthrough(
   event: AppWalkthroughEvent,
 ): AppWalkthroughState {
   switch (event.type) {
+    case 'SYNC':
+      return {
+        stepIndex: clampAppWalkthroughStep(event.stepIndex),
+        phase:
+          state.phase === 'complete'
+            ? 'complete'
+            : state.phase === 'waiting'
+              ? 'waiting'
+              : 'positioning',
+      };
     case 'START':
       return state.phase === 'waiting'
         ? { stepIndex: clampAppWalkthroughStep(state.stepIndex), phase: 'positioning' }
@@ -232,4 +253,28 @@ export function isAppWalkthroughPending(onboarding: {
 
 export function isWalkthroughTabDisabled(_routeName: string, pending: boolean) {
   return pending;
+}
+
+export function getTargetScrollY(targetY: number, topClearance: number) {
+  return Math.max(0, targetY - topClearance);
+}
+
+export function isTargetFullyVisible({
+  targetY,
+  targetHeight,
+  scrollY,
+  viewportHeight,
+  topClearance,
+  bottomClearance,
+}: {
+  targetY: number;
+  targetHeight: number;
+  scrollY: number;
+  viewportHeight: number;
+  topClearance: number;
+  bottomClearance: number;
+}) {
+  const visibleTop = scrollY + topClearance;
+  const visibleBottom = scrollY + viewportHeight - bottomClearance;
+  return targetY >= visibleTop && targetY + targetHeight <= visibleBottom;
 }

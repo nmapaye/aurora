@@ -7,7 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   isAppWalkthroughPending,
   isWalkthroughTabDisabled,
-} from '~/features/appWalkthrough';
+  getAppWalkthroughRoute,
+} from '~/features/appWalkthrough/model';
 import DashboardScreen from '~/screens/DashboardScreen';
 import LogIntakeScreen from '~/screens/LogIntakeScreen';
 import SleepScreen from '~/screens/SleepScreen';
@@ -43,12 +44,20 @@ export default function RootTabs() {
   const walkthroughPending = useStore((state) =>
     isAppWalkthroughPending(state.onboarding),
   );
+  const walkthroughStep = useStore(
+    (state) => state.onboarding.appWalkthroughStep,
+  );
   const inset = insets.bottom || 0;
   const tabBarHeight = 54 + Math.floor(inset);
   const tabBarPaddingBottom = Math.max(6, Math.floor(inset / 3));
 
   return (
     <Tab.Navigator
+      initialRouteName={
+        walkthroughPending
+          ? getAppWalkthroughRoute(walkthroughStep)
+          : 'Summary'
+      }
       screenOptions={({ route }) => {
         const walkthroughDisabled = isWalkthroughTabDisabled(
           route.name,
