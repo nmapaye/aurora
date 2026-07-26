@@ -1,5 +1,12 @@
 import React from 'react';
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import LogIntakeScreen from '~/screens/LogIntakeScreen';
@@ -32,7 +39,19 @@ const now = Date.parse('2026-07-24T12:00:00.000Z');
 
 describe('LogIntakeScreen', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.spyOn(Date, 'now').mockReturnValue(now);
+    jest
+      .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
+      .mockResolvedValue(false);
+    jest
+      .spyOn(AccessibilityInfo, 'addEventListener')
+      .mockReturnValue({
+        remove: jest.fn(),
+      } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>);
+    jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {});
     useStore.setState({
       doses: [{ id: 'recent', timestamp: now - 60_000, mg: 60, source: 'Espresso' }],
       onboarding: {
@@ -62,6 +81,18 @@ describe('LogIntakeScreen', () => {
     expect(screen.getByRole('button', { name: 'Drip 95 mg' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Matcha 70 mg' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Energy 160 mg' })).toBeOnTheScreen();
+    expect(
+      screen
+        .getAllByTestId('sf-symbol')
+        .map((symbol) => symbol.props.name),
+    ).toEqual(
+      expect.arrayContaining([
+        'cup.and.saucer.fill',
+        'cup.and.saucer.fill',
+        'leaf.fill',
+        'bolt.fill',
+      ]),
+    );
     expect(screen.getByText('Recent')).toBeOnTheScreen();
     expect(screen.getByText('Add Details')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Custom Entry' })).toBeOnTheScreen();
@@ -77,6 +108,12 @@ describe('LogIntakeScreen', () => {
     await render(<LogIntakeScreen />);
 
     expect(screen.getByTestId('log-wide-layout')).toBeOnTheScreen();
+    expect(screen.getByTestId('log-primary-column')).toHaveStyle({
+      width: 600,
+    });
+    expect(screen.getByTestId('log-supporting-column')).toHaveStyle({
+      width: 540,
+    });
     expect(screen.getByText('Caffeine Today')).toBeOnTheScreen();
     expect(screen.getByText('Quick Add')).toBeOnTheScreen();
   });
@@ -108,6 +145,9 @@ describe('LogIntakeScreen', () => {
       note: 'After lunch',
     });
     expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
+    expect(
+      AccessibilityInfo.announceForAccessibility,
+    ).toHaveBeenCalledWith('Caffeine intake saved.');
     await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
     expect(screen.getByLabelText('Amount')).toHaveProp('value', '80');
     expect(screen.getByLabelText('Note')).toHaveProp('value', '');
@@ -133,8 +173,37 @@ describe('LogIntakeScreen', () => {
 
     await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
 
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
     expect(useStore.getState().doses.at(-1)).toMatchObject({ timestamp: now, mg: 95, source: 'Drip' });
     expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
+  });
+
+  it('suppresses haptics and modal animation when Reduce Motion is enabled', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(true);
+    const user = userEvent.setup();
+    await render(<LogIntakeScreen />);
+    await waitFor(() =>
+      expect(
+        AccessibilityInfo.isReduceMotionEnabled,
+      ).toHaveBeenCalledTimes(1),
+    );
+
+    await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+
+    await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+    expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(
+      'animationType',
+      'none',
+    );
+    await user.press(screen.getByRole('button', { name: 'Time' }));
+    expect(screen.getByTestId('caffeine-time-picker-modal')).toHaveProp(
+      'animationType',
+      'none',
+    );
   });
 
   it('keeps custom save disabled and explains an invalid future time', async () => {

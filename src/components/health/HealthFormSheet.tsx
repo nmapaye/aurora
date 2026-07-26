@@ -20,6 +20,7 @@ type Props = {
   onSave: () => void;
   saveLabel?: string;
   saveDisabled?: boolean;
+  reduceMotion?: boolean;
 };
 
 export function HealthFormSheet({
@@ -30,6 +31,7 @@ export function HealthFormSheet({
   onSave,
   saveLabel = 'Save',
   saveDisabled = false,
+  reduceMotion = false,
 }: Props) {
   const palette = getAppPalette(useAppScheme());
   const headingRef = useRef<Text>(null);
@@ -41,7 +43,13 @@ export function HealthFormSheet({
   }, [visible]);
 
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onCancel}>
+    <Modal
+      testID="health-form-sheet-modal"
+      transparent
+      visible={visible}
+      animationType={reduceMotion ? 'none' : 'slide'}
+      onRequestClose={onCancel}
+    >
       <View
         accessibilityViewIsModal
         accessibilityLabel={title}

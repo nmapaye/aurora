@@ -1,5 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import { Modal, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Modal,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
@@ -58,6 +64,32 @@ export default function LogIntakeScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pendingTime, setPendingTime] = useState(() => new Date(Date.now()));
   const [confirmation, setConfirmation] = useState('');
+  const [reduceMotion, setReduceMotion] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    let receivedSystemEvent = false;
+    const onReduceMotionChanged = (enabled: boolean) => {
+      receivedSystemEvent = true;
+      if (alive) setReduceMotion(enabled);
+    };
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (alive && !receivedSystemEvent) setReduceMotion(enabled);
+      })
+      .catch(() => {
+        if (alive && !receivedSystemEvent) setReduceMotion(true);
+      });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      onReduceMotionChanged,
+    );
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
 
   const now = Date.now();
   const validation = validateCustomDoseDraft(draft, now);
@@ -70,12 +102,21 @@ export default function LogIntakeScreen() {
 
   const announceSaved = () => {
     setConfirmation('Caffeine intake saved.');
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    AccessibilityInfo.announceForAccessibility('Caffeine intake saved.');
+    if (!reduceMotion) {
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => undefined);
+    }
   };
 
   const saveQuickAdd = (preset: (typeof CAFFEINE_PRESETS)[number]) => {
     const savedNow = Date.now();
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (!reduceMotion) {
+      void Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Light,
+      ).catch(() => undefined);
+    }
     addDose(buildQuickAddDose(preset, savedNow, makeDoseId));
     announceSaved();
   };
@@ -116,6 +157,7 @@ export default function LogIntakeScreen() {
           <View key={preset.id} style={{ width: layout.isWideLayout ? '47%' : '48%' }}>
             <HealthOptionCard
               icon={preset.id === 'energy' ? 'flash' : 'cafe'}
+              symbol={preset.symbol}
               title={preset.label}
               subtitle={`${preset.mg} mg`}
               accessibilityLabel={`${preset.label} ${preset.mg} mg`}
@@ -148,11 +190,27 @@ export default function LogIntakeScreen() {
         testID={layout.isWideLayout ? 'log-wide-layout' : 'log-compact-layout'}
         style={layout.isWideLayout ? { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl } : { gap: spacing.md }}
       >
-        <View style={{ flex: 1, gap: spacing.md }}>
+        <View
+          testID="log-primary-column"
+          style={{
+            width: layout.isWideLayout
+              ? layout.leftColumnWidth
+              : '100%',
+            gap: spacing.md,
+          }}
+        >
           {todayCard}
           {quickAdd}
         </View>
-        <View style={{ flex: 1, gap: spacing.md }}>
+        <View
+          testID="log-supporting-column"
+          style={{
+            width: layout.isWideLayout
+              ? layout.rightColumnWidth
+              : '100%',
+            gap: spacing.md,
+          }}
+        >
           <View style={{ gap: spacing.sm }}>
             <SectionHeader title="Recent" />
             <SectionCard>
@@ -179,6 +237,7 @@ export default function LogIntakeScreen() {
         onCancel={() => { setPickerVisible(false); setCustomVisible(false); }}
         onSave={saveCustomEntry}
         saveDisabled={!validation.valid}
+        reduceMotion={reduceMotion}
       >
         <View style={{ gap: spacing.sm }}>
           <TextInput
@@ -215,7 +274,13 @@ export default function LogIntakeScreen() {
         </View>
       </HealthFormSheet>
 
-      <Modal transparent visible={pickerVisible} animationType="fade" onRequestClose={() => setPickerVisible(false)}>
+      <Modal
+        testID="caffeine-time-picker-modal"
+        transparent
+        visible={pickerVisible}
+        animationType={reduceMotion ? 'none' : 'fade'}
+        onRequestClose={() => setPickerVisible(false)}
+      >
         <View accessibilityViewIsModal style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}>
           <View style={{ backgroundColor: palette.modalBackground, padding: spacing.md, gap: spacing.sm }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

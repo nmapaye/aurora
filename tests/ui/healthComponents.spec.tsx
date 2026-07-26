@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { HealthOptionCard } from '~/components/ui';
 
 import {
   HealthChartCard,
@@ -133,11 +134,57 @@ describe('HealthFormSheet', () => {
     expect(screen.getByRole('header', { name: 'Add sleep' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save' })).toBeOnTheScreen();
+    expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(
+      'animationType',
+      'slide',
+    );
 
     await user.press(screen.getByRole('button', { name: 'Cancel' }));
     await user.press(screen.getByRole('button', { name: 'Save' }));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes its nonessential presentation animation for Reduce Motion', async () => {
+    await render(
+      <HealthFormSheet
+        visible
+        title="Add sleep"
+        onCancel={jest.fn()}
+        onSave={jest.fn()}
+        reduceMotion
+      >
+        <Text>Form fields</Text>
+      </HealthFormSheet>,
+    );
+
+    expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(
+      'animationType',
+      'none',
+    );
+  });
+});
+
+describe('HealthOptionCard', () => {
+  it('forwards an SF Symbol while retaining button semantics', async () => {
+    await render(
+      <HealthOptionCard
+        icon="cafe"
+        symbol="cup.and.saucer.fill"
+        title="Espresso"
+        subtitle="60 mg"
+        accessibilityLabel="Espresso 60 mg"
+        onPress={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Espresso 60 mg' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByTestId('sf-symbol')).toHaveProp(
+      'name',
+      'cup.and.saucer.fill',
+    );
   });
 });

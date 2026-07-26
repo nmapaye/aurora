@@ -10,7 +10,13 @@ import {
   ViewStyle,
 } from 'react-native';
 
-import AppIcon, { type AppIconName } from '~/components/AppIcon';
+import AppIcon, {
+  appIcons,
+  type AppIconName,
+} from '~/components/AppIcon';
+import AppSymbol, {
+  type AppSymbolName,
+} from '~/components/AppSymbol';
 import useAppScheme from '~/hooks/useAppScheme';
 import {
   getAppPalette,
@@ -221,6 +227,7 @@ export function HealthOptionCard({
   onPress,
   color,
   accessibilityLabel,
+  symbol,
 }: {
   icon?: AppIconName;
   title: string;
@@ -229,6 +236,7 @@ export function HealthOptionCard({
   onPress?: () => void;
   color?: string;
   accessibilityLabel?: string;
+  symbol?: AppSymbolName;
 }) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
@@ -252,7 +260,14 @@ export function HealthOptionCard({
         borderColor: selected ? accent : palette.cardBorder,
       })}
     >
-      {icon ? (
+      {symbol ? (
+        <AppSymbol
+          name={symbol}
+          fallback={icon ?? appIcons.fallback}
+          size={iconSizes.button}
+          tintColor={selected ? accent : palette.textSecondary}
+        />
+      ) : icon ? (
         <AppIcon
           name={icon}
           size={iconSizes.button}
