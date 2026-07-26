@@ -10,11 +10,15 @@ export type InsightsChartPoint = { date: number; mg: number | null };
 type SourceMixItem = { label: string; mg: number; pct: number };
 type DaypartItem = { label: 'Morning' | 'Midday' | 'Evening' | 'Late'; mg: number };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function localDayStart(timestamp: number) {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function localDayEnd(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(23, 59, 59, 999);
   return date.getTime();
 }
 
@@ -170,7 +174,11 @@ export function getInsightsPresentation(
   previousEnd.setDate(previousEnd.getDate() - 1);
   const previousStarts = getInsightsDayStarts(previousEnd.getTime(), days);
   const current = makeWindow(doses, currentStarts, now);
-  const previous = makeWindow(doses, previousStarts, previousEnd.getTime() + DAY_MS - 1);
+  const previous = makeWindow(
+    doses,
+    previousStarts,
+    localDayEnd(previousStarts[previousStarts.length - 1] ?? previousEnd.getTime()),
+  );
   const selectedSessions = selectVigilanceSessions(vigilanceSessions, currentStarts, now);
   const isEmpty = current.selected.length === 0;
   const deltaPct = previous.averageMg > 0

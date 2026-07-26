@@ -57,7 +57,6 @@ export default function InsightsScreen() {
   const doses = useStore((state) => state.doses);
   const vigilanceSessions = useStore((state) => state.vigilanceSessions);
   const dailyLimit = useStore((state) => state.prefs.dailyLimitMg ?? 400);
-  const sleepGuidance = useSleepGuidance();
   const [range, setRange] = useState<InsightsRange>(DEFAULT_INSIGHTS_RANGE);
   const [shareError, setShareError] = useState<string | undefined>();
   const [exportError, setExportError] = useState<string | undefined>();
@@ -66,6 +65,7 @@ export default function InsightsScreen() {
     () => getInsightsPresentation(doses, vigilanceSessions, dailyLimit, range, now),
     [dailyLimit, doses, now, range, vigilanceSessions],
   );
+  const sleepGuidance = useSleepGuidance(presentation.current.selected);
 
   const shareSummary = async () => {
     setShareError(undefined);
@@ -151,7 +151,11 @@ export default function InsightsScreen() {
   );
 
   return (
-    <AppScreen title="Insights" subtitle="Caffeine, sleep, and alertness trends.">
+    <AppScreen
+      title="Insights"
+      subtitle="Caffeine, sleep, and alertness trends."
+      trailing={<Button title="Share" variant="plain" onPress={shareSummary} />}
+    >
       <View style={{ gap: spacing.md }}>
         <HealthRangeControl
           accessibilityLabel="Insights range"
@@ -193,18 +197,15 @@ export default function InsightsScreen() {
             { title: 'Suggested bedtime', subtitle: `Projected active caffeine ${sleepGuidance.mgAtBed} mg`, value: formatClock(sleepGuidance.bedtime) },
             { title: 'Suggested wake', subtitle: '90-minute sleep cycles, aiming for a normal morning window', value: formatClock(sleepGuidance.wake) },
           ]} />
-          <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Guidance remains based on your logged doses; selected trends above use this range only.</Text>
+          <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Guidance uses the same selected range as the trends above.</Text>
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Share and Export</Text>
+          <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
           <HealthGroupedList rows={[
             { title: 'Show All Data', subtitle: `${doses.length} logged dose${doses.length === 1 ? '' : 's'}`, onPress: () => navigate('CaffeineHistory') },
+            { title: 'Export CSV', subtitle: `Daily totals for ${presentation.days} days`, onPress: exportDailyTotals },
           ]} />
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Button title="Share" variant="tinted" onPress={shareSummary} style={{ flex: 1 }} />
-            <Button title="Export CSV" variant="tinted" onPress={exportDailyTotals} style={{ flex: 1 }} />
-          </View>
           {shareError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{shareError}</Text> : null}
           {exportError ? <Text accessibilityRole="alert" style={{ ...typeRamp.footnote, color: palette.destructive }}>{exportError}</Text> : null}
         </View>

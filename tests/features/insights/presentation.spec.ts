@@ -63,6 +63,26 @@ describe('insights presentation', () => {
     expect(presentation.deltaPct).toBe(91);
   });
 
+  it('includes the final hour of a daylight-saving fallback day in the previous local window', () => {
+    const originalZone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      const fallbackNow = new Date(2026, 10, 8, 12, 0, 0, 0).getTime();
+      const fallbackDose = new Date(2026, 10, 1, 23, 30, 0, 0).getTime();
+      const presentation = getInsightsPresentation(
+        [{ id: 'fallback-hour', timestamp: fallbackDose, mg: 70 }],
+        [],
+        400,
+        '7',
+        fallbackNow,
+      );
+
+      expect(presentation.previous.totalMg).toBe(70);
+    } finally {
+      process.env.TZ = originalZone;
+    }
+  });
+
   it('changes headline, adherence, mixes, and vigilance inputs with the selected range', () => {
     const doses = [
       dose('recent', 1, 80, 'Matcha', 12),

@@ -15,7 +15,11 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('~/hooks/useAdaptiveLayout', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('~/hooks/useSleepGuidance', () => ({
   __esModule: true,
-  default: () => ({ bedtime: Date.parse('2026-07-24T22:30:00.000Z'), wake: Date.parse('2026-07-25T06:30:00.000Z'), mgAtBed: 0 }),
+  default: (doses: readonly { mg: number }[] = []) => ({
+    bedtime: Date.parse('2026-07-24T22:30:00.000Z'),
+    wake: Date.parse('2026-07-25T06:30:00.000Z'),
+    mgAtBed: doses.reduce((total, dose) => total + dose.mg, 0),
+  }),
 }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
@@ -71,8 +75,27 @@ describe('InsightsScreen', () => {
 
     expect(screen.getByRole('button', { name: 'M' })).toHaveProp('accessibilityState', { selected: true });
     expect(screen.getByText('5 mg/day')).toBeOnTheScreen();
-    expect(screen.getByText(/30 days/)).toBeOnTheScreen();
+    expect(screen.getByLabelText(/Caffeine intake, 30 days/)).toBeOnTheScreen();
     expect(screen.getByText('Tea')).toBeOnTheScreen();
+  });
+
+  it('uses the selected range doses as the input to sleep guidance', async () => {
+    const user = userEvent.setup();
+    await render(<InsightsScreen />);
+
+    expect(screen.getByText('Projected active caffeine 90 mg')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'M' }));
+    expect(screen.getByText('Projected active caffeine 160 mg')).toBeOnTheScreen();
+  });
+
+  it('uses trailing Share and an Options hierarchy instead of the default Settings affordance', async () => {
+    await render(<InsightsScreen />);
+
+    expect(screen.getByRole('button', { name: 'Share' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Open settings' })).not.toBeOnTheScreen();
+    expect(screen.getByText('Options')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Show All Data' })).toBeOnTheScreen();
   });
 
   it('keeps an empty period honest and exposes its chart availability in the accessibility summary', async () => {
