@@ -20,10 +20,12 @@ type Prefs = {
 export type AppearanceMode = 'system' | 'light' | 'dark';
 export type OnboardingSource = 'healthkit' | 'manual';
 export type HealthPermissionStatus = 'idle' | 'granted' | 'denied' | 'unsupported';
-type HealthSync = {
+export type HealthImportStatus = 'idle' | 'importing' | 'succeeded' | 'failed';
+export type HealthSync = {
   lastSyncedAt?: number;
   lastMessage?: string;
   importedCount: number;
+  importStatus: HealthImportStatus;
 };
 export type Onboarding = {
   completed: boolean;
@@ -92,7 +94,10 @@ const defaultOnboarding: Onboarding = {
   appWalkthroughCompleted: false,
   appWalkthroughStep: 0,
 };
-const defaultHealthSync: HealthSync = { importedCount: 0 };
+const defaultHealthSync: HealthSync = {
+  importedCount: 0,
+  importStatus: 'idle',
+};
 const demoIdPrefix = 'demo:';
 
 function withoutDemoId<T extends { id: string }>(items: T[]) {
@@ -102,8 +107,15 @@ function withoutDemoId<T extends { id: string }>(items: T[]) {
 type PersistedOnboarding = Partial<Onboarding> & {
   summaryWalkthroughCompleted?: boolean;
 };
-type MigratingPersistedState = Omit<Partial<PersistedState>, 'onboarding'> & {
+type PersistedHealthSync = Partial<Omit<HealthSync, 'importStatus'>> & {
+  importStatus?: unknown;
+};
+type MigratingPersistedState = Omit<
+  Partial<PersistedState>,
+  'onboarding' | 'healthSync'
+> & {
   onboarding?: PersistedOnboarding;
+  healthSync?: PersistedHealthSync;
 };
 
 function clampAppWalkthroughStep(step: unknown) {
@@ -111,21 +123,58 @@ function clampAppWalkthroughStep(step: unknown) {
   return Math.max(0, Math.min(9, Math.floor(step)));
 }
 
+function normalizeHealthImportStatus(
+  value: unknown,
+  permissionStatus: HealthPermissionStatus,
+  lastMessage?: string,
+): HealthImportStatus {
+  if (permissionStatus !== 'granted') return 'idle';
+  if (value !== undefined) {
+    return value === 'idle' ||
+      value === 'importing' ||
+      value === 'succeeded' ||
+      value === 'failed'
+      ? value
+      : 'idle';
+  }
+  const normalizedMessage = lastMessage?.toLowerCase() ?? '';
+  if (normalizedMessage.startsWith('health import failed.')) return 'failed';
+  if (
+    normalizedMessage.startsWith('imported ') ||
+    normalizedMessage.startsWith('health connected')
+  ) {
+    return 'succeeded';
+  }
+  return 'idle';
+}
+
 function normalizePersistedState(persistedState?: MigratingPersistedState): PersistedState {
   const { summaryWalkthroughCompleted: _legacyWalkthrough, ...persistedOnboarding } =
     persistedState?.onboarding ?? {};
+  const onboarding = {
+    ...defaultOnboarding,
+    ...persistedOnboarding,
+    appWalkthroughStep: clampAppWalkthroughStep(
+      persistedOnboarding.appWalkthroughStep,
+    ),
+  };
+  const persistedHealthSync = persistedState?.healthSync;
 
   return {
     doses: persistedState?.doses ?? [],
     sleeps: normalizeHealthSleepSessionIdentities(persistedState?.sleeps ?? []),
     vigilanceSessions: persistedState?.vigilanceSessions ?? [],
     prefs: { ...defaultPrefs, ...persistedState?.prefs },
-    onboarding: {
-      ...defaultOnboarding,
-      ...persistedOnboarding,
-      appWalkthroughStep: clampAppWalkthroughStep(persistedOnboarding.appWalkthroughStep),
+    onboarding,
+    healthSync: {
+      ...defaultHealthSync,
+      ...persistedHealthSync,
+      importStatus: normalizeHealthImportStatus(
+        persistedHealthSync?.importStatus,
+        onboarding.permissionStatus,
+        persistedHealthSync?.lastMessage,
+      ),
     },
-    healthSync: { ...defaultHealthSync, ...persistedState?.healthSync },
     demoMode: persistedState?.demoMode ?? false,
     appearanceMode: persistedState?.appearanceMode ?? 'system',
   };
@@ -206,6 +255,7 @@ export const useStore = create<State>()(
             },
             healthSync: {
               importedCount: demo.sleeps.length,
+              importStatus: 'idle',
               lastSyncedAt: Date.now(),
               lastMessage: 'Sample data loaded.',
             },
@@ -248,7 +298,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 5,
+      version: 6,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
@@ -283,6 +333,19 @@ export const useStore = create<State>()(
               ...legacyOnboarding,
               appWalkthroughCompleted: legacyOnboarding?.summaryWalkthroughCompleted === true,
               appWalkthroughStep: 0,
+            },
+          };
+        }
+        if (version < 6) {
+          nextState = {
+            ...nextState,
+            healthSync: {
+              ...nextState.healthSync,
+              importStatus: normalizeHealthImportStatus(
+                undefined,
+                nextState.onboarding?.permissionStatus ?? 'idle',
+                nextState.healthSync?.lastMessage,
+              ),
             },
           };
         }

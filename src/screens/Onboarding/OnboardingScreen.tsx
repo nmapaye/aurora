@@ -22,6 +22,7 @@ export default function OnboardingScreen() {
   const targetSleep = useStore((state) => state.prefs.targetSleep);
   const setPrefs = useStore((state) => state.setPrefs);
   const onboarding = useStore((state) => state.onboarding);
+  const healthSync = useStore((state) => state.healthSync);
   const setOnboarding = useStore((state) => state.setOnboarding);
   const completeOnboarding = useStore((state) => state.completeOnboarding);
   const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
@@ -29,8 +30,6 @@ export default function OnboardingScreen() {
   const loadDemoData = useStore((state) => state.loadDemoData);
 
   const [step, setStep] = useState(0);
-  const [permissionMessage, setPermissionMessage] = useState<string>();
-  const [importError, setImportError] = useState<string>();
   const [requestingPermission, setRequestingPermission] = useState(false);
 
   const canAdvance = useMemo(() => {
@@ -41,16 +40,18 @@ export default function OnboardingScreen() {
 
   const handleRequestPermission = async () => {
     setRequestingPermission(true);
-    setImportError(undefined);
     try {
       const result = await requestHealthPermissions();
       setOnboarding({
         source: onboarding.source,
         permissionStatus: result.status,
       });
-      setPermissionMessage(result.message);
 
       if (result.status === 'granted') {
+        setHealthSync({
+          importStatus: 'importing',
+          lastMessage: 'Importing recent sleep from Health.',
+        });
         const end = Date.now();
         const start = end - 14 * 24 * 60 * 60 * 1000;
         try {
@@ -68,6 +69,7 @@ export default function OnboardingScreen() {
           );
           setHealthSync({
             importedCount: samples.length,
+            importStatus: 'succeeded',
             lastSyncedAt: Date.now(),
             lastMessage:
               samples.length > 0
@@ -80,12 +82,17 @@ export default function OnboardingScreen() {
               ? error.message
               : 'Unable to read sleep data.';
           const importMessage = `Health import failed. ${message}`;
-          setImportError(message);
           setHealthSync({
+            importStatus: 'failed',
             lastSyncedAt: Date.now(),
             lastMessage: importMessage,
           });
         }
+      } else {
+        setHealthSync({
+          importStatus: 'idle',
+          lastMessage: result.message,
+        });
       }
     } finally {
       setRequestingPermission(false);
@@ -108,8 +115,17 @@ export default function OnboardingScreen() {
   const nextAction =
     onboarding.source === 'manual'
       ? 'Finish setup to log caffeine manually. You can also try Aurora with sample data.'
-      : onboarding.permissionStatus === 'granted'
+      : onboarding.permissionStatus === 'granted' &&
+          healthSync.importStatus === 'succeeded'
         ? 'Finish setup, then review imported sleep.'
+        : onboarding.permissionStatus === 'granted' &&
+            healthSync.importStatus === 'importing'
+          ? 'Health access is granted and sleep import is in progress.'
+          : onboarding.permissionStatus === 'granted' &&
+              healthSync.importStatus === 'failed'
+            ? 'Health access is granted, but sleep import needs a retry.'
+            : onboarding.permissionStatus === 'granted'
+              ? 'Health access is granted. Recent sleep has not been imported yet.'
         : 'Connect Health, or finish with manual setup.';
 
   return (
@@ -169,8 +185,8 @@ export default function OnboardingScreen() {
           <StepPermissions
             source={onboarding.source}
             permissionStatus={onboarding.permissionStatus}
-            message={permissionMessage}
-            importError={importError}
+            importStatus={healthSync.importStatus}
+            importMessage={healthSync.lastMessage}
             busy={requestingPermission}
             onRequest={handleRequestPermission}
           />

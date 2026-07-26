@@ -44,13 +44,18 @@ const nonDefaultPersistedState = {
   },
   onboarding: {
     completed: true,
-    source: 'manual' as const,
-    permissionStatus: 'denied' as const,
+    source: 'healthkit' as const,
+    permissionStatus: 'granted' as const,
     completedAt: 1_700_000_000_000,
     appWalkthroughCompleted: true,
     appWalkthroughStep: 7,
   },
-  healthSync: { importedCount: 5, lastSyncedAt: 1_700_000_000_000, lastMessage: 'Synced' },
+  healthSync: {
+    importedCount: 5,
+    importStatus: 'failed' as const,
+    lastSyncedAt: 1_700_000_000_000,
+    lastMessage: 'Health import failed. Database unavailable.',
+  },
   demoMode: true,
   appearanceMode: 'dark' as const,
 };
@@ -152,5 +157,78 @@ describe('store persistence round-trip', () => {
         type: 'sleep',
       },
     ]);
+  });
+
+  it.each([
+    [
+      'failed message',
+      'granted',
+      { importedCount: 0, lastMessage: 'Health import failed. Database unavailable.' },
+      'failed',
+    ],
+    [
+      'successful import message',
+      'granted',
+      { importedCount: 1, lastMessage: 'Imported 1 recent sleep sample from Health.' },
+      'succeeded',
+    ],
+    ['granted authorization alone', 'granted', { importedCount: 0 }, 'idle'],
+    [
+      'success copy without authorization',
+      'denied',
+      { importedCount: 1, lastMessage: 'Imported 1 recent sleep sample from Health.' },
+      'idle',
+    ],
+  ] as const)(
+    'migrates a version 5 legacy Health sync with %s',
+    async (_case, permissionStatus, healthSync, expectedStatus) => {
+      jsonStringStorage.setItem(
+        'aurora/state',
+        JSON.stringify({
+          state: {
+            onboarding: {
+              completed: false,
+              source: 'healthkit',
+              permissionStatus,
+              appWalkthroughCompleted: false,
+              appWalkthroughStep: 0,
+            },
+            healthSync,
+          },
+          version: 5,
+        }),
+      );
+
+      await useStore.persist.rehydrate();
+
+      expect(useStore.getState().healthSync.importStatus).toBe(expectedStatus);
+    },
+  );
+
+  it('normalizes an unknown persisted import lifecycle to idle', async () => {
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          onboarding: {
+            completed: false,
+            source: 'healthkit',
+            permissionStatus: 'granted',
+            appWalkthroughCompleted: false,
+            appWalkthroughStep: 0,
+          },
+          healthSync: {
+            importedCount: 2,
+            importStatus: 'complete-ish',
+            lastMessage: 'Imported 2 recent sleep samples from Health.',
+          },
+        },
+        version: 6,
+      }),
+    );
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState().healthSync.importStatus).toBe('idle');
   });
 });

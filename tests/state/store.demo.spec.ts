@@ -21,7 +21,7 @@ function resetStore() {
       appWalkthroughCompleted: false,
       appWalkthroughStep: 0,
     },
-    healthSync: { importedCount: 0 },
+    healthSync: { importedCount: 0, importStatus: 'idle' },
     demoMode: false,
     appearanceMode: 'system',
   });
@@ -192,7 +192,10 @@ describe('sample data store actions', () => {
 
     const state = useStore.getState();
     expect(state.doses).toHaveLength(1);
-    expect(state.healthSync).toEqual({ importedCount: 0 });
+    expect(state.healthSync).toEqual({
+      importedCount: 0,
+      importStatus: 'idle',
+    });
     expect(state.demoMode).toBe(false);
     expect(state.appearanceMode).toBe('system');
     expect(state.prefs).toMatchObject({
@@ -229,7 +232,10 @@ describe('sample data store actions', () => {
     const state = useStore.getState();
     expect(state.doses).toHaveLength(1);
     expect(state.vigilanceSessions).toEqual([]);
-    expect(state.healthSync).toEqual({ importedCount: 0 });
+    expect(state.healthSync).toEqual({
+      importedCount: 0,
+      importStatus: 'idle',
+    });
     expect(state.demoMode).toBe(false);
     expect(state.appearanceMode).toBe('system');
     expect(state.prefs).toMatchObject({

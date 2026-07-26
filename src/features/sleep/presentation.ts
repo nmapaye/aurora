@@ -1,7 +1,8 @@
 import type { Dose, SleepSession } from '~/domain/models';
 
 const HOUR_MS = 60 * 60 * 1000;
-const SLEEP_EPISODE_GAP_MS = 2 * HOUR_MS;
+// Shorter gaps are brief awakenings; 90 minutes starts a distinct sleep opportunity.
+const SLEEP_EPISODE_GAP_MS = 90 * 60 * 1000;
 
 export type SleepRange = 'week' | 'month';
 export type SleepChartPoint = { date: number; durationMs: number | null };
@@ -61,23 +62,32 @@ function buildSleepEpisodes(sessions: readonly SleepSession[], now: number) {
       session.end <= now,
     )
     .sort((left, right) => left.start - right.start || left.end - right.end);
-  const grouped: SleepSession[][] = [];
-  for (const session of ordered) {
-    const current = grouped[grouped.length - 1];
-    const currentEnd = current
-      ? Math.max(...current.map((item) => item.end))
-      : undefined;
-    if (
-      current &&
-      current[0]?.type === session.type &&
-      currentEnd !== undefined &&
-      session.start - currentEnd <= SLEEP_EPISODE_GAP_MS
-    ) {
-      current.push(session);
-    } else {
-      grouped.push([session]);
+  const sessionsByType = new Map<SleepSession['type'], SleepSession[]>();
+  ordered.forEach((session) => {
+    sessionsByType.set(session.type, [
+      ...(sessionsByType.get(session.type) ?? []),
+      session,
+    ]);
+  });
+  const grouped = [...sessionsByType.values()].flatMap((typedSessions) => {
+    const typedGroups: SleepSession[][] = [];
+    for (const session of typedSessions) {
+      const current = typedGroups[typedGroups.length - 1];
+      const currentEnd = current
+        ? Math.max(...current.map((item) => item.end))
+        : undefined;
+      if (
+        current &&
+        currentEnd !== undefined &&
+        session.start - currentEnd < SLEEP_EPISODE_GAP_MS
+      ) {
+        current.push(session);
+      } else {
+        typedGroups.push([session]);
+      }
     }
-  }
+    return typedGroups;
+  });
   return grouped.flatMap<SleepEpisode>((episodeSessions) => {
     const first = episodeSessions[0];
     if (!first) return [];
@@ -182,9 +192,8 @@ export function getSleepPresentation(
   points.forEach((point) => {
     const episodes = sessionsByDay.get(localDayKey(point.date));
     if (episodes) {
-      point.durationMs = episodes.reduce(
-        (total, episode) => total + episode.durationMs,
-        0,
+      point.durationMs = unionDuration(
+        episodes.flatMap((episode) => episode.sessions),
       );
     }
   });

@@ -62,7 +62,7 @@ describe('SleepScreen', () => {
         appWalkthroughCompleted: true,
         appWalkthroughStep: 9,
       },
-      healthSync: { importedCount: 0 },
+      healthSync: { importedCount: 0, importStatus: 'idle' },
     });
   });
 
@@ -158,6 +158,7 @@ describe('SleepScreen', () => {
     );
     expect(screen.getAllByText('Health connected').length).toBeGreaterThan(0);
     expect(screen.getByText('Health connected with 0 imported sleep samples.')).toBeOnTheScreen();
+    expect(useStore.getState().healthSync.importStatus).toBe('succeeded');
   });
 
   it('keeps a Health query error distinct from a successful zero-result refresh', async () => {
@@ -170,6 +171,7 @@ describe('SleepScreen', () => {
     await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
     expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
     expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
+    expect(useStore.getState().healthSync.importStatus).toBe('failed');
   });
 
   it('surfaces a malformed Health payload as a refresh error instead of a zero result', async () => {
@@ -181,6 +183,7 @@ describe('SleepScreen', () => {
 
     await waitFor(() => expect(screen.getAllByText(/Health refresh failed/).length).toBeGreaterThan(0));
     expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
+    expect(useStore.getState().healthSync.importStatus).toBe('failed');
   });
 
   it.each([

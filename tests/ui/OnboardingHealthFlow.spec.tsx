@@ -1,5 +1,12 @@
 import React from 'react';
-import { cleanup, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import SleepHistoryScreen from '~/screens/SleepHistoryScreen';
@@ -42,6 +49,18 @@ const sample = {
   end: Date.parse('2026-07-24T08:00:00.000Z'),
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function importStatus() {
+  return useStore.getState().healthSync.importStatus;
+}
+
 async function openPermissions() {
   const user = userEvent.setup();
   await user.press(screen.getByRole('button', { name: 'Continue' }));
@@ -69,7 +88,7 @@ describe('onboarding Health import flow', () => {
         appWalkthroughCompleted: false,
         appWalkthroughStep: 0,
       },
-      healthSync: { importedCount: 0 },
+      healthSync: { importedCount: 0, importStatus: 'idle' },
     });
   });
 
@@ -97,6 +116,9 @@ describe('onboarding Health import flow', () => {
         'Imported 1 recent sleep sample from Health.',
       ),
     );
+    expect(importStatus()).toBe('succeeded');
+    expect(screen.getByText('Status: Connected')).toBeOnTheScreen();
+    expect(screen.getByText(/review imported sleep/i)).toBeOnTheScreen();
 
     await cleanup();
     await render(<SleepHistoryScreen />);
@@ -133,28 +155,95 @@ describe('onboarding Health import flow', () => {
     ).toBeOnTheScreen();
     expect(screen.getByText('Status: Import failed')).toBeOnTheScreen();
     expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
     expect(useStore.getState().onboarding.permissionStatus).toBe('granted');
+    expect(importStatus()).toBe('failed');
     expect(useStore.getState().healthSync.lastMessage).toMatch(/Health import failed/i);
     expect(useStore.getState().sleeps).toEqual([]);
   });
 
-  it('recovers from an import error on retry without claiming authorization failed', async () => {
+  it('persists a failed import presentation across an onboarding remount', async () => {
+    jest
+      .mocked(AppleHealth.getSleepSamples)
+      .mockRejectedValueOnce(new Error('Health database unavailable'));
+    await render(<OnboardingScreen />);
+    const user = await openPermissions();
+    await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+    expect(await screen.findByText('Status: Import failed')).toBeOnTheScreen();
+
+    await cleanup();
+    await render(<OnboardingScreen />);
+    await openPermissions();
+
+    expect(screen.getByText('Status: Import failed')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('alert', {
+        name: /Health access granted; import failed.*Health database unavailable/i,
+      }),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
+  });
+
+  it('shows persisted importing state until a valid query succeeds', async () => {
+    const query = deferred<(typeof sample)[]>();
+    jest.mocked(AppleHealth.getSleepSamples).mockReturnValueOnce(query.promise);
+    await render(<OnboardingScreen />);
+    const user = await openPermissions();
+    await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+
+    await waitFor(() => expect(importStatus()).toBe('importing'));
+    expect(screen.getByText('Status: Importing')).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
+
+    await act(() => query.resolve([sample]));
+
+    await waitFor(() => expect(importStatus()).toBe('succeeded'));
+    expect(screen.getByText('Status: Connected')).toBeOnTheScreen();
+    expect(screen.getByText(/review imported sleep/i)).toBeOnTheScreen();
+  });
+
+  it('recovers failed to importing to succeeded without claiming connection early', async () => {
+    const retryQuery = deferred<(typeof sample)[]>();
     jest
       .mocked(AppleHealth.getSleepSamples)
       .mockRejectedValueOnce(new Error('Health database unavailable'))
-      .mockResolvedValueOnce([sample]);
+      .mockReturnValueOnce(retryQuery.promise);
     await render(<OnboardingScreen />);
     const user = await openPermissions();
     await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
     expect(await screen.findByText('Status: Import failed')).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+    await waitFor(() => expect(importStatus()).toBe('importing'));
+    expect(screen.getByText('Status: Importing')).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
+
+    await act(() => retryQuery.resolve([sample]));
 
     await waitFor(() =>
       expect(screen.getByText('Status: Connected')).toBeOnTheScreen(),
     );
+    expect(importStatus()).toBe('succeeded');
     expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
     expect(useStore.getState().onboarding.permissionStatus).toBe('granted');
     expect(useStore.getState().sleeps).toHaveLength(1);
+  });
+
+  it('does not present granted authorization as a completed import when lifecycle is idle', async () => {
+    useStore.setState({
+      onboarding: {
+        ...useStore.getState().onboarding,
+        permissionStatus: 'granted',
+      },
+    });
+    await render(<OnboardingScreen />);
+    await openPermissions();
+
+    expect(screen.getByText('Status: Import pending')).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
   });
 });

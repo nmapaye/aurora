@@ -2,12 +2,12 @@ import type { SleepSession } from '~/domain/models';
 import {
   getCaffeineImpact,
   getSleepPresentation,
-  getLocalCalendarDayStarts,
   sleepSourceLabel,
 } from '~/features/sleep/presentation';
 
 const now = Date.parse('2026-07-24T12:00:00.000Z');
 const hour = 60 * 60 * 1000;
+const minute = 60 * 1000;
 const sleep = (id: string, daysAgo: number, durationHours = 8): SleepSession => ({
   id,
   start: now - daysAgo * 24 * hour - durationHours * hour,
@@ -127,6 +127,130 @@ describe('sleep presentation', () => {
     });
   });
 
+  it('keeps a later same-type nap separate from the primary overnight episode', () => {
+    const sleepStart = new Date(2026, 6, 23, 22, 0).getTime();
+    const sleepEnd = new Date(2026, 6, 24, 6, 0).getTime();
+    const napStart = new Date(2026, 6, 24, 7, 30).getTime();
+    const napEnd = new Date(2026, 6, 24, 9, 0).getTime();
+    const presentationNow = new Date(2026, 6, 24, 12, 0).getTime();
+    const sessions: SleepSession[] = [
+      { id: 'healthkit:sleep:overnight', start: sleepStart, end: sleepEnd, type: 'sleep' },
+      { id: 'healthkit:sleep:later-nap', start: napStart, end: napEnd, type: 'sleep' },
+    ];
+
+    const presentation = getSleepPresentation(sessions, 8, 'week', presentationNow);
+    const impact = getCaffeineImpact(
+      sessions,
+      [{ id: 'dose:evening', timestamp: sleepStart - 3 * hour, mg: 80 }],
+      'week',
+      presentationNow,
+    );
+
+    expect(presentation.headline).toBe('8h 0m');
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 8 * hour,
+      sleepStart,
+      wakeTime: sleepEnd,
+      targetDifferenceMs: 0,
+    });
+    expect(
+      presentation.points.find((point) => point.date === new Date(2026, 6, 24).getTime()),
+    ).toMatchObject({ durationMs: 9.5 * hour });
+    expect(impact).toMatchObject({
+      qualifyingNights: 1,
+      medianDeltaMin: 180,
+      medianSleepMin: 480,
+    });
+  });
+
+  it.each([
+    {
+      boundary: 'just below',
+      gapMs: 90 * minute - 1,
+      expectedDurationMs: 7 * hour,
+      expectedWake: 'second',
+    },
+    {
+      boundary: 'at',
+      gapMs: 90 * minute,
+      expectedDurationMs: 4 * hour,
+      expectedWake: 'first',
+    },
+    {
+      boundary: 'just above',
+      gapMs: 90 * minute + 1,
+      expectedDurationMs: 4 * hour,
+      expectedWake: 'first',
+    },
+  ])(
+    'uses a strict episode gap cutoff $boundary 90 minutes',
+    ({ gapMs, expectedDurationMs, expectedWake }) => {
+      const firstStart = new Date(2026, 6, 23, 22, 0).getTime();
+      const firstEnd = firstStart + 4 * hour;
+      const secondStart = firstEnd + gapMs;
+      const secondEnd = secondStart + 3 * hour;
+      const presentation = getSleepPresentation([
+        { id: 'healthkit:sleep:first', start: firstStart, end: firstEnd, type: 'sleep' },
+        { id: 'healthkit:sleep:second', start: secondStart, end: secondEnd, type: 'sleep' },
+      ], 8, 'week', now);
+
+      expect(presentation.lastNight).toMatchObject({
+        durationMs: expectedDurationMs,
+        sleepStart: firstStart,
+        wakeTime: expectedWake === 'second' ? secondEnd : firstEnd,
+      });
+      expect(
+        presentation.points.find((point) => point.date === new Date(2026, 6, 24).getTime()),
+      ).toMatchObject({ durationMs: 7 * hour });
+    },
+  );
+
+  it('unions cross-type overlap once in the daily chart', () => {
+    const sleepStart = new Date(2026, 6, 23, 22, 0).getTime();
+    const sleepEnd = new Date(2026, 6, 24, 6, 0).getTime();
+    const napStart = new Date(2026, 6, 24, 5, 0).getTime();
+    const napEnd = new Date(2026, 6, 24, 7, 0).getTime();
+    const presentation = getSleepPresentation([
+      { id: 'manual:sleep:overnight', start: sleepStart, end: sleepEnd, type: 'sleep' },
+      { id: 'manual:sleep:nap', start: napStart, end: napEnd, type: 'nap' },
+    ], 8, 'week', now);
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 8 * hour,
+      sleepStart,
+      wakeTime: sleepEnd,
+    });
+    expect(
+      presentation.points.find((point) => point.date === new Date(2026, 6, 24).getTime()),
+    ).toMatchObject({ durationMs: 9 * hour });
+  });
+
+  it('keeps same-type fragments together when another type is interleaved', () => {
+    const firstStart = new Date(2026, 6, 23, 22, 0).getTime();
+    const firstEnd = new Date(2026, 6, 24, 1, 0).getTime();
+    const secondStart = new Date(2026, 6, 24, 1, 30).getTime();
+    const secondEnd = new Date(2026, 6, 24, 6, 0).getTime();
+    const presentation = getSleepPresentation([
+      { id: 'healthkit:sleep:first', start: firstStart, end: firstEnd, type: 'sleep' },
+      {
+        id: 'manual:sleep:overlapping-nap',
+        start: new Date(2026, 6, 24, 0, 0).getTime(),
+        end: new Date(2026, 6, 24, 0, 30).getTime(),
+        type: 'nap',
+      },
+      { id: 'healthkit:sleep:second', start: secondStart, end: secondEnd, type: 'sleep' },
+    ], 8, 'week', now);
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 7.5 * hour,
+      sleepStart: firstStart,
+      wakeTime: secondEnd,
+    });
+    expect(
+      presentation.points.find((point) => point.date === new Date(2026, 6, 24).getTime()),
+    ).toMatchObject({ durationMs: 7.5 * hour });
+  });
+
   it('assigns a cross-midnight episode to its wake day before applying the range edge', () => {
     const earliestWakeDay = new Date(2026, 6, 18, 0, 0).getTime();
     const firstStart = new Date(2026, 6, 17, 22, 0).getTime();
@@ -173,29 +297,35 @@ describe('sleep presentation', () => {
     expect(presentation.lastNight).toBeNull();
   });
 
-  it('builds calendar days safely across a daylight-saving transition', () => {
-    const previousZone = process.env.TZ;
-    process.env.TZ = 'America/New_York';
-    const starts = getLocalCalendarDayStarts(Date.parse('2026-03-09T12:00:00-04:00'), 3);
-    process.env.TZ = previousZone;
-
-    expect(starts.map((timestamp) => new Date(timestamp).getDate())).toEqual([7, 8, 9]);
-    expect(starts.map((timestamp) => new Date(timestamp).getHours())).toEqual([0, 0, 0]);
-  });
-
-  it('aggregates fragmented sleep by elapsed intervals across a DST night', () => {
-    const previousZone = process.env.TZ;
-    process.env.TZ = 'America/New_York';
-    const dstNow = new Date(2026, 2, 8, 12, 0).getTime();
-    const firstStart = new Date(2026, 2, 7, 22, 0).getTime();
-    const firstEnd = new Date(2026, 2, 8, 1, 30).getTime();
-    const secondStart = new Date(2026, 2, 8, 3, 30).getTime();
-    const secondEnd = new Date(2026, 2, 8, 7, 0).getTime();
+  it('aggregates elapsed intervals across a spring-forward night from absolute instants', () => {
+    const dstNow = Date.parse('2026-03-08T12:00:00-04:00');
+    const firstStart = Date.parse('2026-03-07T22:00:00-05:00');
+    const firstEnd = Date.parse('2026-03-08T01:30:00-05:00');
+    const secondStart = Date.parse('2026-03-08T03:00:00-04:00');
+    const secondEnd = Date.parse('2026-03-08T06:30:00-04:00');
     const presentation = getSleepPresentation([
       { id: 'healthkit:sleep:dst-1', start: firstStart, end: firstEnd, type: 'sleep' },
       { id: 'healthkit:sleep:dst-2', start: secondStart, end: secondEnd, type: 'sleep' },
     ], 8, 'week', dstNow);
-    process.env.TZ = previousZone;
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 7 * hour,
+      sleepStart: firstStart,
+      wakeTime: secondEnd,
+      targetDifferenceMs: -hour,
+    });
+  });
+
+  it('aggregates elapsed intervals across a fall-back night from absolute instants', () => {
+    const dstNow = Date.parse('2026-11-01T12:00:00-05:00');
+    const firstStart = Date.parse('2026-10-31T22:00:00-04:00');
+    const firstEnd = Date.parse('2026-11-01T01:30:00-04:00');
+    const secondStart = Date.parse('2026-11-01T01:30:00-05:00');
+    const secondEnd = Date.parse('2026-11-01T05:00:00-05:00');
+    const presentation = getSleepPresentation([
+      { id: 'healthkit:sleep:dst-fall-1', start: firstStart, end: firstEnd, type: 'sleep' },
+      { id: 'healthkit:sleep:dst-fall-2', start: secondStart, end: secondEnd, type: 'sleep' },
+    ], 8, 'week', dstNow);
 
     expect(presentation.lastNight).toMatchObject({
       durationMs: 7 * hour,

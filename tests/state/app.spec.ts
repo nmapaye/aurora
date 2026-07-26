@@ -14,7 +14,7 @@ describe('app boot smoke flow', () => {
         appWalkthroughCompleted: false,
         appWalkthroughStep: 0,
       },
-      healthSync: { importedCount: 0 },
+      healthSync: { importedCount: 0, importStatus: 'idle' },
       demoMode: false,
     });
   });

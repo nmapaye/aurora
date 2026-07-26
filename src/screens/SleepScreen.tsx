@@ -151,14 +151,18 @@ export default function SleepScreen() {
       setHealthAvailable(available);
       if (!available) {
         setOnboarding({ source: 'manual', permissionStatus: 'unsupported' });
-        setHealthSync({ importedCount: 0, lastSyncedAt: now, lastMessage: 'Health import is unavailable. No sleep samples were imported.' });
+        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health import is unavailable. No sleep samples were imported.' });
         return;
       }
       if (!(await AppleHealth.requestAuthorization())) {
         setOnboarding({ source: 'manual', permissionStatus: 'denied' });
-        setHealthSync({ importedCount: 0, lastSyncedAt: now, lastMessage: 'Health access was denied. No sleep samples were imported.' });
+        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access was denied. No sleep samples were imported.' });
         return;
       }
+      setHealthSync({
+        importStatus: 'importing',
+        lastMessage: 'Importing recent sleep from Health.',
+      });
       const samples = await AppleHealth.getSleepSamples(now - 30 * DAY_MS, now);
       const sessions = samples.map((sample) => ({
         id: makeHealthSleepSessionId(sample), start: sample.start, end: sample.end, type: 'sleep' as const,
@@ -167,13 +171,14 @@ export default function SleepScreen() {
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
       setHealthSync({
         importedCount: sessions.length,
+        importStatus: 'succeeded',
         lastSyncedAt: now,
         lastMessage: sessions.length ? `Imported ${sessions.length} sleep ${sessions.length === 1 ? 'sample' : 'samples'} from Health.` : 'Health connected with 0 imported sleep samples.',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to read sleep data.';
       setRefreshError(message);
-      setHealthSync({ ...healthSync, lastSyncedAt: now, lastMessage: `Health refresh failed. ${message}` });
+      setHealthSync({ importStatus: 'failed', lastSyncedAt: now, lastMessage: `Health refresh failed. ${message}` });
     } finally {
       setLoading(false);
     }

@@ -36,7 +36,7 @@ describe('SleepScreen wide layout', () => {
     useStore.setState({
       doses: [], sleeps: [], demoMode: false,
       onboarding: { completed: true, source: 'manual', permissionStatus: 'idle', appWalkthroughCompleted: true, appWalkthroughStep: 9 },
-      healthSync: { importedCount: 0 },
+      healthSync: { importedCount: 0, importStatus: 'idle' },
     });
   });
 

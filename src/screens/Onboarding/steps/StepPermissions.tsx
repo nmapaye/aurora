@@ -4,15 +4,19 @@ import { Text, View } from 'react-native';
 import Button from '~/components/Button';
 import { InlineStatus, ProgressState, SectionCard } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
-import type { HealthPermissionStatus, OnboardingSource } from '~/state/store';
+import type {
+  HealthImportStatus,
+  HealthPermissionStatus,
+  OnboardingSource,
+} from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 import { spacing, typeRamp } from '~/theme/tokens';
 
 type Props = {
   source: OnboardingSource;
   permissionStatus: HealthPermissionStatus;
-  message?: string;
-  importError?: string;
+  importStatus: HealthImportStatus;
+  importMessage?: string;
   busy?: boolean;
   onRequest: () => void;
 };
@@ -20,34 +24,59 @@ type Props = {
 export default function StepPermissions({
   source,
   permissionStatus,
-  message,
-  importError,
+  importStatus,
+  importMessage,
   busy = false,
   onRequest,
 }: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
-  const importFailed = permissionStatus === 'granted' && Boolean(importError);
-  const stateLabel = importFailed
+  const healthAuthorized = permissionStatus === 'granted';
+  const stateLabel = healthAuthorized && importStatus === 'failed'
     ? 'Import failed'
-    : permissionStatus === 'granted'
-      ? 'Connected'
-      : permissionStatus === 'denied'
-        ? 'Not granted'
-        : permissionStatus === 'unsupported'
-          ? 'Unavailable'
-          : 'Pending';
+    : healthAuthorized && importStatus === 'importing'
+      ? 'Importing'
+      : healthAuthorized && importStatus === 'succeeded'
+        ? 'Connected'
+        : healthAuthorized
+          ? 'Import pending'
+          : permissionStatus === 'denied'
+            ? 'Not granted'
+            : permissionStatus === 'unsupported'
+              ? 'Unavailable'
+              : 'Pending';
 
-  const statusTone = importFailed
+  const statusTone = healthAuthorized && importStatus === 'failed'
     ? 'error'
-    : permissionStatus === 'granted'
-      ? 'success'
-      : permissionStatus === 'denied'
-        ? 'error'
-        : permissionStatus === 'unsupported'
-          ? 'neutral'
-          : 'warning';
+    : healthAuthorized && importStatus === 'importing'
+      ? 'info'
+      : healthAuthorized && importStatus === 'succeeded'
+        ? 'success'
+        : healthAuthorized
+          ? 'warning'
+          : permissionStatus === 'denied'
+            ? 'error'
+            : permissionStatus === 'unsupported'
+              ? 'neutral'
+              : 'warning';
+  const importFailed = healthAuthorized && importStatus === 'failed';
+  const failedDetail =
+    importMessage?.replace(/^Health import failed\.\s*/i, '') ??
+    'Unable to read sleep data.';
+  const adjacentCopy = isManual
+    ? 'You can connect Health later from Sleep.'
+    : permissionStatus === 'denied'
+      ? 'Health access was not granted. Manual sleep logging remains available.'
+      : permissionStatus === 'unsupported'
+        ? 'Health import is unavailable on this device.'
+        : healthAuthorized && importStatus === 'importing'
+          ? 'Health access is granted. Importing recent sleep from Health.'
+          : healthAuthorized && importStatus === 'succeeded'
+            ? importMessage ?? 'Health sleep import completed.'
+            : healthAuthorized
+              ? 'Health access is granted. Recent sleep import is pending.'
+              : 'Aurora reads sleep only. It does not write anything back into the Health app.';
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -79,13 +108,13 @@ export default function StepPermissions({
         {importFailed ? (
           <Text
             accessibilityRole="alert"
-            accessibilityLabel={`Health access granted; import failed. ${importError}`}
+            accessibilityLabel={`Health access granted; import failed. ${failedDetail}`}
             style={{
               ...typeRamp.subheadline,
               color: palette.destructive,
             }}
           >
-            Health access granted; import failed. {importError}
+            Health access granted; import failed. {failedDetail}
           </Text>
         ) : (
           <Text
@@ -94,10 +123,7 @@ export default function StepPermissions({
               color: palette.textSecondary,
             }}
           >
-            {message ??
-              (isManual
-                ? 'You can connect Health later from Sleep.'
-                : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
+            {adjacentCopy}
           </Text>
         )}
       </SectionCard>
@@ -105,7 +131,13 @@ export default function StepPermissions({
       {!isManual ? (
         busy ? (
           <SectionCard>
-            <ProgressState label="Requesting Health access…" />
+            <ProgressState
+              label={
+                importStatus === 'importing'
+                  ? 'Importing recent sleep from Health…'
+                  : 'Requesting Health access…'
+              }
+            />
           </SectionCard>
         ) : (
           <Button
