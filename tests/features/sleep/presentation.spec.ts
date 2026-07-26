@@ -61,11 +61,11 @@ describe('sleep presentation', () => {
     expect(presentation.headline).toBe('7h 30m');
   });
 
-  it('adds fragmented same-night sleep while keeping the earliest start and latest wake time', () => {
+  it('buckets pre- and post-midnight fragments into one wake-day episode', () => {
     const firstStart = new Date(2026, 6, 23, 22, 0).getTime();
-    const firstEnd = new Date(2026, 6, 24, 2, 0).getTime();
-    const secondStart = new Date(2026, 6, 24, 2, 30).getTime();
-    const secondEnd = new Date(2026, 6, 24, 6, 30).getTime();
+    const firstEnd = new Date(2026, 6, 23, 23, 30).getTime();
+    const secondStart = new Date(2026, 6, 23, 23, 45).getTime();
+    const secondEnd = new Date(2026, 6, 24, 6, 0).getTime();
     const sessions: SleepSession[] = [
       { id: 'healthkit:sleep:first', start: firstStart, end: firstEnd, type: 'sleep' },
       { id: 'healthkit:sleep:second', start: secondStart, end: secondEnd, type: 'sleep' },
@@ -80,16 +80,71 @@ describe('sleep presentation', () => {
     );
 
     expect(presentation.lastNight).toMatchObject({
-      durationMs: 8 * hour,
+      durationMs: 7.75 * hour,
       sleepStart: firstStart,
       wakeTime: secondEnd,
-      targetDifferenceMs: 0,
+      targetDifferenceMs: -0.25 * hour,
     });
-    expect(presentation.headline).toBe('8h 0m');
+    expect(presentation.headline).toBe('7h 45m');
+    expect(
+      presentation.points.filter((point) => point.durationMs !== null),
+    ).toHaveLength(1);
     expect(impact).toMatchObject({
       qualifyingNights: 1,
       medianDeltaMin: 120,
+      medianSleepMin: 465,
+    });
+  });
+
+  it('keeps a genuinely separate nap out of the overnight episode', () => {
+    const napStart = new Date(2026, 6, 23, 14, 0).getTime();
+    const napEnd = new Date(2026, 6, 23, 15, 0).getTime();
+    const sleepStart = new Date(2026, 6, 23, 22, 0).getTime();
+    const sleepEnd = new Date(2026, 6, 24, 6, 0).getTime();
+    const sessions: SleepSession[] = [
+      { id: 'manual:sleep:nap', start: napStart, end: napEnd, type: 'nap' },
+      { id: 'manual:sleep:overnight', start: sleepStart, end: sleepEnd, type: 'sleep' },
+    ];
+    const impact = getCaffeineImpact(
+      sessions,
+      [
+        { id: 'dose:nap', timestamp: napStart - 2 * hour, mg: 40 },
+        { id: 'dose:overnight', timestamp: sleepStart - 3 * hour, mg: 80 },
+      ],
+      'week',
+      now,
+    );
+
+    expect(getSleepPresentation(sessions, 8, 'week', now).lastNight).toMatchObject({
+      durationMs: 8 * hour,
+      sleepStart,
+      wakeTime: sleepEnd,
+    });
+    expect(impact).toMatchObject({
+      qualifyingNights: 1,
+      medianDeltaMin: 180,
       medianSleepMin: 480,
+    });
+  });
+
+  it('assigns a cross-midnight episode to its wake day before applying the range edge', () => {
+    const earliestWakeDay = new Date(2026, 6, 18, 0, 0).getTime();
+    const firstStart = new Date(2026, 6, 17, 22, 0).getTime();
+    const firstEnd = new Date(2026, 6, 17, 23, 30).getTime();
+    const secondStart = new Date(2026, 6, 17, 23, 45).getTime();
+    const secondEnd = new Date(2026, 6, 18, 6, 0).getTime();
+
+    const presentation = getSleepPresentation([
+      { id: 'healthkit:sleep:edge-1', start: firstStart, end: firstEnd, type: 'sleep' },
+      { id: 'healthkit:sleep:edge-2', start: secondStart, end: secondEnd, type: 'sleep' },
+    ], 8, 'week', now);
+
+    expect(
+      presentation.points.find((point) => point.date === earliestWakeDay),
+    ).toMatchObject({ durationMs: 7.75 * hour });
+    expect(presentation.lastNight).toMatchObject({
+      sleepStart: firstStart,
+      wakeTime: secondEnd,
     });
   });
 

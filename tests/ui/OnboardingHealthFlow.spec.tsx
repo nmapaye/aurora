@@ -120,16 +120,41 @@ describe('onboarding Health import flow', () => {
   it.each([
     ['query rejection', () => Promise.reject(new Error('Health database unavailable')), 'Health database unavailable'],
     ['malformed payload', () => Promise.resolve(undefined as never), 'invalid payload'],
-  ])('keeps authorization granted but shows a visible import error for %s', async (_case, result, message) => {
+  ])('keeps authorization granted but renders an error state for %s', async (_case, result, message) => {
     jest.mocked(AppleHealth.getSleepSamples).mockImplementationOnce(result);
     await render(<OnboardingScreen />);
     const user = await openPermissions();
     await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
 
-    await waitFor(() => expect(screen.getByText(new RegExp(message, 'i'))).toBeOnTheScreen());
-    expect(screen.getByText('Status: Connected')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('alert', {
+        name: new RegExp(`Health access granted; import failed.*${message}`, 'i'),
+      }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Status: Import failed')).toBeOnTheScreen();
+    expect(screen.queryByText('Status: Connected')).not.toBeOnTheScreen();
     expect(useStore.getState().onboarding.permissionStatus).toBe('granted');
     expect(useStore.getState().healthSync.lastMessage).toMatch(/Health import failed/i);
     expect(useStore.getState().sleeps).toEqual([]);
+  });
+
+  it('recovers from an import error on retry without claiming authorization failed', async () => {
+    jest
+      .mocked(AppleHealth.getSleepSamples)
+      .mockRejectedValueOnce(new Error('Health database unavailable'))
+      .mockResolvedValueOnce([sample]);
+    await render(<OnboardingScreen />);
+    const user = await openPermissions();
+    await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+    expect(await screen.findByText('Status: Import failed')).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Status: Connected')).toBeOnTheScreen(),
+    );
+    expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+    expect(useStore.getState().onboarding.permissionStatus).toBe('granted');
+    expect(useStore.getState().sleeps).toHaveLength(1);
   });
 });

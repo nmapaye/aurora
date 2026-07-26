@@ -1,10 +1,11 @@
 import { Linking as RNLinking } from 'react-native';
 
-import linking from '~/navigation/linking';
+import linking, { getLinkingPrefixes } from '~/navigation/linking';
 import { useStore } from '~/state/store';
 
-jest.mock('expo-linking', () => ({
-  createURL: () => 'exp://127.0.0.1:8081/--/',
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: { linkingUri: 'exp://127.0.0.1:8081/--/' },
 }));
 
 function leafRouteName(state: ReturnType<NonNullable<typeof linking.getStateFromPath>>) {
@@ -36,6 +37,11 @@ describe('navigation deep linking', () => {
   it('registers the custom app scheme and an Expo development-client prefix', () => {
     expect(linking.prefixes).toContain('aurora://');
     expect(linking.prefixes?.some((prefix) => prefix.startsWith('exp://'))).toBe(true);
+  });
+
+  it('falls back to only the custom scheme when no Expo development URI exists', () => {
+    expect(getLinkingPrefixes(undefined)).toEqual(['aurora://']);
+    expect(getLinkingPrefixes('')).toEqual(['aurora://']);
   });
 
   it('handles a cold-start link to the existing Sleep History path', async () => {

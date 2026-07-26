@@ -30,6 +30,7 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(0);
   const [permissionMessage, setPermissionMessage] = useState<string>();
+  const [importError, setImportError] = useState<string>();
   const [requestingPermission, setRequestingPermission] = useState(false);
 
   const canAdvance = useMemo(() => {
@@ -40,6 +41,7 @@ export default function OnboardingScreen() {
 
   const handleRequestPermission = async () => {
     setRequestingPermission(true);
+    setImportError(undefined);
     try {
       const result = await requestHealthPermissions();
       setOnboarding({
@@ -78,7 +80,7 @@ export default function OnboardingScreen() {
               ? error.message
               : 'Unable to read sleep data.';
           const importMessage = `Health import failed. ${message}`;
-          setPermissionMessage(importMessage);
+          setImportError(message);
           setHealthSync({
             lastSyncedAt: Date.now(),
             lastMessage: importMessage,
@@ -168,6 +170,7 @@ export default function OnboardingScreen() {
             source={onboarding.source}
             permissionStatus={onboarding.permissionStatus}
             message={permissionMessage}
+            importError={importError}
             busy={requestingPermission}
             onRequest={handleRequestPermission}
           />

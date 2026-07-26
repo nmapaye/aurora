@@ -12,8 +12,8 @@ function isBoundaryEquivalentLegacyHealthSession(session: SleepSession) {
   const match = LEGACY_HEALTH_SLEEP_ID.exec(session.id);
   if (!match) return false;
   return (
-    Math.round(Number(match[1])) === Math.round(session.start) &&
-    Math.round(Number(match[2])) === Math.round(session.end)
+    Number(match[1]) === session.start &&
+    Number(match[2]) === session.end
   );
 }
 

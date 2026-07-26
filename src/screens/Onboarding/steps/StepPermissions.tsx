@@ -12,6 +12,7 @@ type Props = {
   source: OnboardingSource;
   permissionStatus: HealthPermissionStatus;
   message?: string;
+  importError?: string;
   busy?: boolean;
   onRequest: () => void;
 };
@@ -20,14 +21,17 @@ export default function StepPermissions({
   source,
   permissionStatus,
   message,
+  importError,
   busy = false,
   onRequest,
 }: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
-  const stateLabel =
-    permissionStatus === 'granted'
+  const importFailed = permissionStatus === 'granted' && Boolean(importError);
+  const stateLabel = importFailed
+    ? 'Import failed'
+    : permissionStatus === 'granted'
       ? 'Connected'
       : permissionStatus === 'denied'
         ? 'Not granted'
@@ -35,8 +39,9 @@ export default function StepPermissions({
           ? 'Unavailable'
           : 'Pending';
 
-  const statusTone =
-    permissionStatus === 'granted'
+  const statusTone = importFailed
+    ? 'error'
+    : permissionStatus === 'granted'
       ? 'success'
       : permissionStatus === 'denied'
         ? 'error'
@@ -71,17 +76,30 @@ export default function StepPermissions({
 
       <SectionCard>
         <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
-        <Text
-          style={{
-            ...typeRamp.subheadline,
-            color: palette.textSecondary,
-          }}
-        >
-          {message ??
-            (isManual
-              ? 'You can connect Health later from Sleep.'
-              : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
-        </Text>
+        {importFailed ? (
+          <Text
+            accessibilityRole="alert"
+            accessibilityLabel={`Health access granted; import failed. ${importError}`}
+            style={{
+              ...typeRamp.subheadline,
+              color: palette.destructive,
+            }}
+          >
+            Health access granted; import failed. {importError}
+          </Text>
+        ) : (
+          <Text
+            style={{
+              ...typeRamp.subheadline,
+              color: palette.textSecondary,
+            }}
+          >
+            {message ??
+              (isManual
+                ? 'You can connect Health later from Sleep.'
+                : 'Aurora reads sleep only. It does not write anything back into the Health app.')}
+          </Text>
+        )}
       </SectionCard>
 
       {!isManual ? (

@@ -4,7 +4,7 @@ import {
 } from '@react-navigation/native';
 import type { RootStackParamList } from './types';
 import { Linking as RNLinking } from 'react-native';
-import * as ExpoLinking from 'expo-linking';
+import Constants from 'expo-constants';
 import {
   getAppWalkthroughRoute,
   isAppWalkthroughPending,
@@ -36,8 +36,17 @@ const walkthroughRoutePaths = {
   Insights: 'insights',
 } as const;
 
+const CUSTOM_SCHEME_PREFIX = 'aurora://';
+
+export function getLinkingPrefixes(linkingUri: string | null | undefined) {
+  const developmentPrefix = linkingUri?.trim();
+  return developmentPrefix && developmentPrefix !== CUSTOM_SCHEME_PREFIX
+    ? [CUSTOM_SCHEME_PREFIX, developmentPrefix]
+    : [CUSTOM_SCHEME_PREFIX];
+}
+
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['aurora://', ExpoLinking.createURL('/')],
+  prefixes: getLinkingPrefixes(Constants.linkingUri),
   config,
   getStateFromPath(path) {
     const onboarding = useStore.getState().onboarding;
