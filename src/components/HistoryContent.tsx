@@ -19,9 +19,10 @@ type HistorySection = 'doses' | 'vigilance';
 
 type Props = {
   initialSection?: HistorySection;
+  focused?: boolean;
 };
 
-export default function HistoryContent({ initialSection = 'doses' }: Props) {
+export default function HistoryContent({ initialSection = 'doses', focused = false }: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
@@ -106,19 +107,19 @@ export default function HistoryContent({ initialSection = 'doses' }: Props) {
     <View style={{ gap: spacing.md }}>
       <SectionHeader
         prominence="prominent"
-        title="History"
+        title={focused ? 'Caffeine doses' : 'History'}
         actionLabel="Export"
         onAction={exportCurrentSection}
       />
 
-      <SegmentedControl
-        value={section}
-        onChange={setSection}
-        options={[
-          { key: 'doses', label: 'Doses' },
-          { key: 'vigilance', label: 'Vigilance' },
-        ]}
-      />
+      {!focused ? <SegmentedControl
+          value={section}
+          onChange={setSection}
+          options={[
+            { key: 'doses', label: 'Doses' },
+            { key: 'vigilance', label: 'Vigilance' },
+          ]}
+        /> : null}
 
       {section === 'doses' ? (
         <>

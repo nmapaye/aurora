@@ -32,6 +32,7 @@ describe('CaffeineHistoryScreen', () => {
     await render(<CaffeineHistoryScreen />);
 
     expect(screen.getByText('Caffeine History')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Vigilance' })).not.toBeOnTheScreen();
     expect(screen.getByText('80 mg • Tea')).toBeOnTheScreen();
     await user.type(screen.getByPlaceholderText('Search amount, source, or note'), 'Morning');
     expect(screen.getByText('80 mg • Tea')).toBeOnTheScreen();

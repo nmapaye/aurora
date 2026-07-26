@@ -251,9 +251,7 @@ describe('DashboardScreen summary walkthrough composition', () => {
     await user.press(espresso);
 
     expect(navigate).toHaveBeenNthCalledWith(1, 'Settings');
-    expect(navigate).toHaveBeenNthCalledWith(2, 'Insights', {
-      section: 'summary',
-    });
+    expect(navigate).toHaveBeenNthCalledWith(2, 'Insights');
     expect(useStore.getState().doses).toHaveLength(1);
     expect(useStore.getState().doses[0]).toMatchObject({
       mg: 60,

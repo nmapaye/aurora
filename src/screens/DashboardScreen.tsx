@@ -155,7 +155,7 @@ export default function DashboardScreen() {
         actionLabel={demoMode ? 'More Details' : 'Load Sample Data'}
         onAction={
           demoMode
-            ? () => navigate('Insights', { section: 'summary' })
+            ? () => navigate('Insights')
             : loadDemoData
         }
       />
@@ -200,7 +200,7 @@ export default function DashboardScreen() {
           dateLabel="Today"
           value={`${Math.round(todaySummary.todayTotal)} mg`}
           detail={todaySummary.deltaText}
-          onPress={() => navigate('Insights', { section: 'summary' })}
+          onPress={() => navigate('Insights')}
         />
       ),
     },
@@ -214,7 +214,7 @@ export default function DashboardScreen() {
           dateLabel="Now"
           value={`${Math.round(mgActive ?? 0)} mg`}
           detail={`Alertness ${Math.round(nowScore ?? 0)}`}
-          onPress={() => navigate('Insights', { section: 'trends' })}
+          onPress={() => navigate('Insights')}
         />
       ),
     },
@@ -376,7 +376,7 @@ export default function DashboardScreen() {
           <Button
             title="See History"
             variant="plain"
-            onPress={() => navigate('Insights', { section: 'history' })}
+            onPress={() => navigate('Insights')}
           />
         }
       />
@@ -411,7 +411,7 @@ export default function DashboardScreen() {
         prominence="prominent"
         title="Today"
         actionLabel="Details"
-        onAction={() => navigate('Insights', { section: 'summary' })}
+        onAction={() => navigate('Insights')}
       />
       <CaffeineTodayGraph
         height={340}

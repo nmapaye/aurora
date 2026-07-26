@@ -4,7 +4,7 @@ export type RootTabParamList = {
   Summary: undefined;
   Log: undefined;
   Sleep: undefined;
-  Insights: { section?: 'summary' | 'trends' | 'history' } | undefined;
+  Insights: undefined;
 };
 
 export type RootStackParamList = {
