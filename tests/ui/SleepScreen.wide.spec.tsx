@@ -45,6 +45,12 @@ describe('SleepScreen wide layout', () => {
 
     expect(screen.getByTestId('sleep-wide-layout')).toBeOnTheScreen();
     expect(screen.queryByTestId('sleep-compact-layout')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('sleep-primary-column')).toHaveStyle({
+      width: 600,
+    });
+    expect(screen.getByTestId('sleep-supporting-column')).toHaveStyle({
+      width: 540,
+    });
     expect(screen.getByText('Highlights')).toBeOnTheScreen();
   });
 });

@@ -119,6 +119,22 @@ describe('InsightsScreen', () => {
     expect(navigate).toHaveBeenCalledWith('CaffeineHistory');
   });
 
+  it('exports local calendar dates instead of UTC-shifted chart dates', async () => {
+    const user = userEvent.setup();
+    await render(<InsightsScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Export CSV' }));
+
+    await waitFor(() =>
+      expect(Share.share).toHaveBeenCalledWith({
+        message: expect.stringContaining('"2026-07-11","0"'),
+      }),
+    );
+    expect(jest.mocked(Share.share).mock.calls[0]?.[0].message).not.toContain(
+      '"2026-07-10","0"',
+    );
+  });
+
   it('uses an asymmetric primary-left layout on a wide iPad window', async () => {
     jest.mocked(useAdaptiveLayout).mockReturnValue({
       width: 1180, height: 820, isPad: true, isWideLayout: true,

@@ -123,4 +123,34 @@ describe('store persistence round-trip', () => {
       'summaryWalkthroughCompleted',
     );
   });
+
+  it('migrates and dedupes only boundary-equivalent legacy Health sleep IDs', async () => {
+    const start = 1_700_000_000_000;
+    const end = start + 8 * 3_600_000;
+    jsonStringStorage.setItem(
+      'aurora/state',
+      JSON.stringify({
+        state: {
+          sleeps: [
+            { id: `sleep:${start}:${end}`, start, end, type: 'sleep' },
+            { id: `healthkit:sleep:${start}:${end}`, start, end, type: 'sleep' },
+            { id: `sleep:${start + 1}:${end}`, start: start + 1, end, type: 'sleep' },
+          ],
+        },
+        version: 5,
+      }),
+    );
+
+    await useStore.persist.rehydrate();
+
+    expect(useStore.getState().sleeps).toEqual([
+      { id: `healthkit:sleep:${start}:${end}`, start, end, type: 'sleep' },
+      {
+        id: `healthkit:sleep:${start + 1}:${end}`,
+        start: start + 1,
+        end,
+        type: 'sleep',
+      },
+    ]);
+  });
 });

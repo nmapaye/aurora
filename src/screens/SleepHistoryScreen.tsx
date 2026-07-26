@@ -10,6 +10,7 @@ import { formatSleepDuration, sleepSourceLabel } from '~/features/sleep/presenta
 import { goBack } from '~/navigation';
 import { useStore } from '~/state/store';
 import useAppScheme from '~/hooks/useAppScheme';
+import useReduceMotion from '~/hooks/useReduceMotion';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
@@ -21,6 +22,7 @@ function formatDateTime(timestamp: number) {
 
 export default function SleepHistoryScreen() {
   const palette = getAppPalette(useAppScheme());
+  const reduceMotion = useReduceMotion();
   const sleeps = useStore((state) => state.sleeps);
   const updateManualSleep = useStore((state) => state.updateManualSleep);
   const removeManualSleep = useStore((state) => state.removeManualSleep);
@@ -83,7 +85,7 @@ export default function SleepHistoryScreen() {
           </View>;
         })}
       </View> : <HealthEmptyState message="No sleep sessions yet." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}
-      <HealthFormSheet visible={Boolean(editing)} title="Edit Sleep" returnFocusRef={returnFocusRef} onCancel={() => { setPickerField(undefined); setEditingId(undefined); }} onSave={save} saveLabel="Save changes" saveDisabled={!validation.valid}>
+      <HealthFormSheet visible={Boolean(editing)} title="Edit Sleep" reduceMotion={reduceMotion} returnFocusRef={returnFocusRef} onCancel={() => { setPickerField(undefined); setEditingId(undefined); }} onSave={save} saveLabel="Save changes" saveDisabled={!validation.valid}>
         <Button title={`Start · ${formatDateTime(start)}`} accessibilityLabel="Start time" accessibilityValue={{ text: formatDateTime(start) }} variant="tinted" onPress={() => setPickerField('start')} />
         <Button title={`End · ${formatDateTime(end)}`} accessibilityLabel="End time" accessibilityValue={{ text: formatDateTime(end) }} variant="tinted" onPress={() => setPickerField('end')} />
         {pickerField ? <DateTimePicker testID={`history-${pickerField}-picker`} value={new Date(pickerField === 'start' ? start : end)} mode="datetime" display="spinner" onChange={(_event, date) => { if (date) { if (pickerField === 'start') setStart(date.getTime()); else setEnd(date.getTime()); } }} /> : null}

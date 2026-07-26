@@ -8,13 +8,14 @@ import {
 import { Share } from 'react-native';
 
 import CaffeineHistoryScreen from '~/screens/CaffeineHistoryScreen';
+import { goBack } from '~/navigation';
 import { useStore } from '~/state/store';
 
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-jest.mock('~/navigation', () => ({ navigate: jest.fn() }));
+jest.mock('~/navigation', () => ({ goBack: jest.fn(), navigate: jest.fn() }));
 
 describe('CaffeineHistoryScreen', () => {
   beforeEach(() => {
@@ -48,6 +49,33 @@ describe('CaffeineHistoryScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Save' }));
     await user.press(screen.getByRole('button', { name: 'Delete' }));
     expect(useStore.getState().doses).toHaveLength(0);
+  });
+
+  it('provides an accessible Close action for the hidden-header route', async () => {
+    const user = userEvent.setup();
+    await render(<CaffeineHistoryScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Close' }));
+
+    expect(goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an inline export error and clears it after a successful retry', async () => {
+    jest.mocked(Share.share).mockRejectedValueOnce(new Error('Sharing unavailable'));
+    const user = userEvent.setup();
+    await render(<CaffeineHistoryScreen />);
+
+    await user.press(screen.getByRole('button', { name: 'Export' }));
+    expect(
+      await screen.findByRole('alert', { name: 'Unable to export caffeine history. Sharing unavailable' }),
+    ).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Unable to export caffeine history. Sharing unavailable'),
+      ).not.toBeOnTheScreen(),
+    );
   });
 
   afterEach(() => jest.restoreAllMocks());

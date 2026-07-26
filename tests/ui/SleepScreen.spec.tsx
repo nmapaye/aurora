@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import AppleHealth from '~/services/platform/health/appleHealth';
 import SleepScreen from '~/screens/SleepScreen';
@@ -36,6 +37,17 @@ const now = Date.parse('2026-07-24T12:00:00.000Z');
 describe('SleepScreen', () => {
   beforeEach(() => {
     jest.spyOn(Date, 'now').mockReturnValue(now);
+    jest
+      .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
+      .mockResolvedValue(false);
+    jest
+      .spyOn(AccessibilityInfo, 'addEventListener')
+      .mockReturnValue({
+        remove: jest.fn(),
+      } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>);
+    jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {});
     health.isAvailable.mockResolvedValue(true);
     health.requestAuthorization.mockResolvedValue(true);
     health.getSleepSamples.mockResolvedValue([]);
@@ -86,6 +98,27 @@ describe('SleepScreen', () => {
       type: 'sleep',
     });
     expect(screen.getByLabelText('Sleep session saved.')).toBeOnTheScreen();
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      'Sleep session saved.',
+    );
+  });
+
+  it('suppresses Add Sleep sheet animation when system Reduce Motion is enabled', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(true);
+    const user = userEvent.setup();
+    await render(<SleepScreen />);
+    await waitFor(() =>
+      expect(AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalled(),
+    );
+
+    await user.press(screen.getByRole('button', { name: 'Add Data' }));
+
+    expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(
+      'animationType',
+      'none',
+    );
   });
 
   it('does not retain an Add Sleep picker after cancel or save', async () => {

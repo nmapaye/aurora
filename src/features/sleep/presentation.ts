@@ -36,14 +36,47 @@ function selectRangeSessions(sessions: readonly SleepSession[], range: SleepRang
   );
 }
 
-function selectLatestSessionByNight(sessions: readonly SleepSession[]) {
-  const selected = new Map<string, SleepSession>();
+type AggregatedNight = {
+  session: SleepSession;
+  sleepStart: number;
+  wakeTime: number;
+  durationMs: number;
+};
+
+function aggregateSessionsByNight(sessions: readonly SleepSession[]) {
+  const grouped = new Map<string, SleepSession[]>();
   for (const session of sessions) {
     const key = localDayKey(session.end);
-    const current = selected.get(key);
-    if (!current || session.end > current.end) selected.set(key, session);
+    grouped.set(key, [...(grouped.get(key) ?? []), session]);
   }
-  return selected;
+  const nights = new Map<string, AggregatedNight>();
+  grouped.forEach((nightSessions, key) => {
+    const ordered = [...nightSessions].sort(
+      (left, right) => left.start - right.start || left.end - right.end,
+    );
+    let intervalStart = ordered[0]?.start ?? 0;
+    let intervalEnd = ordered[0]?.end ?? 0;
+    let durationMs = 0;
+    for (const session of ordered.slice(1)) {
+      if (session.start <= intervalEnd) {
+        intervalEnd = Math.max(intervalEnd, session.end);
+      } else {
+        durationMs += intervalEnd - intervalStart;
+        intervalStart = session.start;
+        intervalEnd = session.end;
+      }
+    }
+    durationMs += intervalEnd - intervalStart;
+    const latestSession = [...ordered].sort((left, right) => right.end - left.end)[0];
+    if (!latestSession) return;
+    nights.set(key, {
+      session: latestSession,
+      sleepStart: ordered[0]?.start ?? latestSession.start,
+      wakeTime: Math.max(...ordered.map((session) => session.end)),
+      durationMs,
+    });
+  });
+  return nights;
 }
 
 function median(values: readonly number[]) {
@@ -75,15 +108,15 @@ export function getCaffeineImpact(
   range: SleepRange,
   now: number,
 ) {
-  const nights = selectLatestSessionByNight(selectRangeSessions(sessions, range, now));
-  const pairs = [...nights.values()].flatMap((session) => {
+  const nights = aggregateSessionsByNight(selectRangeSessions(sessions, range, now));
+  const pairs = [...nights.values()].flatMap((night) => {
     const lastDose = doses
-      .filter((dose) => dose.timestamp <= session.start && dose.timestamp >= session.start - 12 * HOUR_MS)
+      .filter((dose) => dose.timestamp <= night.sleepStart && dose.timestamp >= night.sleepStart - 12 * HOUR_MS)
       .sort((left, right) => right.timestamp - left.timestamp)[0];
     if (!lastDose) return [];
     return [{
-      deltaMin: Math.round((session.start - lastDose.timestamp) / 60_000),
-      sleepMin: Math.round((session.end - session.start) / 60_000),
+      deltaMin: Math.round((night.sleepStart - lastDose.timestamp) / 60_000),
+      sleepMin: Math.round(night.durationMs / 60_000),
     }];
   });
   const deltas = pairs.map((pair) => pair.deltaMin);
@@ -106,15 +139,15 @@ export function getSleepPresentation(
 ) {
   const days = rangeDays(range);
   const points: SleepChartPoint[] = getLocalCalendarDayStarts(now, days).map((date) => ({ date, durationMs: null }));
-  const sessionsByDay = selectLatestSessionByNight(selectRangeSessions(sessions, range, now));
+  const sessionsByDay = aggregateSessionsByNight(selectRangeSessions(sessions, range, now));
   points.forEach((point) => {
-    const session = sessionsByDay.get(localDayKey(point.date));
-    if (session) point.durationMs = session.end - session.start;
+    const night = sessionsByDay.get(localDayKey(point.date));
+    if (night) point.durationMs = night.durationMs;
   });
 
   const recorded = points.filter((point) => point.durationMs !== null);
-  const latest = [...sessionsByDay.values()].sort((left, right) => right.end - left.end)[0];
-  const durationMs = latest ? latest.end - latest.start : 0;
+  const latest = [...sessionsByDay.values()].sort((left, right) => right.wakeTime - left.wakeTime)[0];
+  const durationMs = latest?.durationMs ?? 0;
   const targetDifferenceMs = latest ? durationMs - targetSleepHours * HOUR_MS : null;
   const dateRange = `${days} days ending ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(now))}`;
   const noun = recorded.length === 1 ? 'night' : 'nights';
@@ -129,7 +162,13 @@ export function getSleepPresentation(
     headline: latest ? formatSleepDuration(durationMs) : 'No Data',
     accessibilitySummary,
     lastNight: latest
-      ? { session: latest, durationMs, wakeTime: latest.end, targetDifferenceMs }
+      ? {
+          session: latest.session,
+          durationMs,
+          sleepStart: latest.sleepStart,
+          wakeTime: latest.wakeTime,
+          targetDifferenceMs,
+        }
       : null,
   };
 }

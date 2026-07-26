@@ -1,11 +1,27 @@
 import type { VigilanceSession } from '~/domain/vigilance';
 import {
+  formatLocalDate,
   makeDailyTotalsCSV,
   makeSummaryText,
   makeVigilanceSessionsCSV,
 } from '~/services/storage/export';
 
 describe('storage export helpers', () => {
+  it('formats a timestamp from local calendar components', () => {
+    const localMidnight = new Date(2026, 6, 24, 0, 0, 0, 0).getTime();
+
+    expect(formatLocalDate(localMidnight)).toBe('2026-07-24');
+  });
+
+  it('keeps local dates stable across DST transition days', () => {
+    expect(formatLocalDate(new Date(2026, 2, 8, 0, 0, 0, 0).getTime())).toBe(
+      '2026-03-08',
+    );
+    expect(formatLocalDate(new Date(2026, 10, 1, 0, 0, 0, 0).getTime())).toBe(
+      '2026-11-01',
+    );
+  });
+
   it('exports daily totals as escaped CSV rows', () => {
     const csv = makeDailyTotalsCSV([
       { date: '2026-04-25', mg: 95 },

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
@@ -22,6 +22,7 @@ import { formatSleepDuration, getCaffeineImpact, getSleepPresentation, type Slee
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
+import useReduceMotion from '~/hooks/useReduceMotion';
 import { navigate } from '~/navigation';
 import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
 import { useStore } from '~/state/store';
@@ -50,6 +51,7 @@ export default function SleepScreen() {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const layout = useAdaptiveLayout();
+  const reduceMotion = useReduceMotion();
   const cutoff = useCaffeineCutoff();
   const sleeps = useStore((state) => state.sleeps);
   const doses = useStore((state) => state.doses);
@@ -183,6 +185,7 @@ export default function SleepScreen() {
     setPickerField(undefined);
     setShowForm(false);
     setAnnouncement('Sleep session saved.');
+    AccessibilityInfo.announceForAccessibility('Sleep session saved.');
   };
   const logFirstPlanDose = () => {
     const first = plan[0];
@@ -267,8 +270,20 @@ export default function SleepScreen() {
         <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-history')} reduceMotion={walkthrough.reduceMotion} style={{ gap: spacing.md }}>
           <HealthRangeControl accessibilityLabel="Sleep range" value={range} onChange={setRange} options={[{ value: 'week', label: 'W' }, { value: 'month', label: 'M' }]} />
           <View testID={layout.isWideLayout ? 'sleep-wide-layout' : 'sleep-compact-layout'} style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.md }}>
-            <View style={{ flex: 1 }}>{chart}</View>
-            {layout.isWideLayout ? <View style={{ flex: 1 }}>{highlights}</View> : null}
+            <View
+              testID="sleep-primary-column"
+              style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%' }}
+            >
+              {chart}
+            </View>
+            {layout.isWideLayout ? (
+              <View
+                testID="sleep-supporting-column"
+                style={{ width: layout.rightColumnWidth }}
+              >
+                {highlights}
+              </View>
+            ) : null}
           </View>
           {!layout.isWideLayout ? highlights : null}
         </WalkthroughReveal>
@@ -296,7 +311,7 @@ export default function SleepScreen() {
           </View>
         </WalkthroughReveal>
       </View>
-      <HealthFormSheet visible={showForm} title="Add Sleep" returnFocusRef={addDataRef} onCancel={() => { setPickerField(undefined); setShowForm(false); }} onSave={saveManualSleep} saveDisabled={!validation.valid}>
+      <HealthFormSheet visible={showForm} title="Add Sleep" reduceMotion={reduceMotion} returnFocusRef={addDataRef} onCancel={() => { setPickerField(undefined); setShowForm(false); }} onSave={saveManualSleep} saveDisabled={!validation.valid}>
         <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Choose the local start and end time for this sleep session.</Text>
         <Button title={`Start · ${formatDateTime(draft.start)}`} accessibilityLabel="Start time" accessibilityValue={{ text: formatDateTime(draft.start) }} variant="tinted" onPress={() => setPickerField('start')} />
         <Button title={`End · ${formatDateTime(draft.end)}`} accessibilityLabel="End time" accessibilityValue={{ text: formatDateTime(draft.end) }} variant="tinted" onPress={() => setPickerField('end')} />

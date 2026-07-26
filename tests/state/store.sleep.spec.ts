@@ -37,4 +37,42 @@ describe('manual sleep store actions', () => {
 
     expect(useStore.getState().sleeps).toEqual([manual, imported]);
   });
+
+  it('replaces only a boundary-equivalent legacy Health record during canonical refresh', () => {
+    const legacy = {
+      id: `sleep:${manual.start}:${manual.end}`,
+      start: manual.start,
+      end: manual.end,
+      type: 'sleep' as const,
+    };
+    const distinct = {
+      id: `sleep:${manual.start + 1}:${manual.end}`,
+      start: manual.start + 1,
+      end: manual.end,
+      type: 'sleep' as const,
+    };
+    useStore.setState({ sleeps: [legacy, distinct] });
+
+    useStore.getState().upsertSleepSessions([
+      {
+        id: `healthkit:sleep:${manual.start}:${manual.end}`,
+        start: manual.start,
+        end: manual.end,
+        type: 'sleep',
+      },
+    ]);
+
+    expect(useStore.getState().sleeps).toEqual([
+      {
+        id: `healthkit:sleep:${manual.start}:${manual.end}`,
+        start: manual.start,
+        end: manual.end,
+        type: 'sleep',
+      },
+      {
+        ...distinct,
+        id: `healthkit:sleep:${manual.start + 1}:${manual.end}`,
+      },
+    ]);
+  });
 });

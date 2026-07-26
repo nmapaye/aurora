@@ -1,5 +1,8 @@
 import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
+import { makeHealthSleepSessionId } from '~/features/sleep/healthSleep';
+
+export { makeHealthSleepSessionId } from '~/features/sleep/healthSleep';
 
 export type SleepSample = {
   start: number;
@@ -170,10 +173,6 @@ export function normalizeSleepSamples(rawSamples: unknown[]): SleepSample[] {
       return acc;
     }, [])
     .sort((a, b) => b.end - a.end);
-}
-
-export function makeHealthSleepSessionId(sample: Pick<SleepSample, 'start' | 'end'>): string {
-  return `healthkit:sleep:${Math.round(sample.start)}:${Math.round(sample.end)}`;
 }
 
 export async function getNativeSleepSamples(

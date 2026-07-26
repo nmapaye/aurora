@@ -61,6 +61,56 @@ describe('sleep presentation', () => {
     expect(presentation.headline).toBe('7h 30m');
   });
 
+  it('adds fragmented same-night sleep while keeping the earliest start and latest wake time', () => {
+    const firstStart = new Date(2026, 6, 23, 22, 0).getTime();
+    const firstEnd = new Date(2026, 6, 24, 2, 0).getTime();
+    const secondStart = new Date(2026, 6, 24, 2, 30).getTime();
+    const secondEnd = new Date(2026, 6, 24, 6, 30).getTime();
+    const sessions: SleepSession[] = [
+      { id: 'healthkit:sleep:first', start: firstStart, end: firstEnd, type: 'sleep' },
+      { id: 'healthkit:sleep:second', start: secondStart, end: secondEnd, type: 'sleep' },
+    ];
+
+    const presentation = getSleepPresentation(sessions, 8, 'week', now);
+    const impact = getCaffeineImpact(
+      sessions,
+      [{ id: 'dose:evening', timestamp: new Date(2026, 6, 23, 20, 0).getTime(), mg: 80 }],
+      'week',
+      now,
+    );
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 8 * hour,
+      sleepStart: firstStart,
+      wakeTime: secondEnd,
+      targetDifferenceMs: 0,
+    });
+    expect(presentation.headline).toBe('8h 0m');
+    expect(impact).toMatchObject({
+      qualifyingNights: 1,
+      medianDeltaMin: 120,
+      medianSleepMin: 480,
+    });
+  });
+
+  it('does not double-count overlapping same-night samples', () => {
+    const start = new Date(2026, 6, 23, 22, 0).getTime();
+    const end = new Date(2026, 6, 24, 6, 0).getTime();
+    const sessions: SleepSession[] = [
+      { id: 'healthkit:sleep:first', start, end: new Date(2026, 6, 24, 3, 0).getTime(), type: 'sleep' },
+      { id: 'healthkit:sleep:second', start: new Date(2026, 6, 24, 1, 0).getTime(), end, type: 'sleep' },
+    ];
+
+    const presentation = getSleepPresentation(sessions, 8, 'week', now);
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 8 * hour,
+      sleepStart: start,
+      wakeTime: end,
+      targetDifferenceMs: 0,
+    });
+  });
+
   it('does not borrow the headline or highlights from outside the selected range', () => {
     const presentation = getSleepPresentation([sleep('manual:sleep:old', 8, 9)], 8, 'week', now);
 
@@ -76,6 +126,28 @@ describe('sleep presentation', () => {
 
     expect(starts.map((timestamp) => new Date(timestamp).getDate())).toEqual([7, 8, 9]);
     expect(starts.map((timestamp) => new Date(timestamp).getHours())).toEqual([0, 0, 0]);
+  });
+
+  it('aggregates fragmented sleep by elapsed intervals across a DST night', () => {
+    const previousZone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    const dstNow = new Date(2026, 2, 8, 12, 0).getTime();
+    const firstStart = new Date(2026, 2, 7, 22, 0).getTime();
+    const firstEnd = new Date(2026, 2, 8, 1, 30).getTime();
+    const secondStart = new Date(2026, 2, 8, 3, 30).getTime();
+    const secondEnd = new Date(2026, 2, 8, 7, 0).getTime();
+    const presentation = getSleepPresentation([
+      { id: 'healthkit:sleep:dst-1', start: firstStart, end: firstEnd, type: 'sleep' },
+      { id: 'healthkit:sleep:dst-2', start: secondStart, end: secondEnd, type: 'sleep' },
+    ], 8, 'week', dstNow);
+    process.env.TZ = previousZone;
+
+    expect(presentation.lastNight).toMatchObject({
+      durationMs: 7 * hour,
+      sleepStart: firstStart,
+      wakeTime: secondEnd,
+      targetDifferenceMs: -hour,
+    });
   });
 
   it('derives caffeine impact from one qualifying dose-to-sleep pair per local night', () => {

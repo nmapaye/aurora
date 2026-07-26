@@ -25,7 +25,11 @@ import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
-import { makeDailyTotalsCSV, makeSummaryText } from '~/services/storage/export';
+import {
+  formatLocalDate,
+  makeDailyTotalsCSV,
+  makeSummaryText,
+} from '~/services/storage/export';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 import { spacing, typeRamp } from '~/theme/tokens';
@@ -107,7 +111,7 @@ export default function InsightsScreen() {
       await Share.share({
         message: makeDailyTotalsCSV(
           presentation.points.map((point) => ({
-            date: new Date(point.date).toISOString().slice(0, 10),
+            date: formatLocalDate(point.date),
             mg: point.mg ?? 0,
           })),
         ),

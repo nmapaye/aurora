@@ -1,6 +1,6 @@
 import React from 'react';
-import { Alert } from 'react-native';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 
 import SleepHistoryScreen from '~/screens/SleepHistoryScreen';
 import { useStore } from '~/state/store';
@@ -13,6 +13,14 @@ jest.mock('react-native-safe-area-context', () => ({
 
 describe('SleepHistoryScreen', () => {
   beforeEach(() => {
+    jest
+      .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
+      .mockResolvedValue(false);
+    jest
+      .spyOn(AccessibilityInfo, 'addEventListener')
+      .mockReturnValue({
+        remove: jest.fn(),
+      } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>);
     useStore.setState({
       sleeps: [
         {
@@ -84,6 +92,24 @@ describe('SleepHistoryScreen', () => {
     expect(screen.queryByTestId('history-end-picker')).not.toBeOnTheScreen();
   });
 
+  it('suppresses Edit Sleep sheet animation when system Reduce Motion is enabled', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(true);
+    const user = userEvent.setup();
+    await render(<SleepHistoryScreen />);
+    await waitFor(() =>
+      expect(AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalled(),
+    );
+
+    await user.press(screen.getByRole('button', { name: 'Edit manual sleep' }));
+
+    expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(
+      'animationType',
+      'none',
+    );
+  });
+
   it('confirms before deleting a manual record', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _body, buttons) => {
       buttons?.find((button) => button.style === 'destructive')?.onPress?.();
@@ -95,4 +121,6 @@ describe('SleepHistoryScreen', () => {
     expect(alert).toHaveBeenCalled();
     expect(useStore.getState().sleeps.map((item) => item.id)).toEqual(['healthkit:sleep:2:3']);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 });

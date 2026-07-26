@@ -4,6 +4,9 @@ import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
 import type { Dose, SleepSession } from '~/domain/models';
 import type { VigilanceSession } from '~/domain/vigilance';
 import { createDemoSnapshot } from '~/dev/mockData';
+import {
+  normalizeHealthSleepSessionIdentities,
+} from '~/features/sleep/healthSleep';
 import { jsonStringStorage } from '~/services/storage';
 
 type Prefs = {
@@ -114,7 +117,7 @@ function normalizePersistedState(persistedState?: MigratingPersistedState): Pers
 
   return {
     doses: persistedState?.doses ?? [],
-    sleeps: persistedState?.sleeps ?? [],
+    sleeps: normalizeHealthSleepSessionIdentities(persistedState?.sleeps ?? []),
     vigilanceSessions: persistedState?.vigilanceSessions ?? [],
     prefs: { ...defaultPrefs, ...persistedState?.prefs },
     onboarding: {
@@ -147,8 +150,10 @@ export const useStore = create<State>()(
       addSleep: (sl) => set((s) => ({ sleeps: [...s.sleeps, sl] })),
       upsertSleepSessions: (items) =>
         set((s) => {
-          const deduped = new Map(s.sleeps.map((sleep) => [sleep.id, sleep]));
-          items.forEach((item) => {
+          const existing = normalizeHealthSleepSessionIdentities(s.sleeps);
+          const incoming = normalizeHealthSleepSessionIdentities(items);
+          const deduped = new Map(existing.map((sleep) => [sleep.id, sleep]));
+          incoming.forEach((item) => {
             deduped.set(item.id, item);
           });
           return {

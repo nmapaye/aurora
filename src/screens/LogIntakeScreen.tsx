@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Modal,
@@ -32,6 +32,7 @@ import {
 } from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useAppScheme from '~/hooks/useAppScheme';
+import useReduceMotion from '~/hooks/useReduceMotion';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
@@ -70,7 +71,7 @@ export default function LogIntakeScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pendingTime, setPendingTime] = useState(() => new Date(Date.now()));
   const [confirmation, setConfirmation] = useState('');
-  const [reduceMotion, setReduceMotion] = useState(true);
+  const reduceMotion = useReduceMotion();
   const addDataRef = useRef<View>(null);
   const customEntryRef = useRef<View>(null);
   const returnFocusRef = useRef(addDataRef);
@@ -83,31 +84,6 @@ export default function LogIntakeScreen() {
     scrollRef,
     contentRef,
   });
-
-  useEffect(() => {
-    let alive = true;
-    let receivedSystemEvent = false;
-    const onReduceMotionChanged = (enabled: boolean) => {
-      receivedSystemEvent = true;
-      if (alive) setReduceMotion(enabled);
-    };
-
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (alive && !receivedSystemEvent) setReduceMotion(enabled);
-      })
-      .catch(() => {
-        if (alive && !receivedSystemEvent) setReduceMotion(true);
-      });
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      onReduceMotionChanged,
-    );
-    return () => {
-      alive = false;
-      subscription.remove();
-    };
-  }, []);
 
   const now = Date.now();
   const validation = validateCustomDoseDraft(draft, now);

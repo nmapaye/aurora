@@ -36,6 +36,7 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftMg, setDraftMg] = useState('0');
   const [draftSource, setDraftSource] = useState('');
+  const [exportError, setExportError] = useState<string>();
 
   const rangeStart = useMemo(() => {
     if (range === 'all') return 0;
@@ -73,25 +74,34 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
   };
 
   const exportCurrentSection = async () => {
-    if (section === 'doses') {
-      const header = 'id,timestamp,datetime,mg,source,note';
-      const lines = doseItems.map((dose) => {
-        const iso = new Date(dose.timestamp).toISOString();
-        return [
-          dose.id,
-          String(dose.timestamp),
-          iso,
-          String(dose.mg),
-          dose.source || '',
-          dose.note || '',
-        ]
-          .map((value) => `"${String(value).replace(/"/g, '""')}"`)
-          .join(',');
-      });
-      await Share.share({ message: [header, ...lines].join('\n') });
-      return;
+    setExportError(undefined);
+    try {
+      if (section === 'doses') {
+        const header = 'id,timestamp,datetime,mg,source,note';
+        const lines = doseItems.map((dose) => {
+          const iso = new Date(dose.timestamp).toISOString();
+          return [
+            dose.id,
+            String(dose.timestamp),
+            iso,
+            String(dose.mg),
+            dose.source || '',
+            dose.note || '',
+          ]
+            .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+            .join(',');
+        });
+        await Share.share({ message: [header, ...lines].join('\n') });
+        return;
+      }
+      await Share.share({ message: makeVigilanceSessionsCSV(vigilanceSessions) });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Sharing unavailable.';
+      setExportError(
+        `${focused ? 'Unable to export caffeine history.' : 'Unable to export history.'} ${message}`,
+      );
     }
-    await Share.share({ message: makeVigilanceSessionsCSV(vigilanceSessions) });
   };
 
   const saveEdit = () => {
@@ -111,6 +121,15 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
         actionLabel="Export"
         onAction={exportCurrentSection}
       />
+      {exportError ? (
+        <Text
+          accessibilityRole="alert"
+          accessibilityLabel={exportError}
+          style={{ ...typeRamp.footnote, color: palette.destructive }}
+        >
+          {exportError}
+        </Text>
+      ) : null}
 
       {!focused ? <SegmentedControl
           value={section}
