@@ -19,9 +19,7 @@
   "include": [
     "src/**/*",
     "scripts/**/*",
-    "tests/**/*",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "tests/**/*"
   ],
   "extends": "expo/tsconfig.base"
 }
