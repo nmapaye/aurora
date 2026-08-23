@@ -2,6 +2,7 @@ name: App CI
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/app-ci.yml'
       - '.node-version'
@@ -22,6 +23,7 @@ on:
       - 'tsconfig.json'
       - 'ios/**'
   pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/app-ci.yml'
       - '.node-version'
@@ -56,12 +58,13 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: npm
@@ -88,10 +91,10 @@ jobs:
       COCOAPODS_DISABLE_STATS: 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: npm
