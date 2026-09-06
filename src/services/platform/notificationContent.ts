@@ -15,3 +15,19 @@ export function cutoffReminder(cutoffHour: number): CutoffReminder {
     minute: 0,
   };
 }
+
+import { scheduledSleep, type SleepRoutines } from '~/features/sleep/upgrades';
+import { addCalendarDays, localDateKey } from '~/utils/calendar';
+export function windDownReminders(routines: SleepRoutines, now: number) {
+  if (!routines.windDown.enabled) return [];
+  return Array.from({ length: 14 }, (_, i) => {
+    const key = localDateKey(addCalendarDays(now, i));
+    const planned = scheduledSleep(routines, key);
+    return {
+      id: `wind-down:${i}`,
+      date: planned.bedtime - routines.windDown.leadMinutes * 60000,
+      title: 'Time to wind down',
+      body: `Your planned bedtime is ${new Date(planned.bedtime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`,
+    };
+  }).filter((r) => r.date > now);
+}

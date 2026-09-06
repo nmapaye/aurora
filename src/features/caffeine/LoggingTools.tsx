@@ -1,3 +1,4 @@
+import { nextScheduledSleep } from '~/features/sleep/upgrades';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import * as Haptics from 'expo-haptics';
@@ -20,7 +21,6 @@ import type { CustomDoseDraft } from './logging';
 import {
   availableDrinks,
   calculateServing,
-  nextPlannedBedtime,
   previewDose,
   type PersonalDrink,
 } from './upgrades';
@@ -36,7 +36,8 @@ export function DosePreview({
   const halfLife = useStore((s) => s.prefs.halfLife);
   const now = useNow();
   const palette = getAppPalette(useAppScheme());
-  const bedtime = nextPlannedBedtime(now);
+  const routines = useStore((s) => s.sleepRoutines);
+  const bedtime = nextScheduledSleep(routines, now).bedtime;
   const preview = previewDose(
     doses,
     { ...draft, id: 'preview', mg: Number(draft.mg) },

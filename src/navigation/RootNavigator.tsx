@@ -1,3 +1,4 @@
+import SleepRoutinesScreen from '~/screens/SleepRoutinesScreen';
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -22,6 +23,7 @@ export default function RootNavigator() {
         component={DrinkLibraryScreen}
         options={{ presentation: 'card' }}
       />
+      <Stack.Screen name="SleepRoutines" component={SleepRoutinesScreen} />
       <Stack.Screen name="Tabs" component={RootTabs} />
       <Stack.Screen
         name="VigilanceTest"

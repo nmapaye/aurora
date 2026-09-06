@@ -53,15 +53,39 @@ function unionDuration(sessions: readonly SleepSession[]) {
   return durationMs + intervalEnd - intervalStart;
 }
 
-function buildSleepEpisodes(sessions: readonly SleepSession[], now: number) {
-  const ordered = sessions
-    .filter((session) =>
-      Number.isFinite(session.start) &&
-      Number.isFinite(session.end) &&
-      session.end > session.start &&
-      session.end <= now,
+export function buildSleepEpisodes(
+  sessions: readonly SleepSession[],
+  now: number,
+) {
+  const valid = sessions
+    .filter(
+      (session) =>
+        Number.isFinite(session.start) &&
+        Number.isFinite(session.end) &&
+        session.end > session.start &&
+        session.end <= now,
     )
     .sort((left, right) => left.start - right.start || left.end - right.end);
+  // Main sleep owns overlapping time even when a nap ends on a different date.
+  const main = valid.filter((session) => session.type === 'sleep');
+  const ordered = valid
+    .flatMap((session) => {
+      if (session.type === 'sleep') return [session];
+      let fragments = [session];
+      for (const sleep of main) {
+        fragments = fragments.flatMap((part) => {
+          if (sleep.end <= part.start || sleep.start >= part.end) return [part];
+          return [
+            ...(part.start < sleep.start
+              ? [{ ...part, end: sleep.start }]
+              : []),
+            ...(part.end > sleep.end ? [{ ...part, start: sleep.end }] : []),
+          ];
+        });
+      }
+      return fragments;
+    })
+    .sort((a, b) => a.start - b.start);
   const sessionsByType = new Map<SleepSession['type'], SleepSession[]>();
   ordered.forEach((session) => {
     sessionsByType.set(session.type, [
@@ -91,17 +115,25 @@ function buildSleepEpisodes(sessions: readonly SleepSession[], now: number) {
   return grouped.flatMap<SleepEpisode>((episodeSessions) => {
     const first = episodeSessions[0];
     if (!first) return [];
-    return [{
-      sessions: episodeSessions,
-      type: first.type,
-      sleepStart: Math.min(...episodeSessions.map((session) => session.start)),
-      wakeTime: Math.max(...episodeSessions.map((session) => session.end)),
-      durationMs: unionDuration(episodeSessions),
-    }];
+    return [
+      {
+        sessions: episodeSessions,
+        type: first.type,
+        sleepStart: Math.min(
+          ...episodeSessions.map((session) => session.start),
+        ),
+        wakeTime: Math.max(...episodeSessions.map((session) => session.end)),
+        durationMs: unionDuration(episodeSessions),
+      },
+    ];
   });
 }
 
-function selectRangeEpisodes(sessions: readonly SleepSession[], range: SleepRange, now: number) {
+function selectRangeEpisodes(
+  sessions: readonly SleepSession[],
+  range: SleepRange,
+  now: number,
+) {
   const starts = getLocalCalendarDayStarts(now, rangeDays(range));
   const dayKeys = new Set(starts.map(localDayKey));
   return buildSleepEpisodes(sessions, now).filter((episode) =>
@@ -134,7 +166,14 @@ function median(values: readonly number[]) {
 function percentile(values: readonly number[], q: number) {
   const sorted = [...values].sort((left, right) => left - right);
   if (!sorted.length) return 0;
-  return sorted[Math.max(0, Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))))] ?? 0;
+  return (
+    sorted[
+      Math.max(
+        0,
+        Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))),
+      )
+    ] ?? 0
+  );
 }
 
 export function formatSleepDuration(durationMs: number) {
@@ -155,18 +194,31 @@ export function getCaffeineImpact(
   range: SleepRange,
   now: number,
 ) {
-  const wakeDays = bucketEpisodesByWakeDay(selectRangeEpisodes(sessions, range, now));
+  const wakeDays = bucketEpisodesByWakeDay(
+    selectRangeEpisodes(
+      sessions.filter((s) => !s.id.startsWith('demo:')),
+      range,
+      now,
+    ),
+  );
   const pairs = [...wakeDays.values()].flatMap((episodes) => {
     const night = primarySleepEpisode(episodes);
     if (!night) return [];
     const lastDose = doses
-      .filter((dose) => dose.timestamp <= night.sleepStart && dose.timestamp >= night.sleepStart - 12 * HOUR_MS)
+      .filter(
+        (dose) =>
+          !dose.id.startsWith('demo:') &&
+          dose.timestamp <= night.sleepStart &&
+          dose.timestamp >= night.sleepStart - 12 * HOUR_MS,
+      )
       .sort((left, right) => right.timestamp - left.timestamp)[0];
     if (!lastDose) return [];
-    return [{
-      deltaMin: Math.round((night.sleepStart - lastDose.timestamp) / 60_000),
-      sleepMin: Math.round(night.durationMs / 60_000),
-    }];
+    return [
+      {
+        deltaMin: Math.round((night.sleepStart - lastDose.timestamp) / 60_000),
+        sleepMin: Math.round(night.durationMs / 60_000),
+      },
+    ];
   });
   const deltas = pairs.map((pair) => pair.deltaMin);
   const durations = pairs.map((pair) => pair.sleepMin);
@@ -187,8 +239,12 @@ export function getSleepPresentation(
   now: number,
 ) {
   const days = rangeDays(range);
-  const points: SleepChartPoint[] = getLocalCalendarDayStarts(now, days).map((date) => ({ date, durationMs: null }));
-  const sessionsByDay = bucketEpisodesByWakeDay(selectRangeEpisodes(sessions, range, now));
+  const points: SleepChartPoint[] = getLocalCalendarDayStarts(now, days).map(
+    (date) => ({ date, durationMs: null }),
+  );
+  const sessionsByDay = bucketEpisodesByWakeDay(
+    selectRangeEpisodes(sessions, range, now),
+  );
   points.forEach((point) => {
     const episodes = sessionsByDay.get(localDayKey(point.date));
     if (episodes) {
@@ -203,7 +259,9 @@ export function getSleepPresentation(
     .flatMap((episodes) => primarySleepEpisode(episodes) ?? [])
     .sort((left, right) => right.wakeTime - left.wakeTime)[0];
   const durationMs = latest?.durationMs ?? 0;
-  const targetDifferenceMs = latest ? durationMs - targetSleepHours * HOUR_MS : null;
+  const targetDifferenceMs = latest
+    ? durationMs - targetSleepHours * HOUR_MS
+    : null;
   const dateRange = `${days} days ending ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(now))}`;
   const noun = recorded.length === 1 ? 'night' : 'nights';
   const accessibilitySummary = recorded.length

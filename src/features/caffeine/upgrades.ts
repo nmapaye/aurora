@@ -29,12 +29,7 @@ export const defaultCaffeineState: CaffeineState = {
   zeroDays: [],
 };
 export const localDayKey = localDateKey;
-export function nextPlannedBedtime(now: number) {
-  const date = new Date(now);
-  date.setHours(22, 30, 0, 0);
-  if (date.getTime() <= now) date.setDate(date.getDate() + 1);
-  return date.getTime();
-}
+
 export function validDrink(drink: PersonalDrink) {
   return (
     typeof drink.id === 'string' &&

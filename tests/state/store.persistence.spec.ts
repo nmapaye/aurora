@@ -1,3 +1,4 @@
+import { defaultSleepRoutines } from '~/features/sleep/upgrades';
 import { jsonStringStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
 
@@ -19,6 +20,14 @@ const nonDefaultPersistedState = {
       timestamp: 1700000000000,
     },
     zeroDays: ['2026-09-06'],
+  },
+  sleepRoutines: {
+    ...defaultSleepRoutines(7.25),
+    weeklyConfigured: true,
+    exceptions: { '2026-09-07': { bedtime: 1260, wake: 300 } },
+    annotations: { 'user:sleep': { quality: 4, note: 'Rested' } },
+    timer: { start: 1700000000000, end: 1700000600000 },
+    windDown: { enabled: true, leadMinutes: 45 },
   },
   sleeps: [
     {

@@ -1,0 +1,74 @@
+
+> aurora@0.1.0 test
+> jest --runInBand --silent
+
+PASS ui tests/ui/SleepScreen.spec.tsx (5.513 s)
+PASS ui tests/ui/OnboardingHealthFlow.spec.tsx
+PASS ui tests/ui/SleepHistoryScreen.spec.tsx
+PASS ui tests/ui/LogIntakeScreen.spec.tsx
+PASS ui tests/ui/CaffeineLoggingFlow.spec.tsx
+PASS ui tests/ui/CaffeineHistoryScreen.spec.tsx
+PASS ui tests/ui/healthComponents.spec.tsx
+PASS ui tests/ui/InsightsScreen.spec.tsx
+PASS ui tests/ui/DashboardScreen.walkthrough.spec.tsx
+PASS ui tests/ui/AppScreen.spec.tsx
+PASS ui tests/ui/SleepRoutinesScreen.spec.tsx
+PASS ui tests/ui/navigation.linking.integration.spec.tsx
+PASS ui tests/ui/appWalkthrough.presentation.spec.tsx
+PASS ui tests/ui/DrinkLibrary.review.spec.tsx
+PASS ui tests/ui/DashboardScreen.walkthrough.wiring.spec.tsx
+PASS ui tests/ui/SleepScreen.wide.spec.tsx
+PASS ui tests/ui/CaffeineUpgrades.spec.tsx
+PASS ui tests/ui/RootTabs.walkthrough.spec.tsx
+PASS ui tests/ui/useSleepReminders.spec.tsx
+PASS unit tests/state/store.routines.spec.ts
+PASS ui tests/ui/AppWalkthrough.journey.spec.tsx
+PASS ui tests/ui/useAppWalkthrough.spec.tsx
+PASS unit tests/features/sleep/routines.review.spec.ts
+PASS ui tests/ui/useNow.spec.tsx
+PASS ui tests/ui/AppSymbol.spec.tsx
+PASS ui tests/ui/testingLibrary.smoke.spec.tsx
+PASS ui tests/ui/navigation.linking.spec.ts
+PASS ui tests/ui/useReduceMotion.spec.tsx
+PASS unit tests/state/store.sleepRoutines.review.spec.ts
+PASS unit tests/services/platform/sleepNotifications.spec.ts
+PASS unit tests/services/platform/windDown.review.spec.ts
+PASS unit tests/state/store.persistence.spec.ts
+PASS unit tests/features/sleep.upgrades.spec.ts
+PASS unit tests/hooks/useSleepGuidance.spec.ts
+PASS unit tests/services/platform/health/appleHealth.spec.ts
+PASS unit tests/features/sleep/presentation.spec.ts
+PASS unit tests/state/store.logging.spec.ts
+PASS unit tests/services/platform/windDown.spec.ts
+PASS unit tests/state/store.demo.spec.ts
+PASS unit tests/features/insights/presentation.spec.ts
+PASS unit tests/features/insights/sampleSeparation.spec.ts
+PASS unit tests/state/store.walkthrough.spec.ts
+PASS unit tests/state/store.sleep.spec.ts
+PASS unit tests/state/store.logging.review.spec.ts
+PASS unit tests/state/app.spec.ts
+PASS unit tests/services/storage/export.spec.ts
+PASS unit tests/features/caffeine/presets.spec.ts
+PASS unit tests/utils/calendar.spec.ts
+PASS unit tests/components/AppScreen.layout.spec.ts
+PASS unit tests/algorithm/sleepDebt.overlap.review.spec.ts
+PASS unit tests/algorithm/circadian.spec.ts
+PASS unit tests/features/sleep/manualSleep.spec.ts
+PASS unit tests/features/appWalkthrough/model.spec.ts
+PASS unit tests/components/TimelineGraph.spec.tsx
+PASS unit tests/components/AlertnessRing.spec.tsx
+PASS unit tests/algorithm/caffeine.core.spec.ts
+PASS unit tests/algorithm/alertness.spec.ts
+PASS unit tests/services/platform/notificationContent.spec.ts
+PASS unit tests/features/sleep/healthSleep.spec.ts
+PASS unit tests/features/appWalkthrough/motion.spec.ts
+PASS unit tests/features/caffeine/logging.spec.ts
+PASS unit tests/algorithm/vigilance.spec.ts
+PASS unit tests/algorithm/sleepDebt.spec.ts
+PASS unit tests/algorithm/caffeine.spec.ts
+PASS unit tests/algorithm/inertia.spec.ts
+
+Test Suites: 65 passed, 65 total
+Tests:       1 skipped, 338 passed, 339 total
+Snapshots:   0 total
+Time:        28.801 s, estimated 32 s

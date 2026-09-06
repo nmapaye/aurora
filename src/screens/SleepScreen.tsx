@@ -307,7 +307,7 @@ export default function SleepScreen() {
             </View>
             <View style={{ gap: spacing.sm }}>
               <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
-              <HealthGroupedList rows={[{ title: 'Data Sources & Access', subtitle: healthState, onPress: () => setShowSources((visible) => !visible) }, { title: 'Show All Data', subtitle: `${sleeps.length} sessions`, onPress: () => navigate('SleepHistory') }]} />
+              <HealthGroupedList rows={[{ title: 'Data Sources & Access', subtitle: healthState, onPress: () => setShowSources((visible) => !visible) }, { title: 'Sleep Routines', subtitle: 'Schedule, naps, consistency and reminders', onPress: () => navigate('SleepRoutines') }, { title: 'Show All Data', subtitle: `${sleeps.length} sessions`, onPress: () => navigate('SleepHistory') }]} />
               {showSources ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
                 <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
                 <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>

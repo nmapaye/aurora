@@ -17,17 +17,17 @@ Status separates implementation, independent review, and acceptance verification
 | 7 | Search caffeine history. | Implemented | State and UI review passed | CaffeineHistoryScreen search; store.logging combined filters; native/device acceptance pending |
 | 8 | Filter caffeine history. | Implemented | State and UI review passed | CaffeineHistoryScreen filter/reset; store.logging combined filters; native/device acceptance pending |
 | 9 | Record caffeine-free days. | Implemented | State and UI review passed | sampleSeparation zero/sample records; CaffeineLoggingFlow zero control; native/device acceptance pending |
-| 10 | Preview a dose’s effect. | Implemented; schedule integration pending | State and UI review passed | DosePreview on quick/custom/edit paths; schedule integration pending 11–20; native/device acceptance pending |
-| 11 | Weekly sleep schedule. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 12 | Schedule exceptions. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 13 | Consistent bedtime projections. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 14 | Morning sleep journal. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 15 | Nap session timer. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 16 | Sleep consistency view. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 17 | Sleep deficit history. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 18 | Sleep overlap review. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 19 | Searchable sleep history. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
-| 20 | Wind-down reminder. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 10 | Preview a dose’s effect. | Implemented | State and UI review passed | DosePreview now uses shared weekly/exception schedule; native/device acceptance pending |
+| 11 | Weekly sleep schedule. | Implemented | Independent domain and UI re-review passed | SleepRoutinesScreen weekday picker; defaults preserve onboarding target; native/device acceptance pending |
+| 12 | Schedule exceptions. | Implemented | Independent domain and UI re-review passed | sleep.upgrades date exceptions; independent DST boundary tests; native/device acceptance pending |
+| 13 | Consistent bedtime projections. | Implemented | Independent domain and UI re-review passed | Shared scheduledSleep resolver across guidance, previews and reminders; native/device acceptance pending |
+| 14 | Morning sleep journal. | Implemented | Independent domain and UI re-review passed | SleepHistory journal UI; store review preserves annotations across episode changes; native/device acceptance pending |
+| 15 | Nap session timer. | Implemented | Independent domain and UI re-review passed | Timer UI confirmation/cancel; persistence and invalid-duration regression tests; native/device acceptance pending |
+| 16 | Sleep consistency view. | Implemented | Independent domain and UI re-review passed | sleepTrends schedule variation with segmented episodes; native/device acceptance pending |
+| 17 | Sleep deficit history. | Implemented | Independent domain and UI re-review passed | sleepTrends missing/sample separation; duration against target; native/device acceptance pending |
+| 18 | Sleep overlap review. | Implemented | Independent domain and UI re-review passed | Overlap partner UI; rolling duration interval union and cross-day nap regression; native/device acceptance pending |
+| 19 | Searchable sleep history. | Implemented | Independent domain and UI re-review passed | SleepHistory combined filters; journal note search with explicit clock; native/device acceptance pending |
+| 20 | Wind-down reminder. | Implemented | Independent domain and UI re-review passed | Permission and foreground tests; reschedule queue and partial-failure cleanup; native/device acceptance pending |
 | 21 | Caffeine scenario editor. | Pending | Pending | Pending |
 | 22 | Saved scenarios. | Pending | Pending | Pending |
 | 23 | Scenario comparison. | Pending | Pending | Pending |
@@ -82,3 +82,5 @@ Status separates implementation, independent review, and acceptance verification
 - Started sequential sleep batch11–20 from reviewed logging commit b711a97. Shared bedtime resolver also completes feature10 integration.
 
 - Sleep accounting checkpoint: reproduced5 failures in6 overlap regressions, then corrected rolling24-hour duration to union valid clipped intervals. Root gate passed3 suites10tests including unchanged alertness tests; independent sleep_accounting_review passed. Broader sleep batch and cross-day presentation remain in progress.
+
+- Sleep batch 11–20 and shared schedule integration for feature 10 passed independent fix/re-review. Node 24 type-check/lint and 65 Jest suites passed (338 tests, one timezone-specific skip covered by the separate 25-test New York gate). iOS export passed with 1650 modules, website checks passed, and git diff/script syntax checks passed. Details in reviews/sleep.md and evidence/sleep-jest.txt. Native/device acceptance remains pending.

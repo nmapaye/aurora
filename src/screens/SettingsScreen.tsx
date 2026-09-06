@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Linking } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
@@ -11,7 +11,6 @@ import {
   StepperField,
 } from '~/components/ui';
 import { goBack } from '~/navigation';
-import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
 
 const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
@@ -26,21 +25,6 @@ export default function SettingsScreen() {
   const setPrefs = useStore((s) => s.setPrefs);
   const appearanceMode = useStore((s) => s.appearanceMode);
   const setAppearanceMode = useStore((s) => s.setAppearanceMode);
-
-  useEffect(() => {
-    let cancelled = false;
-    syncCutoffReminder(prefs.notifyCutoff, prefs.cutoffHour)
-      .then((scheduled) => {
-        // Permission denied: reflect reality in the pref so the toggle is honest.
-        if (!cancelled && prefs.notifyCutoff && !scheduled) {
-          setPrefs({ notifyCutoff: false });
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [prefs.notifyCutoff, prefs.cutoffHour, setPrefs]);
 
   return (
     <AppScreen

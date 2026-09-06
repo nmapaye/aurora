@@ -1,3 +1,14 @@
+import {
+  createManualSleepId,
+  validateManualSleep,
+} from '~/features/sleep/manualSleep';
+import {
+  defaultSleepRoutines,
+  sleepEpisodeIds,
+  sleepJournalKey,
+  normalizeSleepRoutines,
+  type SleepRoutines,
+} from '~/features/sleep/upgrades';
 import { create } from 'zustand';
 import {
   applyDoseUndo,
@@ -60,6 +71,10 @@ type State = {
   markCaffeineFree: (day: number) => void;
   clearCaffeineFree: (day: number) => void;
   undoDoseChange: (now: number) => void;
+  sleepRoutines: SleepRoutines;
+  setSleepRoutines: (patch: Partial<SleepRoutines>) => void;
+  confirmNap: () => void;
+  saveSleepJournal: (id: string, quality: number, note: string) => void;
   sleeps: SleepSession[];
   vigilanceSessions: VigilanceSession[];
   prefs: Prefs;
@@ -94,6 +109,7 @@ type PersistedState = Pick<
   State,
   | 'doses'
   | 'caffeine'
+  | 'sleepRoutines'
   | 'sleeps'
   | 'vigilanceSessions'
   | 'prefs'
@@ -197,6 +213,10 @@ function normalizePersistedState(
   return {
     doses: persistedState?.doses ?? [],
     caffeine: normalizeCaffeine(persistedState?.caffeine),
+    sleepRoutines: normalizeSleepRoutines(
+      persistedState?.sleepRoutines,
+      persistedState?.prefs?.targetSleep ?? defaultPrefs.targetSleep,
+    ),
     sleeps: normalizeHealthSleepSessionIdentities(persistedState?.sleeps ?? []),
     vigilanceSessions: persistedState?.vigilanceSessions ?? [],
     prefs: { ...defaultPrefs, ...persistedState?.prefs },
@@ -222,6 +242,64 @@ export const useStore = create<State>()(
   persist(
     (set) => ({
       doses: [],
+      sleepRoutines: defaultSleepRoutines(defaultPrefs.targetSleep),
+      setSleepRoutines: (patch) =>
+        set((s) => {
+          if (s.onboarding.completed && !s.onboarding.appWalkthroughCompleted)
+            return {};
+          return {
+            sleepRoutines: normalizeSleepRoutines(
+              {
+                ...s.sleepRoutines,
+                ...patch,
+                weeklyConfigured: patch.weekly
+                  ? true
+                  : s.sleepRoutines.weeklyConfigured,
+              },
+              s.prefs.targetSleep,
+            ),
+          };
+        }),
+      saveSleepJournal: (id, quality, note) =>
+        set((s) => {
+          if (
+            (s.onboarding.completed && !s.onboarding.appWalkthroughCompleted) ||
+            id.startsWith('demo:') ||
+            !s.sleeps.some((sleep) => sleep.id === id)
+          )
+            return {};
+          const annotations = { ...s.sleepRoutines.annotations };
+          for (const key of sleepEpisodeIds(id, s.sleeps, Date.now()))
+            annotations[key] = { quality, note };
+          return {
+            sleepRoutines: normalizeSleepRoutines(
+              { ...s.sleepRoutines, annotations },
+              s.prefs.targetSleep,
+            ),
+          };
+        }),
+      confirmNap: () =>
+        set((s) => {
+          const timer = s.sleepRoutines.timer;
+          if (
+            (s.onboarding.completed && !s.onboarding.appWalkthroughCompleted) ||
+            !timer?.end ||
+            !validateManualSleep({ start: timer.start, end: timer.end }).valid
+          )
+            return {};
+          return {
+            sleeps: [
+              ...s.sleeps,
+              {
+                id: createManualSleepId(),
+                start: timer.start,
+                end: timer.end,
+                type: 'nap' as const,
+              },
+            ],
+            sleepRoutines: { ...s.sleepRoutines, timer: null },
+          };
+        }),
       sleeps: [],
       vigilanceSessions: [],
       prefs: defaultPrefs,
@@ -381,11 +459,19 @@ export const useStore = create<State>()(
       },
       removeManualSleep: (id) => {
         if (!id.startsWith('manual:sleep:')) return;
-        set((s) => ({
-          sleeps: s.sleeps.filter(
-            (sleep) => sleep.id !== id || !sleep.id.startsWith('manual:sleep:'),
-          ),
-        }));
+        set((s) => {
+          const annotations = { ...s.sleepRoutines.annotations };
+          const journal =
+            annotations[sleepJournalKey(id, s.sleeps, Date.now(), annotations)];
+          if (journal)
+            for (const key of sleepEpisodeIds(id, s.sleeps, Date.now()))
+              if (key !== id) annotations[key] = journal;
+          delete annotations[id];
+          return {
+            sleeps: s.sleeps.filter((sleep) => sleep.id !== id),
+            sleepRoutines: { ...s.sleepRoutines, annotations },
+          };
+        });
       },
       addVigilanceSession: (session) =>
         set((s) => ({
@@ -393,7 +479,18 @@ export const useStore = create<State>()(
             (a, b) => b.completedAt - a.completedAt,
           ),
         })),
-      setPrefs: (p) => set((s) => ({ prefs: { ...s.prefs, ...p } })),
+      setPrefs: (p) =>
+        set((s) => ({
+          prefs: { ...s.prefs, ...p },
+          ...(p.targetSleep !== undefined && !s.sleepRoutines.weeklyConfigured
+            ? {
+                sleepRoutines: {
+                  ...s.sleepRoutines,
+                  weekly: defaultSleepRoutines(p.targetSleep).weekly,
+                },
+              }
+            : {}),
+        })),
       setOnboarding: (p) =>
         set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
       setHealthSync: (p) =>
@@ -468,11 +565,12 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 7,
+      version: 8,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
         caffeine: s.caffeine,
+        sleepRoutines: s.sleepRoutines,
         sleeps: s.sleeps,
         vigilanceSessions: s.vigilanceSessions,
         prefs: s.prefs,
