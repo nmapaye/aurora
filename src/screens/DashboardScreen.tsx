@@ -1,3 +1,4 @@
+import MetricExplanation from '~/features/insights/MetricExplanation';
 import React, { useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
@@ -572,6 +573,11 @@ export default function DashboardScreen() {
       />
       {!walkthrough.active ? (
         <>
+          <MetricExplanation metric="caffeine" />
+          <MetricExplanation metric="alertness" />
+          <MetricExplanation metric="sleepSession" />
+          <MetricExplanation metric="vigilance" />
+          <MetricExplanation metric="cutoff" />
           <Button
             title="Caffeine planning and targets"
             onPress={() => navigate('Planning')}

@@ -16,6 +16,7 @@ export type RootStackParamList = {
   Planning: undefined;
   PlanningTargets: undefined;
   Experiments: undefined;
+  InsightsExplorer: undefined;
   CaffeineHistory: undefined;
   DrinkLibrary: undefined;
 };

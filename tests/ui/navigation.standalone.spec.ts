@@ -18,6 +18,7 @@ it.each([
   'Planning',
   'PlanningTargets',
   'Experiments',
+  'InsightsExplorer',
 ] as const)('dispatches %s as a standalone route', (route) => {
   navigate(route);
   expect(navigationRef.navigate).toHaveBeenCalledWith(route, undefined);

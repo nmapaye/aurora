@@ -1,3 +1,4 @@
+import MetricExplanation from '~/features/insights/MetricExplanation';
 import React, { useState } from 'react';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -437,6 +438,8 @@ export default function PlanningScreen() {
           Future sleep is unknown.
         </Text>
       </SectionCard>
+      <MetricExplanation metric="scenarioCaffeine" />
+      <MetricExplanation metric="alertness" />
       <Button
         title="Reduction and daily budget"
         onPress={() => navigate('PlanningTargets')}

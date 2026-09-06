@@ -107,12 +107,19 @@ describe('InsightsScreen', () => {
     expect(screen.getByText('Tea')).toBeOnTheScreen();
   });
 
-  it('uses the selected range doses as the input to sleep guidance', async () => {
+  it('keeps personal bedtime inputs consistent across ranges and excludes sample and future doses', async () => {
+    useStore.setState({
+      doses: [
+        ...useStore.getState().doses,
+        { id: 'demo:excluded', timestamp: now - 3600000, mg: 400 },
+        { id: 'future', timestamp: now + 3600000, mg: 500 },
+      ],
+    });
     const user = userEvent.setup();
     await render(<InsightsScreen />);
 
     expect(
-      screen.getByText('Projected active caffeine 90 mg'),
+      screen.getByText('Projected active caffeine 160 mg'),
     ).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'M' }));
     expect(

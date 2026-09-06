@@ -1,3 +1,4 @@
+import InsightsExplorerScreen from '~/screens/InsightsExplorerScreen';
 import PlanningScreen from '~/screens/PlanningScreen';
 import PlanningTargetsScreen from '~/screens/PlanningTargetsScreen';
 import ExperimentsScreen from '~/screens/ExperimentsScreen';
@@ -30,6 +31,10 @@ export default function RootNavigator() {
       <Stack.Screen name="Planning" component={PlanningScreen} />
       <Stack.Screen name="PlanningTargets" component={PlanningTargetsScreen} />
       <Stack.Screen name="Experiments" component={ExperimentsScreen} />
+      <Stack.Screen
+        name="InsightsExplorer"
+        component={InsightsExplorerScreen}
+      />
       <Stack.Screen name="Tabs" component={RootTabs} />
       <Stack.Screen
         name="VigilanceTest"

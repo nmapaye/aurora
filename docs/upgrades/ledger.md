@@ -38,16 +38,16 @@ Status separates implementation, independent review, and acceptance verification
 | 28 | Focus-window comparison. | Implemented | Independent domain and UI re-review passed | Shared focus interval and existing alertness formula projections; native/device acceptance pending |
 | 29 | Subjective alertness check-ins. | Implemented | Independent domain and UI re-review passed | Check-in UI/persistence; invalid dates and ratings rejected; native/device acceptance pending |
 | 30 | Personal experiment journal. | Implemented | Independent domain and UI re-review passed | Experiment editing and all personal measures; zero versus missing/sample regression; native/device acceptance pending |
-| 31 | Combined daily timeline. | Pending | Pending | Pending |
-| 32 | Interactive chart inspection. | Pending | Pending | Pending |
-| 33 | Weekday pattern comparison. | Pending | Pending | Pending |
-| 34 | Bedtime caffeine versus sleep view. | Pending | Pending | Pending |
-| 35 | Vigilance history and details. | Pending | Pending | Pending |
-| 36 | Personal vigilance comparison. | Pending | Pending | Pending |
-| 37 | Subjective versus measured alertness. | Pending | Pending | Pending |
-| 38 | Data completeness view. | Pending | Pending | Pending |
-| 39 | Weekly review. | Pending | Pending | Pending |
-| 40 | Explain each metric. | Pending | Pending | Pending |
+| 31 | Combined daily timeline. | Implemented | Independent domain and UI re-review passed | Daily timeline includes overnight sleep and all personal record kinds; native/device acceptance pending |
+| 32 | Interactive chart inspection. | Implemented | Independent domain and UI re-review passed | Dual-model inspector; compact/wide endpoint tests and accessible controls; native/device acceptance pending |
+| 33 | Weekday pattern comparison. | Implemented | Independent domain and UI re-review passed | Weekday recorded-only averages and counts; explicit zero/missing regression; native/device acceptance pending |
+| 34 | Bedtime caffeine versus sleep view. | Implemented | Independent domain and UI re-review passed | Sleep-onset scatter/table; overlap union and five-observation gate; native/device acceptance pending |
+| 35 | Vigilance history and details. | Implemented | Independent domain and UI re-review passed | Completed test selection and full reaction/lapse/false-start details; native/device acceptance pending |
+| 36 | Personal vigilance comparison. | Implemented | Independent domain and UI re-review passed | Three strictly prior eligible tests; median and selected difference regression; native/device acceptance pending |
+| 37 | Subjective versus measured alertness. | Implemented | Independent domain and UI re-review passed | Nearest completed test within 30 minutes; unavailable median retained; five usable pairs; native/device acceptance pending |
+| 38 | Data completeness view. | Implemented | Independent domain and UI re-review passed | Calendar flags for caffeine, zero, sleep, tests and check-ins; native/device acceptance pending |
+| 39 | Weekly review. | Implemented | Independent domain and UI re-review passed | Weekly current/prior recorded values, user targets and explicit missing counts; native/device acceptance pending |
+| 40 | Explain each metric. | Implemented | Independent domain and UI re-review passed | Contextual explanations checked against Summary, Planning and Explorer inputs; native/device acceptance pending |
 | 41 | Customizable Summary. | Pending | Pending | Pending |
 | 42 | Accessible chart tables. | Pending | Pending | Pending |
 | 43 | Reminder center. | Pending | Pending | Pending |
@@ -90,3 +90,7 @@ Status separates implementation, independent review, and acceptance verification
 - Planning integration caught a missed SleepRoutines standalone-route dispatch in the shared navigation helper. The next batch includes the route correction and a dispatch regression test; prior screen tests mocked this helper, so they did not establish end-to-end reachability. Four independent planning domain checks pass under America/New_York (carryover crossing, reusable scenario timing, DST targets, sample and missing-data separation).
 
 - Planning batch 21–30 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 73 Jest suites passed (371 tests, one DST skip covered by separate 30-test New York gate). Expo iOS export passed with 1656 modules. SleepRoutines standalone dispatch fixed and tested. Details in reviews/planning.md and evidence/planning-jest.txt. Native/device acceptance remains pending.
+
+- Started sequential insights batch 31–40 from reviewed planning commit e411cfd. New comparisons must show eligible sample counts, preserve missing data and exclude Sample Data.
+
+- Insights batch 31–40 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 78 Jest suites passed (400 tests, one DST skip covered by the separate 35-test New York gate). Expo iOS export passed with 1659 modules. Details in reviews/insights.md and evidence/insights-jest.txt. Native/device acceptance remains pending.

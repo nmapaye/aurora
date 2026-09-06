@@ -1,3 +1,5 @@
+import MetricExplanation from '~/features/insights/MetricExplanation';
+import useNow from '~/hooks/useNow';
 import React, { useMemo, useRef, useState } from 'react';
 import { ScrollView, Share, Text, View } from 'react-native';
 
@@ -98,7 +100,7 @@ export default function InsightsScreen() {
     scrollRef,
     contentRef,
   });
-  const now = Date.now();
+  const now = useNow();
   const presentation = useMemo(
     () =>
       getInsightsPresentation(
@@ -111,7 +113,9 @@ export default function InsightsScreen() {
       ),
     [dailyLimit, doses, now, range, vigilanceSessions, zeroDays],
   );
-  const sleepGuidance = useSleepGuidance(presentation.current.selected);
+  const sleepGuidance = useSleepGuidance(
+    doses.filter((d) => !d.id.startsWith('demo:') && d.timestamp <= now),
+  );
 
   const shareSummary = async () => {
     setShareError(undefined);
@@ -426,14 +430,13 @@ export default function InsightsScreen() {
             <HealthGroupedList
               rows={[
                 {
-                  title: 'Suggested bedtime',
+                  title: 'Planned bedtime',
                   subtitle: `Projected active caffeine ${sleepGuidance.mgAtBed} mg`,
                   value: formatClock(sleepGuidance.bedtime),
                 },
                 {
-                  title: 'Suggested wake',
-                  subtitle:
-                    '90-minute sleep cycles, aiming for a normal morning window',
+                  title: 'Planned wake',
+                  subtitle: 'Your weekly schedule, including date exceptions',
                   value: formatClock(sleepGuidance.wake),
                 },
               ]}
@@ -441,7 +444,8 @@ export default function InsightsScreen() {
             <Text
               style={{ ...typeRamp.footnote, color: palette.textSecondary }}
             >
-              Guidance uses the same selected range as the trends above.
+              Bedtime estimates use all recorded personal doses through now and
+              your shared sleep schedule.
             </Text>
           </View>
 
@@ -484,6 +488,14 @@ export default function InsightsScreen() {
       </View>
       {!walkthrough.active ? (
         <>
+          <Button
+            title="Explore timeline, patterns, and weekly review"
+            onPress={() => navigate('InsightsExplorer')}
+          />
+          <MetricExplanation metric="adherence" />
+          <MetricExplanation metric="weekday" />
+          <MetricExplanation metric="vigilance" />
+          <MetricExplanation metric="caffeine" />
           <Button
             title="Caffeine planning and targets"
             onPress={() => navigate('Planning')}

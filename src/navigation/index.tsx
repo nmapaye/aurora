@@ -25,7 +25,8 @@ export function navigate<RouteName extends AppRouteName>(
     name === 'SleepRoutines' ||
     name === 'Planning' ||
     name === 'PlanningTargets' ||
-    name === 'Experiments'
+    name === 'Experiments' ||
+    name === 'InsightsExplorer'
   ) {
     (navigationRef as any).navigate(name as any, params as any);
     return;
