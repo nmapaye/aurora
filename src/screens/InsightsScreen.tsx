@@ -482,6 +482,18 @@ export default function InsightsScreen() {
           </View>
         </WalkthroughReveal>
       </View>
+      {!walkthrough.active ? (
+        <>
+          <Button
+            title="Caffeine planning and targets"
+            onPress={() => navigate('Planning')}
+          />
+          <Button
+            title="Check-ins and experiments"
+            onPress={() => navigate('Experiments')}
+          />
+        </>
+      ) : null}
     </AppScreen>
   );
 }

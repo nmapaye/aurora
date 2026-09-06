@@ -570,6 +570,18 @@ export default function DashboardScreen() {
         drink={quickDrink}
         onClose={() => setQuickDrink(null)}
       />
+      {!walkthrough.active ? (
+        <>
+          <Button
+            title="Caffeine planning and targets"
+            onPress={() => navigate('Planning')}
+          />
+          <Button
+            title="Check-ins and experiments"
+            onPress={() => navigate('Experiments')}
+          />
+        </>
+      ) : null}
     </AppScreen>
   );
 }

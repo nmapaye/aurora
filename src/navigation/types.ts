@@ -13,6 +13,9 @@ export type RootStackParamList = {
   Settings: undefined;
   SleepHistory: undefined;
   SleepRoutines: undefined;
+  Planning: undefined;
+  PlanningTargets: undefined;
+  Experiments: undefined;
   CaffeineHistory: undefined;
   DrinkLibrary: undefined;
 };

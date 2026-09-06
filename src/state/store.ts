@@ -1,4 +1,9 @@
 import {
+  defaultPlanningState,
+  normalizePlanning,
+  type PlanningState,
+} from '~/features/planning/model';
+import {
   createManualSleepId,
   validateManualSleep,
 } from '~/features/sleep/manualSleep';
@@ -62,6 +67,8 @@ export type Onboarding = {
 };
 
 type State = {
+  planning: PlanningState;
+  setPlanning: (patch: Partial<PlanningState>) => void;
   doses: Dose[];
   caffeine: CaffeineState;
   doseUndo: DoseUndo | null;
@@ -109,6 +116,7 @@ type PersistedState = Pick<
   State,
   | 'doses'
   | 'caffeine'
+  | 'planning'
   | 'sleepRoutines'
   | 'sleeps'
   | 'vigilanceSessions'
@@ -212,6 +220,7 @@ function normalizePersistedState(
 
   return {
     doses: persistedState?.doses ?? [],
+    planning: normalizePlanning(persistedState?.planning),
     caffeine: normalizeCaffeine(persistedState?.caffeine),
     sleepRoutines: normalizeSleepRoutines(
       persistedState?.sleepRoutines,
@@ -242,6 +251,13 @@ export const useStore = create<State>()(
   persist(
     (set) => ({
       doses: [],
+      planning: defaultPlanningState(),
+      setPlanning: (patch) =>
+        set((s) => {
+          if (s.onboarding.completed && !s.onboarding.appWalkthroughCompleted)
+            return {};
+          return { planning: normalizePlanning({ ...s.planning, ...patch }) };
+        }),
       sleepRoutines: defaultSleepRoutines(defaultPrefs.targetSleep),
       setSleepRoutines: (patch) =>
         set((s) => {
@@ -565,11 +581,12 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 8,
+      version: 9,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
         caffeine: s.caffeine,
+        planning: s.planning,
         sleepRoutines: s.sleepRoutines,
         sleeps: s.sleeps,
         vigilanceSessions: s.vigilanceSessions,

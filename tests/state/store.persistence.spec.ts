@@ -1,3 +1,4 @@
+import { defaultPlanningState } from '~/features/planning/model';
 import { defaultSleepRoutines } from '~/features/sleep/upgrades';
 import { jsonStringStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
@@ -7,6 +8,35 @@ import { useStore } from '~/state/store';
 // normalizePersistedState in src/state/store.ts — otherwise merge/rehydrate
 // silently resets the new key to its default.
 const nonDefaultPersistedState = {
+  planning: {
+    ...defaultPlanningState(),
+    thresholdMg: 40,
+    scenarios: [
+      {
+        id: 'plan',
+        name: 'Tea',
+        doses: [{ id: 'planned', offsetMinutes: 60, mg: 50, label: 'Tea' }],
+      },
+    ],
+    checkIns: [
+      { id: 'check', timestamp: 1700000000000, rating: 4, note: 'Focused' },
+    ],
+    experiments: [
+      {
+        id: 'experiment',
+        question: 'Earlier tea?',
+        baseline: { start: '2026-08-01', end: '2026-08-07' },
+        comparison: { start: '2026-08-08', end: '2026-08-14' },
+      },
+    ],
+    reduction: { startDate: '2026-09-07', startMg: 200, endMg: 100, days: 14 },
+    budget: {
+      targetMg: 150,
+      allocations: [{ id: 'tea', label: 'Tea', mg: 50 }],
+    },
+    focus: { startMinutes: 120, endMinutes: 240 },
+    sensitivityHours: [2, 4, 6],
+  },
   doses: [
     { id: 'user:dose', timestamp: 1_700_000_000_000, mg: 95, source: 'Drip' },
   ],

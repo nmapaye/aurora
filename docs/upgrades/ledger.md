@@ -28,16 +28,16 @@ Status separates implementation, independent review, and acceptance verification
 | 18 | Sleep overlap review. | Implemented | Independent domain and UI re-review passed | Overlap partner UI; rolling duration interval union and cross-day nap regression; native/device acceptance pending |
 | 19 | Searchable sleep history. | Implemented | Independent domain and UI re-review passed | SleepHistory combined filters; journal note search with explicit clock; native/device acceptance pending |
 | 20 | Wind-down reminder. | Implemented | Independent domain and UI re-review passed | Permission and foreground tests; reschedule queue and partial-failure cleanup; native/device acceptance pending |
-| 21 | Caffeine scenario editor. | Pending | Pending | Pending |
-| 22 | Saved scenarios. | Pending | Pending | Pending |
-| 23 | Scenario comparison. | Pending | Pending | Pending |
-| 24 | Threshold crossing estimate. | Pending | Pending | Pending |
-| 25 | Half-life sensitivity view. | Pending | Pending | Pending |
-| 26 | Gradual reduction planner. | Pending | Pending | Pending |
-| 27 | Daily caffeine budget planner. | Pending | Pending | Pending |
-| 28 | Focus-window comparison. | Pending | Pending | Pending |
-| 29 | Subjective alertness check-ins. | Pending | Pending | Pending |
-| 30 | Personal experiment journal. | Pending | Pending | Pending |
+| 21 | Caffeine scenario editor. | Implemented | Independent domain and UI re-review passed | PlanningScreen future editor and pre-dose curve regression; native/device acceptance pending |
+| 22 | Saved scenarios. | Implemented | Independent domain and UI re-review passed | PlanningScreen create/reopen/edit/delete; complete persistence roundtrip; native/device acceptance pending |
+| 23 | Scenario comparison. | Implemented | Independent domain and UI re-review passed | Common baseline/time and residual math regression; native/device acceptance pending |
+| 24 | Threshold crossing estimate. | Implemented | Independent domain and UI re-review passed | Analytical carryover decay after final hypothetical dose; native/device acceptance pending |
+| 25 | Half-life sensitivity view. | Implemented | Independent domain and UI re-review passed | Three editable assumptions without changing active preference; native/device acceptance pending |
+| 26 | Gradual reduction planner. | Implemented | Independent domain and UI re-review passed | Daily endpoints and both DST transition regression cases; native/device acceptance pending |
+| 27 | Daily caffeine budget planner. | Implemented | Independent domain and UI re-review passed | Budget allocation and excess/unused UI tests; native/device acceptance pending |
+| 28 | Focus-window comparison. | Implemented | Independent domain and UI re-review passed | Shared focus interval and existing alertness formula projections; native/device acceptance pending |
+| 29 | Subjective alertness check-ins. | Implemented | Independent domain and UI re-review passed | Check-in UI/persistence; invalid dates and ratings rejected; native/device acceptance pending |
+| 30 | Personal experiment journal. | Implemented | Independent domain and UI re-review passed | Experiment editing and all personal measures; zero versus missing/sample regression; native/device acceptance pending |
 | 31 | Combined daily timeline. | Pending | Pending | Pending |
 | 32 | Interactive chart inspection. | Pending | Pending | Pending |
 | 33 | Weekday pattern comparison. | Pending | Pending | Pending |
@@ -84,3 +84,9 @@ Status separates implementation, independent review, and acceptance verification
 - Sleep accounting checkpoint: reproduced5 failures in6 overlap regressions, then corrected rolling24-hour duration to union valid clipped intervals. Root gate passed3 suites10tests including unchanged alertness tests; independent sleep_accounting_review passed. Broader sleep batch and cross-day presentation remain in progress.
 
 - Sleep batch 11–20 and shared schedule integration for feature 10 passed independent fix/re-review. Node 24 type-check/lint and 65 Jest suites passed (338 tests, one timezone-specific skip covered by the separate 25-test New York gate). iOS export passed with 1650 modules, website checks passed, and git diff/script syntax checks passed. Details in reviews/sleep.md and evidence/sleep-jest.txt. Native/device acceptance remains pending.
+
+- Started sequential planning batch 21–30 from reviewed sleep commit db700f9. Hypothetical schedules remain separate from recorded history, and every comparison uses the same baseline and explicit time input.
+
+- Planning integration caught a missed SleepRoutines standalone-route dispatch in the shared navigation helper. The next batch includes the route correction and a dispatch regression test; prior screen tests mocked this helper, so they did not establish end-to-end reachability. Four independent planning domain checks pass under America/New_York (carryover crossing, reusable scenario timing, DST targets, sample and missing-data separation).
+
+- Planning batch 21–30 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 73 Jest suites passed (371 tests, one DST skip covered by separate 30-test New York gate). Expo iOS export passed with 1656 modules. SleepRoutines standalone dispatch fixed and tested. Details in reviews/planning.md and evidence/planning-jest.txt. Native/device acceptance remains pending.

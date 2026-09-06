@@ -1,3 +1,6 @@
+import PlanningScreen from '~/screens/PlanningScreen';
+import PlanningTargetsScreen from '~/screens/PlanningTargetsScreen';
+import ExperimentsScreen from '~/screens/ExperimentsScreen';
 import SleepRoutinesScreen from '~/screens/SleepRoutinesScreen';
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -24,6 +27,9 @@ export default function RootNavigator() {
         options={{ presentation: 'card' }}
       />
       <Stack.Screen name="SleepRoutines" component={SleepRoutinesScreen} />
+      <Stack.Screen name="Planning" component={PlanningScreen} />
+      <Stack.Screen name="PlanningTargets" component={PlanningTargetsScreen} />
+      <Stack.Screen name="Experiments" component={ExperimentsScreen} />
       <Stack.Screen name="Tabs" component={RootTabs} />
       <Stack.Screen
         name="VigilanceTest"
