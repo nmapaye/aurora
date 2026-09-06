@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import DrinkLibraryScreen from '~/screens/DrinkLibraryScreen';
 import RootTabs from './RootTabs';
 import type { RootStackParamList } from './types';
 import VigilanceTestScreen from '~/screens/VigilanceTestScreen';
@@ -12,7 +13,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      initialRouteName="Tabs"
+      screenOptions={{ headerShown: false }}
+    >
+      <Stack.Screen
+        name="DrinkLibrary"
+        component={DrinkLibraryScreen}
+        options={{ presentation: 'card' }}
+      />
       <Stack.Screen name="Tabs" component={RootTabs} />
       <Stack.Screen
         name="VigilanceTest"

@@ -5,9 +5,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import type {
-  Text as TextInstance,
-} from 'react-native';
+import type { Text as TextInstance } from 'react-native';
 import { StyleSheet } from 'react-native';
 import type { TestInstance } from 'test-renderer';
 
@@ -72,17 +70,12 @@ jest.mock('react-native-safe-area-context', () => ({
     left: 0,
   }),
 }));
-jest.mock(
-  '~/features/appWalkthrough/useAppWalkthrough',
-  () => ({
-    __esModule: true,
-    default: jest.fn(),
-  }),
-);
+jest.mock('~/features/appWalkthrough/useAppWalkthrough', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 
-const mockUseAppWalkthrough = jest.mocked(
-  useAppWalkthrough,
-);
+const mockUseAppWalkthrough = jest.mocked(useAppWalkthrough);
 
 function findRevealAncestor(node: TestInstance) {
   let ancestor = node.parent;
@@ -179,21 +172,14 @@ describe('DashboardScreen summary walkthrough composition', () => {
       includeHiddenElements: true,
     });
     expect(content).toHaveProp('pointerEvents', 'none');
-    expect(content).toHaveProp(
-      'accessibilityElementsHidden',
-      true,
-    );
+    expect(content).toHaveProp('accessibilityElementsHidden', true);
     expect(content).toHaveProp(
       'importantForAccessibility',
       'no-hide-descendants',
     );
 
-    expect(
-      screen.getByRole('button', { name: 'Skip' }),
-    ).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: 'Next' }),
-    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeOnTheScreen();
     expect(
       screen.queryByRole('button', { name: 'Open settings' }),
     ).not.toBeOnTheScreen();
@@ -233,15 +219,13 @@ describe('DashboardScreen summary walkthrough composition', () => {
       locked: true,
       coachVisible: false,
     });
+    useStore.getState().completeAppWalkthrough();
     await rerender(<DashboardScreen />);
 
     const settings = screen.getByRole('button', {
       name: 'Open settings',
     });
-    const caffeine = findRoleAncestor(
-      screen.getByText('Caffeine'),
-      'button',
-    );
+    const caffeine = findRoleAncestor(screen.getByText('Caffeine'), 'button');
     const espresso = screen.getByRole('button', {
       name: 'Espresso 60mg',
     });
@@ -249,6 +233,9 @@ describe('DashboardScreen summary walkthrough composition', () => {
     await user.press(settings);
     await user.press(caffeine);
     await user.press(espresso);
+    expect(useStore.getState().doses).toHaveLength(0);
+    expect(screen.getByText('After saving')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Log drink' }));
 
     expect(navigate).toHaveBeenNthCalledWith(1, 'Settings');
     expect(navigate).toHaveBeenNthCalledWith(2, 'Insights');
@@ -287,8 +274,7 @@ describe('DashboardScreen summary walkthrough composition', () => {
     });
     expect(
       StyleSheet.flatten(
-        screen.getByTestId('app-screen-scroll').props
-          .contentContainerStyle,
+        screen.getByTestId('app-screen-scroll').props.contentContainerStyle,
       ),
     ).toMatchObject({ paddingBottom: 244 });
 
@@ -302,8 +288,7 @@ describe('DashboardScreen summary walkthrough composition', () => {
     ).toBeOnTheScreen();
     expect(
       StyleSheet.flatten(
-        screen.getByTestId('app-screen-scroll').props
-          .contentContainerStyle,
+        screen.getByTestId('app-screen-scroll').props.contentContainerStyle,
       ),
     ).toMatchObject({ paddingBottom: 244 });
   });

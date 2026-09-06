@@ -18,7 +18,11 @@ const dose = (
   hour = 9,
 ): Dose => ({ id, timestamp: day(daysAgo, hour), mg, source });
 
-const session = (id: string, daysAgo: number, score: number): VigilanceSession => ({
+const session = (
+  id: string,
+  daysAgo: number,
+  score: number,
+): VigilanceSession => ({
   id,
   startedAt: day(daysAgo, 9),
   completedAt: day(daysAgo, 9) + 60_000,
@@ -57,10 +61,18 @@ describe('insights presentation', () => {
     );
 
     expect(presentation.points).toHaveLength(7);
-    expect(presentation.points.map((point) => point.mg)).toEqual([50, null, null, null, null, null, 100]);
+    expect(presentation.points.map((point) => point.mg)).toEqual([
+      50,
+      null,
+      null,
+      null,
+      null,
+      null,
+      100,
+    ]);
     expect(presentation.previous.totalMg).toBe(80);
     expect(presentation.current.totalMg).toBe(150);
-    expect(presentation.deltaPct).toBe(91);
+    expect(presentation.deltaPct).toBe(-6);
   });
 
   it('includes the final hour of a daylight-saving fallback day in the previous local window', () => {
@@ -88,13 +100,16 @@ describe('insights presentation', () => {
       dose('recent', 1, 80, 'Matcha', 12),
       dose('older', 10, 220, 'Energy Drink', 19),
     ];
-    const sessions = [session('recent-session', 1, 80), session('older-session', 10, 60)];
+    const sessions = [
+      session('recent-session', 1, 80),
+      session('older-session', 10, 60),
+    ];
     const week = getInsightsPresentation(doses, sessions, 100, '7', now);
     const fortnight = getInsightsPresentation(doses, sessions, 100, '14', now);
 
-    expect(week.headline).toBe('11 mg/day');
-    expect(fortnight.headline).toBe('21 mg/day');
-    expect(week.adherence).toEqual({ pct: 100, streak: 1 });
+    expect(week.headline).toBe('80 mg/day');
+    expect(fortnight.headline).toBe('150 mg/day');
+    expect(week.adherence).toEqual({ pct: 100, streak: 0 });
     expect(fortnight.adherence).toEqual({ pct: 50, streak: 0 });
     expect(week.dayparts).toEqual([
       { label: 'Morning', mg: 0 },
@@ -106,8 +121,13 @@ describe('insights presentation', () => {
       { label: 'Energy', mg: 220, pct: 73 },
       { label: 'Tea', mg: 80, pct: 27 },
     ]);
-    expect(week.vigilance.trendSessions.map((item) => item.id)).toEqual(['recent-session']);
-    expect(fortnight.vigilance.trendSessions.map((item) => item.id)).toEqual(['older-session', 'recent-session']);
+    expect(week.vigilance.trendSessions.map((item) => item.id)).toEqual([
+      'recent-session',
+    ]);
+    expect(fortnight.vigilance.trendSessions.map((item) => item.id)).toEqual([
+      'older-session',
+      'recent-session',
+    ]);
   });
 
   it('reports an honest empty range without fabricating recorded chart points', () => {
@@ -119,7 +139,9 @@ describe('insights presentation', () => {
     expect(presentation.points.every((point) => point.mg === null)).toBe(true);
     expect(presentation.accessibilitySummary).toContain('Caffeine intake');
     expect(presentation.accessibilitySummary).toContain('30 days');
-    expect(presentation.accessibilitySummary).toContain('No caffeine data is available');
+    expect(presentation.accessibilitySummary).toContain(
+      'No caffeine data is available',
+    );
   });
 
   it('preserves source normalization, dayparts, adherence streak, and vigilance baseline rules', () => {
@@ -148,7 +170,32 @@ describe('insights presentation', () => {
       { label: 'Evening', mg: 200 },
       { label: 'Late', mg: 30 },
     ]);
-    expect(presentation.adherence).toEqual({ pct: 75, streak: 0 });
-    expect(presentation.vigilance).toMatchObject({ averageScore: 70, hasBaseline: true });
+    expect(presentation.adherence).toEqual({ pct: 75, streak: 3 });
+    expect(presentation.vigilance).toMatchObject({
+      averageScore: 70,
+      hasBaseline: true,
+    });
   });
+});
+
+it('includes explicitly confirmed zero days without treating missing records as zero', () => {
+  const now = new Date(2026, 8, 7, 12).getTime();
+  const result = getInsightsPresentation([], [], 400, '7', now, ['2026-09-07']);
+  expect(result.isEmpty).toBe(false);
+  expect(result.points.filter((p) => p.mg === 0)).toHaveLength(1);
+  expect(result.points.filter((p) => p.mg === null)).toHaveLength(6);
+  expect(result.adherence).toEqual({ pct: 100, streak: 1 });
+});
+it('excludes sample caffeine and vigilance from personal insights', () => {
+  const result = getInsightsPresentation(
+    [dose('demo:coffee', 0, 300, 'Coffee', 6)],
+    [session('demo:test', 0, 90)],
+    400,
+    '7',
+    now,
+  );
+  expect(result.current.selected).toEqual([]);
+  expect(result.vigilance.hasBaseline).toBe(false);
+  expect(result.vigilance.latest).toBeUndefined();
+  expect(result.isEmpty).toBe(true);
 });

@@ -8,16 +8,16 @@ Status separates implementation, independent review, and acceptance verification
 
 | # | Feature | Implementation | Review | Verification evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Personal drink library. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 2 | Favorite quick adds. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 3 | Serving calculator. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 4 | Repeat an entry. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 5 | Undo recent changes. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 6 | Recover unfinished entries. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 7 | Search caffeine history. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 8 | Filter caffeine history. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 9 | Record caffeine-free days. | In progress | Pending | Domain red gate captured by logging implementation agent |
-| 10 | Preview a dose’s effect. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 1 | Personal drink library. | Implemented | State and UI review passed | DrinkLibrary.review UI lifecycle; native/device acceptance pending |
+| 2 | Favorite quick adds. | Implemented | State and UI review passed | DrinkLibrary.review persistence; CaffeineLoggingFlow shared order; native/device acceptance pending |
+| 3 | Serving calculator. | Implemented | State and UI review passed | CaffeineUpgrades calculator; store.logging arithmetic; native/device acceptance pending |
+| 4 | Repeat an entry. | Implemented | State and UI review passed | CaffeineLoggingFlow repeat/edit/save; native/device acceptance pending |
+| 5 | Undo recent changes. | Implemented | State and UI review passed | CaffeineLoggingFlow pinned overlay; store.logging.review undo conflicts; native/device acceptance pending |
+| 6 | Recover unfinished entries. | Implemented | State and UI review passed | LogIntakeScreen recovery; CaffeineLoggingFlow editor switching; persistence fixtures; native/device acceptance pending |
+| 7 | Search caffeine history. | Implemented | State and UI review passed | CaffeineHistoryScreen search; store.logging combined filters; native/device acceptance pending |
+| 8 | Filter caffeine history. | Implemented | State and UI review passed | CaffeineHistoryScreen filter/reset; store.logging combined filters; native/device acceptance pending |
+| 9 | Record caffeine-free days. | Implemented | State and UI review passed | sampleSeparation zero/sample records; CaffeineLoggingFlow zero control; native/device acceptance pending |
+| 10 | Preview a dose’s effect. | Implemented; schedule integration pending | State and UI review passed | DosePreview on quick/custom/edit paths; schedule integration pending 11–20; native/device acceptance pending |
 | 11 | Weekly sleep schedule. | Pending | Pending | Pending |
 | 12 | Schedule exceptions. | Pending | Pending | Pending |
 | 13 | Consistent bedtime projections. | Pending | Pending | Pending |
@@ -76,3 +76,5 @@ Status separates implementation, independent review, and acceptance verification
 - Native prerequisite probe: xcodebuild requires full Xcode; simctl unavailable. No native verification claimed.
 
 - Added `scripts/verify-upgrades.sh` to pin Node 24 for npm and all child commands. Earlier explicit npm invocation did not guarantee child Node version; all final checks will use the script. Under corrected PATH, foundation plus logging state/persistence passed 4 suites / 34 tests. Script syntax and independent review passed after adding full stable Xcode preflight; `--native` correctly reports missing Xcode.
+
+- Logging batch implementation and independent state/UI fix-reviews passed. Full pinned Node 24 gate: 55 suites / 287 tests, type-check, lint, diff whitespace check, and root iOS Expo export (1647 modules). Detailed evidence in `reviews/logging.md` and `evidence/logging-jest.txt`. Features 1–9 implemented; feature10 awaits shared schedule integration in next batch.

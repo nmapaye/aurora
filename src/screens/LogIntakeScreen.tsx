@@ -15,16 +15,28 @@ import * as Haptics from 'expo-haptics';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import { HealthFormSheet, HealthGroupedList } from '~/components/health';
-import { HealthOptionCard, ListRow, SectionCard, SectionHeader, SegmentedControl } from '~/components/ui';
+import {
+  HealthOptionCard,
+  ListRow,
+  SectionCard,
+  SectionHeader,
+  SegmentedControl,
+} from '~/components/ui';
 import {
   buildCustomDose,
-  buildQuickAddDose,
   createCustomDoseDraft,
   getRemainingDailyCaffeineLimit,
   getTodayCaffeineTotal,
   validateCustomDoseDraft,
 } from '~/features/caffeine/logging';
-import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
+import { favoriteDrinks, localDayKey } from '~/features/caffeine/upgrades';
+import {
+  DosePreview,
+  DoseUndoNotice,
+  QuickDoseSheet,
+  ServingCalculator,
+} from '~/features/caffeine/LoggingTools';
+import useNow from '~/hooks/useNow';
 import {
   AppWalkthroughCoach,
   useAppWalkthrough,
@@ -38,7 +50,14 @@ import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 
-const SOURCE_OPTIONS = ['Espresso', 'Drip', 'Cold Brew', 'Tea', 'Matcha', 'Other'] as const;
+const SOURCE_OPTIONS = [
+  'Espresso',
+  'Drip',
+  'Cold Brew',
+  'Tea',
+  'Matcha',
+  'Other',
+] as const;
 
 function makeDoseId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -46,7 +65,10 @@ function makeDoseId() {
 
 function fmtTime(timestamp: number) {
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(timestamp));
   } catch {
     return new Date(timestamp).toLocaleTimeString();
   }
@@ -54,7 +76,10 @@ function fmtTime(timestamp: number) {
 
 function fmtDateTime(timestamp: number) {
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(timestamp));
   } catch {
     return new Date(timestamp).toLocaleTimeString();
   }
@@ -67,7 +92,20 @@ export default function LogIntakeScreen() {
   const dailyLimitMg = useStore((state) => state.prefs.dailyLimitMg ?? 400);
   const addDose = useStore((state) => state.addDose);
   const [customVisible, setCustomVisible] = useState(false);
-  const [draft, setDraft] = useState(() => createCustomDoseDraft(Date.now()));
+  const caffeine = useStore((s) => s.caffeine);
+  const savedDraft = caffeine.draft;
+  const draft = savedDraft ?? createCustomDoseDraft(Date.now());
+  const persistDraft = useStore((s) => s.setCaffeineDraft);
+  const setDraft = (
+    update: typeof draft | ((current: typeof draft) => typeof draft),
+  ) => persistDraft(typeof update === 'function' ? update(draft) : update);
+  const quickRefs = useRef(new Map<string, React.RefObject<View | null>>());
+  const [quickFocus, setQuickFocus] = useState<React.RefObject<View | null>>();
+  const [quickDrink, setQuickDrink] = useState<{
+    label: string;
+    mg: number;
+  } | null>(null);
+  const [calculatorVisible, setCalculatorVisible] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pendingTime, setPendingTime] = useState(() => new Date(Date.now()));
   const [confirmation, setConfirmation] = useState('');
@@ -85,7 +123,7 @@ export default function LogIntakeScreen() {
     contentRef,
   });
 
-  const now = Date.now();
+  const now = useNow();
   const validation = validateCustomDoseDraft(draft, now);
   const todayTotal = getTodayCaffeineTotal(doses, now);
   const remaining = getRemainingDailyCaffeineLimit(doses, now, dailyLimitMg);
@@ -104,18 +142,8 @@ export default function LogIntakeScreen() {
     }
   };
 
-  const saveQuickAdd = (preset: (typeof CAFFEINE_PRESETS)[number]) => {
-    const savedNow = Date.now();
-    if (!reduceMotion) {
-      void Haptics.impactAsync(
-        Haptics.ImpactFeedbackStyle.Light,
-      ).catch(() => undefined);
-    }
-    addDose(buildQuickAddDose(preset, savedNow, makeDoseId));
-    announceSaved();
-  };
-
   const openCustomEntry = (triggerRef = customEntryRef) => {
+    if (!savedDraft) persistDraft(createCustomDoseDraft(Date.now()));
     returnFocusRef.current = triggerRef;
     setConfirmation('');
     setPendingTime(new Date(draft.timestamp));
@@ -125,22 +153,66 @@ export default function LogIntakeScreen() {
   const saveCustomEntry = () => {
     const savedNow = Date.now();
     if (!validateCustomDoseDraft(draft, savedNow).valid) return;
-    addDose(buildCustomDose(draft, makeDoseId));
+    if (draft.editingId) {
+      if (
+        !doses.some(
+          (d) => d.id === draft.editingId && !d.id.startsWith('demo:'),
+        )
+      ) {
+        setConfirmation(
+          'The original entry was removed. Discard this draft to start another entry.',
+        );
+        return;
+      }
+      const { id: _id, ...patch } = buildCustomDose(draft, makeDoseId);
+      useStore.getState().updateDose(draft.editingId, patch);
+    } else addDose(buildCustomDose(draft, makeDoseId));
     setCustomVisible(false);
     setPickerVisible(false);
-    setDraft(createCustomDoseDraft(savedNow));
+    persistDraft(null);
     announceSaved();
   };
 
   const todayCard = (
     <SectionCard style={{ borderRadius: radii.hero, padding: spacing.lg }}>
-      <Text style={{ ...typeRamp.headline, color: palette.textSecondary }}>Caffeine Today</Text>
-      <Text style={{ ...typeRamp.largeTitle, fontVariant: ['tabular-nums'], color: palette.textPrimary }}>
+      <Text style={{ ...typeRamp.headline, color: palette.textSecondary }}>
+        Caffeine Today
+      </Text>
+      <Text
+        style={{
+          ...typeRamp.largeTitle,
+          fontVariant: ['tabular-nums'],
+          color: palette.textPrimary,
+        }}
+      >
         {todayTotal} mg
       </Text>
       <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>
         {remaining} mg remaining of {dailyLimitMg} mg
       </Text>
+      <Button
+        title={
+          caffeine.zeroDays.includes(localDayKey(now))
+            ? 'Remove caffeine-free confirmation'
+            : 'Mark today caffeine-free'
+        }
+        variant="plain"
+        disabled={doses.some(
+          (d) =>
+            !d.id.startsWith('demo:') &&
+            localDayKey(d.timestamp) === localDayKey(now),
+        )}
+        onPress={() =>
+          caffeine.zeroDays.includes(localDayKey(now))
+            ? useStore.getState().clearCaffeineFree(now)
+            : useStore.getState().markCaffeineFree(now)
+        }
+      />
+      {caffeine.zeroDays.includes(localDayKey(now)) && (
+        <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>
+          Today is confirmed caffeine-free.
+        </Text>
+      )}
     </SectionCard>
   );
 
@@ -148,18 +220,30 @@ export default function LogIntakeScreen() {
     <View style={{ gap: spacing.sm }}>
       <SectionHeader title="Quick Add" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-        {CAFFEINE_PRESETS.map((preset) => (
-          <View key={preset.id} style={{ width: layout.isWideLayout ? '47%' : '48%' }}>
-            <HealthOptionCard
-              icon={preset.id === 'energy' ? 'flash' : 'cafe'}
-              symbol={preset.symbol}
-              title={preset.label}
-              subtitle={`${preset.mg} mg`}
-              accessibilityLabel={`${preset.label} ${preset.mg} mg`}
-              onPress={() => saveQuickAdd(preset)}
-            />
-          </View>
-        ))}
+        {favoriteDrinks(caffeine).map((preset) => {
+          if (!quickRefs.current.has(preset.id))
+            quickRefs.current.set(preset.id, React.createRef<View>());
+          const triggerRef = quickRefs.current.get(preset.id)!;
+          return (
+            <View
+              key={preset.id}
+              style={{ width: layout.isWideLayout ? '47%' : '48%' }}
+            >
+              <HealthOptionCard
+                triggerRef={triggerRef}
+                icon={preset.id === 'energy' ? 'flash' : 'cafe'}
+                symbol={preset.symbol}
+                title={preset.label}
+                subtitle={`${preset.mg} mg`}
+                accessibilityLabel={`${preset.label} ${preset.mg} mg`}
+                onPress={() => {
+                  setQuickFocus(triggerRef);
+                  setQuickDrink(preset);
+                }}
+              />
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -169,8 +253,22 @@ export default function LogIntakeScreen() {
       <SectionHeader title="Add Details" />
       <HealthGroupedList
         rows={[
-          { title: 'Custom Entry', subtitle: 'Amount, source, time, and note', ref: customEntryRef, onPress: () => openCustomEntry(customEntryRef) },
-          { title: 'Show All Caffeine Data', onPress: () => navigate('CaffeineHistory') },
+          {
+            title: 'Custom Entry',
+            subtitle: savedDraft
+              ? 'Resume unfinished entry'
+              : 'Amount, source, time, and note',
+            ref: customEntryRef,
+            onPress: () => openCustomEntry(customEntryRef),
+          },
+          {
+            title: 'Drink Library & Favorites',
+            onPress: () => navigate('DrinkLibrary'),
+          },
+          {
+            title: 'Show All Caffeine Data',
+            onPress: () => navigate('CaffeineHistory'),
+          },
         ]}
       />
     </View>
@@ -197,12 +295,19 @@ export default function LogIntakeScreen() {
   return (
     <AppScreen
       title="Log"
-      trailing={<Button ref={addDataRef} title="Add Data" variant="plain" onPress={() => openCustomEntry(addDataRef)} />}
+      trailing={
+        <Button
+          ref={addDataRef}
+          title="Add Data"
+          variant="plain"
+          onPress={() => openCustomEntry(addDataRef)}
+        />
+      }
       scrollRef={scrollRef}
       contentRef={contentRef}
       scrollEnabled={!walkthrough.active}
       interactionEnabled={!walkthrough.active}
-      bottomOverlay={walkthroughCoach}
+      bottomOverlay={walkthrough.active ? walkthroughCoach : <DoseUndoNotice />}
       onScroll={walkthrough.onScroll}
       onViewportLayout={walkthrough.onViewportLayout}
       headerTransform={(header) => (
@@ -217,14 +322,20 @@ export default function LogIntakeScreen() {
     >
       <View
         testID={layout.isWideLayout ? 'log-wide-layout' : 'log-compact-layout'}
-        style={layout.isWideLayout ? { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl } : { gap: spacing.md }}
+        style={
+          layout.isWideLayout
+            ? {
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: spacing.xl,
+              }
+            : { gap: spacing.md }
+        }
       >
         <View
           testID="log-primary-column"
           style={{
-            width: layout.isWideLayout
-              ? layout.leftColumnWidth
-              : '100%',
+            width: layout.isWideLayout ? layout.leftColumnWidth : '100%',
             gap: spacing.md,
           }}
         >
@@ -241,9 +352,7 @@ export default function LogIntakeScreen() {
         <View
           testID="log-supporting-column"
           style={{
-            width: layout.isWideLayout
-              ? layout.rightColumnWidth
-              : '100%',
+            width: layout.isWideLayout ? layout.rightColumnWidth : '100%',
             gap: spacing.md,
           }}
         >
@@ -255,16 +364,34 @@ export default function LogIntakeScreen() {
             <View
               ref={detailsAnchorRef}
               collapsable={false}
-              onLayout={() => walkthrough.measureAnchor('log-details', detailsAnchorRef.current)}
+              onLayout={() =>
+                walkthrough.measureAnchor(
+                  'log-details',
+                  detailsAnchorRef.current,
+                )
+              }
               style={{ gap: spacing.md }}
             >
               <View style={{ gap: spacing.sm }}>
                 <SectionHeader title="Recent" />
                 <SectionCard>
-                  {recent.length ? recent.map((dose) => (
-                    <ListRow key={dose.id} title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`} subtitle={fmtDateTime(dose.timestamp)} />
-                  )) : (
-                    <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>No caffeine logged yet.</Text>
+                  {recent.length ? (
+                    recent.map((dose) => (
+                      <ListRow
+                        key={dose.id}
+                        title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`}
+                        subtitle={fmtDateTime(dose.timestamp)}
+                      />
+                    ))
+                  ) : (
+                    <Text
+                      style={{
+                        ...typeRamp.subheadline,
+                        color: palette.textSecondary,
+                      }}
+                    >
+                      No caffeine logged yet.
+                    </Text>
                   )}
                 </SectionCard>
               </View>
@@ -274,19 +401,34 @@ export default function LogIntakeScreen() {
         </View>
       </View>
 
+      <QuickDoseSheet
+        returnFocusRef={quickFocus}
+        onSaved={announceSaved}
+        drink={quickDrink}
+        onClose={() => {
+          setQuickDrink(null);
+        }}
+      />
       {confirmation ? (
-        <Text accessibilityLiveRegion="polite" accessibilityLabel={confirmation} style={{ ...typeRamp.subheadline, color: palette.statusSuccessText }}>
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={confirmation}
+          style={{ ...typeRamp.subheadline, color: palette.statusSuccessText }}
+        >
           {confirmation}
         </Text>
       ) : null}
 
       <HealthFormSheet
-        visible={customVisible}
-        title="Custom Entry"
+        visible={customVisible && !walkthrough.active}
+        title={draft.editingId ? 'Edit Entry' : 'Custom Entry'}
         returnFocusRef={returnFocusRef.current}
-        onCancel={() => { setPickerVisible(false); setCustomVisible(false); }}
+        onCancel={() => {
+          setPickerVisible(false);
+          setCustomVisible(false);
+        }}
         onSave={saveCustomEntry}
-        saveDisabled={!validation.valid}
+        saveDisabled={!validation.valid || walkthrough.active}
         reduceMotion={reduceMotion}
       >
         <View style={{ gap: spacing.sm }}>
@@ -296,30 +438,98 @@ export default function LogIntakeScreen() {
             onChangeText={(mg) => setDraft((current) => ({ ...current, mg }))}
             keyboardType="number-pad"
             placeholder="Amount in mg"
-            style={{ minHeight: controlSizes.inputHeight, borderRadius: radii.control, paddingHorizontal: spacing.sm, backgroundColor: palette.fieldBackground, color: palette.textPrimary, ...typeRamp.body }}
+            style={{
+              minHeight: controlSizes.inputHeight,
+              borderRadius: radii.control,
+              paddingHorizontal: spacing.sm,
+              backgroundColor: palette.fieldBackground,
+              color: palette.textPrimary,
+              ...typeRamp.body,
+            }}
+          />
+          <TextInput
+            accessibilityLabel="Drink name or source"
+            value={draft.source}
+            onChangeText={(source) =>
+              setDraft((current) => ({ ...current, source }))
+            }
+            placeholder="Drink name or source"
+            style={{
+              minHeight: controlSizes.inputHeight,
+              borderRadius: radii.control,
+              paddingHorizontal: spacing.sm,
+              backgroundColor: palette.fieldBackground,
+              color: palette.textPrimary,
+              ...typeRamp.body,
+            }}
           />
           <SegmentedControl
             value={draft.source}
-            onChange={(source) => setDraft((current) => ({ ...current, source }))}
-            options={SOURCE_OPTIONS.map((source) => ({ key: source, label: source }))}
+            onChange={(source) =>
+              setDraft((current) => ({ ...current, source }))
+            }
+            options={SOURCE_OPTIONS.map((source) => ({
+              key: source,
+              label: source,
+            }))}
           />
           <Button
             title={fmtTime(draft.timestamp)}
             accessibilityLabel="Time"
             accessibilityValue={{ text: fmtTime(draft.timestamp) }}
             variant="tinted"
-            onPress={() => { setPendingTime(new Date(draft.timestamp)); setPickerVisible(true); }}
+            onPress={() => {
+              setPendingTime(new Date(draft.timestamp));
+              setPickerVisible(true);
+            }}
           />
           <TextInput
             accessibilityLabel="Note"
             value={draft.note}
-            onChangeText={(note) => setDraft((current) => ({ ...current, note }))}
+            onChangeText={(note) =>
+              setDraft((current) => ({ ...current, note }))
+            }
             placeholder="Optional note"
             multiline
-            style={{ minHeight: 96, borderRadius: radii.control, padding: spacing.sm, backgroundColor: palette.fieldBackground, color: palette.textPrimary, ...typeRamp.body }}
+            style={{
+              minHeight: 96,
+              borderRadius: radii.control,
+              padding: spacing.sm,
+              backgroundColor: palette.fieldBackground,
+              color: palette.textPrimary,
+              ...typeRamp.body,
+            }}
+          />
+          <Button
+            title={calculatorVisible ? 'Hide calculator' : 'Serving calculator'}
+            variant="plain"
+            onPress={() => setCalculatorVisible(!calculatorVisible)}
+          />
+          {calculatorVisible && (
+            <ServingCalculator
+              onApply={(mg) => {
+                setDraft((current) => ({ ...current, mg: String(mg) }));
+                setCalculatorVisible(false);
+              }}
+            />
+          )}
+          {validation.valid && (
+            <DosePreview draft={draft} replacingId={draft.editingId} />
+          )}
+          <Button
+            title="Discard unfinished entry"
+            variant="plain"
+            role="destructive"
+            onPress={() => {
+              persistDraft(null);
+              setCustomVisible(false);
+              setPickerVisible(false);
+            }}
           />
           {!validation.valid ? (
-            <Text style={{ ...typeRamp.footnote, color: palette.destructive }}>{validation.message}</Text>
+            <Text style={{ ...typeRamp.footnote, color: palette.destructive }}>
+              {validation.message}
+            </Text>
           ) : null}
         </View>
       </HealthFormSheet>
@@ -331,18 +541,49 @@ export default function LogIntakeScreen() {
         animationType={reduceMotion ? 'none' : 'fade'}
         onRequestClose={() => setPickerVisible(false)}
       >
-        <View accessibilityViewIsModal style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}>
-          <View style={{ backgroundColor: palette.modalBackground, padding: spacing.md, gap: spacing.sm }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Button title="Cancel" variant="plain" onPress={() => setPickerVisible(false)} />
-              <Button title="Done" variant="plain" onPress={() => { setDraft((current) => ({ ...current, timestamp: pendingTime.getTime() })); setPickerVisible(false); }} />
+        <View
+          accessibilityViewIsModal
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: palette.modalScrim,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: palette.modalBackground,
+              padding: spacing.md,
+              gap: spacing.sm,
+            }}
+          >
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+            >
+              <Button
+                title="Cancel"
+                variant="plain"
+                onPress={() => setPickerVisible(false)}
+              />
+              <Button
+                title="Done"
+                variant="plain"
+                onPress={() => {
+                  setDraft((current) => ({
+                    ...current,
+                    timestamp: pendingTime.getTime(),
+                  }));
+                  setPickerVisible(false);
+                }}
+              />
             </View>
             <DateTimePicker
               testID="caffeine-time-picker"
               mode="time"
               display="spinner"
               value={pendingTime}
-              onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setPendingTime(date); }}
+              onChange={(_event: DateTimePickerEvent, date?: Date) => {
+                if (date) setPendingTime(date);
+              }}
             />
           </View>
         </View>

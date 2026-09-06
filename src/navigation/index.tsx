@@ -12,15 +12,24 @@ export function navigate<RouteName extends AppRouteName>(
   params?: RouteName extends keyof RootTabParamList
     ? RootTabParamList[RouteName]
     : RouteName extends StandaloneRouteName
-    ? RootStackParamList[RouteName]
-    : never
+      ? RootStackParamList[RouteName]
+      : never,
 ) {
   if (!navigationRef.isReady()) return;
-  if (name === 'VigilanceTest' || name === 'Settings' || name === 'SleepHistory' || name === 'CaffeineHistory') {
+  if (
+    name === 'VigilanceTest' ||
+    name === 'Settings' ||
+    name === 'SleepHistory' ||
+    name === 'CaffeineHistory' ||
+    name === 'DrinkLibrary'
+  ) {
     (navigationRef as any).navigate(name as any, params as any);
     return;
   }
-  (navigationRef as any).navigate('Tabs', { screen: name as keyof RootTabParamList, params });
+  (navigationRef as any).navigate('Tabs', {
+    screen: name as keyof RootTabParamList,
+    params,
+  });
 }
 
 export function goBack() {

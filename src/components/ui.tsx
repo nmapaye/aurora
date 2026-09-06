@@ -10,13 +10,8 @@ import {
   ViewStyle,
 } from 'react-native';
 
-import AppIcon, {
-  appIcons,
-  type AppIconName,
-} from '~/components/AppIcon';
-import AppSymbol, {
-  type AppSymbolName,
-} from '~/components/AppSymbol';
+import AppIcon, { appIcons, type AppIconName } from '~/components/AppIcon';
+import AppSymbol, { type AppSymbolName } from '~/components/AppSymbol';
 import useAppScheme from '~/hooks/useAppScheme';
 import {
   getAppPalette,
@@ -220,6 +215,7 @@ export function HealthMetricCard({
 }
 
 export function HealthOptionCard({
+  triggerRef,
   icon,
   title,
   subtitle,
@@ -229,6 +225,7 @@ export function HealthOptionCard({
   accessibilityLabel,
   symbol,
 }: {
+  triggerRef?: React.RefObject<View | null>;
   icon?: AppIconName;
   title: string;
   subtitle?: string;
@@ -243,6 +240,7 @@ export function HealthOptionCard({
   const accent = color ?? palette.tint;
   return (
     <Pressable
+      ref={triggerRef}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
@@ -934,6 +932,7 @@ export function FieldInput({
   value,
   onChangeText,
   placeholder,
+  accessibilityLabel,
   keyboardType,
   multiline = false,
   style,
@@ -941,7 +940,8 @@ export function FieldInput({
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'number-pad';
+  accessibilityLabel?: string;
+  keyboardType?: 'default' | 'number-pad' | 'decimal-pad';
   multiline?: boolean;
   style?: StyleProp<TextStyle>;
 }) {
@@ -949,6 +949,7 @@ export function FieldInput({
   const palette = getAppPalette(scheme);
   return (
     <TextInput
+      accessibilityLabel={accessibilityLabel ?? placeholder}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}

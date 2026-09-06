@@ -1,12 +1,22 @@
 import { create } from 'zustand';
+import {
+  applyDoseUndo,
+  availableDrinks,
+  defaultCaffeineState,
+  localDayKey,
+  normalizeCaffeine,
+  validDrink,
+  type CaffeineState,
+  type DoseUndo,
+  type PersonalDrink,
+} from '~/features/caffeine/upgrades';
+import type { CustomDoseDraft } from '~/features/caffeine/logging';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
 import type { Dose, SleepSession } from '~/domain/models';
 import type { VigilanceSession } from '~/domain/vigilance';
 import { createDemoSnapshot } from '~/dev/mockData';
-import {
-  normalizeHealthSleepSessionIdentities,
-} from '~/features/sleep/healthSleep';
+import { normalizeHealthSleepSessionIdentities } from '~/features/sleep/healthSleep';
 import { jsonStringStorage } from '~/services/storage';
 
 type Prefs = {
@@ -19,7 +29,11 @@ type Prefs = {
 };
 export type AppearanceMode = 'system' | 'light' | 'dark';
 export type OnboardingSource = 'healthkit' | 'manual';
-export type HealthPermissionStatus = 'idle' | 'granted' | 'denied' | 'unsupported';
+export type HealthPermissionStatus =
+  | 'idle'
+  | 'granted'
+  | 'denied'
+  | 'unsupported';
 export type HealthImportStatus = 'idle' | 'importing' | 'succeeded' | 'failed';
 export type HealthSync = {
   lastSyncedAt?: number;
@@ -38,6 +52,14 @@ export type Onboarding = {
 
 type State = {
   doses: Dose[];
+  caffeine: CaffeineState;
+  doseUndo: DoseUndo | null;
+  saveDrink: (drink: PersonalDrink) => void;
+  setFavoriteDrinks: (ids: string[]) => void;
+  setCaffeineDraft: (draft: CustomDoseDraft | null) => void;
+  markCaffeineFree: (day: number) => void;
+  clearCaffeineFree: (day: number) => void;
+  undoDoseChange: (now: number) => void;
   sleeps: SleepSession[];
   vigilanceSessions: VigilanceSession[];
   prefs: Prefs;
@@ -71,6 +93,7 @@ type State = {
 type PersistedState = Pick<
   State,
   | 'doses'
+  | 'caffeine'
   | 'sleeps'
   | 'vigilanceSessions'
   | 'prefs'
@@ -79,7 +102,9 @@ type PersistedState = Pick<
   | 'demoMode'
   | 'appearanceMode'
 >;
-const mmkvStorage = createJSONStorage<PersistedState>(() => jsonStringStorage as any);
+const mmkvStorage = createJSONStorage<PersistedState>(
+  () => jsonStringStorage as any,
+);
 const defaultPrefs: Prefs = {
   halfLife: DEFAULT_HALFLIFE_H,
   targetSleep: DEFAULT_TARGET_SLEEP_H,
@@ -132,11 +157,9 @@ function normalizeHealthImportStatus(
   if (value !== undefined) {
     return value === 'importing'
       ? 'idle'
-      : value === 'idle' ||
-      value === 'succeeded' ||
-      value === 'failed'
-      ? value
-      : 'idle';
+      : value === 'idle' || value === 'succeeded' || value === 'failed'
+        ? value
+        : 'idle';
   }
   const normalizedMessage = lastMessage?.toLowerCase() ?? '';
   if (
@@ -154,9 +177,13 @@ function normalizeHealthImportStatus(
   return 'idle';
 }
 
-function normalizePersistedState(persistedState?: MigratingPersistedState): PersistedState {
-  const { summaryWalkthroughCompleted: _legacyWalkthrough, ...persistedOnboarding } =
-    persistedState?.onboarding ?? {};
+function normalizePersistedState(
+  persistedState?: MigratingPersistedState,
+): PersistedState {
+  const {
+    summaryWalkthroughCompleted: _legacyWalkthrough,
+    ...persistedOnboarding
+  } = persistedState?.onboarding ?? {};
   const onboarding = {
     ...defaultOnboarding,
     ...persistedOnboarding,
@@ -169,6 +196,7 @@ function normalizePersistedState(persistedState?: MigratingPersistedState): Pers
 
   return {
     doses: persistedState?.doses ?? [],
+    caffeine: normalizeCaffeine(persistedState?.caffeine),
     sleeps: normalizeHealthSleepSessionIdentities(persistedState?.sleeps ?? []),
     vigilanceSessions: persistedState?.vigilanceSessions ?? [],
     prefs: { ...defaultPrefs, ...persistedState?.prefs },
@@ -201,11 +229,133 @@ export const useStore = create<State>()(
       healthSync: defaultHealthSync,
       demoMode: false,
       appearanceMode: 'system',
-      addDose: (d) => set((s) => ({ doses: [...s.doses, d] })),
-      updateDose: (id, patch) => set((s) => ({
-        doses: s.doses.map((d) => (d.id === id ? { ...d, ...patch, id: d.id } : d)),
-      })),
-      removeDose: (id) => set((s) => ({ doses: s.doses.filter((d) => d.id !== id) })),
+      caffeine: normalizeCaffeine(defaultCaffeineState),
+      doseUndo: null,
+      saveDrink: (drink) => {
+        if (!validDrink(drink)) return;
+        set((s) => ({
+          caffeine: normalizeCaffeine({
+            ...s.caffeine,
+            drinks: [
+              ...s.caffeine.drinks.filter((d) => d.id !== drink.id),
+              drink,
+            ],
+          }),
+        }));
+      },
+      setFavoriteDrinks: (ids) =>
+        set((s) => ({
+          caffeine: {
+            ...s.caffeine,
+            favoriteIds: [...new Set(ids)].filter((id) =>
+              availableDrinks(s.caffeine).some((d) => d.id === id),
+            ),
+          },
+        })),
+      setCaffeineDraft: (draft) =>
+        set((s) => ({ caffeine: { ...s.caffeine, draft } })),
+      markCaffeineFree: (day) =>
+        set((s) => {
+          const key = localDayKey(day);
+          if (
+            !Number.isFinite(day) ||
+            day > Date.now() ||
+            s.doses.some(
+              (d) =>
+                !d.id.startsWith('demo:') && localDayKey(d.timestamp) === key,
+            )
+          )
+            return {};
+          return {
+            caffeine: {
+              ...s.caffeine,
+              zeroDays: [...new Set([...s.caffeine.zeroDays, key])],
+            },
+          };
+        }),
+      clearCaffeineFree: (day) =>
+        set((s) => ({
+          caffeine: {
+            ...s.caffeine,
+            zeroDays: s.caffeine.zeroDays.filter(
+              (key) => key !== localDayKey(day),
+            ),
+          },
+        })),
+      undoDoseChange: (now) =>
+        set((s) => {
+          const doses = applyDoseUndo(s.doses, s.doseUndo, now);
+          const restored =
+            doses !== s.doses ? (s.doseUndo?.zeroDays ?? []) : [];
+          const zeroDays = [
+            ...new Set([...s.caffeine.zeroDays, ...restored]),
+          ].filter(
+            (key) =>
+              !doses.some(
+                (d) =>
+                  !d.id.startsWith('demo:') && localDayKey(d.timestamp) === key,
+              ),
+          );
+          return {
+            doses,
+            doseUndo: null,
+            caffeine: { ...s.caffeine, zeroDays },
+          };
+        }),
+      addDose: (d) =>
+        set((s) => {
+          if (s.doses.some((item) => item.id === d.id)) return {};
+          return {
+            doses: [...s.doses, d],
+            doseUndo: {
+              after: d,
+              expiresAt: Date.now() + 10000,
+              zeroDays: s.caffeine.zeroDays.filter(
+                (day) => day === localDayKey(d.timestamp),
+              ),
+            },
+            caffeine: {
+              ...s.caffeine,
+              zeroDays: d.id.startsWith('demo:')
+                ? s.caffeine.zeroDays
+                : s.caffeine.zeroDays.filter(
+                    (day) => day !== localDayKey(d.timestamp),
+                  ),
+            },
+          };
+        }),
+      updateDose: (id, patch) =>
+        set((s) => {
+          const before = s.doses.find((d) => d.id === id);
+          if (!before || id.startsWith('demo:')) return {};
+          const after = { ...before, ...patch, id };
+          return {
+            doses: s.doses.map((d) => (d.id === id ? after : d)),
+            doseUndo: {
+              before,
+              after,
+              expiresAt: Date.now() + 10000,
+              zeroDays: s.caffeine.zeroDays.filter(
+                (day) => day === localDayKey(after.timestamp),
+              ),
+            },
+            caffeine: {
+              ...s.caffeine,
+              zeroDays: s.caffeine.zeroDays.filter(
+                (day) => day !== localDayKey(after.timestamp),
+              ),
+            },
+          };
+        }),
+      removeDose: (id) =>
+        set((s) => {
+          const before = s.doses.find((d) => d.id === id);
+          if (!before || id.startsWith('demo:')) return {};
+          return {
+            doses: s.doses.filter((d) => d.id !== id),
+            doseUndo: { before, expiresAt: Date.now() + 10000, zeroDays: [] },
+          };
+        }),
       addSleep: (sl) => set((s) => ({ sleeps: [...s.sleeps, sl] })),
       upsertSleepSessions: (items) =>
         set((s) => {
@@ -232,25 +382,33 @@ export const useStore = create<State>()(
       removeManualSleep: (id) => {
         if (!id.startsWith('manual:sleep:')) return;
         set((s) => ({
-          sleeps: s.sleeps.filter((sleep) => sleep.id !== id || !sleep.id.startsWith('manual:sleep:')),
+          sleeps: s.sleeps.filter(
+            (sleep) => sleep.id !== id || !sleep.id.startsWith('manual:sleep:'),
+          ),
         }));
       },
       addVigilanceSession: (session) =>
         set((s) => ({
           vigilanceSessions: [session, ...s.vigilanceSessions].sort(
-            (a, b) => b.completedAt - a.completedAt
+            (a, b) => b.completedAt - a.completedAt,
           ),
         })),
       setPrefs: (p) => set((s) => ({ prefs: { ...s.prefs, ...p } })),
-      setOnboarding: (p) => set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
-      setHealthSync: (p) => set((s) => ({ healthSync: { ...s.healthSync, ...p } })),
+      setOnboarding: (p) =>
+        set((s) => ({ onboarding: { ...s.onboarding, ...p } })),
+      setHealthSync: (p) =>
+        set((s) => ({ healthSync: { ...s.healthSync, ...p } })),
       setAppearanceMode: (mode) => set({ appearanceMode: mode }),
       loadDemoData: () =>
         set((s) => {
           const demo = createDemoSnapshot();
           return {
-            doses: [...withoutDemoId(s.doses), ...demo.doses].sort((a, b) => b.timestamp - a.timestamp),
-            sleeps: [...withoutDemoId(s.sleeps), ...demo.sleeps].sort((a, b) => b.end - a.end),
+            doses: [...withoutDemoId(s.doses), ...demo.doses].sort(
+              (a, b) => b.timestamp - a.timestamp,
+            ),
+            sleeps: [...withoutDemoId(s.sleeps), ...demo.sleeps].sort(
+              (a, b) => b.end - a.end,
+            ),
             vigilanceSessions: [
               ...withoutDemoId(s.vigilanceSessions),
               ...demo.vigilanceSessions,
@@ -295,7 +453,9 @@ export const useStore = create<State>()(
         set((s) => ({
           onboarding: {
             ...s.onboarding,
-            appWalkthroughStep: clampAppWalkthroughStep(s.onboarding.appWalkthroughStep + 1),
+            appWalkthroughStep: clampAppWalkthroughStep(
+              s.onboarding.appWalkthroughStep + 1,
+            ),
           },
         })),
       completeAppWalkthrough: () =>
@@ -308,10 +468,11 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 6,
+      version: 7,
       storage: mmkvStorage,
       partialize: (s) => ({
         doses: s.doses,
+        caffeine: s.caffeine,
         sleeps: s.sleeps,
         vigilanceSessions: s.vigilanceSessions,
         prefs: s.prefs,
@@ -341,7 +502,8 @@ export const useStore = create<State>()(
             ...nextState,
             onboarding: {
               ...legacyOnboarding,
-              appWalkthroughCompleted: legacyOnboarding?.summaryWalkthroughCompleted === true,
+              appWalkthroughCompleted:
+                legacyOnboarding?.summaryWalkthroughCompleted === true,
               appWalkthroughStep: 0,
             },
           };
@@ -363,10 +525,12 @@ export const useStore = create<State>()(
       },
       merge: (persistedState, currentState) => ({
         ...currentState,
-        ...normalizePersistedState((persistedState ?? {}) as MigratingPersistedState),
+        ...normalizePersistedState(
+          (persistedState ?? {}) as MigratingPersistedState,
+        ),
       }),
-    }
-  )
+    },
+  ),
 );
 
 // Hooks used by useAppInit for boot-time persistence setup

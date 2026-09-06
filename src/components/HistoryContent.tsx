@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 
+import { validateCustomDoseDraft } from '~/features/caffeine/logging';
+import { filterDoses } from '~/features/caffeine/upgrades';
+import { DosePreview } from '~/features/caffeine/LoggingTools';
+import { navigate } from '~/navigation';
+import useNow from '~/hooks/useNow';
+import { startOfLocalDay, addCalendarDays } from '~/utils/calendar';
 import Button from '~/components/Button';
 import {
   FieldInput,
@@ -22,7 +28,10 @@ type Props = {
   focused?: boolean;
 };
 
-export default function HistoryContent({ initialSection = 'doses', focused = false }: Props) {
+export default function HistoryContent({
+  initialSection = 'doses',
+  focused = false,
+}: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const doses = useStore((state) => state.doses);
@@ -31,34 +40,43 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
   const removeDose = useStore((state) => state.removeDose);
 
   const [section, setSection] = useState<HistorySection>(initialSection);
-  const [range, setRange] = useState<RangeKey>('14');
+  const [range, setRange] = useState<RangeKey>('all');
   const [query, setQuery] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftMg, setDraftMg] = useState('0');
-  const [draftSource, setDraftSource] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [minMg, setMinMg] = useState('');
+  const [maxMg, setMaxMg] = useState('');
+  const now = useNow();
+  const savedDraft = useStore((s) => s.caffeine.draft);
+  const [editingId, setEditingId] = useState<string | null>(
+    savedDraft?.editingId ?? null,
+  );
+  const draftMg = savedDraft?.editingId === editingId ? savedDraft.mg : '0';
+  const draftSource =
+    savedDraft?.editingId === editingId ? savedDraft.source : '';
   const [exportError, setExportError] = useState<string>();
 
-  const rangeStart = useMemo(() => {
-    if (range === 'all') return 0;
-    const days = range === '7' ? 7 : range === '14' ? 14 : 30;
-    const date = new Date(Date.now());
-    date.setHours(23, 59, 59, 999);
-    return date.getTime() - days * 24 * 3600 * 1000;
-  }, [range]);
-
-  const doseItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return [...doses]
-      .filter((dose) => dose.timestamp >= rangeStart)
-      .filter((dose) =>
-        normalizedQuery
-          ? `${dose.mg}`.includes(normalizedQuery) ||
-            (dose.source || '').toLowerCase().includes(normalizedQuery) ||
-            (dose.note || '').toLowerCase().includes(normalizedQuery)
-          : true,
-      )
-      .sort((a, b) => b.timestamp - a.timestamp);
-  }, [doses, query, rangeStart]);
+  const rangeStart =
+    range === 'all'
+      ? undefined
+      : addCalendarDays(startOfLocalDay(now), -(Number(range) - 1));
+  const filtersValid =
+    (!minMg || (Number.isFinite(Number(minMg)) && Number(minMg) >= 0)) &&
+    (!maxMg || (Number.isFinite(Number(maxMg)) && Number(maxMg) >= 0)) &&
+    (!minMg || !maxMg || Number(minMg) <= Number(maxMg));
+  const doseItems = useMemo(
+    () =>
+      filtersValid
+        ? filterDoses(doses, {
+            query,
+            source: sourceFilter,
+            minMg: minMg ? Number(minMg) : undefined,
+            maxMg: maxMg ? Number(maxMg) : undefined,
+            start: rangeStart,
+            end: now,
+          })
+        : [],
+    [doses, query, sourceFilter, minMg, maxMg, rangeStart, now, filtersValid],
+  );
 
   const fmtDateTime = (timestamp: number) => {
     try {
@@ -78,23 +96,27 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
     try {
       if (section === 'doses') {
         const header = 'id,timestamp,datetime,mg,source,note';
-        const lines = doseItems.map((dose) => {
-          const iso = new Date(dose.timestamp).toISOString();
-          return [
-            dose.id,
-            String(dose.timestamp),
-            iso,
-            String(dose.mg),
-            dose.source || '',
-            dose.note || '',
-          ]
-            .map((value) => `"${String(value).replace(/"/g, '""')}"`)
-            .join(',');
-        });
+        const lines = doseItems
+          .filter((dose) => !dose.id.startsWith('demo:'))
+          .map((dose) => {
+            const iso = new Date(dose.timestamp).toISOString();
+            return [
+              dose.id,
+              String(dose.timestamp),
+              iso,
+              String(dose.mg),
+              dose.source || '',
+              dose.note || '',
+            ]
+              .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+              .join(',');
+          });
         await Share.share({ message: [header, ...lines].join('\n') });
         return;
       }
-      await Share.share({ message: makeVigilanceSessionsCSV(vigilanceSessions) });
+      await Share.share({
+        message: makeVigilanceSessionsCSV(vigilanceSessions),
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Sharing unavailable.';
@@ -105,11 +127,26 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
   };
 
   const saveEdit = () => {
-    if (!editingId) return;
+    if (
+      !savedDraft ||
+      !validateCustomDoseDraft(savedDraft, Date.now()).valid ||
+      !editingId ||
+      !Number.isInteger(Number(draftMg)) ||
+      Number(draftMg) < 1 ||
+      Number(draftMg) > 1999
+    )
+      return;
     updateDose(editingId, {
-      mg: Math.max(1, Math.round(Number(draftMg) || 0)),
+      mg: Number(draftMg),
       source: draftSource.trim() || undefined,
+      ...(savedDraft?.editingId === editingId
+        ? {
+            timestamp: savedDraft.timestamp,
+            note: savedDraft.note.trim() || undefined,
+          }
+        : {}),
     });
+    useStore.getState().setCaffeineDraft(null);
     setEditingId(null);
   };
 
@@ -131,14 +168,16 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
         </Text>
       ) : null}
 
-      {!focused ? <SegmentedControl
+      {!focused ? (
+        <SegmentedControl
           value={section}
           onChange={setSection}
           options={[
             { key: 'doses', label: 'Doses' },
             { key: 'vigilance', label: 'Vigilance' },
           ]}
-        /> : null}
+        />
+      ) : null}
 
       {section === 'doses' ? (
         <>
@@ -159,6 +198,49 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
             placeholder="Search amount, source, or note"
           />
 
+          <FieldInput
+            accessibilityLabel="Filter source"
+            placeholder="Exact drink name or source"
+            value={sourceFilter}
+            onChangeText={setSourceFilter}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FieldInput
+              accessibilityLabel="Minimum caffeine in mg"
+              placeholder="Minimum mg"
+              value={minMg}
+              onChangeText={setMinMg}
+              keyboardType="number-pad"
+              style={{ flex: 1 }}
+            />
+            <FieldInput
+              accessibilityLabel="Maximum caffeine in mg"
+              placeholder="Maximum mg"
+              value={maxMg}
+              onChangeText={setMaxMg}
+              keyboardType="number-pad"
+              style={{ flex: 1 }}
+            />
+          </View>
+          {!filtersValid && (
+            <Text style={{ ...typeRamp.footnote, color: palette.destructive }}>
+              Enter valid amounts with minimum at or below maximum.
+            </Text>
+          )}
+          <Button
+            title="Reset filters"
+            variant="plain"
+            onPress={() => {
+              setRange('all');
+              setQuery('');
+              setSourceFilter('');
+              setMinMg('');
+              setMaxMg('');
+            }}
+          />
+          <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>
+            {doseItems.length} matching entries. Exports exclude sample data.
+          </Text>
           <SectionCard>
             {doseItems.length === 0 ? (
               <Text
@@ -212,26 +294,61 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
                       ) : null}
                     </View>
 
-                    {isEditing ? (
+                    {dose.id.startsWith('demo:') ? (
+                      <Text
+                        style={{
+                          ...typeRamp.footnote,
+                          color: palette.textSecondary,
+                        }}
+                      >
+                        Sample Data · Read-only
+                      </Text>
+                    ) : isEditing ? (
                       <View style={{ gap: spacing.sm }}>
                         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                           <FieldInput
                             value={draftMg}
-                            onChangeText={setDraftMg}
+                            onChangeText={(mg) => {
+                              if (savedDraft)
+                                useStore
+                                  .getState()
+                                  .setCaffeineDraft({ ...savedDraft, mg });
+                            }}
                             keyboardType="number-pad"
                             placeholder="mg"
                             style={{ flex: 1 }}
                           />
                           <FieldInput
                             value={draftSource}
-                            onChangeText={setDraftSource}
+                            onChangeText={(source) => {
+                              if (savedDraft)
+                                useStore
+                                  .getState()
+                                  .setCaffeineDraft({ ...savedDraft, source });
+                            }}
                             placeholder="Source"
                             style={{ flex: 1.2 }}
                           />
                         </View>
+                        <DosePreview
+                          draft={{
+                            mg: draftMg,
+                            source: draftSource,
+                            timestamp: savedDraft?.timestamp ?? dose.timestamp,
+                            note: savedDraft?.note ?? dose.note ?? '',
+                          }}
+                          replacingId={dose.id}
+                        />
                         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                           <Button
                             title="Save"
+                            disabled={
+                              !savedDraft ||
+                              !validateCustomDoseDraft(savedDraft, now).valid ||
+                              !Number.isInteger(Number(draftMg)) ||
+                              Number(draftMg) < 1 ||
+                              Number(draftMg) > 1999
+                            }
                             variant="primary"
                             onPress={saveEdit}
                           />
@@ -243,14 +360,54 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
                         </View>
                       </View>
                     ) : (
-                      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          gap: spacing.sm,
+                        }}
+                      >
+                        <Button
+                          title="Repeat"
+                          variant="tinted"
+                          onPress={() => {
+                            if (useStore.getState().caffeine.draft) {
+                              setExportError(
+                                'An unfinished entry is saved. Resume or discard it in Log before repeating another entry.',
+                              );
+                              return;
+                            }
+                            useStore.getState().setCaffeineDraft({
+                              mg: String(dose.mg),
+                              source: dose.source ?? '',
+                              note: dose.note ?? '',
+                              timestamp: Date.now(),
+                            });
+                            navigate('Log');
+                          }}
+                        />
                         <Button
                           title="Edit"
                           variant="tinted"
                           onPress={() => {
+                            if (
+                              savedDraft &&
+                              savedDraft.editingId !== dose.id
+                            ) {
+                              setExportError(
+                                'An unfinished entry is saved. Resume or discard it in Log before editing another entry.',
+                              );
+                              return;
+                            }
+                            useStore.getState().setCaffeineDraft({
+                              mg: savedDraft?.mg ?? String(dose.mg),
+                              source: savedDraft?.source ?? dose.source ?? '',
+                              timestamp:
+                                savedDraft?.timestamp ?? dose.timestamp,
+                              note: savedDraft?.note ?? dose.note ?? '',
+                              editingId: dose.id,
+                            });
                             setEditingId(dose.id);
-                            setDraftMg(String(dose.mg));
-                            setDraftSource(dose.source || '');
                           }}
                         />
                         <Button

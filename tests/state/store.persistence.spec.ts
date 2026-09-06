@@ -6,7 +6,20 @@ import { useStore } from '~/state/store';
 // normalizePersistedState in src/state/store.ts — otherwise merge/rehydrate
 // silently resets the new key to its default.
 const nonDefaultPersistedState = {
-  doses: [{ id: 'user:dose', timestamp: 1_700_000_000_000, mg: 95, source: 'Drip' }],
+  doses: [
+    { id: 'user:dose', timestamp: 1_700_000_000_000, mg: 95, source: 'Drip' },
+  ],
+  caffeine: {
+    drinks: [{ id: 'personal:home', label: 'Home', mg: 90, archived: false }],
+    favoriteIds: ['personal:home', 'espresso'],
+    draft: {
+      mg: '42',
+      source: 'Tea',
+      note: 'unsaved',
+      timestamp: 1700000000000,
+    },
+    zeroDays: ['2026-09-06'],
+  },
   sleeps: [
     {
       id: 'user:sleep',
@@ -62,19 +75,25 @@ const nonDefaultPersistedState = {
 
 describe('store persistence round-trip', () => {
   it('persists exactly the keys covered by this fixture', () => {
-    const persisted = useStore.persist.getOptions().partialize!(useStore.getState());
-    expect(Object.keys(persisted).sort()).toEqual(Object.keys(nonDefaultPersistedState).sort());
+    const persisted = useStore.persist.getOptions().partialize!(
+      useStore.getState(),
+    );
+    expect(Object.keys(persisted).sort()).toEqual(
+      Object.keys(nonDefaultPersistedState).sort(),
+    );
   });
 
   it('preserves every persisted key through rehydrate (merge + normalize)', async () => {
     jsonStringStorage.setItem(
       'aurora/state',
-      JSON.stringify({ state: nonDefaultPersistedState, version: 5 })
+      JSON.stringify({ state: nonDefaultPersistedState, version: 5 }),
     );
 
     await useStore.persist.rehydrate();
 
-    const persisted = useStore.persist.getOptions().partialize!(useStore.getState());
+    const persisted = useStore.persist.getOptions().partialize!(
+      useStore.getState(),
+    );
     expect(persisted).toEqual(nonDefaultPersistedState);
   });
 
@@ -82,27 +101,32 @@ describe('store persistence round-trip', () => {
     [-3, 0],
     [4.9, 4],
     [27, 9],
-  ])('normalizes persisted walkthrough cursor %p to %p', async (step, expectedStep) => {
-    jsonStringStorage.setItem(
-      'aurora/state',
-      JSON.stringify({
-        state: {
-          onboarding: {
-            completed: true,
-            source: 'manual',
-            permissionStatus: 'unsupported',
-            appWalkthroughCompleted: false,
-            appWalkthroughStep: step,
+  ])(
+    'normalizes persisted walkthrough cursor %p to %p',
+    async (step, expectedStep) => {
+      jsonStringStorage.setItem(
+        'aurora/state',
+        JSON.stringify({
+          state: {
+            onboarding: {
+              completed: true,
+              source: 'manual',
+              permissionStatus: 'unsupported',
+              appWalkthroughCompleted: false,
+              appWalkthroughStep: step,
+            },
           },
-        },
-        version: 5,
-      }),
-    );
+          version: 5,
+        }),
+      );
 
-    await useStore.persist.rehydrate();
+      await useStore.persist.rehydrate();
 
-    expect(useStore.getState().onboarding.appWalkthroughStep).toBe(expectedStep);
-  });
+      expect(useStore.getState().onboarding.appWalkthroughStep).toBe(
+        expectedStep,
+      );
+    },
+  );
 
   it('strips a legacy Summary completion field from a version 5 payload', async () => {
     jsonStringStorage.setItem(
@@ -138,8 +162,18 @@ describe('store persistence round-trip', () => {
         state: {
           sleeps: [
             { id: `sleep:${start}:${end}`, start, end, type: 'sleep' },
-            { id: `healthkit:sleep:${start}:${end}`, start, end, type: 'sleep' },
-            { id: `sleep:${start + 1}:${end}`, start: start + 1, end, type: 'sleep' },
+            {
+              id: `healthkit:sleep:${start}:${end}`,
+              start,
+              end,
+              type: 'sleep',
+            },
+            {
+              id: `sleep:${start + 1}:${end}`,
+              start: start + 1,
+              end,
+              type: 'sleep',
+            },
           ],
         },
         version: 5,
@@ -163,26 +197,38 @@ describe('store persistence round-trip', () => {
     [
       'failed message',
       'granted',
-      { importedCount: 0, lastMessage: 'Health import failed. Database unavailable.' },
+      {
+        importedCount: 0,
+        lastMessage: 'Health import failed. Database unavailable.',
+      },
       'failed',
     ],
     [
       'refresh failure message',
       'granted',
-      { importedCount: 0, lastMessage: 'hEaLtH ReFrEsH FaIlEd. Database unavailable.' },
+      {
+        importedCount: 0,
+        lastMessage: 'hEaLtH ReFrEsH FaIlEd. Database unavailable.',
+      },
       'failed',
     ],
     [
       'successful import message',
       'granted',
-      { importedCount: 1, lastMessage: 'Imported 1 recent sleep sample from Health.' },
+      {
+        importedCount: 1,
+        lastMessage: 'Imported 1 recent sleep sample from Health.',
+      },
       'succeeded',
     ],
     ['granted authorization alone', 'granted', { importedCount: 0 }, 'idle'],
     [
       'success copy without authorization',
       'denied',
-      { importedCount: 1, lastMessage: 'Imported 1 recent sleep sample from Health.' },
+      {
+        importedCount: 1,
+        lastMessage: 'Imported 1 recent sleep sample from Health.',
+      },
       'idle',
     ],
   ] as const)(

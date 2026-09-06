@@ -17,7 +17,10 @@ import { navigate } from '~/navigation';
 jest.mock('@react-native-community/datetimepicker', () => {
   const React = require('react');
   const { View } = require('react-native');
-  return { __esModule: true, default: (props: object) => React.createElement(View, props) };
+  return {
+    __esModule: true,
+    default: (props: object) => React.createElement(View, props),
+  };
 });
 jest.mock('~/navigation', () => ({ navigate: jest.fn() }));
 jest.mock('expo-haptics', () => ({
@@ -44,16 +47,23 @@ describe('LogIntakeScreen', () => {
     jest
       .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
       .mockResolvedValue(false);
-    jest
-      .spyOn(AccessibilityInfo, 'addEventListener')
-      .mockReturnValue({
-        remove: jest.fn(),
-      } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>);
+    jest.spyOn(AccessibilityInfo, 'addEventListener').mockReturnValue({
+      remove: jest.fn(),
+    } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>);
     jest
       .spyOn(AccessibilityInfo, 'announceForAccessibility')
       .mockImplementation(() => {});
     useStore.setState({
-      doses: [{ id: 'recent', timestamp: now - 60_000, mg: 60, source: 'Espresso' }],
+      caffeine: {
+        drinks: [],
+        favoriteIds: ['espresso', 'drip', 'matcha', 'energy'],
+        draft: null,
+        zeroDays: [],
+      },
+      doseUndo: null,
+      doses: [
+        { id: 'recent', timestamp: now - 60_000, mg: 60, source: 'Espresso' },
+      ],
       onboarding: {
         completed: true,
         source: 'manual',
@@ -63,9 +73,16 @@ describe('LogIntakeScreen', () => {
       },
     });
     jest.mocked(useAdaptiveLayout).mockReturnValue({
-      width: 390, height: 844, isPad: false, isWideLayout: false,
-      isIpadWindowed: false, contentMaxWidth: 600, topChromeBuffer: 0,
-      horizontalPadding: 16, leftColumnWidth: 358, rightColumnWidth: 358,
+      width: 390,
+      height: 844,
+      isPad: false,
+      isWideLayout: false,
+      isIpadWindowed: false,
+      contentMaxWidth: 600,
+      topChromeBuffer: 0,
+      horizontalPadding: 16,
+      leftColumnWidth: 358,
+      rightColumnWidth: 358,
     });
   });
 
@@ -77,14 +94,20 @@ describe('LogIntakeScreen', () => {
     expect(screen.getByTestId('log-compact-layout')).toBeOnTheScreen();
     expect(screen.getByText('Caffeine Today')).toBeOnTheScreen();
     expect(screen.getByText('Quick Add')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Espresso 60 mg' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Drip 95 mg' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Matcha 70 mg' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Energy 160 mg' })).toBeOnTheScreen();
     expect(
-      screen
-        .getAllByTestId('sf-symbol')
-        .map((symbol) => symbol.props.name),
+      screen.getByRole('button', { name: 'Espresso 60 mg' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Drip 95 mg' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Matcha 70 mg' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Energy 160 mg' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getAllByTestId('sf-symbol').map((symbol) => symbol.props.name),
     ).toEqual(
       expect.arrayContaining([
         'cup.and.saucer.fill',
@@ -95,15 +118,26 @@ describe('LogIntakeScreen', () => {
     );
     expect(screen.getByText('Recent')).toBeOnTheScreen();
     expect(screen.getByText('Add Details')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Custom Entry' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Show All Caffeine Data' })).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Custom Entry' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Show All Caffeine Data' }),
+    ).toBeOnTheScreen();
   });
 
   it('keeps Today primary while placing Quick Add and details beside it on a wide layout', async () => {
     jest.mocked(useAdaptiveLayout).mockReturnValue({
-      width: 1180, height: 820, isPad: true, isWideLayout: true,
-      isIpadWindowed: false, contentMaxWidth: 1220, topChromeBuffer: 0,
-      horizontalPadding: 20, leftColumnWidth: 600, rightColumnWidth: 540,
+      width: 1180,
+      height: 820,
+      isPad: true,
+      isWideLayout: true,
+      isIpadWindowed: false,
+      contentMaxWidth: 1220,
+      topChromeBuffer: 0,
+      horizontalPadding: 20,
+      leftColumnWidth: 600,
+      rightColumnWidth: 540,
     });
     await render(<LogIntakeScreen />);
 
@@ -122,7 +156,9 @@ describe('LogIntakeScreen', () => {
     const user = userEvent.setup();
     await render(<LogIntakeScreen />);
 
-    await user.press(screen.getByRole('button', { name: 'Show All Caffeine Data' }));
+    await user.press(
+      screen.getByRole('button', { name: 'Show All Caffeine Data' }),
+    );
 
     expect(navigate).toHaveBeenCalledWith('CaffeineHistory');
   });
@@ -145,9 +181,9 @@ describe('LogIntakeScreen', () => {
       note: 'After lunch',
     });
     expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
-    expect(
-      AccessibilityInfo.announceForAccessibility,
-    ).toHaveBeenCalledWith('Caffeine intake saved.');
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      'Caffeine intake saved.',
+    );
     await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
     expect(screen.getByLabelText('Amount')).toHaveProp('value', '80');
     expect(screen.getByLabelText('Note')).toHaveProp('value', '');
@@ -167,14 +203,22 @@ describe('LogIntakeScreen', () => {
   });
 
   it('still saves when best-effort haptics rejects', async () => {
-    jest.mocked(Haptics.impactAsync).mockRejectedValueOnce(new Error('unavailable'));
+    jest
+      .mocked(Haptics.impactAsync)
+      .mockRejectedValueOnce(new Error('unavailable'));
     const user = userEvent.setup();
     await render(<LogIntakeScreen />);
 
     await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
+    expect(useStore.getState().doses).toHaveLength(1);
+    await user.press(screen.getByRole('button', { name: 'Log drink' }));
 
     expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
-    expect(useStore.getState().doses.at(-1)).toMatchObject({ timestamp: now, mg: 95, source: 'Drip' });
+    expect(useStore.getState().doses.at(-1)).toMatchObject({
+      timestamp: now,
+      mg: 95,
+      source: 'Drip',
+    });
     expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
   });
 
@@ -185,12 +229,12 @@ describe('LogIntakeScreen', () => {
     const user = userEvent.setup();
     await render(<LogIntakeScreen />);
     await waitFor(() =>
-      expect(
-        AccessibilityInfo.isReduceMotionEnabled,
-      ).toHaveBeenCalledTimes(1),
+      expect(AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalled(),
     );
 
     await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
+    expect(useStore.getState().doses).toHaveLength(1);
+    await user.press(screen.getByRole('button', { name: 'Log drink' }));
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
     expect(Haptics.notificationAsync).not.toHaveBeenCalled();
 
@@ -211,10 +255,63 @@ describe('LogIntakeScreen', () => {
     await render(<LogIntakeScreen />);
     await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
     await user.press(screen.getByRole('button', { name: 'Time' }));
-    await act(() => screen.getByTestId('caffeine-time-picker').props.onChange({}, new Date(now + 1)));
+    await act(() =>
+      screen
+        .getByTestId('caffeine-time-picker')
+        .props.onChange({}, new Date(now + 1)),
+    );
     await user.press(screen.getByRole('button', { name: 'Done' }));
 
     expect(screen.getByText('Time cannot be in the future.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
+});
+
+it('recovers an unfinished entry after remount and keeps its original timestamp', async () => {
+  jest.spyOn(Date, 'now').mockReturnValue(now);
+  useStore.setState({
+    doses: [],
+    caffeine: {
+      drinks: [],
+      favoriteIds: ['espresso'],
+      draft: null,
+      zeroDays: [],
+    },
+    onboarding: {
+      ...useStore.getState().onboarding,
+      completed: true,
+      appWalkthroughCompleted: true,
+    },
+  });
+  jest
+    .mocked(useAdaptiveLayout)
+    .mockReturnValue({
+      width: 390,
+      height: 844,
+      isPad: false,
+      isWideLayout: false,
+      isIpadWindowed: false,
+      contentMaxWidth: 600,
+      topChromeBuffer: 0,
+      horizontalPadding: 16,
+      leftColumnWidth: 358,
+      rightColumnWidth: 358,
+    });
+  const user = userEvent.setup();
+  const first = await render(<LogIntakeScreen />);
+  await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+  expect(useStore.getState().caffeine.draft?.timestamp).toBe(now);
+  await user.clear(screen.getByLabelText('Amount'));
+  await user.type(screen.getByLabelText('Amount'), '125');
+  await first.unmount();
+  jest.mocked(Date.now).mockReturnValue(now + 60000);
+  await render(<LogIntakeScreen />);
+  await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
+  expect(screen.getByLabelText('Amount')).toHaveProp('value', '125');
+  expect(useStore.getState().caffeine.draft?.timestamp).toBe(now);
+  await user.press(
+    screen.getByRole('button', { name: 'Discard unfinished entry' }),
+  );
+  expect(useStore.getState().caffeine.draft).toBeNull();
+  jest.restoreAllMocks();
 });

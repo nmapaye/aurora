@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import {
   AccessibilityInfo,
   Modal,
+  ScrollView,
   findNodeHandle,
   Text,
   View,
@@ -47,7 +48,9 @@ export function HealthFormSheet({
       const handle = findNodeHandle(headingRef.current);
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     } else if (wasVisibleRef.current) {
-      const handle = findNodeHandle(lastReturnFocusRef.current?.current ?? null);
+      const handle = findNodeHandle(
+        lastReturnFocusRef.current?.current ?? null,
+      );
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     }
     wasVisibleRef.current = visible;
@@ -64,10 +67,15 @@ export function HealthFormSheet({
       <View
         accessibilityViewIsModal
         accessibilityLabel={title}
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}
+        style={{
+          flex: 1,
+          justifyContent: 'flex-end',
+          backgroundColor: palette.modalScrim,
+        }}
       >
         <View
           style={{
+            maxHeight: '90%',
             backgroundColor: palette.modalBackground,
             borderTopLeftRadius: radii.hero,
             borderTopRightRadius: radii.hero,
@@ -75,19 +83,39 @@ export function HealthFormSheet({
             gap: spacing.md,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.sm,
+            }}
+          >
             <Text
               ref={headingRef}
               accessibilityRole="header"
-              style={{ flex: 1, ...typeRamp.title3, color: palette.textPrimary }}
+              style={{
+                flex: 1,
+                ...typeRamp.title3,
+                color: palette.textPrimary,
+              }}
               maxFontSizeMultiplier={fontScaling.body}
             >
               {title}
             </Text>
             <Button title="Cancel" variant="plain" onPress={onCancel} />
           </View>
-          {children}
-          <Button title={saveLabel} variant="primary" disabled={saveDisabled} onPress={onSave} />
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ gap: spacing.sm }}
+          >
+            {children}
+          </ScrollView>
+          <Button
+            title={saveLabel}
+            variant="primary"
+            disabled={saveDisabled}
+            onPress={onSave}
+          />
         </View>
       </View>
     </Modal>

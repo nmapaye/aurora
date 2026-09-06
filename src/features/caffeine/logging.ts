@@ -2,6 +2,7 @@ import type { Dose } from '~/domain/models';
 import type { CaffeinePreset } from './presets';
 
 export type CustomDoseDraft = {
+  editingId?: string;
   mg: string;
   source: string;
   timestamp: number;
@@ -51,7 +52,11 @@ export function validateCustomDoseDraft(
   if (!Number.isInteger(mg) || mg < 1 || mg > 1999) {
     return { valid: false, message: 'Amount must be between 1 and 1999 mg.' };
   }
-  if (!Number.isFinite(draft.timestamp) || draft.timestamp > now) {
+  if (
+    !Number.isFinite(draft.timestamp) ||
+    !Number.isFinite(new Date(draft.timestamp).getTime()) ||
+    draft.timestamp > now
+  ) {
     return { valid: false, message: 'Time cannot be in the future.' };
   }
   return { valid: true };
@@ -62,7 +67,12 @@ export function buildQuickAddDose(
   now: number,
   createId: () => string,
 ): Dose {
-  return { id: createId(), timestamp: now, mg: preset.mg, source: preset.label };
+  return {
+    id: createId(),
+    timestamp: now,
+    mg: preset.mg,
+    source: preset.label,
+  };
 }
 
 export function buildCustomDose(

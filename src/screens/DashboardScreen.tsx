@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
 
@@ -23,7 +23,11 @@ import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
-import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
+import { favoriteDrinks } from '~/features/caffeine/upgrades';
+import {
+  DoseUndoNotice,
+  QuickDoseSheet,
+} from '~/features/caffeine/LoggingTools';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
@@ -86,7 +90,13 @@ export default function DashboardScreen() {
     (s) => [...s.sleeps].sort((a, b) => b.end - a.end)[0],
   );
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
-  const addDose = useStore((s) => s.addDose);
+  const caffeine = useStore((s) => s.caffeine);
+  const quickRefs = useRef(new Map<string, React.RefObject<View | null>>());
+  const [quickFocus, setQuickFocus] = useState<React.RefObject<View | null>>();
+  const [quickDrink, setQuickDrink] = useState<{
+    label: string;
+    mg: number;
+  } | null>(null);
   const demoMode = useStore((s) => s.demoMode);
   const loadDemoData = useStore((s) => s.loadDemoData);
   const scrollRef = useRef<ScrollView>(null);
@@ -125,13 +135,6 @@ export default function DashboardScreen() {
     return { todayTotal, deltaText, recent };
   }, [doses]);
 
-  const quickAdd = (mg: number, source: string) => {
-    const id = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2)}`;
-    addDose({ id, timestamp: Date.now(), mg, source });
-  };
-
   const alertCard =
     demoMode || todaySummary.recent.length === 0 ? (
       <HealthAlertCard
@@ -146,11 +149,7 @@ export default function DashboardScreen() {
             : 'Log caffeine or load sample data to fill Summary.'
         }
         actionLabel={demoMode ? 'More Details' : 'Load Sample Data'}
-        onAction={
-          demoMode
-            ? () => navigate('Insights')
-            : loadDemoData
-        }
+        onAction={demoMode ? () => navigate('Insights') : loadDemoData}
       />
     ) : null;
 
@@ -326,21 +325,30 @@ export default function DashboardScreen() {
               gap: spacing.sm,
             }}
           >
-            {CAFFEINE_PRESETS.map((preset, index) => (
-              <WalkthroughReveal
-                key={preset.id}
-                active={walkthrough.active}
-                revealed={walkthrough.isRevealed('summary-logging')}
-                reduceMotion={walkthrough.reduceMotion}
-                staggerIndex={index + 2}
-              >
-                <Button
-                  title={`${preset.label} ${preset.mg}mg`}
-                  variant="plain"
-                  onPress={() => quickAdd(preset.mg, preset.label)}
-                />
-              </WalkthroughReveal>
-            ))}
+            {favoriteDrinks(caffeine).map((preset, index) => {
+              if (!quickRefs.current.has(preset.id))
+                quickRefs.current.set(preset.id, React.createRef<View>());
+              const triggerRef = quickRefs.current.get(preset.id)!;
+              return (
+                <WalkthroughReveal
+                  key={preset.id}
+                  active={walkthrough.active}
+                  revealed={walkthrough.isRevealed('summary-logging')}
+                  reduceMotion={walkthrough.reduceMotion}
+                  staggerIndex={index + 2}
+                >
+                  <Button
+                    ref={triggerRef}
+                    title={`${preset.label} ${preset.mg}mg`}
+                    variant="plain"
+                    onPress={() => {
+                      setQuickFocus(triggerRef);
+                      setQuickDrink(preset);
+                    }}
+                  />
+                </WalkthroughReveal>
+              );
+            })}
           </View>
           <WalkthroughReveal
             active={walkthrough.active}
@@ -489,7 +497,7 @@ export default function DashboardScreen() {
       contentRef={contentRef}
       scrollEnabled={!walkthrough.active}
       interactionEnabled={!walkthrough.active}
-      bottomOverlay={walkthroughCoach}
+      bottomOverlay={walkthrough.active ? walkthroughCoach : <DoseUndoNotice />}
       onScroll={walkthrough.onScroll}
       onViewportLayout={walkthrough.onViewportLayout}
       headerTransform={(header) => (
@@ -557,6 +565,11 @@ export default function DashboardScreen() {
           </View>
         </>
       )}
+      <QuickDoseSheet
+        returnFocusRef={quickFocus}
+        drink={quickDrink}
+        onClose={() => setQuickDrink(null)}
+      />
     </AppScreen>
   );
 }
