@@ -8,16 +8,16 @@ Status separates implementation, independent review, and acceptance verification
 
 | # | Feature | Implementation | Review | Verification evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Personal drink library. | Pending | Pending | Pending |
-| 2 | Favorite quick adds. | Pending | Pending | Pending |
-| 3 | Serving calculator. | Pending | Pending | Pending |
-| 4 | Repeat an entry. | Pending | Pending | Pending |
-| 5 | Undo recent changes. | Pending | Pending | Pending |
-| 6 | Recover unfinished entries. | Pending | Pending | Pending |
-| 7 | Search caffeine history. | Pending | Pending | Pending |
-| 8 | Filter caffeine history. | Pending | Pending | Pending |
-| 9 | Record caffeine-free days. | Pending | Pending | Pending |
-| 10 | Preview a dose’s effect. | Pending | Pending | Pending |
+| 1 | Personal drink library. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 2 | Favorite quick adds. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 3 | Serving calculator. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 4 | Repeat an entry. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 5 | Undo recent changes. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 6 | Recover unfinished entries. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 7 | Search caffeine history. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 8 | Filter caffeine history. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 9 | Record caffeine-free days. | In progress | Pending | Domain red gate captured by logging implementation agent |
+| 10 | Preview a dose’s effect. | In progress | Pending | Domain red gate captured by logging implementation agent |
 | 11 | Weekly sleep schedule. | Pending | Pending | Pending |
 | 12 | Schedule exceptions. | Pending | Pending | Pending |
 | 13 | Consistent bedtime projections. | Pending | Pending | Pending |
@@ -72,5 +72,7 @@ Status separates implementation, independent review, and acceptance verification
 - 2026-09-07: Created isolated worktree from approved baseline. Primary checkout HealthKit modifications preserved. Goal already active with attached plan. Logging implementation 1–10 assigned to fresh implementation agent.
 
 - Foundation: shared calendar helpers and foreground-aware clock added using red-green tests. Focused New York timezone gate passed 2 suites / 12 tests, including 23/25-hour days. Independent foundation review and fix/re-review passed.
-- Website baseline build passed; Expo export identified symlinked dependency entrypoint resolution problem. Preparing isolated dependency copy.
+- Website baseline type-check and build passed. Expo export initially identified symlinked dependency entrypoint resolution; resolved with an isolated dependency copy, then iOS export passed (1644 modules).
 - Native prerequisite probe: xcodebuild requires full Xcode; simctl unavailable. No native verification claimed.
+
+- Added `scripts/verify-upgrades.sh` to pin Node 24 for npm and all child commands. Earlier explicit npm invocation did not guarantee child Node version; all final checks will use the script. Under corrected PATH, foundation plus logging state/persistence passed 4 suites / 34 tests. Script syntax and independent review passed after adding full stable Xcode preflight; `--native` correctly reports missing Xcode.
