@@ -74,8 +74,14 @@ const named = (v: unknown): v is string =>
 const note = (v: unknown): v is string =>
   typeof v === 'string' && v.length <= 2000;
 const stamp = (v: unknown): v is number => numeric(v, 0, 8640000000000000);
-const unique = <T extends { id: string }>(items: T[]) =>
-  items.filter((x, i) => items.findIndex((y) => x.id === y.id) === i);
+const unique = <T extends { id: string }>(items: T[]) => {
+  const seen = new Set<string>();
+  return items.filter((x) => {
+    if (seen.has(x.id)) return false;
+    seen.add(x.id);
+    return true;
+  });
+};
 export function validScenario(v: unknown): v is Scenario {
   const s = record(v);
   return (

@@ -1,3 +1,4 @@
+import ChartTable from '~/components/ChartTable';
 import React from 'react';
 import { Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -79,19 +80,28 @@ export function ProjectionCurve({
     )
     .join(' ');
   return (
-    <View
-      accessible={false}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <Svg width="100%" height={160} viewBox="0 0 300 160">
-        <Path
-          d={path}
-          fill="none"
-          stroke={palette.textPrimary}
-          strokeWidth={3}
-        />
-      </Svg>
+    <View>
+      <View
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Svg width="100%" height={160} viewBox="0 0 300 160">
+          <Path
+            d={path}
+            fill="none"
+            stroke={palette.textPrimary}
+            strokeWidth={3}
+          />
+        </Svg>
+      </View>
+      <ChartTable
+        title="scenario projection"
+        rows={points.map(
+          (p) =>
+            `${timeText(p.timestamp)}: ${p.mg.toFixed(1)} mg modeled active caffeine`,
+        )}
+      />
     </View>
   );
 }

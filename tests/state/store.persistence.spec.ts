@@ -1,3 +1,4 @@
+import { defaultOwnership } from '~/features/ownership/model';
 import { defaultPlanningState } from '~/features/planning/model';
 import { defaultSleepRoutines } from '~/features/sleep/upgrades';
 import { jsonStringStorage } from '~/services/storage';
@@ -8,6 +9,13 @@ import { useStore } from '~/state/store';
 // normalizePersistedState in src/state/store.ts — otherwise merge/rehydrate
 // silently resets the new key to its default.
 const nonDefaultPersistedState = {
+  ownership: {
+    ...defaultOwnership(),
+    summary: {
+      order: ['sleep', 'caffeine', 'active-caffeine', 'vigilance', 'cutoff'],
+      hidden: ['vigilance'],
+    },
+  },
   planning: {
     ...defaultPlanningState(),
     thresholdMg: 40,

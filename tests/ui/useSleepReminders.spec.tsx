@@ -3,13 +3,9 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { useStore } from '~/state/store';
 import useSleepReminders from '~/hooks/useSleepReminders';
 import { defaultSleepRoutines } from '~/features/sleep/upgrades';
-import {
-  syncWindDownReminders,
-  syncCutoffReminder,
-} from '~/services/platform/notifications';
-jest.mock('~/services/platform/notifications', () => ({
-  syncWindDownReminders: jest.fn().mockResolvedValue(true),
-  syncCutoffReminder: jest.fn().mockResolvedValue(true),
+import { syncReminderCenter } from '~/services/platform/reminderCenter';
+jest.mock('~/services/platform/reminderCenter', () => ({
+  syncReminderCenter: jest.fn().mockResolvedValue('granted'),
 }));
 beforeEach(() => {
   jest.clearAllMocks();
@@ -31,15 +27,15 @@ afterEach(() => {
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
-it('reflects notification denial by turning the preference off', async () => {
-  jest.mocked(syncWindDownReminders).mockResolvedValue(false);
+it('preserves reminder intent when OS permission is denied', async () => {
+  jest.mocked(syncReminderCenter).mockResolvedValue('denied');
   await renderHook(() => useSleepReminders(true));
   await waitFor(() =>
-    expect(useStore.getState().sleepRoutines.windDown.enabled).toBe(false),
+    expect(useStore.getState().sleepRoutines.windDown.enabled).toBe(true),
   );
 });
 it('refreshes the dated schedule on foreground after a calendar change', async () => {
-  jest.mocked(syncWindDownReminders).mockResolvedValue(true);
+  jest.mocked(syncReminderCenter).mockResolvedValue('granted');
   let listener: ((state: AppStateStatus) => void) | undefined;
   jest
     .spyOn(AppState, 'addEventListener')
@@ -48,13 +44,12 @@ it('refreshes the dated schedule on foreground after a calendar change', async (
       return { remove: jest.fn() };
     });
   await renderHook(() => useSleepReminders(true));
-  await waitFor(() => expect(syncWindDownReminders).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(syncReminderCenter).toHaveBeenCalledTimes(1));
   jest.setSystemTime(new Date('2026-09-09T08:00:00'));
   await act(() => listener?.('active'));
-  expect(syncWindDownReminders).toHaveBeenCalledTimes(2);
-  expect(syncCutoffReminder).toHaveBeenCalledTimes(2);
+  expect(syncReminderCenter).toHaveBeenCalledTimes(2);
 });
-it('waits for hydration and walkthrough completion before touching reminders', async () => {
+it('waits for hydration then clears scheduling during the walkthrough', async () => {
   useStore.setState({
     onboarding: {
       ...useStore.getState().onboarding,
@@ -65,10 +60,16 @@ it('waits for hydration and walkthrough completion before touching reminders', a
   const { rerender } = await renderHook(() => useSleepReminders(ready));
   ready = true;
   await rerender(undefined);
-  expect(syncWindDownReminders).not.toHaveBeenCalled();
+  expect(syncReminderCenter).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+    expect.any(Number),
+    false,
+  );
 });
 it('rechecks permission when returning on the same day', async () => {
-  jest.mocked(syncWindDownReminders).mockResolvedValue(true);
+  jest.mocked(syncReminderCenter).mockResolvedValue('granted');
   const listeners: Array<(state: AppStateStatus) => void> = [];
   jest
     .spyOn(AppState, 'addEventListener')
@@ -77,10 +78,10 @@ it('rechecks permission when returning on the same day', async () => {
       return { remove: jest.fn() };
     });
   await renderHook(() => useSleepReminders(true));
-  await waitFor(() => expect(syncWindDownReminders).toHaveBeenCalledTimes(1));
-  jest.mocked(syncWindDownReminders).mockResolvedValue(false);
+  await waitFor(() => expect(syncReminderCenter).toHaveBeenCalledTimes(1));
+  jest.mocked(syncReminderCenter).mockResolvedValue('denied');
   await act(() => listeners.forEach((listener) => listener('active')));
   await waitFor(() =>
-    expect(useStore.getState().sleepRoutines.windDown.enabled).toBe(false),
+    expect(useStore.getState().sleepRoutines.windDown.enabled).toBe(true),
   );
 });

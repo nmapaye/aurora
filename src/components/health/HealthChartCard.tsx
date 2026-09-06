@@ -3,7 +3,13 @@ import { Text, View } from 'react-native';
 
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
-import { fontScaling, numericText, radii, spacing, typeRamp } from '~/theme/tokens';
+import {
+  fontScaling,
+  numericText,
+  radii,
+  spacing,
+  typeRamp,
+} from '~/theme/tokens';
 
 type Props = {
   title: string;
@@ -26,8 +32,7 @@ export function HealthChartCard({
 
   return (
     <View
-      accessible
-      accessibilityLabel={accessibilitySummary}
+      accessible={false}
       style={{
         backgroundColor: palette.card,
         borderRadius: radii.hero,
@@ -37,7 +42,11 @@ export function HealthChartCard({
         gap: spacing.md,
       }}
     >
-      <View style={{ gap: spacing.xxs }}>
+      <View
+        accessible
+        accessibilityLabel={accessibilitySummary}
+        style={{ gap: spacing.xxs }}
+      >
         <Text
           maxFontSizeMultiplier={fontScaling.body}
           style={{ ...typeRamp.headline, color: palette.textPrimary }}

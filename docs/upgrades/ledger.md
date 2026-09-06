@@ -48,11 +48,11 @@ Status separates implementation, independent review, and acceptance verification
 | 38 | Data completeness view. | Implemented | Independent domain and UI re-review passed | Calendar flags for caffeine, zero, sleep, tests and check-ins; native/device acceptance pending |
 | 39 | Weekly review. | Implemented | Independent domain and UI re-review passed | Weekly current/prior recorded values, user targets and explicit missing counts; native/device acceptance pending |
 | 40 | Explain each metric. | Implemented | Independent domain and UI re-review passed | Contextual explanations checked against Summary, Planning and Explorer inputs; native/device acceptance pending |
-| 41 | Customizable Summary. | Pending | Pending | Pending |
-| 42 | Accessible chart tables. | Pending | Pending | Pending |
-| 43 | Reminder center. | Pending | Pending | Pending |
-| 44 | Backup and restore. | Pending | Pending | Pending |
-| 45 | Privacy and deletion controls. | Pending | Pending | Pending |
+| 41 | Customizable Summary. | Implemented | Independent domain and UI re-review passed | Five metric cards reorder/hide/defaultrestore; walkthrough defaults preserved; native/device acceptance pending |
+| 42 | Accessible chart tables. | Implemented | Independent domain and UI re-review passed | All chart inventory covered; ChartTable accessibility regressions; native/device acceptance pending |
+| 43 | Reminder center. | Implemented | Independent domain and UI re-review passed | Unified schedule/permission UI; quiet/DST/weekdays and native queue regressions; native/device acceptance pending |
+| 44 | Backup and restore. | Implemented | Independent domain and UI re-review passed | JSON file picker/share; detached roundtrip, malformed import, preview/replace and cleanup tests; native/device acceptance pending |
+| 45 | Privacy and deletion controls. | Implemented | Independent domain and UI re-review passed | Category counts; selected/all confirmation; Health-copy and nap-timer boundaries; native/device acceptance pending |
 | 46 | Home Screen widget. | Pending | Pending | Pending |
 | 47 | Lock Screen widgets. | Pending | Pending | Pending |
 | 48 | Log-drink Shortcut. | Pending | Pending | Pending |
@@ -94,3 +94,7 @@ Status separates implementation, independent review, and acceptance verification
 - Started sequential insights batch 31–40 from reviewed planning commit e411cfd. New comparisons must show eligible sample counts, preserve missing data and exclude Sample Data.
 
 - Insights batch 31–40 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 78 Jest suites passed (400 tests, one DST skip covered by the separate 35-test New York gate). Expo iOS export passed with 1659 modules. Details in reviews/insights.md and evidence/insights-jest.txt. Native/device acceptance remains pending.
+
+- Started sequential customization/data ownership batch 41–45 from reviewed insights commit b7382bb. Backup file API references and SDK-compatible versions are documented in backup-api-notes.md.
+
+- Ownership batch 41–45 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 89 Jest suites passed (440 tests, one DST skip covered by the separate 39-test New York gate). Expo iOS export passed with 1678 modules; website checks passed. Details in reviews/ownership.md and evidence/ownership-jest.txt. New backup packages require native bootstrap; native/device acceptance remains pending.

@@ -38,7 +38,7 @@ node --version
 npm run type-check
 npm run lint
 npm test -- --runInBand
-TZ=America/New_York npm test -- --runInBand --runTestsByPath tests/utils/calendar.spec.ts tests/features/sleep/routines.review.spec.ts tests/features/planning/model.review.spec.ts tests/features/insights/analysis.domain-review.spec.ts
+TZ=America/New_York npm test -- --runInBand --runTestsByPath tests/utils/calendar.spec.ts tests/features/sleep/routines.review.spec.ts tests/features/planning/model.review.spec.ts tests/features/insights/analysis.domain-review.spec.ts tests/features/ownership/model.review.spec.ts
 npm exec -- expo export --platform ios
 npm run site:type-check
 npm run site:build

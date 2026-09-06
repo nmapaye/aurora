@@ -1,3 +1,4 @@
+import ChartTable from '~/components/ChartTable';
 import MetricExplanation from '~/features/insights/MetricExplanation';
 import useNow from '~/hooks/useNow';
 import React, { useMemo, useRef, useState } from 'react';
@@ -174,6 +175,7 @@ export default function InsightsScreen() {
       {!presentation.isEmpty ? (
         <View style={{ gap: spacing.xs }}>
           <InsightsBars points={presentation.points} />
+          <ChartTable title="caffeine intake" rows={presentation.points.map(p=>`${new Date(p.date).toLocaleDateString()}: ${p.mg===null?'Missing caffeine records':`${p.mg.toFixed(0)} mg recorded caffeine`}`)} />
           <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>
             Average uses recorded days, including confirmed caffeine-free days.
             Missing days are excluded.

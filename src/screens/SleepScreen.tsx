@@ -1,3 +1,4 @@
+import ChartTable from '~/components/ChartTable';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ScrollView, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -206,9 +207,9 @@ export default function SleepScreen() {
   const chart = (
     <HealthChartCard title="Time Asleep" value={presentation.headline} dateRange={presentation.dateRange} accessibilitySummary={presentation.accessibilitySummary} emptyState={<HealthEmptyState message="No sleep data for this range." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}>
       {presentation.points.some((point) => point.durationMs !== null) ? (
-        <View accessibilityElementsHidden style={{ height: 92, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
+        <View><View accessibilityElementsHidden style={{ height: 92, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
           {presentation.points.map((point) => <View key={point.date} style={{ flex: 1, minHeight: 3, height: point.durationMs ? Math.max(6, Math.min(92, point.durationMs / (10 * 60 * 60 * 1000) * 92)) : 3, borderRadius: 2, backgroundColor: point.durationMs ? palette.sleepAccent : palette.separator }} />)}
-        </View>
+        </View><ChartTable title="time asleep" rows={presentation.points.map(p=>`${new Date(p.date).toLocaleDateString()}: ${p.durationMs===null?'Missing sleep records':`${(p.durationMs/3600000).toFixed(2)} hours recorded sleep`}`)} /></View>
       ) : undefined}
     </HealthChartCard>
   );

@@ -11,6 +11,9 @@ export type RootStackParamList = {
   Tabs: NavigatorScreenParams<RootTabParamList> | undefined;
   VigilanceTest: undefined;
   Settings: undefined;
+  SummarySettings: undefined;
+  ReminderCenter: undefined;
+  DataControls: undefined;
   SleepHistory: undefined;
   SleepRoutines: undefined;
   Planning: undefined;

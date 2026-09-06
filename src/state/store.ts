@@ -1,4 +1,15 @@
 import {
+  defaultOwnership,
+  normalizeOwnership,
+  type OwnershipState,
+} from '~/features/ownership/model';
+import {
+  parseBackup,
+  deletionPatch,
+  type Backup,
+  type LocalCategory,
+} from '~/features/ownership/backup';
+import {
   defaultPlanningState,
   normalizePlanning,
   type PlanningState,
@@ -66,7 +77,11 @@ export type Onboarding = {
   appWalkthroughStep: number;
 };
 
-type State = {
+export type State = {
+  ownership: OwnershipState;
+  setOwnership: (value: OwnershipState) => void;
+  replaceBackup: (backup: Backup) => void;
+  deleteLocalCategories: (categories: LocalCategory[]) => void;
   planning: PlanningState;
   setPlanning: (patch: Partial<PlanningState>) => void;
   doses: Dose[];
@@ -112,8 +127,9 @@ type State = {
 };
 
 // Storage adapter for zustand persist (MMKV if available, else in-memory fallback)
-type PersistedState = Pick<
+export type PersistedState = Pick<
   State,
+  | 'ownership'
   | 'doses'
   | 'caffeine'
   | 'planning'
@@ -219,6 +235,7 @@ function normalizePersistedState(
   const interruptedImport = persistedHealthSync?.importStatus === 'importing';
 
   return {
+    ownership: normalizeOwnership(persistedState?.ownership),
     doses: persistedState?.doses ?? [],
     planning: normalizePlanning(persistedState?.planning),
     caffeine: normalizeCaffeine(persistedState?.caffeine),
@@ -250,6 +267,36 @@ function normalizePersistedState(
 export const useStore = create<State>()(
   persist(
     (set) => ({
+      ownership: defaultOwnership(),
+      setOwnership: (ownership) =>
+        set((s) =>
+          s.onboarding.completed && !s.onboarding.appWalkthroughCompleted
+            ? {}
+            : { ownership: normalizeOwnership(ownership) },
+        ),
+      replaceBackup: (backup) => {
+        const valid = parseBackup(JSON.stringify(backup));
+        set((s) =>
+          s.onboarding.completed && !s.onboarding.appWalkthroughCompleted
+            ? {}
+            : {
+                ...valid.data,
+                onboarding: {
+                  ...valid.data.onboarding,
+                  permissionStatus: s.onboarding.permissionStatus,
+                },
+                healthSync: { ...defaultHealthSync },
+                demoMode: false,
+                doseUndo: null,
+              },
+        );
+      },
+      deleteLocalCategories: (categories) =>
+        set((s) =>
+          s.onboarding.completed && !s.onboarding.appWalkthroughCompleted
+            ? {}
+            : deletionPatch(s, categories),
+        ),
       doses: [],
       planning: defaultPlanningState(),
       setPlanning: (patch) =>
@@ -581,9 +628,10 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 9,
+      version: 10,
       storage: mmkvStorage,
       partialize: (s) => ({
+        ownership: s.ownership,
         doses: s.doses,
         caffeine: s.caffeine,
         planning: s.planning,

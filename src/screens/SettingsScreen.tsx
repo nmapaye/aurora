@@ -10,7 +10,7 @@ import {
   SegmentedControl,
   StepperField,
 } from '~/components/ui';
-import { goBack } from '~/navigation';
+import { goBack, navigate } from '~/navigation';
 import { useStore } from '~/state/store';
 
 const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
@@ -89,19 +89,22 @@ export default function SettingsScreen() {
         footer="Your daily guardrail."
       />
 
-      <SectionHeader prominence="prominent" title="Notifications" />
+      <SectionHeader prominence="prominent" title="Your Aurora" />
       <SectionCard>
         <ListRow
-          title="Cutoff reminder"
-          subtitle={`Daily at ${prefs.cutoffHour}:00, so caffeine stays clear of bedtime.`}
+          title="Customize Summary"
+          subtitle="Hide and reorder metric cards."
+          onPress={() => navigate('SummarySettings')}
         />
-        <SegmentedControl
-          value={prefs.notifyCutoff ? 'on' : 'off'}
-          onChange={(value) => setPrefs({ notifyCutoff: value === 'on' })}
-          options={[
-            { key: 'off', label: 'Off' },
-            { key: 'on', label: 'On' },
-          ]}
+        <ListRow
+          title="Reminder Center"
+          subtitle="Cutoff, wind-down, check-ins, weekly reviews and quiet hours."
+          onPress={() => navigate('ReminderCenter')}
+        />
+        <ListRow
+          title="Data & Privacy"
+          subtitle="Backup, restore, record counts and local deletion."
+          onPress={() => navigate('DataControls')}
         />
       </SectionCard>
 

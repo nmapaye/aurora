@@ -796,6 +796,7 @@ export function ProgressState({ label }: { label: string }) {
 }
 
 export function StepperField({
+  disabled = false,
   label,
   value,
   onChange,
@@ -805,6 +806,7 @@ export function StepperField({
   formatValue,
   footer,
 }: {
+  disabled?: boolean;
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -831,6 +833,7 @@ export function StepperField({
         title={label}
         accessory={
           <StepperControl
+            disabled={disabled}
             decrementLabel={`Decrease ${label}`}
             incrementLabel={`Increase ${label}`}
             onDecrement={() => update(value - step)}
@@ -861,12 +864,14 @@ export function StepperField({
 }
 
 export function StepperControl({
+  disabled = false,
   children,
   decrementLabel,
   incrementLabel,
   onDecrement,
   onIncrement,
 }: {
+  disabled?: boolean;
   children: React.ReactNode;
   decrementLabel: string;
   incrementLabel: string;
@@ -878,12 +883,14 @@ export function StepperControl({
       style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
     >
       <StepperButton
+        disabled={disabled}
         symbol="remove"
         accessibilityLabel={decrementLabel}
         onPress={onDecrement}
       />
       {children}
       <StepperButton
+        disabled={disabled}
         symbol="add"
         accessibilityLabel={incrementLabel}
         onPress={onIncrement}
@@ -893,10 +900,12 @@ export function StepperControl({
 }
 
 function StepperButton({
+  disabled = false,
   symbol,
   accessibilityLabel,
   onPress,
 }: {
+  disabled?: boolean;
   symbol: 'add' | 'remove';
   accessibilityLabel: string;
   onPress: () => void;
@@ -905,6 +914,8 @@ function StepperButton({
   const palette = getAppPalette(scheme);
   return (
     <Pressable
+      disabled={disabled}
+      accessibilityState={{disabled}}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}

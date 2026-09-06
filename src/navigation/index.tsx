@@ -19,6 +19,9 @@ export function navigate<RouteName extends AppRouteName>(
   if (
     name === 'VigilanceTest' ||
     name === 'Settings' ||
+    name === 'SummarySettings' ||
+    name === 'ReminderCenter' ||
+    name === 'DataControls' ||
     name === 'SleepHistory' ||
     name === 'CaffeineHistory' ||
     name === 'DrinkLibrary' ||

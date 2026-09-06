@@ -1,6 +1,14 @@
+import ChartTable from './ChartTable';
 import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
+import Svg, {
+  Path,
+  Defs,
+  LinearGradient,
+  Stop,
+  Circle,
+  Line,
+} from 'react-native-svg';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
@@ -14,7 +22,12 @@ export default function TimelineGraph() {
   const padding = { top: 12, right: 12, bottom: 18, left: 12 };
 
   const { linePath, areaPath, points } = useMemo(() => {
-    if (!series.length || width === 0) return { linePath: '', areaPath: '', points: [] as { x: number; y: number }[] };
+    if (!series.length || width === 0)
+      return {
+        linePath: '',
+        areaPath: '',
+        points: [] as { x: number; y: number }[],
+      };
     const w = Math.max(0, width - padding.left - padding.right);
     const h = Math.max(0, height - padding.top - padding.bottom);
     const minVal = Math.min(...series.map((p: any) => p.score ?? 0), 0);
@@ -24,8 +37,11 @@ export default function TimelineGraph() {
     const yMax = maxVal + pad;
 
     const pts = series.map((p: any, i: number) => {
-      const x = padding.left + (series.length <= 1 ? 0 : (i / (series.length - 1)) * w);
-      const y = padding.top + (h - ((p.score - yMin) / Math.max(1e-6, yMax - yMin)) * h);
+      const x =
+        padding.left + (series.length <= 1 ? 0 : (i / (series.length - 1)) * w);
+      const y =
+        padding.top +
+        (h - ((p.score - yMin) / Math.max(1e-6, yMax - yMin)) * h);
       return { x, y };
     });
 
@@ -60,35 +76,94 @@ export default function TimelineGraph() {
   const accent = palette.tint;
 
   return (
-    <View style={{ width: '100%', height }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      {width > 0 && (
-        <Svg width={width} height={height}>
-          <Defs>
-            <LinearGradient id="areaFade" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={accent as string} stopOpacity={0.18} />
-              <Stop offset="1" stopColor={accent as string} stopOpacity={0.04} />
-            </LinearGradient>
-          </Defs>
+    <View>
+      <View
+        style={{ width: '100%', height }}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      >
+        {width > 0 && (
+          <Svg width={width} height={height}>
+            <Defs>
+              <LinearGradient id="areaFade" x1="0" y1="0" x2="0" y2="1">
+                <Stop
+                  offset="0"
+                  stopColor={accent as string}
+                  stopOpacity={0.18}
+                />
+                <Stop
+                  offset="1"
+                  stopColor={accent as string}
+                  stopOpacity={0.04}
+                />
+              </LinearGradient>
+            </Defs>
 
-          {/* Subtle grid */}
-          {Array.from({ length: 3 }).map((_, i) => {
-            const y = padding.top + (i / 2) * (height - padding.top - padding.bottom);
-            return <Line key={`g-h-${i}`} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={palette.separator} strokeDasharray={[3, 6]} strokeWidth={1} />;
-          })}
+            {/* Subtle grid */}
+            {Array.from({ length: 3 }).map((_, i) => {
+              const y =
+                padding.top + (i / 2) * (height - padding.top - padding.bottom);
+              return (
+                <Line
+                  key={`g-h-${i}`}
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  stroke={palette.separator}
+                  strokeDasharray={[3, 6]}
+                  strokeWidth={1}
+                />
+              );
+            })}
 
-          {/* Area */}
-          {areaPath ? <Path d={areaPath} fill="url(#areaFade)" /> : null}
+            {/* Area */}
+            {areaPath ? <Path d={areaPath} fill="url(#areaFade)" /> : null}
 
-          {/* Line glow + line */}
-          {linePath ? <Path d={linePath} stroke={accent as string} strokeOpacity={0.35} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
-          {linePath ? <Path d={linePath} stroke={accent as string} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
+            {/* Line glow + line */}
+            {linePath ? (
+              <Path
+                d={linePath}
+                stroke={accent as string}
+                strokeOpacity={0.35}
+                strokeWidth={4}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+            {linePath ? (
+              <Path
+                d={linePath}
+                stroke={accent as string}
+                strokeWidth={2.5}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
 
-          {/* Dots */}
-          {points.map((p, i) => (
-            <Circle key={`pt-${i}`} cx={p.x} cy={p.y} r={4} fill={accent as string} stroke={palette.card} strokeWidth={1.5} />
-          ))}
-        </Svg>
-      )}
+            {/* Dots */}
+            {points.map((p, i) => (
+              <Circle
+                key={`pt-${i}`}
+                cx={p.x}
+                cy={p.y}
+                r={4}
+                fill={accent as string}
+                stroke={palette.card}
+                strokeWidth={1.5}
+              />
+            ))}
+          </Svg>
+        )}
+      </View>
+      <ChartTable
+        title="alertness forecast"
+        rows={series.map(
+          (p) =>
+            `${new Date(p.t).toLocaleString()}: ${p.score.toFixed(0)} of 100 modeled alertness`,
+        )}
+      />
     </View>
   );
 }

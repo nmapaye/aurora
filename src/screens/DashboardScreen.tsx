@@ -1,3 +1,4 @@
+import { visibleSummaryCards } from '~/features/ownership/model';
 import MetricExplanation from '~/features/insights/MetricExplanation';
 import React, { useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -92,6 +93,7 @@ export default function DashboardScreen() {
   );
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const caffeine = useStore((s) => s.caffeine);
+  const ownership = useStore((s) => s.ownership);
   const quickRefs = useRef(new Map<string, React.RefObject<View | null>>());
   const [quickFocus, setQuickFocus] = useState<React.RefObject<View | null>>();
   const [quickDrink, setQuickDrink] = useState<{
@@ -284,21 +286,24 @@ export default function DashboardScreen() {
         <SectionHeader
           prominence="prominent"
           title="Pinned"
-          actionLabel="Edit"
+          actionLabel={walkthrough.active ? undefined : 'Edit'}
+          onAction={() => navigate('SummarySettings')}
         />
       </WalkthroughReveal>
       <View style={{ gap: spacing.md }}>
-        {pinnedMetricCards.map((card, index) => (
-          <WalkthroughReveal
-            key={card.key}
-            active={walkthrough.active}
-            revealed={walkthrough.isRevealed('summary-pinned')}
-            reduceMotion={walkthrough.reduceMotion}
-            staggerIndex={index + 1}
-          >
-            {card.element}
-          </WalkthroughReveal>
-        ))}
+        {visibleSummaryCards(ownership, walkthrough.active)
+          .map((key) => pinnedMetricCards.find((card) => card.key === key)!)
+          .map((card, index) => (
+            <WalkthroughReveal
+              key={card.key}
+              active={walkthrough.active}
+              revealed={walkthrough.isRevealed('summary-pinned')}
+              reduceMotion={walkthrough.reduceMotion}
+              staggerIndex={index + 1}
+            >
+              {card.element}
+            </WalkthroughReveal>
+          ))}
       </View>
     </>
   );

@@ -11,6 +11,9 @@ afterEach(() => jest.restoreAllMocks());
 it.each([
   'VigilanceTest',
   'Settings',
+  'SummarySettings',
+  'ReminderCenter',
+  'DataControls',
   'SleepHistory',
   'SleepRoutines',
   'CaffeineHistory',

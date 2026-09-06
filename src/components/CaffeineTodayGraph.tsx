@@ -1,3 +1,4 @@
+import ChartTable from './ChartTable';
 import React, { useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Line } from 'react-native-svg';
@@ -304,6 +305,13 @@ export default function CaffeineTodayGraph({
           </Text>
         </View>
       ) : null}
+      <ChartTable
+        title="active caffeine"
+        rows={series.map(
+          (p) =>
+            `${new Date(p.t).toLocaleString()}: ${p.mg.toFixed(1)} mg modeled active caffeine`,
+        )}
+      />
       {showCaption ? (
         <Text
           style={{
