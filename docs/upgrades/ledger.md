@@ -18,16 +18,16 @@ Status separates implementation, independent review, and acceptance verification
 | 8 | Filter caffeine history. | Implemented | State and UI review passed | CaffeineHistoryScreen filter/reset; store.logging combined filters; native/device acceptance pending |
 | 9 | Record caffeine-free days. | Implemented | State and UI review passed | sampleSeparation zero/sample records; CaffeineLoggingFlow zero control; native/device acceptance pending |
 | 10 | Preview a dose’s effect. | Implemented; schedule integration pending | State and UI review passed | DosePreview on quick/custom/edit paths; schedule integration pending 11–20; native/device acceptance pending |
-| 11 | Weekly sleep schedule. | Pending | Pending | Pending |
-| 12 | Schedule exceptions. | Pending | Pending | Pending |
-| 13 | Consistent bedtime projections. | Pending | Pending | Pending |
-| 14 | Morning sleep journal. | Pending | Pending | Pending |
-| 15 | Nap session timer. | Pending | Pending | Pending |
-| 16 | Sleep consistency view. | Pending | Pending | Pending |
-| 17 | Sleep deficit history. | Pending | Pending | Pending |
-| 18 | Sleep overlap review. | Pending | Pending | Pending |
-| 19 | Searchable sleep history. | Pending | Pending | Pending |
-| 20 | Wind-down reminder. | Pending | Pending | Pending |
+| 11 | Weekly sleep schedule. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 12 | Schedule exceptions. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 13 | Consistent bedtime projections. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 14 | Morning sleep journal. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 15 | Nap session timer. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 16 | Sleep consistency view. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 17 | Sleep deficit history. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 18 | Sleep overlap review. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 19 | Searchable sleep history. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
+| 20 | Wind-down reminder. | In progress | Pending | Fresh sleep implementation agent from b711a97 |
 | 21 | Caffeine scenario editor. | Pending | Pending | Pending |
 | 22 | Saved scenarios. | Pending | Pending | Pending |
 | 23 | Scenario comparison. | Pending | Pending | Pending |
@@ -78,3 +78,7 @@ Status separates implementation, independent review, and acceptance verification
 - Added `scripts/verify-upgrades.sh` to pin Node 24 for npm and all child commands. Earlier explicit npm invocation did not guarantee child Node version; all final checks will use the script. Under corrected PATH, foundation plus logging state/persistence passed 4 suites / 34 tests. Script syntax and independent review passed after adding full stable Xcode preflight; `--native` correctly reports missing Xcode.
 
 - Logging batch implementation and independent state/UI fix-reviews passed. Full pinned Node 24 gate: 55 suites / 287 tests, type-check, lint, diff whitespace check, and root iOS Expo export (1647 modules). Detailed evidence in `reviews/logging.md` and `evidence/logging-jest.txt`. Features 1–9 implemented; feature10 awaits shared schedule integration in next batch.
+
+- Started sequential sleep batch11–20 from reviewed logging commit b711a97. Shared bedtime resolver also completes feature10 integration.
+
+- Sleep accounting checkpoint: reproduced5 failures in6 overlap regressions, then corrected rolling24-hour duration to union valid clipped intervals. Root gate passed3 suites10tests including unchanged alertness tests; independent sleep_accounting_review passed. Broader sleep batch and cross-day presentation remain in progress.
