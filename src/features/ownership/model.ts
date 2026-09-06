@@ -20,6 +20,7 @@ export const REMINDER_KINDS: ReminderKind[] = [
   'weeklyReview',
 ];
 export type OwnershipState = {
+  native: { showLockValues: boolean };
   summary: { order: SummaryCard[]; hidden: SummaryCard[] };
   reminders: {
     cutoff: { weekdays: number[] };
@@ -31,6 +32,7 @@ export type OwnershipState = {
 };
 const allDays = () => [0, 1, 2, 3, 4, 5, 6];
 export const defaultOwnership = (): OwnershipState => ({
+  native: { showLockValues: false },
   summary: { order: [...SUMMARY_CARDS], hidden: [] },
   reminders: {
     cutoff: { weekdays: allDays() },
@@ -69,6 +71,7 @@ export function normalizeOwnership(value: unknown): OwnershipState {
           ),
         ]
       : [];
+  d.native.showLockValues = record(v.native).showLockValues === true;
   d.summary.order = [
     ...cards(s.order),
     ...SUMMARY_CARDS.filter((x) => !cards(s.order).includes(x)),

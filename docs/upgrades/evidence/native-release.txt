@@ -1,0 +1,5 @@
+
+> aurora@0.1.0 ios:build:release
+> xcodebuild -workspace ios/AURORA.xcworkspace -scheme AURORA -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance

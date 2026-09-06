@@ -1,3 +1,5 @@
+import NativeAccessScreen from '~/screens/NativeAccessScreen';
+import NativeConfirmScreen from '~/screens/NativeConfirmScreen';
 import SummarySettingsScreen from '~/screens/SummarySettingsScreen';
 import ReminderCenterScreen from '~/screens/ReminderCenterScreen';
 import DataControlsScreen from '~/screens/DataControlsScreen';
@@ -40,6 +42,12 @@ export default function RootNavigator() {
       />
       <Stack.Screen name="SummarySettings" component={SummarySettingsScreen} />
       <Stack.Screen name="ReminderCenter" component={ReminderCenterScreen} />
+      <Stack.Screen name="NativeAccess" component={NativeAccessScreen} />
+      <Stack.Screen
+        name="NativeConfirm"
+        component={NativeConfirmScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="DataControls" component={DataControlsScreen} />
       <Stack.Screen name="Tabs" component={RootTabs} />
       <Stack.Screen

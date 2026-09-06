@@ -284,7 +284,13 @@ export function parseBackup(json: string): Backup {
         d.sleepRoutines,
         normalizeSleepRoutines(d.sleepRoutines, p.targetSleep),
       ) ||
-      !same(d.ownership, normalizeOwnership(d.ownership))
+      !same(
+        {
+          ...d.ownership,
+          native: d.ownership?.native ?? { showLockValues: false },
+        },
+        normalizeOwnership(d.ownership),
+      )
     )
       return bad();
   } catch {
@@ -295,6 +301,7 @@ export function parseBackup(json: string): Backup {
     Object.keys(d.sleepRoutines.annotations).some((x) => x.startsWith('demo:'))
   )
     return bad();
+  v.data.ownership = normalizeOwnership(v.data.ownership);
   return v as Backup;
 }
 export function localRecordCounts(

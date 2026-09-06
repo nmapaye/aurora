@@ -628,7 +628,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'aurora/state',
-      version: 10,
+      version: 11,
       storage: mmkvStorage,
       partialize: (s) => ({
         ownership: s.ownership,

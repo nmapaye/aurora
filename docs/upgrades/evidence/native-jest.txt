@@ -1,0 +1,165 @@
+
+> aurora@0.1.0 test
+> jest --runInBand
+
+PASS unit tests/features/native/bridge.rn-review.spec.ts
+PASS ui tests/ui/SleepScreen.spec.tsx (5.599 s)
+PASS ui tests/ui/OnboardingHealthFlow.spec.tsx
+PASS ui tests/ui/LogIntakeScreen.spec.tsx
+PASS ui tests/ui/CaffeineLoggingFlow.spec.tsx
+PASS ui tests/ui/SleepHistoryScreen.spec.tsx
+PASS ui tests/ui/CaffeineHistoryScreen.spec.tsx
+PASS ui tests/ui/PlanningScreen.ui-review.spec.tsx
+PASS ui tests/ui/healthComponents.spec.tsx
+PASS ui tests/ui/InsightsScreen.spec.tsx
+PASS ui tests/ui/DashboardScreen.walkthrough.spec.tsx
+  ● Console
+
+    console.error
+      An update to QuickDoseSheet inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      620 |         })),
+      621 |       completeAppWalkthrough: () =>
+    > 622 |         set((s) => ({
+          |         ^
+      623 |           onboarding: {
+      624 |             ...s.onboarding,
+      625 |             appWalkthroughCompleted: true,
+
+      at node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:16307:19
+      at runWithFiberInDEV (node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:2508:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:16306:9)
+      at scheduleUpdateOnFiber (node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:14070:11)
+      at forceStoreRerender (node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:5935:24)
+      at node_modules/test-renderer/node_modules/react-reconciler/cjs/react-reconciler.development.js:5920:11
+      at node_modules/zustand/vanilla.js:12:16
+          at Set.forEach (<anonymous>)
+      at setState (node_modules/zustand/vanilla.js:11:17)
+      at set (node_modules/zustand/middleware.js:506:11)
+      at Object.completeAppWalkthrough (src/state/store.ts:622:9)
+      at Object.<anonymous> (tests/ui/DashboardScreen.walkthrough.spec.tsx:222:25)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+PASS ui tests/ui/navigation.linking.integration.spec.tsx
+  ● Console
+
+    console.warn
+      expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53. Use a development build instead of Expo Go. Read more at https://docs.expo.dev/develop/development-builds/introduction/.
+
+    > 1 | import * as Notifications from 'expo-notifications';
+        | ^
+      2 | import {
+      3 |   reminderPlan,
+      4 |   REMINDER_KINDS,
+
+      at warnOfExpoGoPushUsage (node_modules/expo-notifications/src/warnOfExpoGoPushUsage.ts:14:15)
+      at addPushTokenListener (node_modules/expo-notifications/src/TokenEmitter.ts:44:24)
+      at Object.<anonymous> (node_modules/expo-notifications/src/DevicePushTokenAutoRegistration.fx.ts:104:23)
+      at Object.<anonymous> (node_modules/expo-notifications/src/getExpoPushTokenAsync.ts:5:1)
+      at Object.<anonymous> (node_modules/expo-notifications/src/index.ts:16:1)
+      at Object.<anonymous> (src/services/platform/reminderCenter.ts:1:1)
+      at Object.<anonymous> (src/screens/ReminderCenterScreen.tsx:8:1)
+      at Object.<anonymous> (src/navigation/RootNavigator.tsx:4:1)
+      at Object.<anonymous> (tests/ui/navigation.linking.integration.spec.tsx:7:1)
+
+PASS ui tests/ui/PlanningScreen.spec.tsx
+PASS ui tests/ui/AppScreen.spec.tsx
+PASS ui tests/ui/appWalkthrough.presentation.spec.tsx
+PASS ui tests/ui/InsightsExplorerScreen.spec.tsx
+PASS ui tests/ui/SleepRoutinesScreen.spec.tsx
+PASS ui tests/ui/OwnershipScreens.spec.tsx
+PASS ui tests/ui/PlanningTargetsScreen.spec.tsx
+PASS ui tests/ui/DataControls.ui-review.spec.tsx
+PASS ui tests/ui/DrinkLibrary.review.spec.tsx
+PASS ui tests/ui/NativeAccess.rn-review.spec.tsx
+PASS ui tests/ui/DashboardScreen.walkthrough.wiring.spec.tsx
+PASS ui tests/ui/InsightsExplorerScreen.ui-review.spec.tsx
+PASS ui tests/ui/RootTabs.walkthrough.spec.tsx
+PASS ui tests/ui/CaffeineUpgrades.spec.tsx
+PASS ui tests/ui/SleepScreen.wide.spec.tsx
+PASS ui tests/ui/ChartTable.ui-review.spec.tsx
+PASS ui tests/ui/useAppWalkthrough.spec.tsx
+PASS unit tests/features/insights/analysis.domain-review.spec.ts
+PASS ui tests/ui/AppWalkthrough.journey.spec.tsx
+PASS ui tests/ui/navigation.standalone.spec.ts
+PASS ui tests/ui/AppSymbol.spec.tsx
+PASS ui tests/ui/useSleepReminders.spec.tsx
+PASS ui tests/ui/NativeAction.runtime.review.spec.ts
+PASS ui tests/ui/navigation.linking.spec.ts
+PASS ui tests/ui/testingLibrary.smoke.spec.tsx
+PASS ui tests/ui/useNow.spec.tsx
+PASS ui tests/ui/useReduceMotion.spec.tsx
+PASS unit tests/state/store.ownership.spec.ts
+PASS unit tests/services/platform/windDown.review.spec.ts
+PASS unit tests/features/native/model.spec.ts
+PASS unit tests/state/store.persistence.spec.ts
+PASS unit tests/algorithm/caffeine.core.spec.ts
+PASS unit tests/features/ownership/backup.domain-review.spec.ts
+PASS unit tests/features/planning/model.review.spec.ts
+PASS unit tests/services/storage/backupFiles.review.spec.ts
+PASS unit tests/state/store.demo.spec.ts
+PASS unit tests/features/ownership/backup.review.spec.ts
+PASS unit tests/services/platform/health/appleHealth.spec.ts
+PASS unit tests/features/sleep/routines.review.spec.ts
+PASS unit tests/features/sleep/presentation.spec.ts
+PASS unit tests/features/ownership/backup.spec.ts
+PASS unit tests/features/sleep/healthSleep.spec.ts
+PASS unit tests/features/native/model.review.spec.ts
+PASS unit tests/features/insights/analysis.review.spec.ts
+PASS unit tests/state/store.walkthrough.spec.ts
+PASS unit tests/state/store.sleepRoutines.review.spec.ts
+PASS unit tests/algorithm/sleepDebt.overlap.review.spec.ts
+PASS unit tests/features/insights/presentation.spec.ts
+PASS unit tests/services/platform/reminderCenter.review.spec.ts
+PASS unit tests/state/store.logging.spec.ts
+PASS unit tests/state/store.logging.review.spec.ts
+PASS unit tests/hooks/useSleepGuidance.spec.ts
+PASS unit tests/features/native/actions.rn-review.spec.ts
+PASS unit tests/state/store.planning.spec.ts
+PASS unit tests/features/native/backup.rn-review.spec.ts
+PASS unit tests/features/insights/analysis.spec.ts
+PASS unit tests/features/ownership/model.review.spec.ts
+PASS unit tests/features/planning/model.spec.ts
+PASS unit tests/components/AlertnessRing.spec.tsx
+PASS unit tests/state/store.routines.spec.ts
+PASS unit tests/state/store.sleep.spec.ts
+PASS unit tests/state/store.planning.review.spec.ts
+PASS unit tests/state/app.spec.ts
+PASS unit tests/algorithm/circadian.spec.ts
+PASS unit tests/features/sleep/manualSleep.spec.ts
+PASS unit tests/features/insights/sampleSeparation.spec.ts
+PASS unit tests/features/caffeine/logging.spec.ts
+PASS unit tests/services/platform/windDown.spec.ts
+PASS unit tests/services/platform/sleepNotifications.spec.ts
+PASS unit tests/utils/calendar.spec.ts
+PASS unit tests/features/sleep.upgrades.spec.ts
+PASS unit tests/algorithm/inertia.spec.ts
+PASS unit tests/features/native/actions.spec.ts
+PASS unit tests/features/appWalkthrough/motion.spec.ts
+PASS unit tests/features/appWalkthrough/model.spec.ts
+PASS unit tests/features/caffeine/presets.spec.ts
+PASS unit tests/services/platform/notificationContent.spec.ts
+PASS unit tests/services/storage/export.spec.ts
+PASS unit tests/components/AppScreen.layout.spec.ts
+PASS unit tests/algorithm/vigilance.spec.ts
+PASS unit tests/algorithm/caffeine.spec.ts
+PASS unit tests/algorithm/alertness.spec.ts
+PASS unit tests/features/ownership/model.spec.ts
+PASS unit tests/components/TimelineGraph.spec.tsx
+PASS unit tests/algorithm/sleepDebt.spec.ts
+
+Test Suites: 97 passed, 97 total
+Tests:       1 skipped, 478 passed, 479 total
+Snapshots:   0 total
+Time:        32.722 s, estimated 34 s
+Ran all test suites in 2 projects.

@@ -106,6 +106,7 @@ export default function SettingsScreen() {
           subtitle="Backup, restore, record counts and local deletion."
           onPress={() => navigate('DataControls')}
         />
+        <Button title="Widgets and Shortcuts" onPress={() => navigate('NativeAccess')} />
       </SectionCard>
 
       <SectionHeader prominence="prominent" title="About" />

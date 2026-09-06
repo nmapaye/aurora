@@ -51,19 +51,20 @@ const linking: LinkingOptions<RootStackParamList> = {
   getStateFromPath(path) {
     const onboarding = useStore.getState().onboarding;
     const resolvedPath = isAppWalkthroughPending(onboarding)
-      ? walkthroughRoutePaths[getAppWalkthroughRoute(onboarding.appWalkthroughStep)]
+      ? walkthroughRoutePaths[
+          getAppWalkthroughRoute(onboarding.appWalkthroughStep)
+        ]
       : path;
-    return getNavigationStateFromPath<RootStackParamList>(
-      resolvedPath,
-      config,
-    );
+    return getNavigationStateFromPath<RootStackParamList>(resolvedPath, config);
   },
   async getInitialURL() {
     const url = await RNLinking.getInitialURL();
-    return url ?? undefined;
+    return url?.startsWith('aurora://native/') ? undefined : (url ?? undefined);
   },
   subscribe(listener: (url: string) => void) {
-    const sub = RNLinking.addEventListener('url', ({ url }) => listener(url));
+    const sub = RNLinking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('aurora://native/')) listener(url);
+    });
     return () => sub.remove();
   },
 };

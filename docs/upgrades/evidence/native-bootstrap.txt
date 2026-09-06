@@ -1,0 +1,5 @@
+
+> aurora@0.1.0 ios:bootstrap
+> bash scripts/bootstrap-ios.sh
+
+error: Full Xcode is not selected. Install stable Xcode 26, launch it once, and select it with xcode-select.

@@ -1,8 +1,9 @@
+import useNativeAccess from '~/hooks/useNativeAccess';
 import useSleepReminders from '~/hooks/useSleepReminders';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StatusBar, Text, View, LogBox } from 'react-native';
 import {
   NavigationContainer,
@@ -91,6 +92,8 @@ function BootGate() {
 
 export default function App() {
   const ready = useAppInit();
+  const [navigationReady, setNavigationReady] = useState(false);
+  useNativeAccess(ready, navigationReady);
   useSleepReminders(ready);
   const scheme = useAppScheme();
   const onboardingComplete = useStore((s) => s.onboarding.completed);
@@ -145,6 +148,7 @@ export default function App() {
                   theme={theme}
                   linking={linking}
                   onReady={() => {
+                    setNavigationReady(true);
                     try {
                       (perf as any).mark?.('nav:ready');
                     } catch {}

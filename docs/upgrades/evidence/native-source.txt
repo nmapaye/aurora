@@ -1,0 +1,8 @@
+Snapshot Codable and freshness checks passed (Foundation-only, not an iOS build).
+ios/AURORA.xcodeproj/project.pbxproj: OK
+ios/AURORA/Info.plist: OK
+ios/AURORA/AURORA.entitlements: OK
+ios/AuroraWidgets/Info.plist: OK
+ios/AuroraWidgets/AuroraWidgets.entitlements: OK
+Syntax OK
+Source checks passed. iOS SDK type-checking, native builds, signing and device acceptance are still required.

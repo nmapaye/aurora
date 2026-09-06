@@ -53,17 +53,17 @@ Status separates implementation, independent review, and acceptance verification
 | 43 | Reminder center. | Implemented | Independent domain and UI re-review passed | Unified schedule/permission UI; quiet/DST/weekdays and native queue regressions; native/device acceptance pending |
 | 44 | Backup and restore. | Implemented | Independent domain and UI re-review passed | JSON file picker/share; detached roundtrip, malformed import, preview/replace and cleanup tests; native/device acceptance pending |
 | 45 | Privacy and deletion controls. | Implemented | Independent domain and UI re-review passed | Category counts; selected/all confirmation; Health-copy and nap-timer boundaries; native/device acceptance pending |
-| 46 | Home Screen widget. | Pending | Pending | Pending |
-| 47 | Lock Screen widgets. | Pending | Pending | Pending |
-| 48 | Log-drink Shortcut. | Pending | Pending | Pending |
-| 49 | Status Shortcut. | Pending | Pending | Pending |
-| 50 | Nap Live Activity. | Pending | Pending | Pending |
+| 46 | Home Screen widget. | Source implemented | Independent RN and Swift source re-review passed | Snapshot model and Foundation freshness tests; widget source review; native builds/device acceptance UNVERIFIED |
+| 47 | Lock Screen widgets. | Source implemented | Independent RN and Swift source re-review passed | Default-off privacy migration and widget source review; native builds/device acceptance UNVERIFIED |
+| 48 | Log-drink Shortcut. | Source implemented | Independent RN and Swift source re-review passed | Actual RN URL regression; durable queue, draft confirmation and Undo UI tests; native builds/device acceptance UNVERIFIED |
+| 49 | Status Shortcut. | Source implemented | Independent RN and Swift source re-review passed | Nullable values and snapshot freshness tests; intent source review; native builds/device acceptance UNVERIFIED |
+| 50 | Nap Live Activity. | Source implemented | Independent RN and Swift source re-review passed | Nap confirmation UI and serialized start/reset bridge tests; ActivityKit source review; native builds/device acceptance UNVERIFIED |
 
 ## Delivery gates
 
 - Baseline Node 24 type-check and lint: passed. Jest: 47 suites / 240 tests passed.
-- Final Node 24 type-check, lint, Jest, iOS export, website checks: pending.
-- Debug and Release simulator builds: pending full supported Xcode.
+- Final Node 24 type-check, lint, Jest, iOS export, website checks: passed. Final Jest: 97 suites / 478 tests passed, with one timezone-specific skip covered by the separate New York gate. Evidence: final-app-gates.txt and native-jest.txt. New York timezone gate: 39 tests passed.
+- Native bootstrap and Debug/Release simulator builds: attempted, failed because full Xcode is unavailable and Command Line Tools are selected. Native source checks passed, but do not establish iOS build success.
 - Physical iPhone/iPad native checks, VoiceOver, large text, Reduce Motion: pending.
 - No merging or publishing.
 
@@ -98,3 +98,7 @@ Status separates implementation, independent review, and acceptance verification
 - Started sequential customization/data ownership batch 41–45 from reviewed insights commit b7382bb. Backup file API references and SDK-compatible versions are documented in backup-api-notes.md.
 
 - Ownership batch 41–45 passed independent domain/UI fix-reviews. Node 24 type-check/lint and 89 Jest suites passed (440 tests, one DST skip covered by the separate 39-test New York gate). Expo iOS export passed with 1678 modules; website checks passed. Details in reviews/ownership.md and evidence/ownership-jest.txt. New backup packages require native bootstrap; native/device acceptance remains pending.
+
+- Started native batch 46–50 from reviewed ownership commit e83b4b4. Fresh prerequisite check confirms xcodebuild requires full Xcode and simctl is unavailable. CLT Swift 6.3.2 can support syntax parsing, which does not prove iOS SDK type-checking or builds. Native builds and physical acceptance remain pending.
+
+- Native batch 46–50 passed independent RN and Swift source fix-reviews. Custom-scheme parsing was verified against the actual React Native URL runtime; durable inbox handoff, confirmation preview/Undo, snapshot expiry/privacy and reset ordering have regression coverage. Full app and available native source gates passed. See reviews/native.md for findings and the remaining native/device acceptance procedure. All 50 features have source implementations; the goal remains unfinished pending required native verification.

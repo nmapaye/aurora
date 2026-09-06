@@ -11,6 +11,7 @@ import { useStore } from '~/state/store';
 const nonDefaultPersistedState = {
   ownership: {
     ...defaultOwnership(),
+    native: { showLockValues: true },
     summary: {
       order: ['sleep', 'caffeine', 'active-caffeine', 'vigilance', 'cutoff'],
       hidden: ['vigilance'],
