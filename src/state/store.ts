@@ -256,6 +256,7 @@ export const useStore = create<State>()(
               ...demo.vigilanceSessions,
             ].sort((a, b) => b.completedAt - a.completedAt),
             demoMode: true,
+            healthSync: s.onboarding.completed ? s.healthSync : { ...defaultHealthSync },
             onboarding: s.onboarding.completed ? s.onboarding : {
               ...s.onboarding,
               completed: true,

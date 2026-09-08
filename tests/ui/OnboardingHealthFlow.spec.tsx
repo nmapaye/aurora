@@ -176,6 +176,23 @@ describe('onboarding Health import flow', () => {
     expect(useStore.getState().sleeps).toEqual([]);
   });
 
+  it('shows Sample Data after choosing examples following a first-run import failure', async () => {
+    jest.mocked(AppleHealth.getSleepSamples).mockRejectedValueOnce(new Error('Database unavailable'));
+    await render(<OnboardingScreen />);
+    const user = await openPermissions();
+    await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
+    expect(await screen.findByText('Status: Import failed')).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Load Sample Data' }));
+    expect(useStore.getState().healthSync).toEqual({ importedCount: 0, importStatus: 'idle' });
+    await cleanup();
+    useStore.getState().completeAppWalkthrough();
+    await render(<SleepScreen />);
+
+    expect(screen.getByText('Sample Data')).toBeOnTheScreen();
+    expect(screen.queryByText('Health refresh failed')).not.toBeOnTheScreen();
+  });
+
   it('persists a failed import presentation across an onboarding remount', async () => {
     jest
       .mocked(AppleHealth.getSleepSamples)

@@ -16,6 +16,8 @@ All 53 Jest suites and 285 tests pass with the cache disabled, including Unicode
 
 The audit is retained in [the maintenance dependency record](evidence/expo-sdk57/dependency-audit-2026-09-08.json). Native device checks below remain required before release.
 
+A final review regression found that first-run sample loading retained a failed Health import. Sample loading now clears Health sync only when it completes unfinished onboarding, while returning users retain their Health state. All 288 tests pass, including the sample-screen transition and returning-user regressions. CI uses quiet Xcode output while retaining warnings, errors and both native build configurations.
+
 ## September 7 migration record
 
 AURORA's dependency and source migration is complete at Expo 57.0.20, React Native 0.86.3 and React 19.2.3. Native compilation and device validation remain blocked by the missing Xcode installation. The committed pod lock still describes SDK 54 and must be regenerated before building.

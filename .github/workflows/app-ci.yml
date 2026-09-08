@@ -138,8 +138,8 @@ jobs:
 
       - name: Build Debug for iOS Simulator
         if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
-        run: npm run ios:build:debug
+        run: npm run ios:build:debug -- -quiet
 
       - name: Build Release for iOS Simulator
         if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
-        run: npm run ios:build:release
+        run: npm run ios:build:release -- -quiet
