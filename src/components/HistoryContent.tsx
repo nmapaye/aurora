@@ -41,7 +41,7 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
   const rangeStart = useMemo(() => {
     if (range === 'all') return 0;
     const days = range === '7' ? 7 : range === '14' ? 14 : 30;
-    const date = new Date();
+    const date = new Date(Date.now());
     date.setHours(23, 59, 59, 999);
     return date.getTime() - days * 24 * 3600 * 1000;
   }, [range]);

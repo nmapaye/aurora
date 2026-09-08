@@ -20,6 +20,9 @@ jest.mock('~/navigation', () => ({ goBack: jest.fn(), navigate: jest.fn() }));
 describe('CaffeineHistoryScreen', () => {
   beforeEach(() => {
     jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(Date.parse('2026-07-24T12:00:00.000Z'));
+    jest
       .spyOn(Share, 'share')
       .mockResolvedValue({ action: 'sharedAction' });
     useStore.setState({
