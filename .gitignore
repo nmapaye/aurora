@@ -4,6 +4,9 @@ node_modules/
 dist/
 build/
 coverage/
+spikes/AuroraNative/.build/
+spikes/AuroraNative/.swiftpm/
+spikes/AuroraNative/output/
 .worktrees/
 .superpowers/
 *.log

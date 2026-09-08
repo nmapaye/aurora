@@ -1,0 +1,61 @@
+name: Native SwiftUI Spike
+
+on:
+  push:
+    branches: [nmapaye-bot/aurora-native-spike]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-spike:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify stable toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -version | head -n 1 | grep -E '^Xcode 26\.6(\.|$)'
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Test shared behavior
+        run: bash scripts/test-native-spike.sh
+      - name: Compile desktop preview
+        run: swift build --package-path spikes/AuroraNative --product AuroraSpikePreview
+      - name: Build iPhone and iPad Debug
+        run: >-
+          xcodebuild -workspace ios/AURORA.xcworkspace -scheme AuroraSpike
+          -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath ios/build/Spike
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Build iPhone and iPad Release
+        run: >-
+          xcodebuild -workspace ios/AURORA.xcworkspace -scheme AuroraSpike
+          -configuration Release -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath ios/build/Spike
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package simulator application
+        run: ditto -c -k --keepParent ios/build/Spike/Build/Products/Debug-iphonesimulator/AuroraSpike.app native-spike-simulator.zip
+      - name: Upload simulator application
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-spike-simulator
+          path: native-spike-simulator.zip
+          retention-days: 7
+      - name: Review iPhone 13 and iPad Air flows
+        run: bash scripts/smoke-native-spike.sh
+      - name: Upload UI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-spike-ui-evidence
+          path: ios/build/SpikeReview
+          if-no-files-found: ignore
+          retention-days: 7
