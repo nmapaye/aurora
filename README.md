@@ -12,7 +12,7 @@ encrypted import/export, or background automation.
 
 ## Requirements
 
-- macOS with stable Xcode 26.6 and the iOS 26 SDK. Do not use an Xcode 27 beta
+- macOS with stable Xcode 26.6 and the iOS 26.4 SDK or newer. Do not use an Xcode 27 beta
   for release work.
 - Node.js 24 and npm 11.6 or newer.
 - CocoaPods 1.16.2, matching `ios/Podfile.lock`.

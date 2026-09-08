@@ -74,7 +74,7 @@ export default function OnboardingScreen() {
             lastMessage:
               samples.length > 0
                 ? `Imported ${samples.length} recent sleep sample${samples.length === 1 ? '' : 's'} from Health.`
-                : 'Health connected, but no recent sleep samples were found.',
+                : 'No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.',
           });
         } catch (error) {
           const message =
@@ -117,15 +117,17 @@ export default function OnboardingScreen() {
       ? 'Finish setup to log caffeine manually. You can also try Aurora with sample data.'
       : onboarding.permissionStatus === 'granted' &&
           healthSync.importStatus === 'succeeded'
-        ? 'Finish setup, then review imported sleep.'
+        ? healthSync.importedCount > 0
+          ? 'Finish setup, then review imported sleep.'
+          : 'Finish setup to log sleep manually, or check sleep records and access in Health.'
         : onboarding.permissionStatus === 'granted' &&
             healthSync.importStatus === 'importing'
-          ? 'Health access is granted and sleep import is in progress.'
+          ? 'Health request completed. Sleep import is in progress.'
           : onboarding.permissionStatus === 'granted' &&
               healthSync.importStatus === 'failed'
-            ? 'Health access is granted, but sleep import needs a retry.'
+            ? 'Health request completed. Sleep import needs a retry.'
             : onboarding.permissionStatus === 'granted'
-              ? 'Health access is granted. Recent sleep has not been imported yet.'
+              ? 'Health request completed. Recent sleep has not been imported yet.'
         : 'Connect Health, or finish with manual setup.';
 
   return (
@@ -186,6 +188,7 @@ export default function OnboardingScreen() {
             source={onboarding.source}
             permissionStatus={onboarding.permissionStatus}
             importStatus={healthSync.importStatus}
+            importedCount={healthSync.importedCount}
             importMessage={healthSync.lastMessage}
             busy={requestingPermission}
             onRequest={handleRequestPermission}

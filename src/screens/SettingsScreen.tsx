@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Linking } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Linking, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -27,20 +27,30 @@ export default function SettingsScreen() {
   const appearanceMode = useStore((s) => s.appearanceMode);
   const setAppearanceMode = useStore((s) => s.setAppearanceMode);
 
+  const [reminderStatus, setReminderStatus] = useState('Updating reminder…');
+  const [reminderFailed, setReminderFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    setReminderStatus('Updating reminder…');
+    setReminderFailed(false);
     syncCutoffReminder(prefs.notifyCutoff, prefs.cutoffHour)
       .then((scheduled) => {
-        // Permission denied: reflect reality in the pref so the toggle is honest.
-        if (!cancelled && prefs.notifyCutoff && !scheduled) {
-          setPrefs({ notifyCutoff: false });
-        }
+        if (cancelled) return;
+        const denied = prefs.notifyCutoff && !scheduled;
+        setReminderFailed(denied);
+        setReminderStatus(denied
+          ? 'Notification permission is off. Allow notifications in system Settings, then retry.'
+          : scheduled ? 'Reminder scheduled.' : 'Reminder off.');
       })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [prefs.notifyCutoff, prefs.cutoffHour, setPrefs]);
+      .catch(() => {
+        if (cancelled) return;
+        setReminderFailed(true);
+        setReminderStatus('Reminder status unknown. The change could not be confirmed. A previous reminder may still be active. Retry to apply your choice.');
+      });
+    return () => { cancelled = true; };
+  }, [prefs.notifyCutoff, prefs.cutoffHour, retry]);
 
   return (
     <AppScreen
@@ -108,7 +118,7 @@ export default function SettingsScreen() {
       <SectionHeader prominence="prominent" title="Notifications" />
       <SectionCard>
         <ListRow
-          title="Cutoff reminder"
+          title="Cutoff reminder preference"
           subtitle={`Daily at ${prefs.cutoffHour}:00, so caffeine stays clear of bedtime.`}
         />
         <SegmentedControl
@@ -119,6 +129,15 @@ export default function SettingsScreen() {
             { key: 'on', label: 'On' },
           ]}
         />
+      </SectionCard>
+
+      <SectionCard>
+        <View accessible accessibilityRole={reminderFailed ? 'alert' : undefined}
+          accessibilityLiveRegion={reminderFailed ? 'assertive' : 'polite'}
+          accessibilityLabel={reminderStatus}>
+          <ListRow title="Reminder status" subtitle={reminderStatus} />
+        </View>
+        {reminderFailed && <Button title="Retry reminder" onPress={() => setRetry((value) => value + 1)} />}
       </SectionCard>
 
       <SectionHeader prominence="prominent" title="About" />

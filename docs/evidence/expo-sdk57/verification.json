@@ -1,0 +1,114 @@
+{
+  "date": "2026-09-07",
+  "baselineCommit": "abd8ded0b0782e39ad4ecf3bdd68728d0aca020f",
+  "node": "24.18.0",
+  "nativeStatus": "blocked: full Xcode absent; pod lock remains SDK 54",
+  "platformMinimum": "iOS 16.4",
+  "xcodeTarget": "26.6 stable",
+  "checkpoints": [
+    {
+      "expo": "55.0.31",
+      "reactNative": "0.83.10",
+      "react": "19.2.0",
+      "suites": 52,
+      "tests": 283
+    },
+    {
+      "expo": "56.0.21",
+      "reactNative": "0.85.3",
+      "react": "19.2.3",
+      "suites": 52,
+      "tests": 283
+    },
+    {
+      "expo": "57.0.20",
+      "reactNative": "0.86.3",
+      "react": "19.2.3",
+      "suites": 52,
+      "tests": 283
+    }
+  ],
+  "installed": {
+    "@expo/vector-icons": "15.0.3",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-navigation/bottom-tabs": "7.4.6",
+    "@react-navigation/elements": "2.9.40",
+    "@react-navigation/native": "7.3.18",
+    "@react-navigation/native-stack": "7.3.25",
+    "date-fns": "3.6.0",
+    "expo": "57.0.20",
+    "expo-asset": "57.0.16",
+    "expo-constants": "57.0.17",
+    "expo-font": "57.0.3",
+    "expo-haptics": "57.0.2",
+    "expo-linear-gradient": "57.0.1",
+    "expo-notifications": "57.0.17",
+    "expo-status-bar": "57.0.1",
+    "expo-symbols": "57.0.2",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "2.32.0",
+    "react-native-health": "1.19.0",
+    "react-native-mmkv": "3.3.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.2",
+    "react-native-svg": "15.15.4",
+    "react-native-worklets": "0.10.1",
+    "zustand": "4.5.7"
+  },
+  "checks": {
+    "typecheck": "passed",
+    "scopedLint": "passed",
+    "jest": {
+      "suites": 52,
+      "tests": 283,
+      "failed": 0
+    },
+    "foundation": {
+      "passed": 6,
+      "scope": "macOS Foundation CLI only"
+    },
+    "expoDoctor": {
+      "passed": 20,
+      "total": 20,
+      "existingExceptions": [
+        "appConfigFieldsNotSyncedCheck disabled",
+        "react-native-health excluded from reactNativeDirectoryCheck"
+      ]
+    },
+    "expoInstallCheck": "passed",
+    "npmLs": "passed",
+    "npmCiDryRun": "passed; not a clean reinstall",
+    "iosJavaScriptExport": "passed",
+    "nativeFileSyntax": "passed",
+    "bootstrapToolchainFixtures": 7,
+    "healthPluginConfigVersion": "57.0.9",
+    "autolinkingDiscovery": [
+      "ExpoSymbols 57.0.2",
+      "RNAppleHealthKit 1.19.0",
+      "react-native-mmkv 3.3.0"
+    ]
+  },
+  "blocked": [
+    "pod lock regeneration",
+    "installed-pod and binary ExpoSymbols linkage",
+    "unsigned Debug simulator build",
+    "unsigned Release simulator build",
+    "iPhone runtime matrix",
+    "iPad runtime matrix"
+  ],
+  "audit": {
+    "underlyingAdvisories": 3,
+    "packagesWithUnderlyingAdvisories": [
+      "decode-uri-component",
+      "sharp",
+      "uuid"
+    ],
+    "propagatedAffectedEntries": 20,
+    "high": 1,
+    "moderate": 19,
+    "critical": 0
+  },
+  "logDirectory": ".superpowers/sdk57-migration-2026-09-07"
+}

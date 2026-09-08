@@ -16,6 +16,7 @@ const unitProject: Config = {
       'ts-jest',
       {
         tsconfig: {
+          rootDir: '.',
           target: 'ES2020',
           module: 'commonjs',
           jsx: 'react-jsx',

@@ -256,18 +256,12 @@ export const useStore = create<State>()(
               ...demo.vigilanceSessions,
             ].sort((a, b) => b.completedAt - a.completedAt),
             demoMode: true,
-            onboarding: {
+            onboarding: s.onboarding.completed ? s.onboarding : {
               ...s.onboarding,
               completed: true,
               source: 'manual',
               permissionStatus: 'unsupported',
               completedAt: s.onboarding.completedAt ?? Date.now(),
-            },
-            healthSync: {
-              importedCount: demo.sleeps.length,
-              importStatus: 'idle',
-              lastSyncedAt: Date.now(),
-              lastMessage: 'Sample data loaded.',
             },
           };
         }),
@@ -277,10 +271,6 @@ export const useStore = create<State>()(
           sleeps: withoutDemoId(s.sleeps),
           vigilanceSessions: withoutDemoId(s.vigilanceSessions),
           demoMode: false,
-          healthSync: {
-            ...s.healthSync,
-            lastMessage: 'Sample data removed.',
-          },
         })),
       completeOnboarding: (p) =>
         set((s) => ({

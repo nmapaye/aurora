@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { navigationRef } from '~/navigation';
+import { isUsingFallbackStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
 import RootNavigator from '~/navigation/RootNavigator';
 import { useAppInit } from '~/hooks/useAppInit';
@@ -135,6 +136,22 @@ export default function App() {
           <StatusBar
             barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
           />
+          {isUsingFallbackStorage() ? (
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={{
+                ...typeRamp.footnote,
+                padding: spacing.sm,
+                color: theme.colors.text,
+                backgroundColor: theme.colors.card,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.border,
+              }}
+            >
+              Temporary storage: your records disappear when you close Aurora. You can still preview the app and use manual logging this session.
+            </Text>
+          ) : null}
           <RootErrorBoundary>
             {ready ? (
               onboardingComplete ? (
