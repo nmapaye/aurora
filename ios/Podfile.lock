@@ -2358,7 +2358,7 @@ SPEC CHECKSUMS:
   ExpoKeepAwake: 55f75eca6499bb9e4231ebad6f3e9cb8f99c0296
   ExpoLinearGradient: 809102bdb979f590083af49f7fa4805cd931bd58
   ExpoModulesCore: 9e6a5514828e7dd5ded9e99d33557be2d284e660
-  ExpoSymbols: f7e105361b06c9157a65dc1a0cdcb85bb6b092cf
+  ExpoSymbols: 349ee2b4d7d5ff3ea8436467914f8a67635aa354
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
