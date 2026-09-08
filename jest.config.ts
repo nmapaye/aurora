@@ -40,7 +40,7 @@ const uiProject: Config = {
   ...shared,
   setupFilesAfterEnv: ['<rootDir>/tests/ui/setup.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*|react-native-reanimated|react-native-worklets|react-native-svg)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*|react-native-reanimated|react-native-worklets|react-native-svg|decode-uri-component)',
   ],
 };
 

@@ -10,7 +10,9 @@ Cold validation passes all 52 Jest suites and 283 tests, TypeScript and ESLint. 
 
 Sharp 0.35.4 removes the libvips advisory. The existing icon-generation script passes with that release. A scoped `xcode` override selects UUID 11.1.1 or newer within major 11, which still provides CommonJS exports and the `v4()` API used by Xcode. Project parsing, serialization and 100 generated identifiers pass.
 
-The new npm audit has **seven moderate package entries for one underlying decoder advisory, with no high or critical findings**. `decode-uri-component` 0.5.0 uses ESM/default exports, while this React Navigation dependency requires the older CommonJS function. A direct override would change the import contract. Aurora's `getStateFromPath` removes query strings and fragments before calling the navigation parser, and all nine linking tests pass. This limits the current deep-link exposure but does not remove the vulnerable dependency. Revisit the parser when a compatible upstream release is available, and preserve that guard when adding query parameters.
+The final npm audit reports **zero vulnerabilities**. The decoder advisory is removed with a scoped override of `query-string` 7.1.3 to `decode-uri-component` 0.5.0, plus a one-line import patch for its ESM default export. React Navigation's query-string interface is retained. The UI transform includes the ESM decoder so tests exercise the resolved implementation.
+
+All 53 Jest suites and 285 tests pass with the cache disabled, including Unicode, spaces, repeated query parameters and malformed percent-encoding regressions. TypeScript, ESLint and the iOS Hermes export also pass. Existing deep-link query/fragment exclusion remains in place. See [dependency patch notes](../patches/README.md) before upgrading either patched package.
 
 The audit is retained in [the maintenance dependency record](evidence/expo-sdk57/dependency-audit-2026-09-08.json). Native device checks below remain required before release.
 

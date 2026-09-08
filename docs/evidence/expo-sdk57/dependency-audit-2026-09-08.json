@@ -1,158 +1,22 @@
 {
   "auditReportVersion": 2,
-  "vulnerabilities": {
-    "@react-navigation/bottom-tabs": {
-      "name": "@react-navigation/bottom-tabs",
-      "severity": "moderate",
-      "isDirect": true,
-      "via": [
-        "@react-navigation/elements",
-        "@react-navigation/native"
-      ],
-      "effects": [],
-      "range": "<=7.18.18",
-      "nodes": [
-        "node_modules/@react-navigation/bottom-tabs"
-      ],
-      "fixAvailable": false
-    },
-    "@react-navigation/core": {
-      "name": "@react-navigation/core",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "query-string"
-      ],
-      "effects": [
-        "@react-navigation/native"
-      ],
-      "range": "<=8.0.0-alpha.9",
-      "nodes": [
-        "node_modules/@react-navigation/core"
-      ],
-      "fixAvailable": false
-    },
-    "@react-navigation/elements": {
-      "name": "@react-navigation/elements",
-      "severity": "moderate",
-      "isDirect": true,
-      "via": [
-        "@react-navigation/native"
-      ],
-      "effects": [
-        "@react-navigation/bottom-tabs",
-        "@react-navigation/native-stack"
-      ],
-      "range": "<=2.9.40",
-      "nodes": [
-        "node_modules/@react-navigation/elements"
-      ],
-      "fixAvailable": false
-    },
-    "@react-navigation/native": {
-      "name": "@react-navigation/native",
-      "severity": "moderate",
-      "isDirect": true,
-      "via": [
-        "@react-navigation/core"
-      ],
-      "effects": [
-        "@react-navigation/bottom-tabs",
-        "@react-navigation/elements",
-        "@react-navigation/native-stack"
-      ],
-      "range": "<=3.0.0-alpha.12 || 3.0.1 - 3.6.5 || 4.0.0-alpha.0 - 7.3.18",
-      "nodes": [
-        "node_modules/@react-navigation/native"
-      ],
-      "fixAvailable": false
-    },
-    "@react-navigation/native-stack": {
-      "name": "@react-navigation/native-stack",
-      "severity": "moderate",
-      "isDirect": true,
-      "via": [
-        "@react-navigation/elements",
-        "@react-navigation/native"
-      ],
-      "effects": [],
-      "range": "<=5.0.4 || 6.0.0-next.1 - 7.18.10",
-      "nodes": [
-        "node_modules/@react-navigation/native-stack"
-      ],
-      "fixAvailable": {
-        "name": "@react-navigation/native-stack",
-        "version": "5.0.5",
-        "isSemVerMajor": true
-      }
-    },
-    "decode-uri-component": {
-      "name": "decode-uri-component",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        {
-          "source": 1147955,
-          "name": "decode-uri-component",
-          "dependency": "decode-uri-component",
-          "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
-          "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-400",
-            "CWE-405",
-            "CWE-407",
-            "CWE-1176"
-          ],
-          "cvss": {
-            "score": 0,
-            "vectorString": null
-          },
-          "range": "<=0.4.2"
-        }
-      ],
-      "effects": [
-        "query-string"
-      ],
-      "range": "<=0.4.2",
-      "nodes": [
-        "node_modules/decode-uri-component"
-      ],
-      "fixAvailable": false
-    },
-    "query-string": {
-      "name": "query-string",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "decode-uri-component"
-      ],
-      "effects": [
-        "@react-navigation/core"
-      ],
-      "range": "5.0.0 - 9.4.1",
-      "nodes": [
-        "node_modules/query-string"
-      ],
-      "fixAvailable": false
-    }
-  },
+  "vulnerabilities": {},
   "metadata": {
     "vulnerabilities": {
       "info": 0,
       "low": 0,
-      "moderate": 7,
+      "moderate": 0,
       "high": 0,
       "critical": 0,
-      "total": 7
+      "total": 0
     },
     "dependencies": {
       "prod": 656,
-      "dev": 417,
+      "dev": 430,
       "optional": 41,
       "peer": 11,
       "peerOptional": 0,
-      "total": 1095
+      "total": 1108
     }
   }
 }
