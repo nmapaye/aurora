@@ -79,6 +79,9 @@
   "overrides": {
     "react-native-health": {
       "@expo/config-plugins": "~57.0.9"
+    },
+    "xcode": {
+      "uuid": "^11.1.1"
     }
   },
   "expo": {
