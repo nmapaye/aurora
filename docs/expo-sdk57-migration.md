@@ -4,6 +4,8 @@
 
 The SDK 57 pod lock and CocoaPods-managed project references are now regenerated with CocoaPods 1.16.2 on the Xcode runner. Deployment-mode installation and the native drift check pass. Debug and Release builds are required by App CI before this migration lands; device validation remains separate. The September 7 record below describes the earlier state.
 
+The first native compile exposed a removed legacy bridge call in `react-native-health` 1.19.0. A pinned, reproducible [dependency patch](../patches/README.md) preserves React Native's injected bridgeless event emitter when `RCT_REMOVE_LEGACY_ARCH` is defined. Legacy builds retain the old bridge setup. The native builds must validate this additional fix; no device runtime check is implied.
+
 Cold validation passes all 52 Jest suites and 283 tests, TypeScript and ESLint. CI now disables Jest's transform cache. UI suites have a 30-second timeout to accommodate cold native-module transforms; unit suites keep the default timeout.
 
 Sharp 0.35.4 removes the libvips advisory. The existing icon-generation script passes with that release. A scoped `xcode` override selects UUID 11.1.1 or newer within major 11, which still provides CommonJS exports and the `v4()` API used by Xcode. Project parsing, serialization and 100 generated identifiers pass.
