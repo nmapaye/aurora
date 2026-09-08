@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit.m b/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit.m
+index e8ddce1..9c52baa 100644
+--- a/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit.m
++++ b/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit.m
+@@ -840,8 +840,11 @@ -(void)startObserving {
+ 
+ - (void)emitEventInternal:(NSNotification *)notification {
+   if (self.hasListeners) {
++#ifndef RCT_REMOVE_LEGACY_ARCH
+     self.callableJSModules = [RCTAppleHealthKit sharedJsModule];
+     [self.callableJSModules setBridge:self.bridge];
++#endif
++    // The new architecture injects callableJSModules with its bridgeless invoker.
+     [self sendEventWithName:notification.name
+                    body:notification.userInfo];
+   }

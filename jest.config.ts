@@ -16,6 +16,7 @@ const unitProject: Config = {
       'ts-jest',
       {
         tsconfig: {
+          rootDir: '.',
           target: 'ES2020',
           module: 'commonjs',
           jsx: 'react-jsx',
@@ -39,7 +40,7 @@ const uiProject: Config = {
   ...shared,
   setupFilesAfterEnv: ['<rootDir>/tests/ui/setup.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*|react-native-reanimated|react-native-worklets|react-native-svg)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*|react-native-reanimated|react-native-worklets|react-native-svg|decode-uri-component)',
   ],
 };
 

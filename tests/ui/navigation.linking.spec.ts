@@ -44,6 +44,10 @@ describe('navigation deep linking', () => {
     expect(getLinkingPrefixes('')).toEqual(['aurora://']);
   });
 
+  it.each(['sleep/history?bad=%E0%A4%A', 'sleep/history#details'])('ignores unsupported suffixes in %s', (path) => {
+    expect(leafRouteName(linking.getStateFromPath?.(path, linking.config))).toBe('SleepHistory');
+  });
+
   it('handles a cold-start link to the existing Sleep History path', async () => {
     jest.spyOn(RNLinking, 'getInitialURL').mockResolvedValue('aurora://sleep/history');
 

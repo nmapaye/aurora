@@ -35,7 +35,11 @@ type HealthKitSleepGetter = (
   options: { startDate: string; endDate: string },
   callback: (error: unknown, results?: unknown[]) => void,
 ) => void;
+type HealthKitAvailability = (
+  callback: (error: unknown, available: boolean) => void,
+) => void;
 type HealthKitClient = {
+  isAvailable?: HealthKitAvailability;
   initHealthKit?: HealthKitInitialize;
   initializeHealthKit?: HealthKitInitialize;
   getSleepSamples?: HealthKitSleepGetter;
@@ -56,15 +60,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function optionalRequire(name: string): unknown | null {
-  try {
-    const rq = eval('require') as (moduleName: string) => unknown;
-    return rq(name);
-  } catch {
-    return null;
-  }
-}
-
 function toHealthKitClient(value: unknown): HealthKitClient | null {
   if (!isRecord(value)) {
     return null;
@@ -77,6 +72,10 @@ function toHealthKitClient(value: unknown): HealthKitClient | null {
       : undefined;
 
   return {
+    isAvailable:
+      typeof value.isAvailable === 'function'
+        ? (value.isAvailable as HealthKitAvailability)
+        : undefined,
     initHealthKit:
       typeof value.initHealthKit === 'function'
         ? (value.initHealthKit as HealthKitInitialize)
@@ -104,10 +103,13 @@ function toHealthKitModule(value: unknown): HealthKitModule | null {
 }
 
 function getHealthModule(): HealthKitModule | null {
-  return (
-    toHealthKitModule(optionalRequire('react-native-health')) ??
-    toHealthKitModule(optionalRequire('react-native-apple-healthkit'))
-  );
+  try {
+    // Metro must see the literal dependency to include it in release bundles.
+    // Expo Go exposes constants without native methods, checked by isAvailable.
+    return toHealthKitModule(require('react-native-health'));
+  } catch {
+    return null;
+  }
 }
 
 function toMillis(value: unknown): number | null {
@@ -143,11 +145,36 @@ function toLabel(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
+function isSleepCategory(sample: Record<string, unknown>): boolean {
+  const category = toLabel(sample.label) ?? sample.value;
+  // The optional custom bridge can provide already-filtered, unlabelled sleep.
+  if (category === undefined || category === null) {
+    return true;
+  }
+  if (typeof category === 'number') {
+    // HealthKit: asleep (1), core (3), deep (4), REM (5).
+    return [1, 3, 4, 5].includes(category);
+  }
+  if (typeof category === 'string') {
+    return [
+      'ASLEEP',
+      'ASLEEP_UNSPECIFIED',
+      'CORE',
+      'DEEP',
+      'REM',
+      'ASLEEP_CORE',
+      'ASLEEP_DEEP',
+      'ASLEEP_REM',
+    ].includes(category.trim().toUpperCase());
+  }
+  return false;
+}
+
 export function normalizeSleepSamples(rawSamples: unknown[]): SleepSample[] {
   const seen = new Set<string>();
   return rawSamples
     .reduce<SleepSample[]>((acc, sample) => {
-      if (!isRecord(sample)) {
+      if (!isRecord(sample) || !isSleepCategory(sample)) {
         return acc;
       }
 
@@ -196,7 +223,26 @@ export async function isAvailable(): Promise<boolean> {
       return true;
     }
   } catch {}
-  return getHealthModule() !== null;
+  const mod = getHealthModule();
+  const client = mod?.default ?? mod;
+  const checkAvailability = client?.isAvailable;
+  if (
+    typeof checkAvailability !== 'function' ||
+    typeof (client?.initHealthKit ?? client?.initializeHealthKit) !==
+      'function' ||
+    typeof client?.getSleepSamples !== 'function'
+  ) {
+    return false;
+  }
+  return new Promise((resolve) => {
+    try {
+      checkAvailability((error, available) =>
+        resolve(!error && available === true),
+      );
+    } catch {
+      resolve(false);
+    }
+  });
 }
 
 export async function requestAuthorization(): Promise<boolean> {
@@ -216,7 +262,7 @@ export async function requestAuthorization(): Promise<boolean> {
     permissions?.SleepAnalysisRead ??
     permissions?.Sleep;
 
-  if (typeof initialize !== 'function') {
+  if (typeof initialize !== 'function' || !sleepPermission) {
     return false;
   }
 
@@ -224,7 +270,7 @@ export async function requestAuthorization(): Promise<boolean> {
     initialize(
       {
         permissions: {
-          read: sleepPermission ? [sleepPermission] : [],
+          read: [sleepPermission],
           write: [],
         },
       },
@@ -245,7 +291,7 @@ export async function getSleepSamples(
   const client = mod?.default ?? mod;
   const getter = client?.getSleepSamples;
   if (typeof getter !== 'function') {
-    return [];
+    throw new Error('Apple Health is unavailable in this build.');
   }
 
   return new Promise((resolve, reject) => {
@@ -256,7 +302,11 @@ export async function getSleepSamples(
       },
       (error: unknown, results?: unknown[]) => {
         if (error) {
-          reject(error instanceof Error ? error : new Error('Health sleep query failed.'));
+          reject(
+            error instanceof Error
+              ? error
+              : new Error('Health sleep query failed.'),
+          );
           return;
         }
         if (!Array.isArray(results)) {

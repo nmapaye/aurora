@@ -4,7 +4,7 @@ import reactPlugin from 'eslint-plugin-react';
 
 export default [
   // Global ignores
-  { ignores: ['**/node_modules/**','**/ios/**','**/dist/**','**/.expo/**'] },
+  { ignores: ['**/node_modules/**','**/ios/**','**/dist/**','**/.expo/**','**/.worktrees/**'] },
 
   // JavaScript files
   {

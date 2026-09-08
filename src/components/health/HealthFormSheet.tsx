@@ -3,10 +3,15 @@ import type { RefObject } from 'react';
 import {
   AccessibilityInfo,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   findNodeHandle,
   Text,
   View,
 } from 'react-native';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Button from '~/components/Button';
 import useAppScheme from '~/hooks/useAppScheme';
@@ -36,6 +41,7 @@ export function HealthFormSheet({
   reduceMotion = false,
   returnFocusRef,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const palette = getAppPalette(useAppScheme());
   const headingRef = useRef<Text>(null);
   const wasVisibleRef = useRef(false);
@@ -61,17 +67,25 @@ export function HealthFormSheet({
       animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={onCancel}
     >
-      <View
+      <KeyboardAvoidingView
+        testID="health-form-keyboard"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         accessibilityViewIsModal
         accessibilityLabel={title}
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}
+        style={{ flex: 1, paddingTop: insets.top, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}
       >
-        <View
-          style={{
+        <ScrollView
+          testID="health-form-scroll"
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          style={{ flexGrow: 0, flexShrink: 1, backgroundColor: palette.modalBackground,
+            borderTopLeftRadius: radii.hero, borderTopRightRadius: radii.hero }}
+          contentContainerStyle={{
             backgroundColor: palette.modalBackground,
             borderTopLeftRadius: radii.hero,
             borderTopRightRadius: radii.hero,
             padding: spacing.md,
+            paddingBottom: spacing.md + insets.bottom,
             gap: spacing.md,
           }}
         >
@@ -88,8 +102,8 @@ export function HealthFormSheet({
           </View>
           {children}
           <Button title={saveLabel} variant="primary" disabled={saveDisabled} onPress={onSave} />
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

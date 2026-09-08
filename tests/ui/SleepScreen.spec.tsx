@@ -175,8 +175,8 @@ describe('SleepScreen', () => {
     await waitFor(() =>
       expect(health.getSleepSamples).toHaveBeenCalledWith(now - 30 * 24 * 60 * 60 * 1000, now),
     );
-    expect(screen.getAllByText('Health connected').length).toBeGreaterThan(0);
-    expect(screen.getByText('Health connected with 0 imported sleep samples.')).toBeOnTheScreen();
+    expect(screen.getAllByText('No readable sleep data').length).toBeGreaterThan(0);
+    expect(screen.getByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).toBeOnTheScreen();
     expect(useStore.getState().healthSync.importStatus).toBe('succeeded');
   });
 
@@ -201,7 +201,7 @@ describe('SleepScreen', () => {
     await act(() => query.reject(new Error('Health database unavailable')));
 
     await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
-    expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).not.toBeOnTheScreen();
     expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
     expect(useStore.getState()).toMatchObject({
       onboarding: {
@@ -260,7 +260,7 @@ describe('SleepScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
 
     await waitFor(() => expect(screen.getAllByText(/Health refresh failed/).length).toBeGreaterThan(0));
-    expect(screen.queryByText('Health connected with 0 imported sleep samples.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).not.toBeOnTheScreen();
     expect(useStore.getState()).toMatchObject({
       onboarding: {
         source: 'healthkit',
@@ -346,7 +346,7 @@ describe('SleepScreen', () => {
 
   it.each([
     ['unsupported', 'Health unavailable'],
-    ['denied', 'Health access denied'],
+    ['denied', 'Health request incomplete'],
   ] as const)('keeps %s Health state visibly distinct', async (permissionStatus, expected) => {
     useStore.getState().setOnboarding({ permissionStatus });
     await render(<SleepScreen />);

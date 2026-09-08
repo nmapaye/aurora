@@ -63,6 +63,6 @@ describe('app boot smoke flow', () => {
     expect(snapshot.doses.length).toBeGreaterThan(0);
     expect(snapshot.sleeps.length).toBeGreaterThan(0);
     expect(snapshot.vigilanceSessions.length).toBeGreaterThan(0);
-    expect(snapshot.healthSync.lastMessage).toContain('Sample data loaded');
+    expect(snapshot.healthSync).toEqual({ importedCount: 0, importStatus: 'idle' });
   });
 });

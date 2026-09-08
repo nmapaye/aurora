@@ -14,15 +14,16 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 // Keeps the scheduled reminder in sync with prefs; returns whether a
 // reminder is scheduled afterwards.
-export async function syncCutoffReminder(
+async function applyCutoffReminder(
   enabled: boolean,
-  cutoffHour: number
+  cutoffHour: number,
+  intent: number,
 ): Promise<boolean> {
   await Notifications.cancelScheduledNotificationAsync(CUTOFF_REMINDER_ID);
-  if (!enabled) return false;
+  if (!enabled || intent !== latestIntent) return false;
 
   const granted = await requestNotificationPermission();
-  if (!granted) return false;
+  if (!granted || intent !== latestIntent) return false;
 
   const reminder = cutoffReminder(cutoffHour);
   await Notifications.scheduleNotificationAsync({
@@ -35,4 +36,15 @@ export async function syncCutoffReminder(
     },
   });
   return true;
+}
+
+// Native cancellation and scheduling must never overlap. A rejected operation
+// still releases the queue so the user's next intent can retry.
+let reminderQueue: Promise<unknown> = Promise.resolve();
+let latestIntent = 0;
+export function syncCutoffReminder(enabled: boolean, cutoffHour: number): Promise<boolean> {
+  const intent = ++latestIntent;
+  const operation = reminderQueue.then(() => applyCutoffReminder(enabled, cutoffHour, intent));
+  reminderQueue = operation.catch(() => undefined);
+  return operation;
 }

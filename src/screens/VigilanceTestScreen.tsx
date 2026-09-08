@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { AppState, Pressable, Text, View } from 'react-native';
 
 import Button from '~/components/Button';
 import useAppScheme from '~/hooks/useAppScheme';
@@ -39,10 +39,23 @@ export default function VigilanceTestScreen() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [tickNow, setTickNow] = useState<number>(Date.now());
   const savedRef = useRef(false);
+  const runningRef = useRef(false);
+  const [interrupted, setInterrupted] = useState(false);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' || !runningRef.current) return;
+      runningRef.current = false;
+      setInterrupted(true);
+      setTaskState(createVigilanceTaskState());
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (taskState.phase !== 'running') return undefined;
     const timer = setInterval(() => {
+      if (!runningRef.current) return;
       const now = Date.now();
       setTickNow(now);
       setTaskState((current) => advanceVigilanceTask(current, now));
@@ -53,6 +66,7 @@ export default function VigilanceTestScreen() {
   useEffect(() => {
     if (
       taskState.phase !== 'complete' ||
+      !runningRef.current ||
       savedRef.current ||
       taskState.startedAt === null
     ) {
@@ -68,6 +82,7 @@ export default function VigilanceTestScreen() {
       trialResults: taskState.trialResults,
       falseStartCount: taskState.falseStartCount,
     });
+    runningRef.current = false;
     addVigilanceSession(session);
     savedRef.current = true;
     setSavedSessionId(sessionId);
@@ -123,6 +138,8 @@ export default function VigilanceTestScreen() {
           };
 
   const startSession = () => {
+    runningRef.current = true;
+    setInterrupted(false);
     savedRef.current = false;
     setSavedSessionId(null);
     const now = Date.now();
@@ -131,6 +148,7 @@ export default function VigilanceTestScreen() {
   };
 
   const handleTap = () => {
+    if (!runningRef.current) return;
     const now = Date.now();
     setTickNow(now);
     setTaskState((current) => registerVigilanceTap(current, now));
@@ -258,6 +276,12 @@ export default function VigilanceTestScreen() {
                 Wait for the cue, then tap the active area as quickly as you
                 can.
               </Text>
+              {interrupted && (
+                <Text accessibilityRole="alert" accessibilityLiveRegion="assertive"
+                  style={{ ...typeRamp.body, color: palette.textPrimary, textAlign: 'center' }}>
+                  Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 60 seconds.
+                </Text>
+              )}
               <Button
                 title="Start Test"
                 variant="primary"
