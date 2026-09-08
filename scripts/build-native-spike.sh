@@ -12,7 +12,8 @@ export SWIFTPM_MODULECACHE_OVERRIDE="${SWIFTPM_MODULECACHE_OVERRIDE:-${TMPDIR:-/
 swift build --disable-sandbox --package-path "$spike_package" --product AuroraSpikePreview
 spike_binary_dir=$(swift build --disable-sandbox --package-path "$spike_package" --show-bin-path)
 mkdir -p "$spike_application/Contents/MacOS" "$spike_application/Contents/Resources"
-cp "$spike_binary_dir/AuroraSpikePreview" "$spike_application/Contents/MacOS/AuroraSpikePreview"
+cp "$spike_binary_dir/AuroraSpikePreview" "$spike_application/Contents/MacOS/AuroraSpikePreview.next"
+mv -f "$spike_application/Contents/MacOS/AuroraSpikePreview.next" "$spike_application/Contents/MacOS/AuroraSpikePreview"
 cat > "$spike_application/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

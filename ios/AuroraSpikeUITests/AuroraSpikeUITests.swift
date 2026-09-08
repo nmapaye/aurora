@@ -50,6 +50,7 @@ final class AuroraSpikeUITests: XCTestCase {
         keepScreenshot("Sleep time editor")
         app.buttons["accept-sleep-plan"].tap()
         XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        XCTAssertEqual(edit.label, "Edit sleep window")
         keepScreenshot("Accepted sleep window")
     }
 

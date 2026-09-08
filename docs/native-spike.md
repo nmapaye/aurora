@@ -29,6 +29,13 @@ The prototype's results will guide a later implementation decision. It does not 
 
 ## Verification
 
-Run `bash scripts/test-native-spike.sh` for domain tests. `Native SwiftUI Spike` CI builds the shared code and unsigned iOS Debug/Release applications on stable Xcode 26.6. The manually maintained workspace includes a separate spike project; it does not change the production target or run Expo prebuild.
+Run `bash scripts/test-native-spike.sh` for domain tests. `Native SwiftUI Spike` CI is configured to build the shared code and unsigned iOS Debug/Release applications on stable Xcode 26.6. It also runs the favorite, half-serving, Undo and accepted-sleep flows on iPhone 13 and iPad Air simulators, with screenshots attached. The manually maintained workspace includes a separate spike project; it does not change the production target or run Expo prebuild.
 
-Verification results and any remaining limits will be recorded here after execution.
+Verified locally on September 8, 2026:
+
+- All 18 domain tests pass, covering recipe/container independence, partial servings, immutable history, Undo conflicts/expiry, volume conversion, midnight and DST sleep suggestions, explicit acceptance, and example exclusion.
+- The shared SwiftUI screens compile with Swift 6.3.2 for macOS 14+. The packaged Mac application launches and exposes Today and drink adjustment controls through the native accessibility tree.
+- Independent specification/code review found and resolved two issues: navigation now stays on the same page when switching window layouts, and tumbler coffee can switch both ways between espresso and brewed preparation. Favorite and sleep actions have at least 44-point touch targets.
+- Project and privacy plist validation, shell syntax, and whitespace checks pass.
+
+iOS builds, simulator screenshots, physical-device behavior and a full VoiceOver/Dynamic Type pass remain unverified. Full local Xcode is still paused. Publishing the isolated branch for remote CI requires the user's approval; the local prototype can be used immediately.
