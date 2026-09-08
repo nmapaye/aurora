@@ -44,6 +44,11 @@ on:
       - 'tsconfig.json'
       - 'ios/**'
   workflow_dispatch:
+    inputs:
+      update_native_lock:
+        description: Generate a native lock update artifact for review
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -106,14 +111,33 @@ jobs:
       - name: Install locked CocoaPods
         run: gem install cocoapods -v 1.16.2 --no-document
 
+      - name: Generate native lock update
+        if: github.event_name == 'workflow_dispatch' && inputs.update_native_lock
+        run: |
+          cd ios
+          pod _1.16.2_ update --no-repo-update
+          git diff --binary -- . > "$RUNNER_TEMP/native-lock.patch"
+
+      - name: Upload native lock update
+        if: github.event_name == 'workflow_dispatch' && inputs.update_native_lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lock-update
+          path: ${{ runner.temp }}/native-lock.patch
+          if-no-files-found: error
+
       - name: Bootstrap locked iOS dependencies
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: npm run ios:bootstrap -- --deployment
 
       - name: Reject native dependency drift
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: git diff --exit-code -- ios
 
       - name: Build Debug for iOS Simulator
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: npm run ios:build:debug
 
       - name: Build Release for iOS Simulator
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: npm run ios:build:release
