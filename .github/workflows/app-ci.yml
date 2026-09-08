@@ -85,7 +85,7 @@ jobs:
         run: npm run lint
 
       - name: Test app
-        run: npm test -- --runInBand
+        run: npm test -- --runInBand --no-cache
 
   ios-native:
     name: iOS Xcode
@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload native lock update
         if: github.event_name == 'workflow_dispatch' && inputs.update_native_lock
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: native-lock-update
           path: ${{ runner.temp }}/native-lock.patch
