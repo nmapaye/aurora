@@ -132,16 +132,20 @@ export default function SleepScreen() {
       : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
         ? 'Health unavailable'
         : onboarding.permissionStatus === 'denied'
-          ? 'Health access denied'
+          ? 'Health request incomplete'
           : onboarding.permissionStatus === 'granted'
-            ? 'Health connected'
+            ? healthSync.importStatus === 'succeeded'
+              ? healthSync.importedCount > 0 ? 'Health import completed' : 'No readable sleep data'
+              : healthSync.importStatus === 'importing' ? 'Importing sleep' : 'Health request completed'
             : 'Manual mode';
   const healthDescription = refreshFailureMessage
     ? refreshFailureMessage
-    : healthState === 'Health connected'
-      ? 'Aurora can refresh the most recent 30 days of read-only sleep data.'
-      : healthState === 'Health access denied'
-        ? 'Health access is denied. Manual sleep logging remains available.'
+    : ['Health import completed', 'No readable sleep data', 'Importing sleep', 'Health request completed'].includes(healthState)
+      ? healthSync.importStatus === 'succeeded' && healthSync.importedCount === 0
+        ? 'Check sleep records and Aurora’s read access in Health, or add sleep manually.'
+        : 'Refresh checks for readable sleep samples from the most recent 30 days.'
+      : healthState === 'Health request incomplete'
+        ? 'Health access request did not complete. Manual sleep logging remains available.'
         : healthState === 'Health unavailable'
           ? 'Health import is unavailable on this device.'
           : healthState === 'Sample Data'
@@ -161,7 +165,7 @@ export default function SleepScreen() {
       }
       if (!(await AppleHealth.requestAuthorization())) {
         setOnboarding({ source: 'manual', permissionStatus: 'denied' });
-        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access was denied. No sleep samples were imported.' });
+        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access request did not complete. No sleep samples were imported.' });
         return;
       }
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
@@ -178,7 +182,7 @@ export default function SleepScreen() {
         importedCount: sessions.length,
         importStatus: 'succeeded',
         lastSyncedAt: now,
-        lastMessage: sessions.length ? `Imported ${sessions.length} sleep ${sessions.length === 1 ? 'sample' : 'samples'} from Health.` : 'Health connected with 0 imported sleep samples.',
+        lastMessage: sessions.length ? `Imported ${sessions.length} sleep ${sessions.length === 1 ? 'sample' : 'samples'} from Health.` : 'No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to read sleep data.';

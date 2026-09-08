@@ -17,6 +17,7 @@ on:
       - 'metro.config.js'
       - 'package-lock.json'
       - 'package.json'
+      - 'patches/**'
       - 'scripts/**'
       - 'src/**'
       - 'tests/**'
@@ -38,12 +39,18 @@ on:
       - 'metro.config.js'
       - 'package-lock.json'
       - 'package.json'
+      - 'patches/**'
       - 'scripts/**'
       - 'src/**'
       - 'tests/**'
       - 'tsconfig.json'
       - 'ios/**'
   workflow_dispatch:
+    inputs:
+      update_native_lock:
+        description: Generate a native lock update artifact for review
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -80,7 +87,7 @@ jobs:
         run: npm run lint
 
       - name: Test app
-        run: npm test -- --runInBand
+        run: npm test -- --runInBand --no-cache
 
   ios-native:
     name: iOS Xcode
@@ -106,14 +113,33 @@ jobs:
       - name: Install locked CocoaPods
         run: gem install cocoapods -v 1.16.2 --no-document
 
+      - name: Generate native lock update
+        if: github.event_name == 'workflow_dispatch' && inputs.update_native_lock
+        run: |
+          cd ios
+          pod _1.16.2_ update --no-repo-update
+          git diff --binary -- . > "$RUNNER_TEMP/native-lock.patch"
+
+      - name: Upload native lock update
+        if: github.event_name == 'workflow_dispatch' && inputs.update_native_lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-lock-update
+          path: ${{ runner.temp }}/native-lock.patch
+          if-no-files-found: error
+
       - name: Bootstrap locked iOS dependencies
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: npm run ios:bootstrap -- --deployment
 
       - name: Reject native dependency drift
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
         run: git diff --exit-code -- ios
 
       - name: Build Debug for iOS Simulator
-        run: npm run ios:build:debug
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
+        run: npm run ios:build:debug -- -quiet
 
       - name: Build Release for iOS Simulator
-        run: npm run ios:build:release
+        if: github.event_name != 'workflow_dispatch' || !inputs.update_native_lock
+        run: npm run ios:build:release -- -quiet

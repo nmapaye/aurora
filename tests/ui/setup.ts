@@ -1,3 +1,9 @@
+// Native module transforms and React rendering can exceed Jest's 5s default on a cold worker.
+// Keep the longer budget within UI suites; unit tests retain the default.
+jest.setTimeout(30_000);
+
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+
 require('react-native-reanimated').setUpTests();
 
 jest.mock('expo-symbols', () => {

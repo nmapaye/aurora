@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   getNativeSleepSamples,
   makeHealthSleepSessionId,
@@ -7,20 +9,33 @@ import {
 describe('Health sleep query errors', () => {
   test('propagates a native query failure instead of reporting an empty successful result', async () => {
     await expect(
-      getNativeSleepSamples(async () => {
-        throw new Error('Health database unavailable');
-      }, 1, 2),
+      getNativeSleepSamples(
+        async () => {
+          throw new Error('Health database unavailable');
+        },
+        1,
+        2,
+      ),
     ).rejects.toThrow('Health database unavailable');
   });
 
-  test.each([undefined, { samples: [] }, 'not an array'])('rejects malformed native response payload %p', async (payload) => {
-    await expect(
-      getNativeSleepSamples(async () => payload as unknown as unknown[], 1, 2),
-    ).rejects.toThrow('Health sleep query returned an invalid payload.');
-  });
+  test.each([undefined, { samples: [] }, 'not an array'])(
+    'rejects malformed native response payload %p',
+    async (payload) => {
+      await expect(
+        getNativeSleepSamples(
+          async () => payload as unknown as unknown[],
+          1,
+          2,
+        ),
+      ).rejects.toThrow('Health sleep query returned an invalid payload.');
+    },
+  );
 
   test('preserves an actual empty array as a successful zero-result response', async () => {
-    await expect(getNativeSleepSamples(async () => [], 1, 2)).resolves.toEqual([]);
+    await expect(getNativeSleepSamples(async () => [], 1, 2)).resolves.toEqual(
+      [],
+    );
   });
 });
 
@@ -35,12 +50,12 @@ describe('normalizeSleepSamples', () => {
       {
         startDate: '2026-03-01T00:00:00.000Z',
         endDate: '2026-03-01T07:30:00.000Z',
-        value: 'INBED',
+        value: 'ASLEEP',
       },
       {
         start: '1772086500000',
         end: '1772111700000',
-        value: 2,
+        value: 3,
       },
     ]);
 
@@ -49,12 +64,12 @@ describe('normalizeSleepSamples', () => {
         start: Date.parse('2026-03-01T00:00:00.000Z'),
         end: Date.parse('2026-03-01T07:30:00.000Z'),
         value: undefined,
-        label: 'INBED',
+        label: 'ASLEEP',
       },
       {
         start: 1_772_086_500_000,
         end: 1_772_111_700_000,
-        value: 2,
+        value: 3,
         label: undefined,
       },
       {
@@ -169,7 +184,134 @@ describe('normalizeSleepSamples', () => {
       makeHealthSleepSessionId({
         start: Date.parse('2026-03-05T00:00:00.000Z'),
         end: Date.parse('2026-03-05T08:00:00.000Z'),
-      })
+      }),
     ).toBe('healthkit:sleep:1772668800000:1772697600000');
+  });
+});
+
+describe('bundled HealthKit fallback', () => {
+  afterEach(() => {
+    jest.dontMock('react-native-health');
+    jest.resetModules();
+  });
+
+  test('includes the installed HealthKit client in Metro dependency collection', () => {
+    const { parse } = require('@babel/parser');
+    const collectDependencies =
+      require('metro/private/ModuleGraph/worker/collectDependencies').default;
+    const source = readFileSync(
+      join(
+        __dirname,
+        '../../../../src/services/platform/health/appleHealth.ts',
+      ),
+      'utf8',
+    );
+    const ast = parse(source, {
+      sourceType: 'module',
+      plugins: ['typescript'],
+    });
+    const { dependencies } = collectDependencies(ast, {
+      asyncRequireModulePath: 'metro-runtime/src/modules/asyncRequire',
+      dynamicRequires: 'reject',
+      inlineableCalls: [],
+      keepRequireNames: true,
+      allowOptionalDependencies: true,
+    });
+    expect(
+      dependencies.map((dependency: { name: string }) => dependency.name),
+    ).toContain('react-native-health');
+  });
+
+  test('does not report Constants-only Expo Go modules as available', async () => {
+    jest.resetModules();
+    jest.doMock('react-native-health', () => ({
+      Constants: { Permissions: { SleepAnalysis: 'SleepAnalysis' } },
+    }));
+    const health = require('~/services/platform/health/appleHealth');
+    await expect(health.isAvailable()).resolves.toBe(false);
+    await expect(health.requestAuthorization()).resolves.toBe(false);
+    await expect(health.getSleepSamples(1, 2)).rejects.toThrow(
+      'Apple Health is unavailable in this build.',
+    );
+  });
+
+  test.each([
+    [null, false],
+    [new Error('HealthKit unavailable'), true],
+  ])(
+    'respects native availability result %p / %p',
+    async (error, available) => {
+      jest.resetModules();
+      jest.doMock('react-native-health', () => ({
+        isAvailable: (callback: (error: unknown, available: unknown) => void) =>
+          callback(error, available),
+        initHealthKit: jest.fn(),
+        getSleepSamples: jest.fn(),
+      }));
+      const health = require('~/services/platform/health/appleHealth');
+      await expect(health.isAvailable()).resolves.toBe(false);
+    },
+  );
+
+  test('uses the native client with sleep read permission and no write permissions', async () => {
+    jest.resetModules();
+    const initHealthKit = jest.fn((_options, callback) => callback(null));
+    const getSleepSamples = jest.fn((_options, callback) =>
+      callback(null, [{ start: 1, end: 2, value: 'ASLEEP' }]),
+    );
+    jest.doMock('react-native-health', () => ({
+      isAvailable: (callback: (error: unknown, available: boolean) => void) =>
+        callback(null, true),
+      initHealthKit,
+      getSleepSamples,
+      Constants: { Permissions: { SleepAnalysis: 'SleepAnalysis' } },
+    }));
+    const health = require('~/services/platform/health/appleHealth');
+    await expect(health.isAvailable()).resolves.toBe(true);
+    await expect(health.requestAuthorization()).resolves.toBe(true);
+    expect(initHealthKit).toHaveBeenCalledWith(
+      { permissions: { read: ['SleepAnalysis'], write: [] } },
+      expect.any(Function),
+    );
+    await expect(health.getSleepSamples(1, 2)).resolves.toEqual([
+      { start: 1, end: 2, value: undefined, label: 'ASLEEP' },
+    ]);
+  });
+});
+
+describe('Health sleep categories', () => {
+  test.each(['INBED', 'AWAKE', 'UNKNOWN', 'inBed', 0, 2, 99])(
+    'excludes non-sleep category %p',
+    (value) => {
+      expect(normalizeSleepSamples([{ start: 1, end: 2, value }])).toEqual([]);
+    },
+  );
+
+  test.each([
+    'ASLEEP',
+    'CORE',
+    'DEEP',
+    'REM',
+    'ASLEEP_CORE',
+    'ASLEEP_DEEP',
+    'ASLEEP_REM',
+    1,
+    3,
+    4,
+    5,
+  ])('retains sleep category %p', (value) => {
+    expect(normalizeSleepSamples([{ start: 1, end: 2, value }])).toHaveLength(
+      1,
+    );
+  });
+
+  test('filters non-sleep labels before deduplicating identical windows', () => {
+    expect(
+      normalizeSleepSamples([
+        { start: 1, end: 2, label: 'INBED' },
+        { start: 1, end: 2, label: 'ASLEEP' },
+        { start: 3, end: 4, label: 'AWAKE' },
+      ]),
+    ).toEqual([{ start: 1, end: 2, value: undefined, label: 'ASLEEP' }]);
   });
 });

@@ -45,6 +45,10 @@ export function getLinkingPrefixes(linkingUri: string | null | undefined) {
     : [CUSTOM_SCHEME_PREFIX];
 }
 
+export function stripUnsupportedLinkSuffix(path: string) {
+  return path.split(/[?#]/, 1)[0] ?? '';
+}
+
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: getLinkingPrefixes(Constants.linkingUri),
   config,
@@ -52,7 +56,7 @@ const linking: LinkingOptions<RootStackParamList> = {
     const onboarding = useStore.getState().onboarding;
     const resolvedPath = isAppWalkthroughPending(onboarding)
       ? walkthroughRoutePaths[getAppWalkthroughRoute(onboarding.appWalkthroughStep)]
-      : path;
+      : stripUnsupportedLinkSuffix(path);
     return getNavigationStateFromPath<RootStackParamList>(
       resolvedPath,
       config,

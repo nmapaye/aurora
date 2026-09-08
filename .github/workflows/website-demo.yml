@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: website-demo
+  group: website-demo-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

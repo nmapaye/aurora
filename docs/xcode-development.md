@@ -7,8 +7,9 @@ continues to provide the JavaScript runtime, Metro, and native modules.
 
 ## Requirements
 
-- Stable Xcode 26.6 with the iOS 26 SDK or newer. Do not use an Xcode 27 beta
-  for release work.
+- Stable Xcode 26.6 with the iOS 26.4 SDK or newer. Expo SDK 57 requires
+  Xcode 26.4 or newer; the bootstrap retains the 26.6 release target. Do not
+  use an Xcode 27 beta for release work.
 - Node.js 24 and npm 11.6 or newer.
 - CocoaPods 1.16.2, matching `ios/Podfile.lock`.
 
@@ -80,7 +81,7 @@ npm run ios:build:debug
 npm run ios:build:release
 ```
 
-The deployment target remains iOS 15.1, and the app targets both iPhone and
+The deployment target is iOS 16.4, and the app targets both iPhone and
 iPad. Do not accept Xcode's complete “recommended settings” migration as one
 bulk change; review each proposed setting after both build configurations are
 green.

@@ -41,12 +41,56 @@ describe('sample data store actions', () => {
     expect(state.onboarding.source).toBe('manual');
     expect(state.onboarding.appWalkthroughCompleted).toBe(false);
     expect(state.onboarding.appWalkthroughStep).toBe(0);
-    expect(state.healthSync.importedCount).toBeGreaterThan(0);
+    expect(state.healthSync).toEqual({ importedCount: 0, importStatus: 'idle' });
     expect(state.doses.every((dose) => dose.id.startsWith('demo:'))).toBe(true);
     expect(state.sleeps.every((sleep) => sleep.id.startsWith('demo:'))).toBe(true);
     expect(
       state.vigilanceSessions.every((session) => session.id.startsWith('demo:'))
     ).toBe(true);
+  });
+
+  it('preserves a returning user’s Health configuration and sync through sample load and clear', () => {
+    useStore.setState({
+      onboarding: { ...useStore.getState().onboarding, completed: true, source: 'healthkit', permissionStatus: 'granted', completedAt: 123 },
+      healthSync: { importedCount: 4, importStatus: 'succeeded', lastSyncedAt: 456, lastMessage: 'Imported 4 recent sleep samples from Health.' },
+    });
+    const { onboarding, healthSync } = useStore.getState();
+    useStore.getState().loadDemoData();
+    expect(useStore.getState().onboarding).toEqual(onboarding);
+    expect(useStore.getState().healthSync).toEqual(healthSync);
+    useStore.getState().clearDemoData();
+    expect(useStore.getState().onboarding).toEqual(onboarding);
+    expect(useStore.getState().healthSync).toEqual(healthSync);
+  });
+
+  it('clears a failed Health import when sample data completes first-run onboarding', () => {
+    useStore.getState().setOnboarding({ permissionStatus: 'granted' });
+    useStore.getState().setHealthSync({
+      importStatus: 'failed', lastSyncedAt: 123,
+      lastMessage: 'Health import failed. Database unavailable.',
+    });
+
+    useStore.getState().loadDemoData();
+
+    expect(useStore.getState().healthSync).toEqual({ importedCount: 0, importStatus: 'idle' });
+    expect(useStore.getState().onboarding).toMatchObject({
+      completed: true, source: 'manual', permissionStatus: 'unsupported',
+    });
+  });
+
+  it('preserves a returning user’s failed Health sync when loading samples', () => {
+    useStore.getState().setOnboarding({ completed: true, permissionStatus: 'granted' });
+    useStore.getState().setHealthSync({
+      importStatus: 'failed', importedCount: 4, lastSyncedAt: 123,
+      lastMessage: 'Health refresh failed. Database unavailable.',
+    });
+    const { onboarding, healthSync } = useStore.getState();
+
+    useStore.getState().loadDemoData();
+    useStore.getState().clearDemoData();
+
+    expect(useStore.getState().onboarding).toEqual(onboarding);
+    expect(useStore.getState().healthSync).toEqual(healthSync);
   });
 
   it('replaces existing sample records when sample data is loaded repeatedly', () => {

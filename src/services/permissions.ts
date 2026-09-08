@@ -24,16 +24,17 @@ export async function requestHealthPermissions(): Promise<PermissionResult> {
     };
   }
 
-  const granted = await AppleHealth.requestAuthorization();
-  if (!granted) {
+  // The legacy persisted "granted" status means the request completed, not read permission.
+  const requestCompleted = await AppleHealth.requestAuthorization();
+  if (!requestCompleted) {
     return {
       status: 'denied',
-      message: 'Health access was not granted. You can continue with manual logging.',
+      message: 'Health access request did not complete. You can continue with manual logging.',
     };
   }
 
   return {
     status: 'granted',
-    message: 'Health access granted. Aurora can now import recent sleep.',
+    message: 'Health request completed. Aurora will check for readable sleep samples.',
   };
 }

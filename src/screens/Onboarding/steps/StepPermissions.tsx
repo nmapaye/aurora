@@ -17,6 +17,7 @@ type Props = {
   permissionStatus: HealthPermissionStatus;
   importStatus: HealthImportStatus;
   importMessage?: string;
+  importedCount?: number;
   busy?: boolean;
   onRequest: () => void;
 };
@@ -26,56 +27,57 @@ export default function StepPermissions({
   permissionStatus,
   importStatus,
   importMessage,
+  importedCount = 0,
   busy = false,
   onRequest,
 }: Props) {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const isManual = source === 'manual';
-  const healthAuthorized = permissionStatus === 'granted';
-  const stateLabel = healthAuthorized && importStatus === 'failed'
+  const healthRequestCompleted = permissionStatus === 'granted';
+  const stateLabel = healthRequestCompleted && importStatus === 'failed'
     ? 'Import failed'
-    : healthAuthorized && importStatus === 'importing'
+    : healthRequestCompleted && importStatus === 'importing'
       ? 'Importing'
-      : healthAuthorized && importStatus === 'succeeded'
-        ? 'Connected'
-        : healthAuthorized
+      : healthRequestCompleted && importStatus === 'succeeded'
+        ? importedCount > 0 ? 'Import completed' : 'No readable sleep data'
+        : healthRequestCompleted
           ? 'Import pending'
           : permissionStatus === 'denied'
-            ? 'Not granted'
+            ? 'Request incomplete'
             : permissionStatus === 'unsupported'
               ? 'Unavailable'
               : 'Pending';
 
-  const statusTone = healthAuthorized && importStatus === 'failed'
+  const statusTone = healthRequestCompleted && importStatus === 'failed'
     ? 'error'
-    : healthAuthorized && importStatus === 'importing'
+    : healthRequestCompleted && importStatus === 'importing'
       ? 'info'
-      : healthAuthorized && importStatus === 'succeeded'
-        ? 'success'
-        : healthAuthorized
+      : healthRequestCompleted && importStatus === 'succeeded'
+        ? importedCount > 0 ? 'success' : 'neutral'
+        : healthRequestCompleted
           ? 'warning'
           : permissionStatus === 'denied'
             ? 'error'
             : permissionStatus === 'unsupported'
               ? 'neutral'
               : 'warning';
-  const importFailed = healthAuthorized && importStatus === 'failed';
+  const importFailed = healthRequestCompleted && importStatus === 'failed';
   const failedDetail =
     importMessage?.replace(/^Health import failed\.\s*/i, '') ??
     'Unable to read sleep data.';
   const adjacentCopy = isManual
     ? 'You can connect Health later from Sleep.'
     : permissionStatus === 'denied'
-      ? 'Health access was not granted. Manual sleep logging remains available.'
+      ? 'Health access request did not complete. Manual sleep logging remains available.'
       : permissionStatus === 'unsupported'
         ? 'Health import is unavailable on this device.'
-        : healthAuthorized && importStatus === 'importing'
-          ? 'Health access is granted. Importing recent sleep from Health.'
-          : healthAuthorized && importStatus === 'succeeded'
+        : healthRequestCompleted && importStatus === 'importing'
+          ? 'Health request completed. Importing recent sleep from Health.'
+          : healthRequestCompleted && importStatus === 'succeeded'
             ? importMessage ?? 'Health sleep import completed.'
-            : healthAuthorized
-              ? 'Health access is granted. Recent sleep import is pending.'
+            : healthRequestCompleted
+              ? 'Health request completed. Recent sleep import is pending.'
               : 'Aurora reads sleep only. It does not write anything back into the Health app.';
 
   return (
@@ -108,13 +110,13 @@ export default function StepPermissions({
         {importFailed ? (
           <Text
             accessibilityRole="alert"
-            accessibilityLabel={`Health access granted; import failed. ${failedDetail}`}
+            accessibilityLabel={`Health request completed. Import failed. ${failedDetail}`}
             style={{
               ...typeRamp.subheadline,
               color: palette.destructive,
             }}
           >
-            Health access granted; import failed. {failedDetail}
+            Health request completed. Import failed. {failedDetail}
           </Text>
         ) : (
           <Text
