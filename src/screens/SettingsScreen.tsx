@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import Constants from 'expo-constants';
+import { Alert, Linking, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -13,6 +14,7 @@ import {
 import { goBack } from '~/navigation';
 import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
+import { formatClockHour } from '~/utils/format';
 
 const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
 const supportUrl = 'https://nmapaye.github.io/aurora/support.html';
@@ -26,6 +28,19 @@ export default function SettingsScreen() {
   const setPrefs = useStore((s) => s.setPrefs);
   const appearanceMode = useStore((s) => s.appearanceMode);
   const setAppearanceMode = useStore((s) => s.setAppearanceMode);
+  const deleteAllData = useStore((s) => s.deleteAllData);
+  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+
+  const confirmDeleteAll = () => {
+    Alert.alert(
+      'Delete all Aurora data?',
+      'This removes every caffeine entry, sleep session, and reaction test stored in Aurora. Your Apple Health data is not changed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: deleteAllData },
+      ],
+    );
+  };
 
   const [reminderStatus, setReminderStatus] = useState('Updating reminder…');
   const [reminderFailed, setReminderFailed] = useState(false);
@@ -47,7 +62,7 @@ export default function SettingsScreen() {
       .catch(() => {
         if (cancelled) return;
         setReminderFailed(true);
-        setReminderStatus('Reminder status unknown. The change could not be confirmed. A previous reminder may still be active. Retry to apply your choice.');
+        setReminderStatus('Reminder status unknown. Retry to apply your choice.');
       });
     return () => { cancelled = true; };
   }, [prefs.notifyCutoff, prefs.cutoffHour, retry]);
@@ -111,15 +126,15 @@ export default function SettingsScreen() {
         step={1}
         min={0}
         max={23}
-        formatValue={(value) => `${Math.round(value)}:00`}
+        formatValue={(value) => formatClockHour(value)}
         footer="Your daily guardrail."
       />
 
       <SectionHeader prominence="prominent" title="Notifications" />
       <SectionCard>
         <ListRow
-          title="Cutoff reminder preference"
-          subtitle={`Daily at ${prefs.cutoffHour}:00, so caffeine stays clear of bedtime.`}
+          title="Cutoff reminder"
+          subtitle={`Daily at ${formatClockHour(prefs.cutoffHour)}, so caffeine stays clear of bedtime.`}
         />
         <SegmentedControl
           value={prefs.notifyCutoff ? 'on' : 'off'}
@@ -143,10 +158,6 @@ export default function SettingsScreen() {
       <SectionHeader prominence="prominent" title="About" />
       <SectionCard>
         <ListRow
-          title="Current release focus"
-          subtitle="Health sleep import, caffeine logging, vigilance testing, and insights."
-        />
-        <ListRow
           title="Privacy Policy"
           subtitle="Read-only Health sleep access, local storage, exports, and deletion."
           onPress={() => openExternalUrl(privacyPolicyUrl)}
@@ -160,10 +171,16 @@ export default function SettingsScreen() {
           title="Medical disclaimer"
           subtitle="Aurora is informational only and does not diagnose, treat, cure, or prevent any disease or condition."
         />
+        <ListRow title="Version" subtitle={appVersion} />
+      </SectionCard>
+
+      <SectionHeader prominence="prominent" title="Data" />
+      <SectionCard>
         <ListRow
-          title="Availability"
-          subtitle="Designed for iPhone and iPad."
+          title="Stored on this device"
+          subtitle="Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health."
         />
+        <Button title="Delete All Data" role="destructive" onPress={confirmDeleteAll} />
       </SectionCard>
     </AppScreen>
   );

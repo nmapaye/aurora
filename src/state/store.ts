@@ -62,6 +62,7 @@ type State = {
   setAppearanceMode: (mode: AppearanceMode) => void;
   loadDemoData: () => void;
   clearDemoData: () => void;
+  deleteAllData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
   advanceAppWalkthrough: () => void;
   completeAppWalkthrough: () => void;
@@ -273,6 +274,14 @@ export const useStore = create<State>()(
           vigilanceSessions: withoutDemoId(s.vigilanceSessions),
           demoMode: false,
         })),
+      deleteAllData: () =>
+        set({
+          doses: [],
+          sleeps: [],
+          vigilanceSessions: [],
+          demoMode: false,
+          healthSync: { ...defaultHealthSync },
+        }),
       completeOnboarding: (p) =>
         set((s) => ({
           onboarding: {

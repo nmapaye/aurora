@@ -393,6 +393,15 @@ export default function VigilanceTestScreen() {
                   {latestSession.falseStartCount}
                 </Text>
               </View>
+              <Text
+                style={{
+                  ...typeRamp.footnote,
+                  color: palette.textSecondary,
+                  textAlign: 'center',
+                }}
+              >
+                A quick check of reaction speed, not a medical assessment.
+              </Text>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button
                   title="Run Again"

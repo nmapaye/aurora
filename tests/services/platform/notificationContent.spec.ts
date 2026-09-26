@@ -1,3 +1,4 @@
+import { formatClockHour } from '~/utils/format';
 import { cutoffReminder } from '~/services/platform/notificationContent';
 
 describe('cutoffReminder', () => {
@@ -5,7 +6,8 @@ describe('cutoffReminder', () => {
     const reminder = cutoffReminder(16);
     expect(reminder.hour).toBe(16);
     expect(reminder.minute).toBe(0);
-    expect(reminder.body).toContain('16:00');
+    expect(reminder.body).toContain(formatClockHour(16));
+    expect(reminder.body).not.toContain('16:00');
   });
 
   it('clamps out-of-range hours into 0-23', () => {
