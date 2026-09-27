@@ -45,17 +45,29 @@ async function applyCutoffReminder(
 // still releases the queue so the user's next intent can retry.
 let reminderQueue: Promise<unknown> = Promise.resolve();
 let latestIntent = 0;
+let pendingPromptingSyncs = 0;
 // `prompt: false` is for background reconciliation (app foreground), which
-// must never raise the system permission dialog.
+// must never raise the system permission dialog. It stands aside while a
+// user-initiated sync is in flight: the permission dialog itself makes the app
+// inactive and then active again, and superseding that sync would report a
+// false failure in Settings.
 export function syncCutoffReminder(
   enabled: boolean,
   cutoffHour: number,
   { prompt = true }: { prompt?: boolean } = {},
 ): Promise<boolean> {
+  if (!prompt && pendingPromptingSyncs > 0) return Promise.resolve(enabled);
   const intent = ++latestIntent;
+  if (prompt) pendingPromptingSyncs += 1;
   const operation = reminderQueue.then(() =>
     applyCutoffReminder(enabled, cutoffHour, intent, prompt),
   );
-  reminderQueue = operation.catch(() => undefined);
+  const settled = operation.catch(() => undefined);
+  reminderQueue = settled;
+  if (prompt) {
+    settled.then(() => {
+      pendingPromptingSyncs -= 1;
+    });
+  }
   return operation;
 }
