@@ -18,7 +18,8 @@ export default function useAdaptiveLayout(): AdaptiveLayout {
   const { width, height } = useWindowDimensions();
   const isPad = Platform.OS === 'ios' && Platform.isPad === true;
   const screen = Dimensions.get('screen');
-  const isWideLayout = isPad && width >= 900 && width > height;
+  // Width alone decides: a 13-inch iPad in portrait (1032 pt) fits both columns.
+  const isWideLayout = isPad && width >= 900;
   const isIpadWindowed =
     isPad && (width < screen.width - 24 || height < screen.height - 24);
   const contentMaxWidth = isWideLayout
