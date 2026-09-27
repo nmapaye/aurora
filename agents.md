@@ -115,8 +115,9 @@ See `docs/xcode-development.md` for exact ownership boundaries.
 - `npm run site:build`
 
 The last reviewed feature checkpoint (`8bc49de`) covered 36 suites and 164
-tests. Native build checks require stable Xcode 26.6 with the iOS 26 SDK; do
-not use Xcode 27 beta for release work.
+tests. Native build checks require stable Xcode 26.6 or 27.x with the iOS
+26.4+ SDK (last verified with Xcode 27.0, 27A266a, on 2026-09-27); never use
+a beta Xcode for release work.
 
 ## Landmines and repository knowledge
 
@@ -210,7 +211,7 @@ not use Xcode 27 beta for release work.
 
 ## Remaining release work
 
-1. Install and select stable Xcode 26.6, switch the local shell to Node 24,
+1. Install and select stable Xcode 26.6 or 27.x, switch the local shell to Node 24,
    and run `npm run ios:bootstrap`.
 2. Configure the Apple Developer team and App Store Connect record for
    `com.nmapaye.aurora`.

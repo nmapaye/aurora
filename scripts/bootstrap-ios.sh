@@ -15,18 +15,18 @@ fail() {
 }
 
 command -v xcodebuild >/dev/null 2>&1 ||
-  fail "Xcode is not installed or selected. Install stable Xcode 26.6 and select it with xcode-select."
+  fail "Xcode is not installed or selected. Install stable Xcode 26.6 or 27.x and select it with xcode-select."
 if ! XCODE_OUTPUT="$(xcodebuild -version 2>&1)"; then
-  fail "Full Xcode is not selected. Install stable Xcode 26.6, launch it once, and select it with xcode-select."
+  fail "Full Xcode is not selected. Install stable Xcode 26.6 or 27.x, launch it once, and select it with xcode-select."
 fi
 
 XCODE_VERSION="$(printf '%s\n' "$XCODE_OUTPUT" | awk 'NR == 1 { print $2 }')"
 XCODE_MAJOR="${XCODE_VERSION%%.*}"
 [[ "$XCODE_MAJOR" =~ ^[0-9]+$ ]] ||
   fail "Could not determine the active Xcode version."
-# SDK 57 requires Xcode 26.4+. Keep release builds on the repository's 26.6 target.
-[[ "$XCODE_VERSION" =~ ^26\.6(\.[0-9]+)?$ ]] ||
-  fail "Stable Xcode 26.6 is required (Expo SDK 57 minimum: 26.4); active version is $XCODE_VERSION."
+# SDK 57 requires Xcode 26.4+. Release builds use stable 26.6 or 27.x.
+[[ "$XCODE_VERSION" =~ ^(26\.6|27\.[0-9]+)(\.[0-9]+)?$ ]] ||
+  fail "Stable Xcode 26.6 or 27.x is required (Expo SDK 57 minimum: 26.4); active version is $XCODE_VERSION."
 
 if ! SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null)"; then
   fail "The active Xcode installation does not provide an iOS SDK."

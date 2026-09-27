@@ -7,9 +7,19 @@ continues to provide the JavaScript runtime, Metro, and native modules.
 
 ## Requirements
 
-- Stable Xcode 26.6 with the iOS 26.4 SDK or newer. Expo SDK 57 requires
-  Xcode 26.4 or newer; the bootstrap retains the 26.6 release target. Do not
-  use an Xcode 27 beta for release work.
+- Stable Xcode 26.6 or 27.x with the iOS 26.4 SDK or newer. Expo SDK 57
+  requires Xcode 26.4 or newer. Never use a beta Xcode for release work.
+  Last verified 2026-09-27 with Xcode 27.0 (27A266a) and the iOS 27.0 SDK:
+  unsigned Debug and Release simulator builds, iPhone 18 Pro and iPad Pro
+  13-inch launches.
+- Native tabs (`createNativeBottomTabNavigator` from
+  `@react-navigation/bottom-tabs/unstable`) need React Native 0.79+ and
+  `react-native-screens` 4.25+. The tab bar floats over content: tab screens
+  mount their own `SafeAreaProvider` so bottom overlays clear it.
+- Unsigned simulator builds log `ERR_NOTIFICATIONS_KEYCHAIN_ACCESS` (-34018)
+  from expo-notifications because they carry no entitlements. An ad-hoc
+  signed simulator build does not; it is not an app defect. HealthKit also
+  needs a signed build: unsigned simulator builds report Health unavailable.
 - Node.js 24 and npm 11.6 or newer.
 - CocoaPods 1.16.2, matching `ios/Podfile.lock`.
 
