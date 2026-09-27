@@ -318,7 +318,6 @@ export default function DashboardScreen() {
         <SectionHeader
           prominence="prominent"
           title="Pinned"
-          actionLabel="Edit"
         />
       </WalkthroughReveal>
       <View style={{ gap: spacing.md }}>

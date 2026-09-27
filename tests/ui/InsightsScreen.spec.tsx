@@ -60,7 +60,7 @@ describe('InsightsScreen', () => {
     await render(<InsightsScreen />);
 
     expect(screen.getByText('Caffeine Intake')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '2W' })).toHaveProp('accessibilityState', { selected: true });
+    expect(screen.getByRole('tab', { name: 'Two weeks' })).toHaveProp('accessibilityState', { selected: true });
     expect(screen.queryByRole('button', { name: 'Summary' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Trends' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'History' })).not.toBeOnTheScreen();
@@ -71,9 +71,9 @@ describe('InsightsScreen', () => {
     await render(<InsightsScreen />);
 
     expect(screen.getByText('6 mg/day')).toBeOnTheScreen();
-    await user.press(screen.getByRole('button', { name: 'M' }));
+    await user.press(screen.getByRole('tab', { name: 'Month' }));
 
-    expect(screen.getByRole('button', { name: 'M' })).toHaveProp('accessibilityState', { selected: true });
+    expect(screen.getByRole('tab', { name: 'Month' })).toHaveProp('accessibilityState', { selected: true });
     expect(screen.getByText('5 mg/day')).toBeOnTheScreen();
     expect(screen.getByLabelText(/Caffeine intake, 30 days/)).toBeOnTheScreen();
     expect(screen.getByText('Tea')).toBeOnTheScreen();
@@ -84,7 +84,7 @@ describe('InsightsScreen', () => {
     await render(<InsightsScreen />);
 
     expect(screen.getByText('Projected active caffeine 90 mg')).toBeOnTheScreen();
-    await user.press(screen.getByRole('button', { name: 'M' }));
+    await user.press(screen.getByRole('tab', { name: 'Month' }));
     expect(screen.getByText('Projected active caffeine 160 mg')).toBeOnTheScreen();
   });
 

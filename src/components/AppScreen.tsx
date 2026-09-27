@@ -6,6 +6,7 @@ import {
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  type RefreshControlProps,
   StyleProp,
   Text,
   View,
@@ -44,6 +45,7 @@ type Props = {
   headerTransform?: (header: React.ReactNode) => React.ReactNode;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onViewportLayout?: (event: LayoutChangeEvent) => void;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 };
 
 export default function AppScreen({
@@ -58,6 +60,7 @@ export default function AppScreen({
   scrollRef,
   contentRef,
   scrollEnabled = true,
+  refreshControl,
   interactionEnabled = true,
   bottomOverlay,
   headerTransform,
@@ -148,6 +151,7 @@ export default function AppScreen({
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={showsVerticalScrollIndicator}
         scrollEnabled={scrollEnabled}
+        refreshControl={refreshControl}
         onScroll={onScroll}
         scrollEventThrottle={16}
         style={{ flex: 1, backgroundColor: palette.groupedBackground }}

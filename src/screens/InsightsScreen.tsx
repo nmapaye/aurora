@@ -215,7 +215,7 @@ export default function InsightsScreen() {
             accessibilityLabel="Insights range"
             value={range}
             onChange={setRange}
-            options={[{ value: '7', label: 'W' }, { value: '14', label: '2W' }, { value: '30', label: 'M' }]}
+            options={[{ value: '7', label: 'W', accessibilityLabel: 'Week' }, { value: '14', label: '2W', accessibilityLabel: 'Two weeks' }, { value: '30', label: 'M', accessibilityLabel: 'Month' }]}
           />
         </WalkthroughReveal>
 

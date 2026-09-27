@@ -93,7 +93,7 @@ describe('SleepScreen', () => {
 
     expect(screen.getAllByText('Sleep').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Add Data' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'W' })).toHaveProp('accessibilityState', { selected: true });
+    expect(screen.getByRole('tab', { name: 'Week' })).toHaveProp('accessibilityState', { selected: true });
     expect(screen.getByTestId('sleep-compact-layout')).toBeOnTheScreen();
     expect(screen.getByLabelText(/No sleep data is available/)).toBeOnTheScreen();
     expect(screen.getByText('Highlights')).toBeOnTheScreen();

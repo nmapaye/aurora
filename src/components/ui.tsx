@@ -260,13 +260,20 @@ export function HealthMetricCard({
 
   return (
     <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
+      accessible
+      accessibilityRole={onPress ? 'button' : 'summary'}
+      // One stop for VoiceOver instead of four fragments.
+      accessibilityLabel={[label, value, detail, dateLabel]
+        .filter(Boolean)
+        .join(', ')}
+      accessibilityHint={onPress ? `Opens ${label}.` : undefined}
       onPress={onPress}
       disabled={!onPress}
       style={({ pressed }) => ({
         overflow: 'hidden',
         borderRadius: radii.hero,
         backgroundColor: pressed ? palette.pressed : palette.card,
+        transform: [{ scale: pressed ? 0.98 : 1 }],
       })}
     >
       {content}

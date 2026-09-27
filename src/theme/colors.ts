@@ -66,7 +66,7 @@ const lightPalette: AppPalette = {
   separator: ivory[400],
   textPrimary: '#1A1F24',
   textSecondary: '#5B6168',
-  textTertiary: '#767B80',
+  textTertiary: '#62676C', // 4.7:1 or better on every light surface except ivory-400
   tint: seaGlass[700],
   destructive: '#A8402E',
   neutralButton: ivory[50],

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ScrollView, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
@@ -260,6 +260,11 @@ export default function SleepScreen() {
       interactionEnabled={!walkthrough.active}
       bottomOverlay={walkthroughCoach}
       onScroll={walkthrough.onScroll}
+      refreshControl={
+        onboarding.permissionStatus === 'granted' && !demoMode && !walkthrough.active ? (
+          <RefreshControl refreshing={loading} onRefresh={connectHealth} tintColor={palette.sleepAccent} />
+        ) : undefined
+      }
       onViewportLayout={walkthrough.onViewportLayout}
       headerTransform={(header) => (
         <WalkthroughReveal
@@ -273,7 +278,7 @@ export default function SleepScreen() {
     >
       <View style={{ gap: spacing.md }}>
         <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-history')} reduceMotion={walkthrough.reduceMotion} style={{ gap: spacing.md }}>
-          <HealthRangeControl accessibilityLabel="Sleep range" value={range} onChange={setRange} options={[{ value: 'week', label: 'W' }, { value: 'month', label: 'M' }]} />
+          <HealthRangeControl accessibilityLabel="Sleep range" value={range} onChange={setRange} options={[{ value: 'week', label: 'W', accessibilityLabel: 'Week' }, { value: 'month', label: 'M', accessibilityLabel: 'Month' }]} />
           <View testID={layout.isWideLayout ? 'sleep-wide-layout' : 'sleep-compact-layout'} style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.md }}>
             <View
               testID="sleep-primary-column"

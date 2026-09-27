@@ -28,20 +28,20 @@ describe('HealthRangeControl', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'W' })).toHaveProp(
+    expect(screen.getByRole('tab', { name: 'W' })).toHaveProp(
       'accessibilityState',
       { selected: true },
     );
-    expect(screen.getByRole('button', { name: 'M' })).toHaveProp(
+    expect(screen.getByRole('tab', { name: 'M' })).toHaveProp(
       'accessibilityState',
       { selected: false },
     );
-    expect(screen.getByRole('button', { name: 'W' })).toHaveStyle({
+    expect(screen.getByRole('tab', { name: 'W' })).toHaveStyle({
       minHeight: 44,
       minWidth: 44,
     });
 
-    await user.press(screen.getByRole('button', { name: 'M' }));
+    await user.press(screen.getByRole('tab', { name: 'M' }));
 
     expect(onChange).toHaveBeenCalledWith('month');
   });
