@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import type { SFSymbol } from 'expo-symbols';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   isAppWalkthroughPending,
   isWalkthroughTabDisabled,
@@ -16,6 +17,26 @@ import { getAppPalette } from '~/theme/colors';
 import { appIcons, sfSymbolFor } from '~/components/AppIcon';
 
 const Tab = createNativeBottomTabNavigator();
+
+// The native tab bar floats over the screen. A provider mounted inside each
+// tab measures that screen's UIKit safe area, which includes the bar, so
+// bottom overlays (the walkthrough coach) sit above it.
+function withTabSafeArea(Screen: React.ComponentType) {
+  function TabScreen() {
+    return (
+      <SafeAreaProvider>
+        <Screen />
+      </SafeAreaProvider>
+    );
+  }
+  TabScreen.displayName = `TabSafeArea(${Screen.displayName ?? Screen.name ?? 'Screen'})`;
+  return TabScreen;
+}
+
+const SummaryTab = withTabSafeArea(DashboardScreen);
+const SleepTab = withTabSafeArea(SleepScreen);
+const LogTab = withTabSafeArea(LogIntakeScreen);
+const InsightsTab = withTabSafeArea(InsightsScreen);
 
 // SF Symbols for each tab: outline when idle, filled when selected, matching
 // the in-app icon set.
@@ -66,10 +87,10 @@ export default function RootTabs() {
         ),
       })}
     >
-      <Tab.Screen name="Summary" component={DashboardScreen} />
-      <Tab.Screen name="Sleep" component={SleepScreen} />
-      <Tab.Screen name="Log" component={LogIntakeScreen} />
-      <Tab.Screen name="Insights" component={InsightsScreen} />
+      <Tab.Screen name="Summary" component={SummaryTab} />
+      <Tab.Screen name="Sleep" component={SleepTab} />
+      <Tab.Screen name="Log" component={LogTab} />
+      <Tab.Screen name="Insights" component={InsightsTab} />
     </Tab.Navigator>
   );
 }

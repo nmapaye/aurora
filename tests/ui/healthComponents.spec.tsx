@@ -67,8 +67,8 @@ describe('HealthGroupedList', () => {
       'accessibilityHint',
       'Opens details',
     );
-    expect(screen.queryByTestId('health-row-disclosure-0')).not.toBeOnTheScreen();
-    expect(screen.getByTestId('health-row-disclosure-1')).toBeOnTheScreen();
+    expect(screen.queryByTestId('health-row-disclosure-0', { includeHiddenElements: true })).not.toBeOnTheScreen();
+    expect(screen.getByTestId('health-row-disclosure-1', { includeHiddenElements: true })).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Show all data' }));
 
@@ -248,6 +248,12 @@ describe('HealthFormSheet', () => {
 });
 
 describe('HealthOptionCard', () => {
+  it('reads a static info card as text, not a button', async () => {
+    await render(<HealthOptionCard title="Log as you go" subtitle="Add caffeine from Log." />);
+    expect(screen.queryByRole('button')).not.toBeOnTheScreen();
+    expect(screen.getByText('Log as you go')).toBeOnTheScreen();
+  });
+
   it('forwards an SF Symbol while retaining button semantics', async () => {
     await render(
       <HealthOptionCard
@@ -264,7 +270,7 @@ describe('HealthOptionCard', () => {
       screen.getByRole('button', { name: 'Espresso 60 mg' }),
     ).toBeOnTheScreen();
     expect(
-      screen.getAllByTestId('sf-symbol').map((symbol) => symbol.props.name),
+      screen.getAllByTestId('sf-symbol', { includeHiddenElements: true }).map((symbol) => symbol.props.name),
     ).toContain('cup.and.saucer.fill');
   });
 });

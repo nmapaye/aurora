@@ -95,7 +95,7 @@ describe('LogIntakeScreen', () => {
     expect(screen.getByRole('button', { name: 'Log Energy, 160 mg' })).toBeOnTheScreen();
     expect(
       screen
-        .getAllByTestId('sf-symbol')
+        .getAllByTestId('sf-symbol', { includeHiddenElements: true })
         .map((symbol) => symbol.props.name),
     ).toEqual(
       expect.arrayContaining([

@@ -272,7 +272,7 @@ describe('DashboardScreen summary walkthrough composition', () => {
         screen.getByTestId('app-screen-scroll').props
           .contentContainerStyle,
       ),
-    ).toMatchObject({ paddingBottom: 244 });
+    ).toMatchObject({ paddingBottom: 224 });
 
     setWalkthrough({ coachVisible: true });
     await rerender(<DashboardScreen />);
@@ -287,6 +287,6 @@ describe('DashboardScreen summary walkthrough composition', () => {
         screen.getByTestId('app-screen-scroll').props
           .contentContainerStyle,
       ),
-    ).toMatchObject({ paddingBottom: 244 });
+    ).toMatchObject({ paddingBottom: 224 });
   });
 });

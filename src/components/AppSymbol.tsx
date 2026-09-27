@@ -37,6 +37,9 @@ export default function AppSymbol({
     );
   }
 
+  // A decorative symbol must be hidden, not just non-focusable: otherwise its
+  // built-in description ("love" for heart) is folded into the parent's
+  // VoiceOver label.
   return (
     <SymbolView
       name={name}
@@ -44,6 +47,8 @@ export default function AppSymbol({
       tintColor={tintColor}
       style={[{ width: size, height: size }, style]}
       accessible={isAccessible}
+      accessibilityElementsHidden={!isAccessible}
+      importantForAccessibility={isAccessible ? 'auto' : 'no-hide-descendants'}
       {...props}
     />
   );

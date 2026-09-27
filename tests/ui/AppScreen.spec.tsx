@@ -87,7 +87,7 @@ describe('AppScreen walkthrough controls', () => {
       screen.getByTestId('app-screen-scroll').props
         .contentContainerStyle,
     );
-    expect(styles.paddingBottom).toBe(244);
+    expect(styles.paddingBottom).toBe(224);
   });
 
   it('hides locked descendants from assistive technology and restores safe defaults', async () => {

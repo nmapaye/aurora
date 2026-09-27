@@ -72,8 +72,10 @@ export default function AppScreen({
   const insets = useSafeAreaInsets();
   const layout = useAdaptiveLayout();
   const [overlayHeight, setOverlayHeight] = useState(0);
+  // The scroll view's automatic content inset already clears the home
+  // indicator and the native tab bar, so only the overlay needs room here.
   const bottomPadding = getAppScreenBottomPadding(
-    insets.bottom,
+    0,
     bottomOverlay ? overlayHeight : 0,
   );
 
@@ -195,7 +197,7 @@ export default function AppScreen({
             position: 'absolute',
             left: layout.horizontalPadding,
             right: layout.horizontalPadding,
-            bottom: spacing.sm,
+            bottom: insets.bottom + spacing.sm,
           }}
         >
           {bottomOverlay}

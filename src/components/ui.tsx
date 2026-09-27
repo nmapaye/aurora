@@ -196,9 +196,12 @@ export function HealthOptionCard({
   const accent = color ?? palette.tint;
   return (
     <Pressable
-      accessibilityRole="button"
+      accessible
+      // A static info card is read as text, not announced as a button.
+      accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
+      accessibilityState={onPress ? { selected } : undefined}
+      disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
