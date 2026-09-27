@@ -4,6 +4,7 @@ import { ScrollView, Share, Text, View } from 'react-native';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import {
+  HealthBarChart,
   HealthChartCard,
   HealthEmptyState,
   HealthGroupedList,
@@ -39,24 +40,27 @@ function formatClock(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
 }
 
-function InsightsBars({ points }: { points: ReturnType<typeof getInsightsPresentation>['points'] }) {
+const shortDay = (time: number) =>
+  new Date(time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function InsightsBars({
+  points,
+  dailyLimit,
+}: {
+  points: ReturnType<typeof getInsightsPresentation>['points'];
+  dailyLimit: number;
+}) {
   const palette = getAppPalette(useAppScheme());
-  const maximum = Math.max(1, ...points.map((point) => point.mg ?? 0));
   return (
-    <View accessibilityElementsHidden style={{ height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
-      {points.map((point) => (
-        <View
-          key={point.date}
-          style={{
-            flex: 1,
-            minHeight: 3,
-            height: point.mg === null ? 3 : Math.max(7, Math.min(112, (point.mg / maximum) * 112)),
-            borderRadius: 2,
-            backgroundColor: point.mg === null ? palette.separator : palette.tint,
-          }}
-        />
-      ))}
-    </View>
+    <HealthBarChart
+      testID="insights-bars"
+      points={points.map((point) => ({ key: point.date, value: point.mg }))}
+      max={Math.max(...points.map((point) => point.mg ?? 0))}
+      color={palette.caffeineAccent}
+      reference={{ value: dailyLimit, label: `${dailyLimit} mg limit` }}
+      startLabel={points.length ? shortDay(points[0].date) : undefined}
+      endLabel={points.length ? 'Today' : undefined}
+    />
   );
 }
 
@@ -131,7 +135,7 @@ export default function InsightsScreen() {
       accessibilitySummary={presentation.accessibilitySummary}
       emptyState={<HealthEmptyState message="No caffeine data for this range." detail="Log a dose to begin a trend." symbol="chart.bar.fill" fallback="stats-chart-outline" />}
     >
-      {!presentation.isEmpty ? <InsightsBars points={presentation.points} /> : undefined}
+      {!presentation.isEmpty ? <InsightsBars points={presentation.points} dailyLimit={dailyLimit} /> : undefined}
     </HealthChartCard>
   );
 

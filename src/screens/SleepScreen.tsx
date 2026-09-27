@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import {
+  HealthBarChart,
   HealthChartCard,
   HealthEmptyState,
   HealthFormSheet,
@@ -31,6 +32,8 @@ import { createDoseId } from '~/features/caffeine/logging';
 import { useStore } from '~/state/store';
 import { haptics } from '~/services/platform/haptics';
 import { getAppPalette } from '~/theme/colors';
+
+const HOUR_MS = 60 * 60 * 1000;
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
 
@@ -201,9 +204,16 @@ export default function SleepScreen() {
   const chart = (
     <HealthChartCard title="Time Asleep" value={presentation.headline} dateRange={presentation.dateRange} accessibilitySummary={presentation.accessibilitySummary} emptyState={<HealthEmptyState message="No sleep data for this range." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}>
       {presentation.points.some((point) => point.durationMs !== null) ? (
-        <View accessibilityElementsHidden style={{ height: 92, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
-          {presentation.points.map((point) => <View key={point.date} style={{ flex: 1, minHeight: 3, height: point.durationMs ? Math.max(6, Math.min(92, point.durationMs / (10 * 60 * 60 * 1000) * 92)) : 3, borderRadius: 2, backgroundColor: point.durationMs ? palette.sleepAccent : palette.separator }} />)}
-        </View>
+        <HealthBarChart
+          testID="sleep-bars"
+          height={92}
+          points={presentation.points.map((point) => ({ key: point.date, value: point.durationMs === null ? null : point.durationMs / HOUR_MS }))}
+          max={10}
+          color={palette.sleepAccent}
+          reference={{ value: prefs.targetSleep, label: `${prefs.targetSleep}h goal` }}
+          startLabel={new Date(presentation.points[0].date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          endLabel="Today"
+        />
       ) : undefined}
     </HealthChartCard>
   );
