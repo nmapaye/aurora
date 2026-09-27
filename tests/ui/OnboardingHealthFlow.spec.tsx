@@ -185,7 +185,10 @@ describe('onboarding Health import flow', () => {
     useStore.getState().completeAppWalkthrough();
     await render(<SleepScreen />);
 
-    expect(screen.getByText('Sample Data')).toBeOnTheScreen();
+    // The Sleep Data section reports its state, and the sleep signal carries
+    // its own sample badge.
+    expect(screen.getByLabelText('Sleep Data, Sample Data')).toBeOnTheScreen();
+    expect(screen.getAllByText('Sample Data').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText('Health refresh failed')).not.toBeOnTheScreen();
   });
 
