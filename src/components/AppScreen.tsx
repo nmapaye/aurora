@@ -151,6 +151,11 @@ export default function AppScreen({
         testID="app-screen-scroll"
         ref={scrollRef}
         contentInsetAdjustmentBehavior="automatic"
+        // Taps on controls work while a keyboard is up. Touch capture follows
+        // the React tree, so without this a form sheet rendered inside a
+        // screen lost its first tap (Save, Cancel, chips) to keyboard
+        // dismissal.
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={showsVerticalScrollIndicator}
         scrollEnabled={scrollEnabled}
         refreshControl={refreshControl}

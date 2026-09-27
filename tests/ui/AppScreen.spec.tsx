@@ -167,3 +167,8 @@ describe('AppScreen walkthrough controls', () => {
     expect(onQuickAdd).toHaveBeenCalledTimes(1);
   });
 });
+
+it('lets taps reach controls while a keyboard is up', async () => {
+  await render(<AppScreen title="Log"><></></AppScreen>);
+  expect(screen.getByTestId('app-screen-scroll')).toHaveProp('keyboardShouldPersistTaps', 'handled');
+});

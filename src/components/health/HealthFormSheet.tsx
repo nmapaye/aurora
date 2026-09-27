@@ -79,47 +79,53 @@ export function HealthFormSheet({
         accessibilityLabel={title}
         style={{ flex: 1, backgroundColor: palette.modalBackground }}
       >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.xs,
-            paddingHorizontal: spacing.xs,
-            paddingTop: spacing.xs,
-            minHeight: 56,
-            borderBottomWidth: 1,
-            borderBottomColor: palette.separator,
-          }}
-        >
-          <Button title="Cancel" variant="plain" onPress={onCancel} />
-          <Text
-            ref={headingRef}
-            accessibilityRole="header"
-            numberOfLines={1}
-            style={{ flex: 1, textAlign: 'center', ...typeRamp.headline, color: palette.textPrimary }}
-            maxFontSizeMultiplier={fontScaling.body}
-          >
-            {title}
-          </Text>
-          <Button
-            title={saveLabel}
-            variant="plain"
-            disabled={saveDisabled}
-            onPress={onSave}
-            textStyle={{ fontWeight: '600' }}
-          />
-        </View>
         <ScrollView
           testID="health-form-scroll"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          // The bar scrolls with long forms but stays pinned at the top.
+          stickyHeaderIndices={[0]}
           contentContainerStyle={{
-            padding: spacing.md,
             paddingBottom: spacing.xl + insets.bottom,
-            gap: spacing.md,
           }}
         >
-          {children}
+          {/* Sticky headers are cloned with their own style, so the bar's
+              row layout lives on an inner view. */}
+          <View style={{ backgroundColor: palette.modalBackground }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.xs,
+                paddingTop: spacing.xs,
+                minHeight: 56,
+                borderBottomWidth: 1,
+                borderBottomColor: palette.separator,
+              }}
+            >
+              <Button title="Cancel" variant="plain" onPress={onCancel} />
+              <Text
+                ref={headingRef}
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={{ flex: 1, textAlign: 'center', ...typeRamp.headline, color: palette.textPrimary }}
+                maxFontSizeMultiplier={fontScaling.body}
+              >
+                {title}
+              </Text>
+              <Button
+                title={saveLabel}
+                variant="plain"
+                disabled={saveDisabled}
+                onPress={onSave}
+                textStyle={{ fontWeight: '600' }}
+              />
+            </View>
+          </View>
+          <View style={{ padding: spacing.md, gap: spacing.md }}>
+            {children}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>

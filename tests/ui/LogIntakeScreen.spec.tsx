@@ -256,6 +256,18 @@ describe('LogIntakeScreen', () => {
   });
 
   describe('correcting an entry', () => {
+    it('picks the source from a radio group that marks the current choice', async () => {
+      const user = userEvent.setup();
+      await render(<LogIntakeScreen />);
+
+      await user.press(screen.getByRole('button', { name: editRowName }));
+      expect(screen.getByRole('radio', { name: 'Espresso' })).toBeChecked();
+
+      await user.press(screen.getByRole('radio', { name: 'Tea' }));
+      expect(screen.getByRole('radio', { name: 'Tea' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Espresso' })).not.toBeChecked();
+    });
+
     it('edits amount and note in place, keeping the same record', async () => {
       const user = userEvent.setup();
       await render(<LogIntakeScreen />);

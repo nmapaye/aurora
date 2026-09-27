@@ -19,7 +19,7 @@ import AppScreen from '~/components/AppScreen';
 import AppSymbol, { type AppSymbolFallbackName } from '~/components/AppSymbol';
 import Button from '~/components/Button';
 import { HealthFormSheet, HealthGroupedList } from '~/components/health';
-import { SectionCard, SectionHeader, SegmentedControl } from '~/components/ui';
+import { SectionCard, SectionHeader } from '~/components/ui';
 import type { Dose } from '~/domain/models';
 import {
   buildCustomDose,
@@ -614,20 +614,55 @@ export default function LogIntakeScreen() {
         reduceMotion={reduceMotion}
       >
         <View style={{ gap: spacing.sm }}>
-          <TextInput
-            accessibilityLabel="Amount"
-            value={activeDraft.mg}
-            onChangeText={(mg) => setActiveDraft((current) => ({ ...current, mg }))}
-            keyboardType="number-pad"
-            placeholder="Amount in mg"
-            maxFontSizeMultiplier={fontScaling.body}
-            style={{ minHeight: controlSizes.inputHeight, borderRadius: radii.control, paddingHorizontal: spacing.sm, backgroundColor: palette.fieldBackground, color: palette.textPrimary, ...typeRamp.body }}
-          />
-          <SegmentedControl
-            value={activeDraft.source}
-            onChange={(source) => setActiveDraft((current) => ({ ...current, source }))}
-            options={sourceOptions.map((source) => ({ key: source, label: source }))}
-          />
+          <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.footnote, fontWeight: '600', color: palette.textSecondary }}>
+            Amount
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: controlSizes.inputHeight, borderRadius: radii.control, borderWidth: 1, borderColor: palette.cardBorder, paddingHorizontal: spacing.sm, backgroundColor: palette.fieldBackground }}>
+            <TextInput
+              accessibilityLabel="Amount"
+              accessibilityHint="In milligrams"
+              value={activeDraft.mg}
+              onChangeText={(mg) => setActiveDraft((current) => ({ ...current, mg }))}
+              keyboardType="number-pad"
+              placeholder="0"
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ flex: 1, color: palette.textPrimary, ...typeRamp.title3 }}
+            />
+            <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.body, color: palette.textSecondary }}>mg</Text>
+          </View>
+          <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.footnote, fontWeight: '600', color: palette.textSecondary }}>
+            Source
+          </Text>
+          {/* Wrapping chips: six sources don't fit one segmented row on iPhone. */}
+          <View accessibilityRole="radiogroup" accessibilityLabel="Source" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+            {sourceOptions.map((source) => {
+              const selected = activeDraft.source === source;
+              return (
+                <Pressable
+                  key={source}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => {
+                    if (!selected) haptics.selection();
+                    setActiveDraft((current) => ({ ...current, source }));
+                  }}
+                  style={({ pressed }) => ({
+                    minHeight: controlSizes.minimumTouchTarget,
+                    justifyContent: 'center',
+                    paddingHorizontal: spacing.md,
+                    borderRadius: radii.capsule,
+                    borderWidth: 1,
+                    borderColor: selected ? palette.tint : palette.cardBorder,
+                    backgroundColor: selected ? palette.card : pressed ? palette.pressed : 'transparent',
+                  })}
+                >
+                  <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.subheadline, fontWeight: selected ? '600' : '400', color: selected ? palette.tint : palette.textPrimary }}>
+                    {source}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Button
             title={formatDoseDateTime(activeDraft.timestamp)}
             accessibilityLabel="Date and Time"
