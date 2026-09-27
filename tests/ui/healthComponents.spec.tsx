@@ -263,10 +263,9 @@ describe('HealthOptionCard', () => {
     expect(
       screen.getByRole('button', { name: 'Espresso 60 mg' }),
     ).toBeOnTheScreen();
-    expect(screen.getByTestId('sf-symbol')).toHaveProp(
-      'name',
-      'cup.and.saucer.fill',
-    );
+    expect(
+      screen.getAllByTestId('sf-symbol').map((symbol) => symbol.props.name),
+    ).toContain('cup.and.saucer.fill');
   });
 });
 
