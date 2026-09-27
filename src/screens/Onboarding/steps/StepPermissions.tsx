@@ -46,7 +46,7 @@ export default function StepPermissions({
     : healthRequestCompleted && importStatus === 'importing'
       ? 'Importing'
       : healthRequestCompleted && importStatus === 'succeeded'
-        ? importedCount > 0 ? 'Import completed' : 'No readable sleep data'
+        ? importedCount > 0 ? 'Import completed' : 'No sleep found'
         : healthRequestCompleted
           ? 'Import pending'
           : permissionStatus === 'denied'
@@ -75,15 +75,15 @@ export default function StepPermissions({
   const adjacentCopy = isManual
     ? 'You can connect Health later from Sleep.'
     : permissionStatus === 'denied'
-      ? 'Health access request did not complete. Manual sleep logging remains available.'
+      ? 'Health access wasn’t set up. You can still log sleep manually.'
       : permissionStatus === 'unsupported'
         ? 'Health import is unavailable on this device.'
         : healthRequestCompleted && importStatus === 'importing'
-          ? 'Health request completed. Importing recent sleep from Health.'
+          ? 'Health access requested. Importing recent sleep from Health.'
           : healthRequestCompleted && importStatus === 'succeeded'
             ? importMessage ?? 'Health sleep import completed.'
             : healthRequestCompleted
-              ? 'Health request completed. Recent sleep import is pending.'
+              ? 'Health access requested. Your sleep import hasn’t finished.'
               : 'Aurora reads sleep only. It does not write anything back into the Health app.';
 
   // Before any request, explain what will be asked instead of showing a
@@ -126,14 +126,14 @@ export default function StepPermissions({
           {importFailed ? (
             <Text
               accessibilityRole="alert"
-              accessibilityLabel={`Health request completed. Import failed. ${failedDetail}`}
+              accessibilityLabel={`Health access requested, but the import failed. ${failedDetail}`}
               maxFontSizeMultiplier={fontScaling.body}
               style={{
                 ...typeRamp.subheadline,
                 color: palette.destructive,
               }}
             >
-              Health request completed. Import failed. {failedDetail}
+              Health access requested, but the import failed. {failedDetail}
             </Text>
           ) : (
             <Text

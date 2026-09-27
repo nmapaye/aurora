@@ -176,7 +176,7 @@ describe('SleepScreen', () => {
     await waitFor(() =>
       expect(health.getSleepSamples).toHaveBeenCalledWith(now - 30 * 24 * 60 * 60 * 1000, now),
     );
-    expect(screen.getAllByText('No readable sleep data').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('No sleep found').length).toBeGreaterThan(0);
     expect(screen.getByText(NO_HEALTH_SLEEP_MESSAGE)).toBeOnTheScreen();
     expect(useStore.getState().healthSync.importStatus).toBe('succeeded');
   });
@@ -347,7 +347,7 @@ describe('SleepScreen', () => {
 
   it.each([
     ['unsupported', 'Health unavailable'],
-    ['denied', 'Health request incomplete'],
+    ['denied', 'Health not connected'],
   ] as const)('keeps %s Health state visibly distinct', async (permissionStatus, expected) => {
     useStore.getState().setOnboarding({ permissionStatus });
     await render(<SleepScreen />);
@@ -374,6 +374,6 @@ describe('SleepScreen', () => {
     expect(screen.getByText('Last-dose timing')).toBeOnTheScreen();
     expect(screen.getByText('Typical range')).toBeOnTheScreen();
     expect(screen.getByText('Median sleep span')).toBeOnTheScreen();
-    expect(screen.getByText('1/14 qualifying nights. Keep logging before reading a pattern.')).toBeOnTheScreen();
+    expect(screen.getByText('1/14 nights logged. Keep going to see a reliable pattern.')).toBeOnTheScreen();
   });
 });

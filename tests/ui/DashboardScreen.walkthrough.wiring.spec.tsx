@@ -170,7 +170,7 @@ describe.each([
 
       expect(staggerForText('Summary')).toBe(0);
       expect(staggerForText('Estimated Alertness')).toBe(1);
-      expect(staggerForText('No data yet.')).toBe(2);
+      expect(staggerForText('Nothing logged today.')).toBe(2);
     });
 
     it('reads the Today hero first, ahead of the alert and pinned signals', async () => {
@@ -178,11 +178,11 @@ describe.each([
 
       expect(
         screen
-          .getAllByText(/^(Estimated Alertness|No data yet\.|Pinned|Log)$/, {
+          .getAllByText(/^(Estimated Alertness|Nothing logged today\.|Pinned|Log)$/, {
             includeHiddenElements: true,
           })
           .map((node) => node.props.children),
-      ).toEqual(['Estimated Alertness', 'No data yet.', 'Pinned', 'Log']);
+      ).toEqual(['Estimated Alertness', 'Nothing logged today.', 'Pinned', 'Log']);
     });
 
     it('stages Recent Activity after the complete logging cascade', async () => {

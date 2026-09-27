@@ -62,7 +62,7 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     route: 'Summary',
     progress: '2 of 10',
     title: 'See what shapes alertness',
-    body: 'These signals show how caffeine, sleep, and vigilance shape your day.',
+    body: 'These signals show how caffeine, sleep, and reaction speed shape your day.',
     revealGroups: ['summary-pinned'],
     anchor: 'summary-pinned',
     primaryAction: 'Next',

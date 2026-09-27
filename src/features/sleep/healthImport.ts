@@ -49,7 +49,7 @@ export async function importHealthSleep({
   try {
     const samples = await AppleHealth.getSleepSamples(windowStart, now);
     if (!Array.isArray(samples)) {
-      throw new Error('Health sleep query returned an invalid payload.');
+      throw new Error('Health returned sleep data Aurora couldn’t read.');
     }
     replaceHealthSleepWindow(
       samples.map((sample) => ({

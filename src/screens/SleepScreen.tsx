@@ -135,20 +135,20 @@ export default function SleepScreen() {
       : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
         ? 'Health unavailable'
         : onboarding.permissionStatus === 'denied'
-          ? 'Health request incomplete'
+          ? 'Health not connected'
           : onboarding.permissionStatus === 'granted'
             ? healthSync.importStatus === 'succeeded'
-              ? healthSync.importedCount > 0 ? 'Health import completed' : 'No readable sleep data'
-              : healthSync.importStatus === 'importing' ? 'Importing sleep' : 'Health request completed'
+              ? healthSync.importedCount > 0 ? 'Health sleep imported' : 'No sleep found'
+              : healthSync.importStatus === 'importing' ? 'Importing sleep' : 'Health access requested'
             : 'Manual mode';
   const healthDescription = refreshFailureMessage
     ? refreshFailureMessage
-    : ['Health import completed', 'No readable sleep data', 'Importing sleep', 'Health request completed'].includes(healthState)
+    : ['Health sleep imported', 'No sleep found', 'Importing sleep', 'Health access requested'].includes(healthState)
       ? healthSync.importStatus === 'succeeded' && healthSync.importedCount === 0
         ? 'Check sleep records and Aurora’s read access in Health, or add sleep manually.'
-        : 'Refresh checks for readable sleep samples from the most recent 30 days.'
-      : healthState === 'Health request incomplete'
-        ? 'Health access request did not complete. Manual sleep logging remains available.'
+        : 'Refresh reads the last 30 days of sleep from Health.'
+      : healthState === 'Health not connected'
+        ? 'Health access wasn’t set up. You can still log sleep manually.'
         : healthState === 'Health unavailable'
           ? 'Health import is unavailable on this device.'
           : healthState === 'Sample Data'
@@ -163,12 +163,12 @@ export default function SleepScreen() {
       setHealthAvailable(available);
       if (!available) {
         setOnboarding({ source: 'manual', permissionStatus: 'unsupported' });
-        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health import is unavailable. No sleep samples were imported.' });
+        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health isn’t available on this device. No sleep was imported.' });
         return;
       }
       if (!(await AppleHealth.requestAuthorization())) {
         setOnboarding({ source: 'manual', permissionStatus: 'denied' });
-        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access request did not complete. No sleep samples were imported.' });
+        setHealthSync({ importedCount: 0, importStatus: 'idle', lastSyncedAt: now, lastMessage: 'Health access wasn’t set up. No sleep was imported.' });
         return;
       }
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
@@ -213,21 +213,21 @@ export default function SleepScreen() {
       {presentation.lastNight ? (
         <View style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.sm }}>
           <HealthHighlightCard label="Last Night" value={formatSleepDuration(presentation.lastNight.durationMs)} detail={formatDifference(presentation.lastNight.targetDifferenceMs ?? 0)} accentColor={palette.sleepAccent} />
-          <HealthHighlightCard label="Wake Time" value={formatTime(presentation.lastNight.wakeTime)} detail="Used to anchor your plan" accentColor={palette.sleepAccent} />
+          <HealthHighlightCard label="Wake Time" value={formatTime(presentation.lastNight.wakeTime)} detail="Anchors today’s caffeine plan" accentColor={palette.sleepAccent} />
         </View>
       ) : <HealthEmptyState message="No recent sleep session." />}
       <HealthHighlightCard
         label="Caffeine Impact"
         value={caffeineImpact.qualifyingNights ? `${caffeineImpact.medianDeltaMin} min` : 'No timing data'}
         detail={caffeineImpact.showCorrelation
-          ? 'Timing pattern ready to review.'
-          : `${caffeineImpact.qualifyingNights}/14 qualifying nights. Keep logging before reading a pattern.`}
+          ? 'Enough nights to see your pattern.'
+          : `${caffeineImpact.qualifyingNights}/14 nights logged. Keep going to see a reliable pattern.`}
         accentColor={palette.sleepAccent}
       />
       {caffeineImpact.qualifyingNights ? <HealthGroupedList rows={[
         { title: 'Last-dose timing', subtitle: 'Median time between final dose and sleep', value: `${caffeineImpact.medianDeltaMin} min` },
         { title: 'Typical range', subtitle: '10th to 90th percentile', value: `${caffeineImpact.p10}–${caffeineImpact.p90} min` },
-        { title: 'Median sleep span', subtitle: 'Across qualifying nights', value: `${Math.round(caffeineImpact.medianSleepMin / 60)}h` },
+        { title: 'Median sleep span', subtitle: 'Across nights with a logged dose', value: `${Math.round(caffeineImpact.medianSleepMin / 60)}h` },
       ]} /> : null}
     </View>
   );

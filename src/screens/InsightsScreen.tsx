@@ -156,14 +156,14 @@ export default function InsightsScreen() {
       </View>
 
       <View style={{ gap: spacing.sm }}>
-        <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Vigilance</Text>
+        <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Reaction Test</Text>
         {presentation.vigilance.latest ? (
           <HealthGroupedList rows={[
             { title: 'Latest score', subtitle: presentation.vigilance.latest.rating, value: `${presentation.vigilance.latest.score}` },
             { title: `${presentation.days}-day average`, subtitle: `${presentation.vigilance.trendSessions.length} session${presentation.vigilance.trendSessions.length === 1 ? '' : 's'} in this range`, value: presentation.vigilance.averageScore === undefined ? '—' : `${presentation.vigilance.averageScore}` },
-            { title: 'Baseline', subtitle: presentation.vigilance.hasBaseline ? 'Ready to compare future sessions.' : 'Complete at least three sessions to build a usable attentiveness baseline.', value: presentation.vigilance.hasBaseline ? 'Ready' : 'Building' },
+            { title: 'Baseline', subtitle: presentation.vigilance.hasBaseline ? 'New results are compared with your baseline.' : 'Complete three tests to set your personal baseline.', value: presentation.vigilance.hasBaseline ? 'Ready' : 'Building' },
           ]} />
-        ) : <HealthEmptyState message="No vigilance sessions in this range." detail="Run the reaction test to build a baseline." />}
+        ) : <HealthEmptyState message="No reaction tests in this range." detail="Run the reaction test to build a baseline." />}
         <Button title={presentation.vigilance.latest ? 'Run Again' : 'Start Test'} variant="tinted" onPress={() => navigate('VigilanceTest')} />
       </View>
     </View>

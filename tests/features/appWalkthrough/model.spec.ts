@@ -21,7 +21,7 @@ describe('app walkthrough model', () => {
       })),
     ).toEqual([
       { id: 'summary-orientation', route: 'Summary', progress: '1 of 10', title: 'Your day at a glance', body: 'Aurora brings caffeine, sleep, and alertness together.', primaryAction: 'Next' },
-      { id: 'summary-signals', route: 'Summary', progress: '2 of 10', title: 'See what shapes alertness', body: 'These signals show how caffeine, sleep, and vigilance shape your day.', primaryAction: 'Next' },
+      { id: 'summary-signals', route: 'Summary', progress: '2 of 10', title: 'See what shapes alertness', body: 'These signals show how caffeine, sleep, and reaction speed shape your day.', primaryAction: 'Next' },
       { id: 'summary-logging', route: 'Summary', progress: '3 of 10', title: 'Log in a tap', body: 'Use a common amount, or open Custom Entry when you need more detail.', primaryAction: 'Next' },
       { id: 'summary-sleep', route: 'Summary', progress: '4 of 10', title: 'Next: your sleep', body: 'See where rest data comes from and how timing shapes tomorrow.', primaryAction: 'Next' },
       { id: 'sleep-understanding', route: 'Sleep', progress: '5 of 10', title: 'Understand your sleep', body: 'Use Week or Month to review your real sleep history and recent highlights.', primaryAction: 'Next' },

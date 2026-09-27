@@ -131,10 +131,10 @@ export function describeSetupNextAction({
         ? 'Finish setup, then review imported sleep.'
         : 'Finish setup to log sleep manually, or check sleep records and access in Health.';
     case 'importing':
-      return 'Health request completed. Sleep import is in progress.';
+      return 'Health access requested. Importing your sleep…';
     case 'failed':
-      return 'Health request completed. Sleep import needs a retry.';
+      return 'Health access requested. The sleep import needs a retry.';
     default:
-      return 'Health request completed. Recent sleep has not been imported yet.';
+      return 'Health access requested. Recent sleep hasn’t been imported yet.';
   }
 }

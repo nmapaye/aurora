@@ -165,15 +165,15 @@ export default function DashboardScreen() {
   const alertCard =
     demoMode || todaySummary.recent.length === 0 ? (
       <HealthAlertCard
-        tone={demoMode ? 'info' : 'warning'}
+        tone="info"
         label={demoMode ? 'Sample Data' : 'New Day'}
         dateLabel={fmtDay(now)}
-        icon={demoMode ? 'sparkles-outline' : 'alert-circle-outline'}
-        title={demoMode ? 'Sample flow is ready.' : 'No data yet.'}
+        icon={demoMode ? 'sparkles-outline' : 'sunny-outline'}
+        title={demoMode ? 'You’re viewing sample data.' : 'Nothing logged today.'}
         body={
           demoMode
-            ? 'Sleep, caffeine, and vigilance are seeded.'
-            : 'Log caffeine or load sample data to fill Summary.'
+            ? 'Explore Aurora with a sample week of sleep, caffeine, and reaction tests.'
+            : 'Log your first coffee, or try Aurora with sample data.'
         }
         actionLabel={demoMode ? 'More Details' : 'Load Sample Data'}
         onAction={
@@ -259,7 +259,7 @@ export default function DashboardScreen() {
           detail={
             latestSleep
               ? `${sleepCount} session${sleepCount === 1 ? '' : 's'} available`
-              : 'Connect Health or use demo data'
+              : 'Add sleep or connect Health'
           }
           onPress={() => navigate('Sleep')}
         />
@@ -270,7 +270,7 @@ export default function DashboardScreen() {
       element: (
         <HealthMetricCard
           icon="speedometer"
-          label="Vigilance"
+          label="Reaction Test"
           labelColor={palette.vigilanceAccent}
           dateLabel={
             latestVigilanceSession

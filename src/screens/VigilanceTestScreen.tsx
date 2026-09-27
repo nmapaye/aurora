@@ -273,7 +273,7 @@ export default function VigilanceTestScreen() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Vigilance test area"
+          accessibilityLabel="Reaction test area"
           onPress={taskState.phase === 'running' ? handleTap : undefined}
           disabled={taskState.phase !== 'running'}
           style={{

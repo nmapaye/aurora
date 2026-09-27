@@ -35,6 +35,6 @@ export async function requestHealthPermissions(): Promise<PermissionResult> {
 
   return {
     status: 'granted',
-    message: 'Health request completed. Aurora will check for readable sleep samples.',
+    message: 'Health access requested. Aurora will look for recent sleep.',
   };
 }

@@ -266,7 +266,7 @@ export async function getSleepSamples(
           return;
         }
         if (!Array.isArray(results)) {
-          reject(new Error('Health sleep query returned an invalid payload.'));
+          reject(new Error('Health returned sleep data Aurora couldn’t read.'));
           return;
         }
         resolve(normalizeSleepSamples(results));

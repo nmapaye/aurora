@@ -28,7 +28,7 @@ describe('Health sleep query errors', () => {
     async (payload) => {
       mockSleepGetter = (_options, callback) => callback(null, payload);
       await expect(getSleepSamples(1, 2)).rejects.toThrow(
-        'Health sleep query returned an invalid payload.',
+        'Health returned sleep data Aurora couldn’t read.',
       );
     },
   );

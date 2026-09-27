@@ -147,7 +147,7 @@ describe('OnboardingScreen', () => {
 
     expect(await screen.findByText('Status: Request incomplete')).toBeOnTheScreen();
     expect(
-      screen.getByText('Health access request did not complete. Manual sleep logging remains available.'),
+      screen.getByText('Health access wasn’t set up. You can still log sleep manually.'),
     ).toBeOnTheScreen();
     expect(AppleHealth.getSleepSamples).not.toHaveBeenCalled();
     await user.press(screen.getByRole('button', { name: 'Finish setup' }));
