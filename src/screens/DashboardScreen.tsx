@@ -34,6 +34,7 @@ import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
 import { createDoseId } from '~/features/caffeine/logging';
+import { haptics } from '~/services/platform/haptics';
 import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
@@ -157,6 +158,7 @@ export default function DashboardScreen() {
 
   const quickAdd = (mg: number, source: string) => {
     const timestamp = Date.now();
+    haptics.tap();
     addDose({ id: createDoseId(timestamp), timestamp, mg, source });
   };
 

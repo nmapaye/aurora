@@ -167,18 +167,18 @@ describe('LogIntakeScreen', () => {
   });
 
   it('still saves when best-effort haptics rejects', async () => {
-    jest.mocked(Haptics.impactAsync).mockRejectedValueOnce(new Error('unavailable'));
+    jest.mocked(Haptics.notificationAsync).mockRejectedValueOnce(new Error('unavailable'));
     const user = userEvent.setup();
     await render(<LogIntakeScreen />);
 
     await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
 
-    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
+    expect(Haptics.notificationAsync).toHaveBeenCalledTimes(1);
     expect(useStore.getState().doses.at(-1)).toMatchObject({ timestamp: now, mg: 95, source: 'Drip' });
     expect(screen.getByLabelText('Caffeine intake saved.')).toBeOnTheScreen();
   });
 
-  it('suppresses haptics and modal animation when Reduce Motion is enabled', async () => {
+  it('keeps haptics but drops modal animation when Reduce Motion is enabled', async () => {
     jest
       .mocked(AccessibilityInfo.isReduceMotionEnabled)
       .mockResolvedValue(true);
@@ -191,8 +191,8 @@ describe('LogIntakeScreen', () => {
     );
 
     await user.press(screen.getByRole('button', { name: 'Drip 95 mg' }));
-    expect(Haptics.impactAsync).not.toHaveBeenCalled();
-    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    // Haptics are feedback, not motion, so Reduce Motion leaves them on.
+    expect(Haptics.notificationAsync).toHaveBeenCalledTimes(1);
 
     await user.press(screen.getByRole('button', { name: 'Custom Entry' }));
     expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp(

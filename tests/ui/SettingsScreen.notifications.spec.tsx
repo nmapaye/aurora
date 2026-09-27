@@ -63,3 +63,13 @@ describe('about and data controls', () => {
     deleteAllData.mockRestore();
   });
 });
+
+it('toggles the cutoff reminder with a switch', async () => {
+  sync.mockResolvedValue(true);
+  useStore.getState().setPrefs({ notifyCutoff: false });
+  await render(<SettingsScreen />);
+  const toggle = screen.getByRole('switch', { name: 'Cutoff reminder' });
+  expect(toggle).not.toBeChecked();
+  await fireEvent.press(toggle);
+  expect(useStore.getState().prefs.notifyCutoff).toBe(true);
+});

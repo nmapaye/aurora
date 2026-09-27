@@ -11,6 +11,7 @@ import {
 import useAppScheme from '~/hooks/useAppScheme';
 import { makeVigilanceSessionsCSV } from '~/services/storage/export';
 import { useStore } from '~/state/store';
+import { haptics } from '~/services/platform/haptics';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
@@ -257,7 +258,10 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
                           title="Delete"
                           variant="plain"
                           role="destructive"
-                          onPress={() => removeDose(dose.id)}
+                          onPress={() => {
+                            haptics.warning();
+                            removeDose(dose.id);
+                          }}
                         />
                       </View>
                     )}

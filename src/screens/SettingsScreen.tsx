@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Constants from 'expo-constants';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, Linking, Switch, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -14,7 +14,10 @@ import {
 import { goBack } from '~/navigation';
 import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
+import { haptics } from '~/services/platform/haptics';
 import { formatClockHour } from '~/utils/format';
+import useAppScheme from '~/hooks/useAppScheme';
+import { getAppPalette } from '~/theme/colors';
 
 const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
 const supportUrl = 'https://nmapaye.github.io/aurora/support.html';
@@ -24,6 +27,7 @@ function openExternalUrl(url: string) {
 }
 
 export default function SettingsScreen() {
+  const palette = getAppPalette(useAppScheme());
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
   const appearanceMode = useStore((s) => s.appearanceMode);
@@ -37,7 +41,14 @@ export default function SettingsScreen() {
       'This removes every caffeine entry, sleep session, and reaction test stored in Aurora. Your Apple Health data is not changed.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: deleteAllData },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            haptics.warning();
+            deleteAllData();
+          },
+        },
       ],
     );
   };
@@ -135,14 +146,14 @@ export default function SettingsScreen() {
         <ListRow
           title="Cutoff reminder"
           subtitle={`Daily at ${formatClockHour(prefs.cutoffHour)}, so caffeine stays clear of bedtime.`}
-        />
-        <SegmentedControl
-          value={prefs.notifyCutoff ? 'on' : 'off'}
-          onChange={(value) => setPrefs({ notifyCutoff: value === 'on' })}
-          options={[
-            { key: 'off', label: 'Off' },
-            { key: 'on', label: 'On' },
-          ]}
+          accessory={
+            <Switch
+              accessibilityLabel="Cutoff reminder"
+              value={prefs.notifyCutoff}
+              onValueChange={(value) => setPrefs({ notifyCutoff: value })}
+              trackColor={{ true: palette.tint }}
+            />
+          }
         />
       </SectionCard>
 

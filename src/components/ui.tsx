@@ -18,6 +18,7 @@ import AppSymbol, {
   type AppSymbolName,
 } from '~/components/AppSymbol';
 import useAppScheme from '~/hooks/useAppScheme';
+import { haptics } from '~/services/platform/haptics';
 import {
   getAppPalette,
   getStatusColors,
@@ -698,7 +699,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
 }: {
-  options: { key: T; label: string }[];
+  options: { key: T; label: string; accessibilityLabel?: string }[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -706,6 +707,7 @@ export function SegmentedControl<T extends string>({
   const palette = getAppPalette(scheme);
   return (
     <View
+      accessibilityRole="tablist"
       style={{
         flexDirection: 'row',
         padding: spacing.xxs,
@@ -720,9 +722,13 @@ export function SegmentedControl<T extends string>({
         return (
           <Pressable
             key={option.key}
-            accessibilityRole="button"
+            accessibilityRole="tab"
+            accessibilityLabel={option.accessibilityLabel}
             accessibilityState={{ selected: active }}
-            onPress={() => onChange(option.key)}
+            onPress={() => {
+              if (!active) haptics.selection();
+              onChange(option.key);
+            }}
             style={({ pressed }) => ({
               flex: 1,
               minHeight: controlSizes.minimumTouchTarget,
@@ -959,7 +965,10 @@ function StepperButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
+      onPress={() => {
+        haptics.selection();
+        onPress();
+      }}
       style={({ pressed }) => ({
         width: controlSizes.minimumTouchTarget,
         height: controlSizes.minimumTouchTarget,

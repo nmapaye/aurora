@@ -301,7 +301,7 @@ describe('app walkthrough journey coordinator', () => {
     expect(scrollRef.current?.scrollTo).not.toHaveBeenCalledWith(
       expect.objectContaining({ animated: true }),
     );
-    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
     expect(
       AccessibilityInfo.announceForAccessibility,
     ).toHaveBeenCalledWith(

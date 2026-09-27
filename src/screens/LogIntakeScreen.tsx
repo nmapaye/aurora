@@ -10,7 +10,7 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '~/services/platform/haptics';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -97,20 +97,11 @@ export default function LogIntakeScreen() {
   const announceSaved = () => {
     setConfirmation('Caffeine intake saved.');
     AccessibilityInfo.announceForAccessibility('Caffeine intake saved.');
-    if (!reduceMotion) {
-      void Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success,
-      ).catch(() => undefined);
-    }
+    haptics.success();
   };
 
   const saveQuickAdd = (preset: (typeof CAFFEINE_PRESETS)[number]) => {
     const savedNow = Date.now();
-    if (!reduceMotion) {
-      void Haptics.impactAsync(
-        Haptics.ImpactFeedbackStyle.Light,
-      ).catch(() => undefined);
-    }
     addDose(buildQuickAddDose(preset, savedNow, () => createDoseId()));
     announceSaved();
   };

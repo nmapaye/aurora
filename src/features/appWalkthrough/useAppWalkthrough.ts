@@ -19,7 +19,7 @@ import type {
   Text,
   View,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '~/services/platform/haptics';
 
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
@@ -285,9 +285,7 @@ export default function useAppWalkthrough({
       const handle = findNodeHandle(coachHeadingRef.current);
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     } catch {}
-    if (reduceMotion === false) {
-      Haptics.selectionAsync().catch(() => {});
-    }
+    haptics.selection();
   }, [
     currentStep.body,
     currentStep.title,

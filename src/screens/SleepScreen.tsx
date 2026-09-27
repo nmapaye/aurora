@@ -29,6 +29,7 @@ import AppleHealth from '~/services/platform/health/appleHealth';
 import { importHealthSleep } from '~/features/sleep/healthImport';
 import { createDoseId } from '~/features/caffeine/logging';
 import { useStore } from '~/state/store';
+import { haptics } from '~/services/platform/haptics';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
@@ -184,6 +185,7 @@ export default function SleepScreen() {
 
   const saveManualSleep = () => {
     if (!validation.valid) return;
+    haptics.success();
     addSleep({ id: createManualSleepId(now), start: draft.start, end: draft.end, type: 'sleep', ...(draft.note.trim() ? { note: draft.note.trim() } : {}) });
     setPickerField(undefined);
     setShowForm(false);
