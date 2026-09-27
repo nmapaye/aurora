@@ -5,7 +5,7 @@ import {
   getCaffeineImpact,
   getSleepPresentation,
   PAIRED_NIGHTS_REQUIRED,
-  sleepSourceLabel,
+  episodeSourceLabel,
 } from '~/features/sleep/presentation';
 import { formatClockTime } from '~/features/summary/presentation';
 
@@ -90,7 +90,7 @@ export function recentNightSignal(
       destination: 'Add Sleep',
     };
   }
-  const source = sleepSourceLabel(lastNight.session.id);
+  const source = episodeSourceLabel(lastNight.sessionIds);
   const span = `${formatTime(lastNight.sleepStart)} – ${formatTime(lastNight.wakeTime)}`;
   return {
     ...base,

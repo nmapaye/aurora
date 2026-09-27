@@ -172,6 +172,16 @@ export function sleepSourceLabel(id: string) {
   return id.startsWith('healthkit:sleep:') ? 'Health' : 'Manual';
 }
 
+// A merged night can combine sources (a manual entry next to a Health or
+// sample night). Name every source so a partly-sample night never reads as
+// purely manual.
+export function episodeSourceLabel(ids: readonly string[]) {
+  const labels = [...new Set(ids.map(sleepSourceLabel))];
+  const order = ['Health', 'Manual', 'Sample Data'];
+  labels.sort((left, right) => order.indexOf(left) - order.indexOf(right));
+  return labels.join(' and ');
+}
+
 export function getCaffeineImpact(
   sessions: readonly SleepSession[],
   doses: readonly Dose[],
@@ -251,6 +261,7 @@ export function getSleepPresentation(
           session: [...latest.sessions].sort(
             (left, right) => right.end - left.end,
           )[0],
+          sessionIds: latest.sessions.map((session) => session.id),
           durationMs,
           sleepStart: latest.sleepStart,
           wakeTime: latest.wakeTime,

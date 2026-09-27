@@ -23,15 +23,14 @@ export type AlertnessEstimate =
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function hasSampleId(item: object) {
-  const id = (item as { id?: unknown }).id;
-  return typeof id === 'string' && isSampleId(id);
+function hasSampleId(item: { id?: string }) {
+  return item.id !== undefined && isSampleId(item.id);
 }
 
 export function estimateAlertness(
   t: number,
-  doses: CaffeineDoseInput[],
-  sleeps: SleepSessionInput[],
+  doses: (CaffeineDoseInput & { id?: string })[],
+  sleeps: (SleepSessionInput & { id?: string })[],
   prefs: Pick<UserPrefs, 'halfLife' | 'targetSleep' | 'tz'>,
 ): AlertnessEstimate {
   const sleepHours = totalSleepHoursLast24(t, sleeps);

@@ -56,6 +56,21 @@ describe('formatGap and target comparison', () => {
 });
 
 describe('recentNightSignal', () => {
+  it('names every source when a manual night merges with a sample night', () => {
+    const wake = now - 2 * hour;
+    const signal = recentNightSignal(
+      [
+        { id: 'demo:sleep:night', start: wake - 16 * hour, end: wake - 8 * hour, type: 'sleep' },
+        { id: 'manual:sleep:1:a', start: wake - 8 * hour, end: wake, type: 'sleep' },
+      ],
+      8,
+      now,
+      clock,
+    );
+
+    expect(signal).toMatchObject({ status: 'observed', source: 'Manual and Sample Data' });
+  });
+
   it('is a quiet empty signal with no value when no night is recent', () => {
     const signal = recentNightSignal([night('manual:sleep:old', 9)], 8, now, clock);
     expect(signal).toEqual({
