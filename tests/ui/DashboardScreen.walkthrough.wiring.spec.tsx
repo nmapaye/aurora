@@ -171,11 +171,24 @@ describe.each([
       });
     });
 
-    it('stages the optional alert after the header', async () => {
+    it('stages the Today hero, then the optional alert, after the header', async () => {
       await render(<DashboardScreen />);
 
       expect(staggerForText('Summary')).toBe(0);
-      expect(staggerForText('No data yet.')).toBe(1);
+      expect(staggerForText('Estimated Alertness')).toBe(1);
+      expect(staggerForText('No data yet.')).toBe(2);
+    });
+
+    it('reads the Today hero first, ahead of the alert and pinned signals', async () => {
+      await render(<DashboardScreen />);
+
+      expect(
+        screen
+          .getAllByText(/^(Estimated Alertness|No data yet\.|Pinned|Log)$/, {
+            includeHiddenElements: true,
+          })
+          .map((node) => node.props.children),
+      ).toEqual(['Estimated Alertness', 'No data yet.', 'Pinned', 'Log']);
     });
 
     it('stages Recent Activity after the complete logging cascade', async () => {
@@ -203,19 +216,13 @@ describe.each([
           .walkthroughStaggerIndex,
       ).toBe(1);
 
-      if (isWideLayout) {
-        expect(
-          screen.getByText('Caffeine graph', {
-            includeHiddenElements: true,
-          }),
-        ).toBeOnTheScreen();
-      } else {
-        expect(
-          screen.queryByText('Caffeine graph', {
-            includeHiddenElements: true,
-          }),
-        ).not.toBeOnTheScreen();
-      }
+      // The Estimated Alertness hero pairs with the caffeine curve in both
+      // layouts.
+      expect(
+        screen.getByText('Caffeine graph', {
+          includeHiddenElements: true,
+        }),
+      ).toBeOnTheScreen();
     });
   },
 );

@@ -5,7 +5,9 @@ import {
   sleepSourceLabel,
 } from '~/features/sleep/presentation';
 
-const now = Date.parse('2026-07-24T12:00:00.000Z');
+// Local noon, matching the local-time fixtures below. A UTC instant would
+// land before their local wake times in western time zones (05:00 in PDT).
+const now = new Date(2026, 6, 24, 12, 0).getTime();
 const hour = 60 * 60 * 1000;
 const minute = 60 * 1000;
 const sleep = (id: string, daysAgo: number, durationHours = 8): SleepSession => ({

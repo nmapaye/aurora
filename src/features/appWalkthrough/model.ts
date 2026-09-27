@@ -52,7 +52,8 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     progress: '1 of 10',
     title: 'Your day at a glance',
     body: 'Aurora brings caffeine, sleep, and alertness together.',
-    revealGroups: ['summary-header', 'summary-alert'],
+    // The Today hero leads Summary, so it arrives with the header.
+    revealGroups: ['summary-header', 'summary-today', 'summary-alert'],
     anchor: 'summary-top',
     primaryAction: 'Next',
   },
@@ -62,7 +63,7 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     progress: '2 of 10',
     title: 'See what shapes alertness',
     body: 'These signals show how caffeine, sleep, and vigilance shape your day.',
-    revealGroups: ['summary-pinned', 'summary-today'],
+    revealGroups: ['summary-pinned'],
     anchor: 'summary-pinned',
     primaryAction: 'Next',
   },

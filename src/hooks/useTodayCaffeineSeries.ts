@@ -1,14 +1,18 @@
 import { useMemo } from 'react';
 import { useStore } from '~/state/store';
 import { mgActive } from '~/domain/algorithm/caffeine';
+import useNow from '~/hooks/useNow';
 
 type Point = { t: number; mg: number; hasDose: boolean };
 
 export function useTodayCaffeineSeries(stepMinutes = 60) {
-  const { doses, prefs } = useStore();
+  const doses = useStore((s) => s.doses);
+  const halfLife = useStore((s) => s.prefs.halfLife);
+  // The shared clock moves "now" (and rolls the day over at midnight) even
+  // when no dose changes.
+  const now = useNow();
 
   return useMemo(() => {
-    const now = Date.now();
     const start = (() => {
       const d = new Date(now);
       d.setHours(0, 0, 0, 0);
@@ -34,16 +38,16 @@ export function useTodayCaffeineSeries(stepMinutes = 60) {
 
     const series: Point[] = Array.from({ length: count }, (_, i) => {
       const t = start + i * stepMs;
-      return { t, mg: mgActive(t, doses, prefs.halfLife), hasDose: bucketsWithDose.has(i) };
+      return { t, mg: mgActive(t, doses, halfLife), hasDose: bucketsWithDose.has(i) };
     });
 
     // Ensure we include "now" so the line reflects current intake even if step alignment skips it
     if (now > start && now < end) {
       const bucket = Math.floor((now - start) / stepMs);
-      series.push({ t: now, mg: mgActive(now, doses, prefs.halfLife), hasDose: bucketsWithDose.has(bucket) });
+      series.push({ t: now, mg: mgActive(now, doses, halfLife), hasDose: bucketsWithDose.has(bucket) });
       series.sort((a, b) => a.t - b.t);
     }
 
-    return { series, start, end };
-  }, [doses, prefs.halfLife, stepMinutes]);
+    return { series, start, end, now };
+  }, [doses, halfLife, now, stepMinutes]);
 }

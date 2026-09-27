@@ -142,12 +142,32 @@ not use Xcode 27 beta for release work.
 
 ## Icons and brand
 
-- Mark source: `website/public/aurora-mark.svg`.
-- Brand navy: `#0B1020`; accent: `#0A84FF`.
-- `scripts/make-icons.mjs` regenerates source/store icon variants and the
-  splash source.
-- Xcode owns `ios/AURORA/Images.xcassets`; update and review the catalog
-  explicitly after regenerating source files.
+- Calm luxury rebrand (premium redesign, slice 1): warm ivory light surfaces
+  (`#F6F2EA`), deep ink dark surfaces (`#0F1317`), sea-glass accent
+  (`#1E6B64` light / `#7CC4B8` dark). Raw primitives and the wave-mark
+  geometry live in `src/theme/brand.ts`; screens use semantic roles from
+  `getAppPalette` and the tokens in `src/theme/tokens.ts`.
+- Shared primitives: `Surface`, `Divider`, `Eyebrow` in `src/components/ui.tsx`
+  and `BrandMark` in `src/components/BrandMark.tsx`.
+- Summary (premium redesign, slice 2): the Today hero pairs `AlertnessRing`
+  (Estimated Alertness, straight from `alertnessScore`) with an inspectable
+  `CaffeineTodayGraph`. Estimates, readouts, and chart accessibility copy live
+  in the pure `src/features/summary/presentation.ts`. With no sleep in the
+  model's 24-hour window the ring shows no score, only a placeholder.
+- First-run setup (premium redesign, slice 3): `OnboardingScreen` renders one
+  centered column on iPhone, narrow iPad windows, and accessibility text sizes,
+  and a two-column composition (brand + "Your setup" summary beside the form
+  card) at 800 pt and wider. Step copy, layout choice, and honest Health-access
+  wording live in the pure `src/features/onboarding/presentation.ts`. The
+  decorative `BrandHorizon` uses `auroraHorizon` in `src/theme/brand.ts`.
+- Mark copies: `website/public/aurora-mark.svg` and `scripts/make-icons.mjs`
+  mirror `auroraMark` in `src/theme/brand.ts`; keep all three in sync.
+- `node scripts/make-icons.mjs` (Node 24) regenerates the source/store icons,
+  the light/dark splash sources, the PNGs in the Xcode catalog, and
+  small-size previews in `build/icon-previews/`.
+- Xcode owns `ios/AURORA/Images.xcassets`. Its `Contents.json` files are
+  edited by hand (the splash color and image have dark appearances). Review
+  the catalog in Xcode after regenerating.
 
 ## Remaining release work
 

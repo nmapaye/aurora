@@ -2,16 +2,24 @@ import React, { useMemo, useRef } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
 
+import AlertnessRing from '~/components/AlertnessRing';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
 import {
+  Divider,
+  Eyebrow,
   HealthAlertCard,
   HealthMetricCard,
   ListRow,
   SectionCard,
   SectionHeader,
+  Surface,
 } from '~/components/ui';
+import {
+  estimateAlertness,
+  formatSleepHours,
+} from '~/features/summary/presentation';
 import {
   AppWalkthroughCoach,
   useAppWalkthrough,
@@ -20,13 +28,15 @@ import {
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
+import useLargeText from '~/hooks/useLargeText';
+import useNow from '~/hooks/useNow';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
 import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
-import { radii, spacing, typeRamp } from '~/theme/tokens';
+import { fontScaling, radii, spacing, typeRamp } from '~/theme/tokens';
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
@@ -74,14 +84,18 @@ function fmtDuration(ms?: number) {
 
 export default function DashboardScreen() {
   const layout = useAdaptiveLayout();
+  const largeText = useLargeText();
   const palette = getAppPalette(useAppScheme());
-  const { nowScore, mgActiveNow: mgActive } =
-    (useAlertnessSeries() as any) || {};
+  const { mgActiveNow: mgActive } = (useAlertnessSeries() as any) || {};
   const cutoff = useCaffeineCutoff();
   const sleepGuidance = useSleepGuidance();
+  // Modeled values depend on the clock, not just stored data.
+  const now = useNow();
 
   const doses = useStore((s) => s.doses);
-  const sleepCount = useStore((s) => s.sleeps.length);
+  const sleeps = useStore((s) => s.sleeps);
+  const prefs = useStore((s) => s.prefs);
+  const sleepCount = sleeps.length;
   const latestSleep = useStore(
     (s) => [...s.sleeps].sort((a, b) => b.end - a.end)[0],
   );
@@ -95,11 +109,11 @@ export default function DashboardScreen() {
   const loggingAnchorRef = useRef<View>(null);
 
   const todaySummary = useMemo(() => {
-    const now = new Date();
+    const today = new Date(now);
     const key = (value: Date) =>
       `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
-    const todayKey = key(now);
-    const yesterday = new Date(now);
+    const todayKey = key(today);
+    const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayKey = key(yesterday);
 
@@ -123,7 +137,12 @@ export default function DashboardScreen() {
     const delta = todayTotal - yesterdayTotal;
     const deltaText = `${delta >= 0 ? '+' : ''}${delta} mg vs yesterday`;
     return { todayTotal, deltaText, recent };
-  }, [doses]);
+  }, [doses, now]);
+
+  const estimate = useMemo(
+    () => estimateAlertness(now, doses, sleeps, prefs),
+    [now, doses, sleeps, prefs],
+  );
 
   const quickAdd = (mg: number, source: string) => {
     const id = `${Date.now().toString(36)}-${Math.random()
@@ -137,7 +156,7 @@ export default function DashboardScreen() {
       <HealthAlertCard
         tone={demoMode ? 'info' : 'warning'}
         label={demoMode ? 'Sample Data' : 'New Day'}
-        dateLabel={fmtDay(Date.now())}
+        dateLabel={fmtDay(now)}
         icon={demoMode ? 'sparkles-outline' : 'alert-circle-outline'}
         title={demoMode ? 'Sample flow is ready.' : 'No data yet.'}
         body={
@@ -174,7 +193,7 @@ export default function DashboardScreen() {
       active={walkthrough.active}
       revealed={walkthrough.isRevealed('summary-alert')}
       reduceMotion={walkthrough.reduceMotion}
-      staggerIndex={1}
+      staggerIndex={2}
     >
       {alertCard}
     </WalkthroughReveal>
@@ -204,7 +223,11 @@ export default function DashboardScreen() {
           labelColor={palette.activeCaffeineAccent}
           dateLabel="Now"
           value={`${Math.round(mgActive ?? 0)} mg`}
-          detail={`Alertness ${Math.round(nowScore ?? 0)}`}
+          detail={
+            estimate.status === 'estimated'
+              ? `Estimated alertness ${estimate.score}`
+              : 'Alertness needs recent sleep'
+          }
           onPress={() => navigate('Insights')}
         />
       ),
@@ -394,51 +417,94 @@ export default function DashboardScreen() {
     </>
   );
 
+  // Hero: Estimated Alertness from the existing model, paired with the
+  // caffeine curve. Without recent sleep the ring shows no score. On iPhone
+  // the ring and copy sit side by side so the curve starts on the first
+  // screen; at large text sizes the copy moves below the ring and takes the
+  // full width.
+  const alertnessCopy =
+    estimate.status === 'estimated'
+      ? {
+          title: `From ${formatSleepHours(estimate.sleepHours)} of sleep`,
+          body: 'Plus active caffeine and time of day. Not a measurement.',
+        }
+      : {
+          title: 'No recent sleep',
+          body: 'Add sleep from the last 24 hours to see an estimate.',
+        };
+
   const todayPanel = (
-    <SectionCard
-      style={{ borderRadius: radii.hero, padding: spacing.lg, gap: spacing.md }}
-    >
+    <View style={{ gap: spacing.md }}>
       <SectionHeader
         prominence="prominent"
         title="Today"
         actionLabel="Details"
         onAction={() => navigate('Insights')}
       />
-      <CaffeineTodayGraph
-        height={340}
-        showCaption={false}
-        compact
-        variant="panel"
-      />
-      <View style={{ gap: spacing.xxs }}>
-        <ListRow
-          title="Caffeine"
-          subtitle={todaySummary.deltaText}
-          value={`${Math.round(todaySummary.todayTotal)} mg`}
-        />
-        <ListRow
-          title="Active now"
-          subtitle={`Alertness ${Math.round(nowScore ?? 0)}`}
-          value={`${Math.round(mgActive ?? 0)} mg`}
-        />
-        <ListRow
-          title="Cutoff"
-          subtitle={`Bed ${fmtTime(sleepGuidance?.bedtime)}`}
-          value={fmtTime(cutoff?.nextCutoff)}
-        />
-        <ListRow
-          title="Vigilance"
-          subtitle={
-            latestVigilanceSession
-              ? `${latestVigilanceSession.rating} • ${latestVigilanceSession.medianReactionMs ?? '—'} ms median`
-              : 'No session yet'
-          }
-          value={
-            latestVigilanceSession ? `${latestVigilanceSession.score}` : '—'
-          }
-        />
-      </View>
-    </SectionCard>
+      <Surface
+        radius={radii.hero}
+        style={{
+          padding: layout.isWideLayout ? spacing.lg : spacing.md,
+          gap: layout.isWideLayout ? spacing.lg : spacing.md,
+        }}
+      >
+        <View
+          testID="summary-hero"
+          style={{
+            flexDirection: largeText ? 'column' : 'row',
+            flexWrap: largeText ? 'nowrap' : 'wrap',
+            alignItems: largeText ? 'stretch' : 'center',
+            gap: layout.isWideLayout ? spacing.lg : spacing.md,
+          }}
+        >
+          <AlertnessRing
+            estimate={estimate}
+            size={layout.isWideLayout ? 152 : 104}
+          />
+          <View
+            style={
+              largeText
+                ? { gap: spacing.xxs }
+                : { flex: 1, minWidth: 160, gap: spacing.xxs }
+            }
+          >
+            <Eyebrow text="Estimated Alertness" />
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{
+                ...(layout.isWideLayout ? typeRamp.title3 : typeRamp.headline),
+                color: palette.textPrimary,
+              }}
+            >
+              {alertnessCopy.title}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.footnote, color: palette.textSecondary }}
+            >
+              {alertnessCopy.body}
+            </Text>
+            {estimate.status === 'needs-sleep' ? (
+              <Button
+                title="Open Sleep"
+                variant="tinted"
+                onPress={() => navigate('Sleep')}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: spacing.xs,
+                  paddingVertical: spacing.xs,
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
+        <Divider />
+        <View style={{ gap: spacing.sm }}>
+          <Eyebrow text="Caffeine Today" />
+          <CaffeineTodayGraph height={layout.isWideLayout ? 240 : 160} />
+        </View>
+      </Surface>
+    </View>
   );
 
   const revealedRecentSection = (
@@ -512,7 +578,10 @@ export default function DashboardScreen() {
           }}
         >
           <View style={{ width: layout.leftColumnWidth, gap: spacing.md }}>
+            {revealedTodayPanel}
             {revealedAlert}
+          </View>
+          <View style={{ width: layout.rightColumnWidth, gap: spacing.md }}>
             <View
               ref={pinnedAnchorRef}
               collapsable={false}
@@ -531,12 +600,10 @@ export default function DashboardScreen() {
               {revealedRecentSection}
             </View>
           </View>
-          <View style={{ width: layout.rightColumnWidth, gap: spacing.md }}>
-            {revealedTodayPanel}
-          </View>
         </View>
       ) : (
         <>
+          {revealedTodayPanel}
           {revealedAlert}
           <View
             ref={pinnedAnchorRef}

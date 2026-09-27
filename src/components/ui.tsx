@@ -21,17 +21,89 @@ import useAppScheme from '~/hooks/useAppScheme';
 import {
   getAppPalette,
   getStatusColors,
+  getSurfaceColors,
   type StatusTone,
+  type SurfaceVariant,
 } from '~/theme/colors';
 import {
+  borders,
   controlSizes,
+  elevation,
+  eyebrowText,
   fontScaling,
   iconSizes,
+  motion,
   numericText,
   radii,
   spacing,
   typeRamp,
 } from '~/theme/tokens';
+
+export function Surface({
+  children,
+  variant = 'raised',
+  radius = radii.card,
+  padded = true,
+  style,
+  testID,
+}: {
+  children: React.ReactNode;
+  variant?: SurfaceVariant;
+  radius?: number;
+  padded?: boolean;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}) {
+  const scheme = useAppScheme();
+  const surface = getSurfaceColors(variant, scheme);
+  return (
+    <View
+      testID={testID}
+      style={[
+        {
+          backgroundColor: surface.backgroundColor,
+          borderColor: surface.borderColor,
+          borderWidth: borders.hairline,
+          borderRadius: radius,
+          padding: padded ? spacing.md : 0,
+        },
+        variant === 'raised' && scheme !== 'dark' ? elevation.raised : null,
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+export function Divider({ inset = 0 }: { inset?: number }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        height: borders.hairline,
+        marginLeft: inset,
+        backgroundColor: palette.separator,
+      }}
+    />
+  );
+}
+
+export function Eyebrow({ text }: { text: string }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <Text
+      maxFontSizeMultiplier={fontScaling.body}
+      style={{ ...eyebrowText, color: palette.textSecondary }}
+    >
+      {text}
+    </Text>
+  );
+}
 
 export function SectionHeader({
   title,
@@ -74,7 +146,7 @@ export function SectionHeader({
               borderRadius: radii.control,
               paddingHorizontal: spacing.xs,
               justifyContent: 'center',
-              opacity: pressed ? 0.65 : 1,
+              opacity: pressed ? motion.pressedOpacity : 1,
             })}
           >
             <Text
@@ -96,25 +168,7 @@ export function SectionCard({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: palette.card,
-          borderRadius: radii.card,
-          padding: spacing.md,
-          borderWidth: scheme === 'dark' ? 0 : 1,
-          borderColor: palette.cardBorder,
-          gap: spacing.sm,
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
+  return <Surface style={[{ gap: spacing.sm }, style]}>{children}</Surface>;
 }
 
 export function HealthMetricCard({
@@ -256,7 +310,7 @@ export function HealthOptionCard({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.md,
         backgroundColor: pressed ? palette.pressed : palette.card,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: selected ? accent : palette.cardBorder,
       })}
     >
@@ -510,7 +564,7 @@ export function StatTile({
           backgroundColor: palette.cardMuted,
           borderRadius: radii.card,
           padding: spacing.sm,
-          borderWidth: scheme === 'dark' ? 0 : 1,
+          borderWidth: borders.hairline,
           borderColor: palette.cardBorder,
           gap: spacing.xxs,
         },
@@ -657,7 +711,7 @@ export function SegmentedControl<T extends string>({
         padding: spacing.xxs,
         borderRadius: radii.control,
         backgroundColor: palette.cardMuted,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: palette.cardBorder,
       }}
     >
@@ -714,11 +768,7 @@ export function FormField({
     <View style={{ gap: spacing.xs }}>
       <Text
         maxFontSizeMultiplier={fontScaling.body}
-        style={{
-          ...typeRamp.footnote,
-          fontWeight: '600',
-          color: palette.textSecondary,
-        }}
+        style={{ ...eyebrowText, color: palette.textSecondary }}
       >
         {label.toUpperCase()}
       </Text>
@@ -917,7 +967,7 @@ function StepperButton({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed ? palette.pressed : palette.cardMuted,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: palette.cardBorder,
       })}
     >
@@ -962,7 +1012,7 @@ export function FieldInput({
           paddingHorizontal: spacing.sm,
           paddingVertical: spacing.sm,
           backgroundColor: palette.fieldBackground,
-          borderWidth: scheme === 'dark' ? 0 : 1,
+          borderWidth: borders.hairline,
           borderColor: palette.cardBorder,
           color: palette.textPrimary,
           ...typeRamp.body,

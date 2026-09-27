@@ -33,12 +33,26 @@ describe('app walkthrough model', () => {
     ]);
   });
 
+  it('reveals the Today hero with the Summary header before the pinned signals', () => {
+    expect(getRevealedGroups(0)).toEqual([
+      'summary-header',
+      'summary-today',
+      'summary-alert',
+    ]);
+    expect(APP_WALKTHROUGH_STEPS.slice(0, 4).map((step) => step.anchor)).toEqual([
+      'summary-top',
+      'summary-pinned',
+      'summary-logging',
+      'summary-logging',
+    ]);
+  });
+
   it('reveals groups cumulatively within the current route only', () => {
     expect(getRevealedGroups(2)).toEqual([
       'summary-header',
+      'summary-today',
       'summary-alert',
       'summary-pinned',
-      'summary-today',
       'summary-logging',
       'summary-recent',
     ]);

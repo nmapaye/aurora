@@ -23,6 +23,7 @@ import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
 import { getAppPalette } from '~/theme/colors';
+import BrandMark from '~/components/BrandMark';
 import { ProgressState } from '~/components/ui';
 import { spacing, typeRamp } from '~/theme/tokens';
 
@@ -83,7 +84,16 @@ class RootErrorBoundary extends React.Component<
 
 function BootGate() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.xl,
+      }}
+    >
+      {/* Matches the launch screen mark so the handoff reads as one moment. */}
+      <BrandMark size={72} />
       <ProgressState label="Loading Aurora…" />
     </View>
   );

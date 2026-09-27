@@ -16,7 +16,14 @@ import {
   getSecondaryButtonColors,
 } from '../theme/colors';
 import useAppScheme from '~/hooks/useAppScheme';
-import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
+import {
+  controlSizes,
+  fontScaling,
+  motion,
+  radii,
+  spacing,
+  typeRamp,
+} from '~/theme/tokens';
 
 type Variant = 'primary' | 'tinted' | 'plain';
 type ButtonRole = 'default' | 'destructive';
@@ -107,11 +114,18 @@ const Button = React.forwardRef<View, Props>(function Button({
     >
       <View style={styles.content}>
         {iconLeft ? <View style={styles.icon}>{iconLeft}</View> : null}
-        <Text style={[styles.text, { color: textColor }, textStyle]}>
+        <Text
+          maxFontSizeMultiplier={fontScaling.body}
+          style={[styles.text, { color: textColor }, textStyle]}
+        >
           {title}
         </Text>
         {loading ? (
-          <ActivityIndicator size="small" style={styles.spinner} />
+          <ActivityIndicator
+            size="small"
+            color={textColor}
+            style={styles.spinner}
+          />
         ) : iconRight ? (
           <View style={[styles.icon, styles.iconRight]}>{iconRight}</View>
         ) : null}
@@ -132,9 +146,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: controlSizes.minimumTouchTarget,
   },
-  pressed: { opacity: 0.72 },
-  disabled: { opacity: 0.5 },
+  pressed: { opacity: motion.pressedOpacity },
+  disabled: { opacity: motion.disabledOpacity },
   content: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -142,7 +157,10 @@ const styles = StyleSheet.create({
   icon: { marginRight: spacing.xs },
   iconRight: { marginLeft: spacing.xs, marginRight: 0 },
   spinner: { marginLeft: spacing.xs },
+  // Long labels wrap inside the button at large text sizes.
   text: {
     ...typeRamp.headline,
+    flexShrink: 1,
+    textAlign: 'center',
   },
 });

@@ -1,115 +1,137 @@
-// Aurora app icons in the iOS design language: soft vertical background
-// gradient, gradient glyph with subtle glow/shadow depth, and iOS 18+
-// light/dark/tinted appearance variants. Full-bleed squares — the OS
-// applies its own corner mask.
+// Aurora app icons and launch images for the calm luxury brand: warm ivory
+// and deep ink tiles, a sea-glass wave, and no glow or blur so the mark stays
+// crisp at 29 pt. Emits iOS 18+ light/dark/tinted variants as full-bleed
+// squares — the OS applies its own corner mask.
+//
+// Usage (Node 24): node scripts/make-icons.mjs
+//
+// Xcode owns ios/AURORA/Images.xcassets. This script overwrites only the PNGs
+// listed at the bottom; the catalog Contents.json files are edited by hand.
+import { mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
 
-// The aurora-wave mark from website/public/aurora-mark.svg.
-// Path spans x 28..108, y 38..91; optical center ≈ (67, 62).
-const WAVE = 'M28 83C47.5 43 62.5 43 79 83C89 58 97 50 108 53';
+// Mirrors src/theme/brand.ts (`auroraMark`, ivory, ink, seaGlass) and
+// website/public/aurora-mark.svg.
+const WAVE = 'M30 84C46 48 60 48 74 82C82 62 92 54 102 56';
+const WAVE_STROKE = 13;
+const DOT = { cx: 36, cy: 38, r: 9 };
+const CENTER = { x: 66, y: 60 };
+
+const IVORY_50 = '#FFFDF8';
+const IVORY_200 = '#F6F2EA';
+const IVORY_300 = '#EFE9DE';
+const INK_TEXT = '#1A1F24';
+const INK_950 = '#0B0F13';
+const INK_900 = '#0F1317';
+const INK_RAISED = '#1A2127';
+const IVORY_TEXT = '#F3EFE7';
+const SEA_700 = '#1E6B64';
+const SEA_500 = '#3E9C90';
+const SEA_300 = '#7CC4B8';
+const SEA_200 = '#A7DBD1';
+
+const gradient = (id, from, to) => `
+    <linearGradient id="${id}" x1="30" y1="84" x2="102" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="${from}"/>
+      <stop offset="1" stop-color="${to}"/>
+    </linearGradient>`;
 
 const defs = `
   <defs>
-    <linearGradient id="bgDark" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1B2647"/>
-      <stop offset="1" stop-color="#0A0E1C"/>
-    </linearGradient>
     <linearGradient id="bgLight" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#E7EAF3"/>
+      <stop offset="0" stop-color="${IVORY_50}"/>
+      <stop offset="1" stop-color="${IVORY_300}"/>
     </linearGradient>
-    <linearGradient id="wave" x1="28" y1="83" x2="108" y2="53" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67B6FF"/>
-      <stop offset="1" stop-color="#0A84FF"/>
+    <linearGradient id="bgDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${INK_RAISED}"/>
+      <stop offset="1" stop-color="${INK_950}"/>
     </linearGradient>
-    <linearGradient id="waveTint" x1="28" y1="83" x2="108" y2="53" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#ABABAB"/>
-    </linearGradient>
-    <radialGradient id="glowAurora" cx="0.5" cy="0.38" r="0.55">
-      <stop offset="0" stop-color="#3FD8C7" stop-opacity="0.22"/>
-      <stop offset="0.6" stop-color="#0A84FF" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#0A84FF" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="dot" cx="0.35" cy="0.3" r="1">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#D7DEF0"/>
-    </radialGradient>
-    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="3.2"/>
-    </filter>
+    ${gradient('waveLight', SEA_500, SEA_700)}
+    ${gradient('waveDark', SEA_200, SEA_300)}
+    ${gradient('waveTint', '#FFFFFF', '#C8C8C8')}
   </defs>`;
 
-// scale(0.72) around the mark's optical center keeps the glyph at ~57%
-// of the canvas, per HIG glyph sizing.
-const glyph = (waveFill, dotFill, { glow = null, shadow = null } = {}) => `
-  <g transform="translate(64 64) scale(0.72) translate(-67 -62)">
-    ${glow ? `<path d="${WAVE}" stroke="${glow}" stroke-opacity="0.55" stroke-width="12"
-        stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#soft)"/>` : ''}
-    ${shadow ? `<path d="${WAVE}" transform="translate(0 3)" stroke="${shadow}" stroke-opacity="0.28"
-        stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#soft)"/>` : ''}
-    <path d="${WAVE}" stroke="${waveFill}" stroke-width="10"
+// The glyph spans ~66% of the tile: large enough to read at Settings and
+// Spotlight sizes, inside the HIG safe area.
+const glyph = (waveFill, dotFill, scale = 0.84) => `
+  <g transform="translate(64 64) scale(${scale}) translate(${-CENTER.x} ${-CENTER.y})">
+    <path d="${WAVE}" stroke="${waveFill}" stroke-width="${WAVE_STROKE}"
       stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <circle cx="38" cy="38" r="8" fill="${dotFill}"/>
+    <circle cx="${DOT.cx}" cy="${DOT.cy}" r="${DOT.r}" fill="${dotFill}"/>
   </g>`;
 
-const svg = (body) =>
+const icon = (body) =>
   `<svg width="1024" height="1024" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">${defs}${body}</svg>`;
 
-const darkIcon = svg(`
-  <rect width="128" height="128" fill="url(#bgDark)"/>
-  <rect width="128" height="128" fill="url(#glowAurora)"/>
-  ${glyph('url(#wave)', 'url(#dot)', { glow: '#0A84FF' })}`);
-
-const lightIcon = svg(`
+const lightIcon = icon(`
   <rect width="128" height="128" fill="url(#bgLight)"/>
-  ${glyph('url(#wave)', '#1C1C2E', { shadow: '#0A3D7A' })}`);
+  ${glyph('url(#waveLight)', INK_TEXT)}`);
 
-// Tinted: grayscale glyph on transparent — the system supplies the
-// backdrop and applies the user's tint color.
-const tintedIcon = svg(glyph('url(#waveTint)', '#FFFFFF'));
+const darkIcon = icon(`
+  <rect width="128" height="128" fill="url(#bgDark)"/>
+  ${glyph('url(#waveDark)', IVORY_TEXT)}`);
 
-const splashSvg = `<svg width="1242" height="2436" viewBox="0 0 1242 2436" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bgSplash" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#131C36"/>
-      <stop offset="1" stop-color="#0A0E1C"/>
-    </linearGradient>
-    <radialGradient id="glowSplash" cx="0.5" cy="0.46" r="0.5">
-      <stop offset="0" stop-color="#3FD8C7" stop-opacity="0.18"/>
-      <stop offset="0.6" stop-color="#0A84FF" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#0A84FF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="waveS" x1="28" y1="83" x2="108" y2="53" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67B6FF"/>
-      <stop offset="1" stop-color="#0A84FF"/>
-    </linearGradient>
-    <filter id="softS" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="3.2"/>
-    </filter>
-  </defs>
-  <rect width="1242" height="2436" fill="url(#bgSplash)"/>
-  <rect width="1242" height="2436" fill="url(#glowSplash)"/>
-  <g transform="translate(621 1218) scale(3.4) translate(-67 -62)">
-    <path d="${WAVE}" stroke="#0A84FF" stroke-opacity="0.55" stroke-width="12"
-      stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#softS)"/>
-    <path d="${WAVE}" stroke="url(#waveS)" stroke-width="10"
+// Tinted: grayscale glyph on transparent — the system supplies the backdrop
+// and applies the user's tint color.
+const tintedIcon = icon(glyph('url(#waveTint)', '#FFFFFF'));
+
+// Launch images match the app's grouped background exactly so the handoff to
+// the in-app BrandMark has no flash. The mark is drawn at 72 pt on a 414 pt
+// wide canvas, the same size as the boot screen.
+const SPLASH_W = 1242;
+const SPLASH_H = 2436;
+const splash = (background, waveFill, dotFill) => {
+  const scale = (72 * 3) / 128;
+  return `<svg width="${SPLASH_W}" height="${SPLASH_H}" viewBox="0 0 ${SPLASH_W} ${SPLASH_H}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect width="${SPLASH_W}" height="${SPLASH_H}" fill="${background}"/>
+  <g transform="translate(${SPLASH_W / 2} ${SPLASH_H / 2}) scale(${scale}) translate(${-CENTER.x} ${-CENTER.y})">
+    <path d="${WAVE}" stroke="${waveFill}" stroke-width="${WAVE_STROKE}"
       stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <circle cx="38" cy="38" r="8" fill="#F2F2F7"/>
+    <circle cx="${DOT.cx}" cy="${DOT.cy}" r="${DOT.r}" fill="${dotFill}"/>
   </g>
 </svg>`;
+};
+
+const lightSplash = splash(IVORY_200, 'url(#waveLight)', INK_TEXT);
+const darkSplash = splash(INK_900, 'url(#waveDark)', IVORY_TEXT);
 
 const png = (s) => sharp(Buffer.from(s)).png();
+const scaled = (s, factor) =>
+  png(s).resize(Math.round(SPLASH_W * factor), Math.round(SPLASH_H * factor));
 
-// iOS appearance variants
-await png(darkIcon).toFile('assets/icons/ios-dark.png');
+const CATALOG = 'ios/AURORA/Images.xcassets';
+const ICONSET = `${CATALOG}/AppIcon.appiconset`;
+const SPLASHSET = `${CATALOG}/SplashScreenLegacy.imageset`;
+
+// iOS appearance variants (sources)
 await png(lightIcon).toFile('assets/icons/ios-light.png');
+await png(darkIcon).toFile('assets/icons/ios-dark.png');
 await png(tintedIcon).toFile('assets/icons/ios-tinted.png');
-// Primary source/store fallback — dark brand variant
-await png(darkIcon).toFile('assets/icon.png');
-await png(darkIcon).toFile('assets/icons/app-icon.png');
-// Splash
-await png(splashSvg).toFile('assets/splash.png');
-await png(splashSvg).toFile('assets/icons/splash.png');
+// Primary source/store icon — the ivory brand variant
+await png(lightIcon).toFile('assets/icon.png');
+await png(lightIcon).toFile('assets/icons/app-icon.png');
+// Splash sources
+await png(lightSplash).toFile('assets/splash.png');
+await png(lightSplash).toFile('assets/icons/splash.png');
+await png(darkSplash).toFile('assets/icons/splash-dark.png');
+
+// Xcode asset catalog
+await png(lightIcon).toFile(`${ICONSET}/App-Icon-1024x1024@1x.png`);
+await png(darkIcon).toFile(`${ICONSET}/App-Icon-dark-1024x1024@1x.png`);
+await png(tintedIcon).toFile(`${ICONSET}/App-Icon-tinted-1024x1024@1x.png`);
+for (const [suffix, factor] of [['', 1 / 3], ['@2x', 2 / 3], ['@3x', 1]]) {
+  await scaled(lightSplash, factor).toFile(`${SPLASHSET}/image${suffix}.png`);
+  await scaled(darkSplash, factor).toFile(`${SPLASHSET}/image-dark${suffix}.png`);
+}
+
+// Small-size legibility previews for review, in the ignored build/ folder.
+const PREVIEWS = 'build/icon-previews';
+await mkdir(PREVIEWS, { recursive: true });
+for (const size of [29, 40, 60]) {
+  for (const [name, source] of [['light', lightIcon], ['dark', darkIcon], ['tinted', tintedIcon]]) {
+    await png(source).resize(size * 3, size * 3).toFile(`${PREVIEWS}/${name}-${size}pt@3x.png`);
+  }
+}
 
 console.log('done');

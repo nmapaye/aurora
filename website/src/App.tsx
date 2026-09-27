@@ -40,9 +40,7 @@ export default function App() {
     <div className="site-shell">
       <header className="topbar">
         <a className="brand" href="#top">
-          <span className="brand-mark" aria-hidden="true">
-            A
-          </span>
+          <img className="brand-mark" src="aurora-mark.svg" alt="" aria-hidden="true" />
           <span className="brand-copy">
             <strong>Aurora</strong>
             <span>sleep-aware caffeine guidance</span>
