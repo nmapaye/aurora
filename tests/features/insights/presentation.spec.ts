@@ -179,6 +179,20 @@ describe('insights presentation', () => {
       });
     });
 
+    it('says when a compared period includes Sample Data', () => {
+      const presentation = getInsightsPresentation(
+        [...daily('cur', [0, 1, 2, 3], 200), ...daily('demo:prev', [7, 8, 9, 10], 100)],
+        [],
+        '7',
+        now,
+      );
+
+      expect(presentation.trend).toMatchObject({
+        status: 'compared',
+        detail: '200 mg vs 100 mg per recorded day · 4 and 4 recorded days · includes Sample Data',
+      });
+    });
+
     it('calls a small difference about the same', () => {
       const presentation = getInsightsPresentation(
         [...daily('cur', [0, 1, 2, 3], 105), ...daily('prev', [7, 8, 9, 10], 100)],

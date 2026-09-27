@@ -132,7 +132,7 @@ export default function InsightsScreen() {
       {showDetails ? (
         <View testID="insights-details-panel" style={{ gap: spacing.sm }}>
           <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.footnote, color: palette.textSecondary }}>
-            Totals of recorded entries · {presentation.dateRange}
+            Totals of recorded entries · {presentation.dateRange}{presentation.source ? ` · ${presentation.source}` : ''}
           </Text>
           {presentation.isEmpty ? (
             <HealthEmptyState message="No entries in this range." />

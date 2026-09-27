@@ -222,6 +222,9 @@ function getTrend(
     };
   }
   const pct = Math.round((current.averageMg / previous.averageMg - 1) * 100);
+  const includesSample = [current.source, previous.source].some(
+    (source) => source !== undefined && source !== 'Manual',
+  );
   const direction = Math.abs(pct) < TREND_STEADY_PCT ? 'similar' : pct > 0 ? 'higher' : 'lower';
   const text =
     direction === 'similar'
@@ -232,7 +235,7 @@ function getTrend(
     direction,
     ...counts,
     text,
-    detail: `${current.averageMg} mg vs ${previous.averageMg} mg per recorded day · ${current.recordedDays} and ${previous.recordedDays} recorded days`,
+    detail: `${current.averageMg} mg vs ${previous.averageMg} mg per recorded day · ${current.recordedDays} and ${previous.recordedDays} recorded days${includesSample ? ' · includes Sample Data' : ''}`,
   };
 }
 
