@@ -9,6 +9,7 @@ import {
   type RefreshControlProps,
   StyleProp,
   Text,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from 'react-native';
@@ -70,6 +71,7 @@ export default function AppScreen({
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const layout = useAdaptiveLayout();
   const [overlayHeight, setOverlayHeight] = useState(0);
   // The scroll view's automatic content inset already clears the home
@@ -174,6 +176,10 @@ export default function AppScreen({
         ]}
       >
         <View
+          // Fabric doesn't re-measure existing Text when only the system text
+          // size changes, which left headings clipped until relaunch.
+          // Remounting the content on a new font scale lays it out fresh.
+          key={`font-scale-${fontScale}`}
           testID="app-screen-content"
           ref={contentRef}
           pointerEvents={interactionEnabled ? 'auto' : 'none'}
