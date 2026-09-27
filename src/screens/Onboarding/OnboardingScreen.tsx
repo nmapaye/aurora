@@ -31,7 +31,7 @@ import useReduceMotion from '~/hooks/useReduceMotion';
 import StepPermissions from '~/screens/Onboarding/steps/StepPermissions';
 import StepSleepTarget from '~/screens/Onboarding/steps/StepSleepTarget';
 import StepSources from '~/screens/Onboarding/steps/StepSources';
-import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
+import { importHealthSleep } from '~/features/sleep/healthImport';
 import { requestHealthPermissions } from '~/services/permissions';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
@@ -62,7 +62,6 @@ export default function OnboardingScreen() {
   const healthSync = useStore((state) => state.healthSync);
   const setOnboarding = useStore((state) => state.setOnboarding);
   const completeOnboarding = useStore((state) => state.completeOnboarding);
-  const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
   const setHealthSync = useStore((state) => state.setHealthSync);
   const loadDemoData = useStore((state) => state.loadDemoData);
 
@@ -116,46 +115,10 @@ export default function OnboardingScreen() {
       });
 
       if (result.status === 'granted') {
-        setHealthSync({
-          importStatus: 'importing',
-          lastMessage: 'Importing recent sleep from Health.',
+        await importHealthSleep({
+          days: 14,
+          failurePrefix: 'Health import failed.',
         });
-        const end = Date.now();
-        const start = end - 14 * 24 * 60 * 60 * 1000;
-        try {
-          const samples = await AppleHealth.getSleepSamples(start, end);
-          if (!Array.isArray(samples)) {
-            throw new Error('Health sleep query returned an invalid payload.');
-          }
-          upsertSleepSessions(
-            samples.map((sample) => ({
-              id: makeHealthSleepSessionId(sample),
-              start: sample.start,
-              end: sample.end,
-              type: 'sleep' as const,
-            })),
-          );
-          setHealthSync({
-            importedCount: samples.length,
-            importStatus: 'succeeded',
-            lastSyncedAt: Date.now(),
-            lastMessage:
-              samples.length > 0
-                ? `Imported ${samples.length} recent sleep sample${samples.length === 1 ? '' : 's'} from Health.`
-                : 'No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.',
-          });
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Unable to read sleep data.';
-          const importMessage = `Health import failed. ${message}`;
-          setHealthSync({
-            importStatus: 'failed',
-            lastSyncedAt: Date.now(),
-            lastMessage: importMessage,
-          });
-        }
       } else {
         setHealthSync({
           importStatus: 'idle',

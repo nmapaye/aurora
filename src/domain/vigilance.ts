@@ -5,7 +5,7 @@ export const VIGILANCE_RESPONSE_WINDOW_MS = 1_000;
 export const VIGILANCE_FALSE_START_MS = 150;
 export const VIGILANCE_LAPSE_MS = 500;
 
-export type VigilanceRating = 'Sharp' | 'Steady' | 'Slipping' | 'Fatigued';
+export type VigilanceRating = 'Sharp' | 'Steady' | 'Slipping' | 'Sluggish';
 
 export type VigilanceSession = {
   id: string;
@@ -131,7 +131,7 @@ export function scoreVigilanceSession(metrics: VigilanceSummaryMetrics): {
       ? 'Steady'
       : score >= 40
       ? 'Slipping'
-      : 'Fatigued';
+      : 'Sluggish';
   return { score, rating };
 }
 

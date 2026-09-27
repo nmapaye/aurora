@@ -1,3 +1,4 @@
+import { NO_HEALTH_SLEEP_MESSAGE } from '~/features/sleep/healthImport';
 import React from 'react';
 import {
   act,
@@ -176,7 +177,7 @@ describe('SleepScreen', () => {
       expect(health.getSleepSamples).toHaveBeenCalledWith(now - 30 * 24 * 60 * 60 * 1000, now),
     );
     expect(screen.getAllByText('No readable sleep data').length).toBeGreaterThan(0);
-    expect(screen.getByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).toBeOnTheScreen();
+    expect(screen.getByText(NO_HEALTH_SLEEP_MESSAGE)).toBeOnTheScreen();
     expect(useStore.getState().healthSync.importStatus).toBe('succeeded');
   });
 
@@ -201,7 +202,7 @@ describe('SleepScreen', () => {
     await act(() => query.reject(new Error('Health database unavailable')));
 
     await waitFor(() => expect(screen.getAllByText('Health refresh failed. Health database unavailable').length).toBeGreaterThan(0));
-    expect(screen.queryByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).not.toBeOnTheScreen();
+    expect(screen.queryByText(NO_HEALTH_SLEEP_MESSAGE)).not.toBeOnTheScreen();
     expect(screen.queryByText('Health connected')).not.toBeOnTheScreen();
     expect(useStore.getState()).toMatchObject({
       onboarding: {
@@ -260,7 +261,7 @@ describe('SleepScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Connect to Health' }));
 
     await waitFor(() => expect(screen.getAllByText(/Health refresh failed/).length).toBeGreaterThan(0));
-    expect(screen.queryByText('No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.')).not.toBeOnTheScreen();
+    expect(screen.queryByText(NO_HEALTH_SLEEP_MESSAGE)).not.toBeOnTheScreen();
     expect(useStore.getState()).toMatchObject({
       onboarding: {
         source: 'healthkit',

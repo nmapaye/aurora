@@ -26,13 +26,14 @@ import {
   WalkthroughReveal,
 } from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
-import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useLargeText from '~/hooks/useLargeText';
 import useNow from '~/hooks/useNow';
+import { mgActive as activeCaffeineMg } from '~/domain/algorithm/caffeine';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
+import { createDoseId } from '~/features/caffeine/logging';
 import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
@@ -86,7 +87,6 @@ export default function DashboardScreen() {
   const layout = useAdaptiveLayout();
   const largeText = useLargeText();
   const palette = getAppPalette(useAppScheme());
-  const { mgActiveNow: mgActive } = (useAlertnessSeries() as any) || {};
   const cutoff = useCaffeineCutoff();
   const sleepGuidance = useSleepGuidance();
   // Modeled values depend on the clock, not just stored data.
@@ -95,9 +95,20 @@ export default function DashboardScreen() {
   const doses = useStore((s) => s.doses);
   const sleeps = useStore((s) => s.sleeps);
   const prefs = useStore((s) => s.prefs);
+  const mgActiveNow = useMemo(
+    () => activeCaffeineMg(now, doses, prefs.halfLife),
+    [now, doses, prefs.halfLife],
+  );
   const sleepCount = sleeps.length;
-  const latestSleep = useStore(
-    (s) => [...s.sleeps].sort((a, b) => b.end - a.end)[0],
+  // Linear scan instead of a copy-and-sort inside the selector, which ran on
+  // every store update.
+  const latestSleep = useMemo(
+    () =>
+      sleeps.reduce<(typeof sleeps)[number] | undefined>(
+        (latest, sleep) => (!latest || sleep.end > latest.end ? sleep : latest),
+        undefined,
+      ),
+    [sleeps],
   );
   const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
   const addDose = useStore((s) => s.addDose);
@@ -145,10 +156,8 @@ export default function DashboardScreen() {
   );
 
   const quickAdd = (mg: number, source: string) => {
-    const id = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2)}`;
-    addDose({ id, timestamp: Date.now(), mg, source });
+    const timestamp = Date.now();
+    addDose({ id: createDoseId(timestamp), timestamp, mg, source });
   };
 
   const alertCard =
@@ -222,7 +231,7 @@ export default function DashboardScreen() {
           label="Active Caffeine"
           labelColor={palette.activeCaffeineAccent}
           dateLabel="Now"
-          value={`${Math.round(mgActive ?? 0)} mg`}
+          value={`${Math.round(mgActiveNow)} mg`}
           detail={
             estimate.status === 'estimated'
               ? `Estimated alertness ${estimate.score}`

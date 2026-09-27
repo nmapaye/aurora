@@ -22,6 +22,7 @@ import {
   WalkthroughReveal,
 } from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import useNow from '~/hooks/useNow';
 import useAppScheme from '~/hooks/useAppScheme';
 import useSleepGuidance from '~/hooks/useSleepGuidance';
 import { navigate } from '~/navigation';
@@ -78,7 +79,7 @@ export default function InsightsScreen() {
     scrollRef,
     contentRef,
   });
-  const now = Date.now();
+  const now = useNow();
   const presentation = useMemo(
     () => getInsightsPresentation(doses, vigilanceSessions, dailyLimit, range, now),
     [dailyLimit, doses, now, range, vigilanceSessions],

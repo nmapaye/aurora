@@ -20,16 +20,18 @@ import {
 import { createManualSleepDraft, createManualSleepId, validateManualSleep } from '~/features/sleep/manualSleep';
 import { formatSleepDuration, getCaffeineImpact, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import useNow from '~/hooks/useNow';
 import useAppScheme from '~/hooks/useAppScheme';
 import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useReduceMotion from '~/hooks/useReduceMotion';
 import { navigate } from '~/navigation';
-import AppleHealth, { makeHealthSleepSessionId } from '~/services/platform/health/appleHealth';
+import AppleHealth from '~/services/platform/health/appleHealth';
+import { importHealthSleep } from '~/features/sleep/healthImport';
+import { createDoseId } from '~/features/caffeine/logging';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 import { radii, spacing, typeRamp } from '~/theme/tokens';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function formatTime(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
@@ -61,7 +63,6 @@ export default function SleepScreen() {
   const demoMode = useStore((state) => state.demoMode);
   const addSleep = useStore((state) => state.addSleep);
   const addDose = useStore((state) => state.addDose);
-  const upsertSleepSessions = useStore((state) => state.upsertSleepSessions);
   const setOnboarding = useStore((state) => state.setOnboarding);
   const setHealthSync = useStore((state) => state.setHealthSync);
   const loadDemoData = useStore((state) => state.loadDemoData);
@@ -92,12 +93,13 @@ export default function SleepScreen() {
     return () => { active = false; };
   }, []);
 
-  const now = Date.now();
+  const now = useNow();
   const presentation = useMemo(
     () => getSleepPresentation(sleeps, prefs.targetSleep, range, now),
     [sleeps, prefs.targetSleep, range, now],
   );
-  const validation = validateManualSleep(draft, now);
+  // Validation uses the live clock: the shared minute clock can lag a fresh draft.
+  const validation = validateManualSleep(draft, Date.now());
   const caffeineImpact = useMemo(
     () => getCaffeineImpact(sleeps, doses, range, now),
     [doses, now, range, sleeps],
@@ -169,21 +171,8 @@ export default function SleepScreen() {
         return;
       }
       setOnboarding({ source: 'healthkit', permissionStatus: 'granted' });
-      setHealthSync({
-        importStatus: 'importing',
-        lastMessage: 'Importing recent sleep from Health.',
-      });
-      const samples = await AppleHealth.getSleepSamples(now - 30 * DAY_MS, now);
-      const sessions = samples.map((sample) => ({
-        id: makeHealthSleepSessionId(sample), start: sample.start, end: sample.end, type: 'sleep' as const,
-      }));
-      upsertSleepSessions(sessions);
-      setHealthSync({
-        importedCount: sessions.length,
-        importStatus: 'succeeded',
-        lastSyncedAt: now,
-        lastMessage: sessions.length ? `Imported ${sessions.length} sleep ${sessions.length === 1 ? 'sample' : 'samples'} from Health.` : 'No recent readable sleep samples were found. There may be no records, or read access may be off. Manual sleep logging remains available.',
-      });
+      const result = await importHealthSleep({ days: 30, now });
+      if (!result.ok) setRefreshError(result.error);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to read sleep data.';
       setRefreshError(message);
@@ -204,7 +193,7 @@ export default function SleepScreen() {
   const logFirstPlanDose = () => {
     const first = plan[0];
     if (!first) return;
-    addDose({ id: `${now.toString(36)}-${Math.random().toString(36).slice(2)}`, timestamp: now, mg: first.mg, source: 'Plan' });
+    addDose({ id: createDoseId(now), timestamp: now, mg: first.mg, source: 'Plan' });
   };
 
   const chart = (
@@ -315,7 +304,7 @@ export default function SleepScreen() {
               {showSources ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
                 <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
                 <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>
-                <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Imported: {healthSync.importedCount} sleep samples</Text>
+                <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Imported: {healthSync.importedCount} {healthSync.importedCount === 1 ? 'night' : 'nights'}</Text>
                 {healthSync.lastSyncedAt ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Last sync: {formatTime(healthSync.lastSyncedAt)}</Text> : null}
                 {healthSync.lastMessage ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>{healthSync.lastMessage}</Text> : null}
                 <Button title={onboarding.permissionStatus === 'granted' ? 'Refresh Sleep' : 'Connect to Health'} variant="primary" onPress={connectHealth} disabled={loading || healthAvailable === false} loading={loading} />

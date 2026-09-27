@@ -8,6 +8,14 @@ export type CustomDoseDraft = {
   note: string;
 };
 
+/** One id format for every logged dose (quick add, custom entry, plan). */
+export function createDoseId(
+  now = Date.now(),
+  entropy = Math.random().toString(36).slice(2),
+) {
+  return `${now.toString(36)}-${entropy}`;
+}
+
 export type DraftValidation =
   | { valid: true; message?: undefined }
   | { valid: false; message: string };

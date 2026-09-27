@@ -43,8 +43,23 @@ export const loadJSON = <T>(key: string, fallback: T): T => {
 };
 
 // Provide a generic storage backend for zustand persist
+// A blob that no longer parses is copied aside before returning null, because
+// zustand then writes fresh state over the original key.
+export function readJSONStringOrBackup(name: string, now = Date.now()): string | null {
+  const raw = kv.getString(name);
+  if (!raw) return null;
+  try {
+    JSON.parse(raw);
+    return raw;
+  } catch {
+    kv.set(`${name}.corrupt.${now}`, raw);
+    console.warn(`[storage] ${name} could not be parsed; kept a backup copy.`);
+    return null;
+  }
+}
+
 export const jsonStringStorage = {
-  getItem: (name: string) => kv.getString(name) ?? null,
+  getItem: (name: string) => readJSONStringOrBackup(name),
   setItem: (name: string, value: string) => { kv.set(name, value); },
   removeItem: (name: string) => { try { kv.delete?.(name); } catch { /* noop */ } },
 };

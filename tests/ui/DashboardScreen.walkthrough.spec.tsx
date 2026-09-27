@@ -19,12 +19,6 @@ import { navigate } from '~/navigation';
 import DashboardScreen from '~/screens/DashboardScreen';
 import { useStore } from '~/state/store';
 
-jest.mock('~/hooks/useAlertnessSeries', () => ({
-  useAlertnessSeries: () => ({
-    nowScore: 0,
-    mgActiveNow: 0,
-  }),
-}));
 jest.mock('~/hooks/useCaffeineCutoff', () => ({
   __esModule: true,
   default: () => ({

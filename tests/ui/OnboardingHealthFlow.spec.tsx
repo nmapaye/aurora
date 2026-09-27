@@ -114,7 +114,7 @@ describe('onboarding Health import flow', () => {
     );
     await waitFor(() =>
       expect(useStore.getState().healthSync.lastMessage).toBe(
-        'Imported 1 recent sleep sample from Health.',
+        'Imported 1 night of sleep from Health.',
       ),
     );
     expect(importStatus()).toBe('succeeded');
@@ -146,7 +146,7 @@ describe('onboarding Health import flow', () => {
     const user = await openPermissions();
     await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
     expect(await screen.findByText('Status: No readable sleep data')).toBeOnTheScreen();
-    expect(screen.getByText(/No recent readable sleep samples.*may be no records.*read access/i)).toBeOnTheScreen();
+    expect(screen.getByText(/No recent sleep found in Health.*can read Sleep/i)).toBeOnTheScreen();
     expect(screen.queryByText(/access (is )?granted/i)).not.toBeOnTheScreen();
     expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
     expect(importStatus()).toBe('succeeded');

@@ -20,6 +20,7 @@ import {
   buildCustomDose,
   buildQuickAddDose,
   createCustomDoseDraft,
+  createDoseId,
   getRemainingDailyCaffeineLimit,
   getTodayCaffeineTotal,
   validateCustomDoseDraft,
@@ -31,6 +32,7 @@ import {
   WalkthroughReveal,
 } from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
+import useNow from '~/hooks/useNow';
 import useAppScheme from '~/hooks/useAppScheme';
 import useReduceMotion from '~/hooks/useReduceMotion';
 import { navigate } from '~/navigation';
@@ -40,9 +42,6 @@ import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 
 const SOURCE_OPTIONS = ['Espresso', 'Drip', 'Cold Brew', 'Tea', 'Matcha', 'Other'] as const;
 
-function makeDoseId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
 
 function fmtTime(timestamp: number) {
   try {
@@ -85,8 +84,9 @@ export default function LogIntakeScreen() {
     contentRef,
   });
 
-  const now = Date.now();
-  const validation = validateCustomDoseDraft(draft, now);
+  const now = useNow();
+  // Validation uses the live clock: the shared minute clock can lag a fresh draft.
+  const validation = validateCustomDoseDraft(draft, Date.now());
   const todayTotal = getTodayCaffeineTotal(doses, now);
   const remaining = getRemainingDailyCaffeineLimit(doses, now, dailyLimitMg);
   const recent = useMemo(
@@ -111,7 +111,7 @@ export default function LogIntakeScreen() {
         Haptics.ImpactFeedbackStyle.Light,
       ).catch(() => undefined);
     }
-    addDose(buildQuickAddDose(preset, savedNow, makeDoseId));
+    addDose(buildQuickAddDose(preset, savedNow, () => createDoseId()));
     announceSaved();
   };
 
@@ -125,7 +125,7 @@ export default function LogIntakeScreen() {
   const saveCustomEntry = () => {
     const savedNow = Date.now();
     if (!validateCustomDoseDraft(draft, savedNow).valid) return;
-    addDose(buildCustomDose(draft, makeDoseId));
+    addDose(buildCustomDose(draft, () => createDoseId()));
     setCustomVisible(false);
     setPickerVisible(false);
     setDraft(createCustomDoseDraft(savedNow));

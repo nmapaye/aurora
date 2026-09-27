@@ -14,6 +14,8 @@ const imported = {
   type: 'sleep' as const,
 };
 
+afterEach(() => jest.restoreAllMocks());
+
 describe('manual sleep store actions', () => {
   beforeEach(() => {
     useStore.setState({ sleeps: [manual, imported] });
@@ -39,6 +41,8 @@ describe('manual sleep store actions', () => {
   });
 
   it('replaces only a boundary-equivalent legacy Health record during canonical refresh', () => {
+    // Keep the fixture inside the Health retention window.
+    jest.spyOn(Date, 'now').mockReturnValue(1_700_100_000_000);
     const legacy = {
       id: `sleep:${manual.start}:${manual.end}`,
       start: manual.start,

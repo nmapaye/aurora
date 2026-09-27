@@ -41,10 +41,20 @@ describe('CaffeineTodayGraph readout layout', () => {
   });
 });
 
+// Scrub targets are fixed x positions, so pin the clock to mid-afternoon:
+// early in the morning those times would still be in the future.
+function pinClockToAfternoon() {
+  const afternoon = new Date();
+  afternoon.setHours(15, 0, 0, 0);
+  jest.spyOn(Date, 'now').mockReturnValue(afternoon.getTime());
+}
+
 describe('CaffeineTodayGraph inspection', () => {
   beforeEach(() => {
+    pinClockToAfternoon();
     useStore.setState({ doses: [], sleeps: [] });
   });
+  afterEach(() => jest.restoreAllMocks());
 
   async function renderLaidOut() {
     await render(<CaffeineTodayGraph />);
@@ -147,8 +157,10 @@ function touchDriver(graph: ReturnType<typeof screen.getByTestId>) {
 
 describe('CaffeineTodayGraph gesture arbitration', () => {
   beforeEach(() => {
+    pinClockToAfternoon();
     useStore.setState({ doses: [], sleeps: [] });
   });
+  afterEach(() => jest.restoreAllMocks());
 
   async function renderLaidOut() {
     await render(<CaffeineTodayGraph />);

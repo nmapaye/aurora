@@ -98,7 +98,7 @@ describe('storage export helpers', () => {
         fastestReactionMs: null,
         reactionStdDevMs: null,
         score: 18,
-        rating: 'Fatigued',
+        rating: 'Sluggish',
       },
     ];
 
@@ -134,7 +134,7 @@ describe('storage export helpers', () => {
           '""',
           '""',
           '"18"',
-          '"Fatigued"',
+          '"Sluggish"',
         ].join(','),
       ].join('\n')
     );

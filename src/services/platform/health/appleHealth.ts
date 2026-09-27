@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
 import { makeHealthSleepSessionId } from '~/features/sleep/healthSleep';
 
 export { makeHealthSleepSessionId } from '~/features/sleep/healthSleep';
@@ -9,15 +8,6 @@ export type SleepSample = {
   end: number;
   value?: number;
   label?: string;
-};
-
-type NativeHealthBridge = {
-  isAvailable?: () => boolean | Promise<boolean>;
-  requestAuthorization?: () => boolean | Promise<boolean>;
-  getSleepSamples?: (
-    startMs: number,
-    endMs: number,
-  ) => unknown[] | Promise<unknown[]>;
 };
 
 type HealthKitPermissions = Record<string, unknown>;
@@ -48,13 +38,6 @@ type HealthKitClient = {
 type HealthKitModule = HealthKitClient & {
   default?: HealthKitClient;
 };
-
-let Native: NativeHealthBridge | null = null;
-try {
-  Native = requireNativeModule<NativeHealthBridge>('HealthBridge');
-} catch {
-  Native = null;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -147,7 +130,7 @@ function toLabel(value: unknown): string | undefined {
 
 function isSleepCategory(sample: Record<string, unknown>): boolean {
   const category = toLabel(sample.label) ?? sample.value;
-  // The optional custom bridge can provide already-filtered, unlabelled sleep.
+  // Unlabelled samples are treated as plain asleep time.
   if (category === undefined || category === null) {
     return true;
   }
@@ -202,27 +185,10 @@ export function normalizeSleepSamples(rawSamples: unknown[]): SleepSample[] {
     .sort((a, b) => b.end - a.end);
 }
 
-export async function getNativeSleepSamples(
-  query: (startMs: number, endMs: number) => unknown | Promise<unknown>,
-  startMs: number,
-  endMs: number,
-): Promise<SleepSample[]> {
-  const samples = await query(startMs, endMs);
-  if (!Array.isArray(samples)) {
-    throw new Error('Health sleep query returned an invalid payload.');
-  }
-  return normalizeSleepSamples(samples);
-}
-
 export async function isAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') {
     return false;
   }
-  try {
-    if ((await Native?.isAvailable?.()) === true) {
-      return true;
-    }
-  } catch {}
   const mod = getHealthModule();
   const client = mod?.default ?? mod;
   const checkAvailability = client?.isAvailable;
@@ -246,12 +212,6 @@ export async function isAvailable(): Promise<boolean> {
 }
 
 export async function requestAuthorization(): Promise<boolean> {
-  try {
-    if ((await Native?.requestAuthorization?.()) === true) {
-      return true;
-    }
-  } catch {}
-
   const mod = getHealthModule();
   const client = mod?.default ?? mod;
   const initialize = client?.initHealthKit ?? client?.initializeHealthKit;
@@ -283,10 +243,6 @@ export async function getSleepSamples(
   startMs: number,
   endMs: number,
 ): Promise<SleepSample[]> {
-  if (Native?.getSleepSamples) {
-    return getNativeSleepSamples(Native.getSleepSamples, startMs, endMs);
-  }
-
   const mod = getHealthModule();
   const client = mod?.default ?? mod;
   const getter = client?.getSleepSamples;

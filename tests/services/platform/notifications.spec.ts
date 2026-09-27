@@ -34,3 +34,11 @@ it('returns false for denied permission without scheduling', async () => {
   await expect(syncCutoffReminder(true, 16)).resolves.toBe(false);
   expect(native.scheduleNotificationAsync).not.toHaveBeenCalled();
 });
+it('never raises the permission prompt during background reconciliation', async () => {
+  native.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true } as never);
+
+  await expect(syncCutoffReminder(true, 16, { prompt: false })).resolves.toBe(false);
+
+  expect(native.requestPermissionsAsync).not.toHaveBeenCalled();
+  expect(native.scheduleNotificationAsync).not.toHaveBeenCalled();
+});

@@ -1,41 +1,41 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  getNativeSleepSamples,
+  getSleepSamples,
   makeHealthSleepSessionId,
   normalizeSleepSamples,
 } from '~/services/platform/health/appleHealth';
 
+type SleepGetter = (
+  options: unknown,
+  callback: (error: unknown, results?: unknown) => void,
+) => void;
+let mockSleepGetter: SleepGetter = (_options, callback) => callback(null, []);
+jest.mock('react-native-health', () => ({
+  getSleepSamples: (options: unknown, callback: (error: unknown, results?: unknown) => void) =>
+    mockSleepGetter(options, callback),
+}));
+
 describe('Health sleep query errors', () => {
-  test('propagates a native query failure instead of reporting an empty successful result', async () => {
-    await expect(
-      getNativeSleepSamples(
-        async () => {
-          throw new Error('Health database unavailable');
-        },
-        1,
-        2,
-      ),
-    ).rejects.toThrow('Health database unavailable');
+  test('propagates a query failure instead of reporting an empty successful result', async () => {
+    mockSleepGetter = (_options, callback) =>
+      callback(new Error('Health database unavailable'));
+    await expect(getSleepSamples(1, 2)).rejects.toThrow('Health database unavailable');
   });
 
   test.each([undefined, { samples: [] }, 'not an array'])(
-    'rejects malformed native response payload %p',
+    'rejects malformed response payload %p',
     async (payload) => {
-      await expect(
-        getNativeSleepSamples(
-          async () => payload as unknown as unknown[],
-          1,
-          2,
-        ),
-      ).rejects.toThrow('Health sleep query returned an invalid payload.');
+      mockSleepGetter = (_options, callback) => callback(null, payload);
+      await expect(getSleepSamples(1, 2)).rejects.toThrow(
+        'Health sleep query returned an invalid payload.',
+      );
     },
   );
 
   test('preserves an actual empty array as a successful zero-result response', async () => {
-    await expect(getNativeSleepSamples(async () => [], 1, 2)).resolves.toEqual(
-      [],
-    );
+    mockSleepGetter = (_options, callback) => callback(null, []);
+    await expect(getSleepSamples(1, 2)).resolves.toEqual([]);
   });
 });
 
