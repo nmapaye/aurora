@@ -26,10 +26,26 @@ describe('summary presentation', () => {
       status: 'estimated',
       score: Math.round(alertnessScore(now, doses, [nightSleep], prefs)),
       sleepHours: 7,
+      includesSample: false,
     });
     expect(describeAlertnessEstimate(estimate)).toMatch(
       /^Estimated alertness \d+ out of 100\..*7h 0m.*estimate, not a measurement\.$/,
     );
+  });
+
+  it('flags an estimate built partly from Sample Data', () => {
+    const estimate = estimateAlertness(
+      now,
+      [{ id: 'real', timestamp: now - 2 * hour, mg: 95 }],
+      [{ id: 'demo:night', ...nightSleep }],
+      prefs,
+    );
+
+    expect(estimate).toMatchObject({ status: 'estimated', includesSample: true });
+    expect(describeAlertnessEstimate(estimate)).toContain('Includes Sample Data.');
+    expect(
+      estimateAlertness(now, [], [{ id: 'manual:sleep:1:a', ...nightSleep }], prefs),
+    ).toMatchObject({ includesSample: false });
   });
 
   it('returns no score without sleep in the last 24 hours', () => {

@@ -1,5 +1,6 @@
 import { alertnessScore } from '~/domain/algorithm/alertness';
 import { totalSleepHoursLast24 } from '~/domain/algorithm/sleepDebt';
+import { isSampleId } from '~/features/signals/model';
 import type {
   CaffeineDoseInput,
   SleepSessionInput,
@@ -11,8 +12,21 @@ import type {
 // saturates and the number would describe missing data rather than the person.
 // In that case we return no score at all.
 export type AlertnessEstimate =
-  | { status: 'estimated'; score: number; sleepHours: number }
+  | {
+      status: 'estimated';
+      score: number;
+      sleepHours: number;
+      // True when sample sleep or doses feed this estimate.
+      includesSample: boolean;
+    }
   | { status: 'needs-sleep' };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function hasSampleId(item: object) {
+  const id = (item as { id?: unknown }).id;
+  return typeof id === 'string' && isSampleId(id);
+}
 
 export function estimateAlertness(
   t: number,
@@ -22,10 +36,15 @@ export function estimateAlertness(
 ): AlertnessEstimate {
   const sleepHours = totalSleepHoursLast24(t, sleeps);
   if (!(sleepHours > 0)) return { status: 'needs-sleep' };
+  const windowStart = t - DAY_MS;
+  const includesSample =
+    sleeps.some((sleep) => sleep.end > windowStart && sleep.start <= t && hasSampleId(sleep)) ||
+    doses.some((dose) => dose.timestamp > windowStart && dose.timestamp <= t && hasSampleId(dose));
   return {
     status: 'estimated',
     score: Math.round(alertnessScore(t, doses, sleeps, prefs)),
     sleepHours,
+    includesSample,
   };
 }
 
@@ -53,7 +72,9 @@ export function describeAlertnessEstimate(estimate: AlertnessEstimate) {
   }
   return `Estimated alertness ${estimate.score} out of 100. Modeled from ${formatSleepHours(
     estimate.sleepHours,
-  )} of sleep in the last 24 hours, active caffeine, and time of day. This is an estimate, not a measurement.`;
+  )} of sleep in the last 24 hours, active caffeine, and time of day.${
+    estimate.includesSample ? ' Includes Sample Data.' : ''
+  } This is an estimate, not a measurement.`;
 }
 
 export type CutoffAnnotation = {

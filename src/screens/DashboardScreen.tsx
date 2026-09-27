@@ -256,7 +256,9 @@ export default function DashboardScreen() {
     estimate.status === 'estimated'
       ? {
           title: `From ${formatSleepHours(estimate.sleepHours)} of sleep`,
-          body: 'Plus active caffeine and time of day. Not a measurement.',
+          body: estimate.includesSample
+            ? 'Includes Sample Data. Plus active caffeine and time of day. Not a measurement.'
+            : 'Plus active caffeine and time of day. Not a measurement.',
         }
       : {
           title: 'No recent sleep',

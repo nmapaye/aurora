@@ -175,7 +175,10 @@ export default function SleepScreen() {
     ? 'Health refresh failed'
     : demoMode
       ? 'Sample Data'
-      : healthAvailable === false || onboarding.permissionStatus === 'unsupported'
+      // 'unsupported' is also what choosing manual logging stores, so only the
+      // device check (or a Health source) makes Health read as unavailable.
+      : healthAvailable === false ||
+          (onboarding.permissionStatus === 'unsupported' && onboarding.source !== 'manual')
         ? 'Health unavailable'
         : onboarding.permissionStatus === 'denied'
           ? 'Health not connected'

@@ -352,10 +352,12 @@ describe('SleepScreen', () => {
   });
 
   it.each([
-    ['unsupported', 'Health unavailable'],
-    ['denied', 'Health not connected'],
-  ] as const)('keeps %s Health state visibly distinct', async (permissionStatus, expected) => {
-    useStore.getState().setOnboarding({ permissionStatus });
+    ['unsupported', 'healthkit', 'Health unavailable'],
+    ['denied', 'healthkit', 'Health not connected'],
+    // Choosing manual logging during setup also stores 'unsupported'.
+    ['unsupported', 'manual', 'Manual mode'],
+  ] as const)('keeps %s (%s) Health state visibly distinct', async (permissionStatus, source, expected) => {
+    useStore.getState().setOnboarding({ permissionStatus, source });
     await render(<SleepScreen />);
 
     expect(screen.getByText(expected)).toBeOnTheScreen();
