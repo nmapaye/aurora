@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '~/components/Button';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
-import { fontScaling, radii, spacing, typeRamp } from '~/theme/tokens';
+import { fontScaling, spacing, typeRamp } from '~/theme/tokens';
 
 type Props = {
   visible: boolean;
@@ -59,10 +59,12 @@ export function HealthFormSheet({
     wasVisibleRef.current = visible;
   }, [returnFocusRef, visible]);
 
+  // A native iOS page sheet: system corner radius, swipe down to dismiss
+  // (routed to onCancel), and a centered card on iPad.
   return (
     <Modal
       testID="health-form-sheet-modal"
-      transparent
+      presentationStyle="pageSheet"
       visible={visible}
       animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={onCancel}
@@ -72,36 +74,49 @@ export function HealthFormSheet({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         accessibilityViewIsModal
         accessibilityLabel={title}
-        style={{ flex: 1, paddingTop: insets.top, justifyContent: 'flex-end', backgroundColor: palette.modalScrim }}
+        style={{ flex: 1, backgroundColor: palette.modalBackground }}
       >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.xs,
+            paddingTop: spacing.xs,
+            minHeight: 56,
+            borderBottomWidth: 1,
+            borderBottomColor: palette.separator,
+          }}
+        >
+          <Button title="Cancel" variant="plain" onPress={onCancel} />
+          <Text
+            ref={headingRef}
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={{ flex: 1, textAlign: 'center', ...typeRamp.headline, color: palette.textPrimary }}
+            maxFontSizeMultiplier={fontScaling.body}
+          >
+            {title}
+          </Text>
+          <Button
+            title={saveLabel}
+            variant="plain"
+            disabled={saveDisabled}
+            onPress={onSave}
+            textStyle={{ fontWeight: '600' }}
+          />
+        </View>
         <ScrollView
           testID="health-form-scroll"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          style={{ flexGrow: 0, flexShrink: 1, backgroundColor: palette.modalBackground,
-            borderTopLeftRadius: radii.hero, borderTopRightRadius: radii.hero }}
           contentContainerStyle={{
-            backgroundColor: palette.modalBackground,
-            borderTopLeftRadius: radii.hero,
-            borderTopRightRadius: radii.hero,
             padding: spacing.md,
-            paddingBottom: spacing.md + insets.bottom,
+            paddingBottom: spacing.xl + insets.bottom,
             gap: spacing.md,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <Text
-              ref={headingRef}
-              accessibilityRole="header"
-              style={{ flex: 1, ...typeRamp.title3, color: palette.textPrimary }}
-              maxFontSizeMultiplier={fontScaling.body}
-            >
-              {title}
-            </Text>
-            <Button title="Cancel" variant="plain" onPress={onCancel} />
-          </View>
           {children}
-          <Button title={saveLabel} variant="primary" disabled={saveDisabled} onPress={onSave} />
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
