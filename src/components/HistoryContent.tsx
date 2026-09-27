@@ -9,6 +9,7 @@ import {
   SegmentedControl,
 } from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
+import { isSampleId } from '~/features/signals/model';
 import { useStore } from '~/state/store';
 import { haptics } from '~/services/platform/haptics';
 import { getAppPalette } from '~/theme/colors';
@@ -156,7 +157,7 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
                           color: palette.textSecondary,
                         }}
                       >
-                        {fmtDateTime(dose.timestamp)}
+                        {fmtDateTime(dose.timestamp)} · {isSampleId(dose.id) ? 'Sample Data · Read-only' : 'Manual'}
                       </Text>
                       {dose.note ? (
                         <Text
@@ -170,7 +171,9 @@ export default function HistoryContent({ initialSection = 'doses', focused = fal
                       ) : null}
                     </View>
 
-                    {isEditing ? (
+                    {/* Sample entries are examples, not the user's records:
+                        they can be cleared together but never edited. */}
+                    {isSampleId(dose.id) ? null : isEditing ? (
                       <View style={{ gap: spacing.sm }}>
                         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                           <FieldInput

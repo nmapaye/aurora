@@ -65,4 +65,15 @@ describe('CaffeineHistoryScreen', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('labels sample entries and offers no edit or delete for them', async () => {
+    useStore.setState({
+      doses: [{ id: 'demo:dose:1', timestamp: Date.parse('2026-07-24T08:00:00.000Z'), mg: 60, source: 'Espresso' }],
+    });
+    await render(<CaffeineHistoryScreen />);
+
+    expect(screen.getByText(/Sample Data · Read-only/)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeOnTheScreen();
+  });
 });
