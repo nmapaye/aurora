@@ -307,7 +307,7 @@ export default function VigilanceTestScreen() {
                   textAlign: 'center',
                 }}
               >
-                Measure your attentiveness
+                Check your reaction speed
               </Text>
               <Text
                 style={{
@@ -341,7 +341,7 @@ export default function VigilanceTestScreen() {
                     : palette.textSecondary,
                 }}
               >
-                {currentCueVisible ? 'Cue live' : 'Hold steady'}
+                {currentCueVisible ? 'Now' : 'Hold steady'}
               </Text>
               <Text
                 style={{
