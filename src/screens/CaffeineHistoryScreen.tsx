@@ -1,16 +1,13 @@
 import React from 'react';
 
 import AppScreen from '~/components/AppScreen';
-import Button from '~/components/Button';
 import HistoryContent from '~/components/HistoryContent';
-import { goBack } from '~/navigation';
 
+// Pushed with a native navigation bar (back button, swipe back); the large
+// title stays in content like the tab screens.
 export default function CaffeineHistoryScreen() {
   return (
-    <AppScreen
-      title="Caffeine History"
-      trailing={<Button title="Close" variant="plain" onPress={goBack} />}
-    >
+    <AppScreen title="Caffeine History" trailing={false}>
       <HistoryContent initialSection="doses" focused />
     </AppScreen>
   );

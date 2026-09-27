@@ -8,7 +8,6 @@ import {
 import { Alert, Share } from 'react-native';
 
 import CaffeineHistoryScreen from '~/screens/CaffeineHistoryScreen';
-import { goBack } from '~/navigation';
 import { useStore } from '~/state/store';
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -51,13 +50,11 @@ describe('CaffeineHistoryScreen', () => {
     expect(useStore.getState().doses).toHaveLength(0);
   });
 
-  it('provides an accessible Close action for the hidden-header route', async () => {
-    const user = userEvent.setup();
+  it('leaves navigation to the native back button', async () => {
     await render(<CaffeineHistoryScreen />);
 
-    await user.press(screen.getByRole('button', { name: 'Close' }));
-
-    expect(goBack).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Open settings' })).not.toBeOnTheScreen();
   });
 
   it('leaves export to Settings → Data', async () => {

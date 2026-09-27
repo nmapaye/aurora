@@ -1,9 +1,6 @@
 import React from 'react';
-import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
-import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
+import type { SFSymbol } from 'expo-symbols';
 import {
   isAppWalkthroughPending,
   isWalkthroughTabDisabled,
@@ -16,40 +13,36 @@ import InsightsScreen from '~/screens/InsightsScreen';
 import useAppScheme from '~/hooks/useAppScheme';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
-import AppIcon, { appIcons, type AppIconName } from '~/components/AppIcon';
+import { appIcons, sfSymbolFor } from '~/components/AppIcon';
 
-const Tab = createBottomTabNavigator();
+const Tab = createNativeBottomTabNavigator();
 
-function WalkthroughTabButton({
-  walkthroughDisabled,
-  accessibilityState,
-  ...props
-}: BottomTabBarButtonProps & { walkthroughDisabled: boolean }) {
-  return (
-    <PlatformPressable
-      {...props}
-      disabled={walkthroughDisabled}
-      accessibilityState={{
-        ...accessibilityState,
-        disabled: walkthroughDisabled,
-      }}
-    />
-  );
+// SF Symbols for each tab: outline when idle, filled when selected, matching
+// the in-app icon set.
+export const TAB_SYMBOLS = {
+  Summary: [appIcons.summary, appIcons.summarySelected],
+  Sleep: [appIcons.sleep, appIcons.sleepSelected],
+  Log: [appIcons.log, appIcons.logSelected],
+  Insights: [appIcons.insights, appIcons.insightsSelected],
+} as const;
+
+export function tabSymbol(routeName: string, focused: boolean): SFSymbol {
+  const names = TAB_SYMBOLS[routeName as keyof typeof TAB_SYMBOLS];
+  const icon = names ? names[focused ? 1 : 0] : appIcons.fallback;
+  return sfSymbolFor[icon] ?? 'circle';
 }
 
+// The system UITabBarController: Liquid Glass bar, native selection feedback,
+// sidebar-adaptable on iPad. Screens keep their in-content large titles
+// (headers stay hidden) because the walkthrough reveals and measures them.
 export default function RootTabs() {
-  const insets = useSafeAreaInsets();
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
+  const palette = getAppPalette(useAppScheme());
   const walkthroughPending = useStore((state) =>
     isAppWalkthroughPending(state.onboarding),
   );
   const walkthroughStep = useStore(
     (state) => state.onboarding.appWalkthroughStep,
   );
-  const inset = insets.bottom || 0;
-  const tabBarHeight = 54 + Math.floor(inset);
-  const tabBarPaddingBottom = Math.max(6, Math.floor(inset / 3));
 
   return (
     <Tab.Navigator
@@ -58,63 +51,20 @@ export default function RootTabs() {
           ? getAppWalkthroughRoute(walkthroughStep)
           : 'Summary'
       }
-      screenOptions={({ route }) => {
-        const walkthroughDisabled = isWalkthroughTabDisabled(
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused }) => ({
+          type: 'sfSymbol',
+          name: tabSymbol(route.name, focused),
+        }),
+        tabBarActiveTintColor: palette.tint,
+        tabBarInactiveTintColor: palette.textTertiary,
+        // The walkthrough moves between tabs itself; users can't jump ahead.
+        tabBarSelectionEnabled: !isWalkthroughTabDisabled(
           route.name,
           walkthroughPending,
-        );
-
-        return {
-          headerShown: false,
-          tabBarShowLabel: true,
-          tabBarIcon: ({ focused, color, size }) => {
-            const name: AppIconName = (() => {
-              switch (route.name) {
-                case 'Summary':
-                  return focused
-                    ? appIcons.summarySelected
-                    : appIcons.summary;
-                case 'Log':
-                  return focused
-                    ? appIcons.logSelected
-                    : appIcons.log;
-                case 'Sleep':
-                  return focused
-                    ? appIcons.sleepSelected
-                    : appIcons.sleep;
-                case 'Insights':
-                  return focused
-                    ? appIcons.insightsSelected
-                    : appIcons.insights;
-                default:
-                  return appIcons.fallback;
-              }
-            })();
-            return <AppIcon name={name} size={size} color={color} />;
-          },
-          tabBarButton: (props) => (
-            <WalkthroughTabButton
-              {...props}
-              walkthroughDisabled={walkthroughDisabled}
-            />
-          ),
-          tabBarActiveTintColor: palette.tint,
-          tabBarInactiveTintColor: palette.textTertiary,
-          // Respect device bottom inset so the bar clears the Home indicator
-          tabBarStyle: {
-            height: tabBarHeight,
-            paddingBottom: tabBarPaddingBottom,
-            paddingTop: 8,
-            backgroundColor: palette.card,
-            borderTopColor: palette.cardBorder,
-          },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
-          tabBarBackground: () => (
-            <View style={{ flex: 1, backgroundColor: palette.card }} />
-          ),
-          tabBarHideOnKeyboard: true,
-        };
-      }}
+        ),
+      })}
     >
       <Tab.Screen name="Summary" component={DashboardScreen} />
       <Tab.Screen name="Sleep" component={SleepScreen} />

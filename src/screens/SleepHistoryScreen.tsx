@@ -7,7 +7,6 @@ import Button from '~/components/Button';
 import { HealthEmptyState, HealthFormSheet, HealthGroupedList } from '~/components/health';
 import { isManualSleep, validateManualSleep } from '~/features/sleep/manualSleep';
 import { formatSleepDuration, sleepSourceLabel } from '~/features/sleep/presentation';
-import { goBack } from '~/navigation';
 import { useStore } from '~/state/store';
 import { haptics } from '~/services/platform/haptics';
 import useAppScheme from '~/hooks/useAppScheme';
@@ -70,7 +69,7 @@ export default function SleepHistoryScreen() {
   };
 
   return (
-    <AppScreen title="Sleep History" trailing={<Button title="Close" variant="plain" onPress={goBack} />}>
+    <AppScreen title="Sleep History" trailing={false}>
       {sorted.length ? <View style={{ gap: spacing.sm }}>
         {sorted.map((sleep) => {
           const manual = isManualSleep(sleep.id);

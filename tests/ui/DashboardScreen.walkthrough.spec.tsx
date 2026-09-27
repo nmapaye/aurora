@@ -23,7 +23,7 @@ jest.mock('~/components/CaffeineTodayGraph', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Caffeine graph</Text>,
+    default: function MockCaffeineGraphScreen() { return <Text>Caffeine graph</Text>; },
   };
 });
 jest.mock('~/navigation', () => ({
