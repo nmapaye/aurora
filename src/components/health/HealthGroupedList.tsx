@@ -13,6 +13,9 @@ export type HealthGroupedListRow = {
   value?: string;
   onPress?: () => void;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
+  /** For rows that reveal content in place. */
+  expanded?: boolean;
   accessory?: React.ReactNode;
   ref?: RefObject<View | null>;
 };
@@ -94,7 +97,10 @@ export function HealthGroupedList({ rows }: Props) {
             key={row.title}
             accessibilityRole="button"
             accessibilityLabel={row.accessibilityLabel ?? row.title}
-            accessibilityHint="Opens details"
+            accessibilityHint={row.accessibilityHint ?? 'Opens details'}
+            accessibilityState={
+              row.expanded === undefined ? undefined : { expanded: row.expanded }
+            }
             onPress={row.onPress}
             style={({ pressed }) => ({ backgroundColor: pressed ? palette.pressed : 'transparent' })}
           >

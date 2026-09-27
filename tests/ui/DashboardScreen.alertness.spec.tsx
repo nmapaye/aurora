@@ -16,17 +16,6 @@ import { navigate } from '~/navigation';
 import DashboardScreen from '~/screens/DashboardScreen';
 import { useStore } from '~/state/store';
 
-jest.mock('~/hooks/useCaffeineCutoff', () => ({
-  __esModule: true,
-  default: () => ({ nextCutoff: 1_800_000_000_000 }),
-}));
-jest.mock('~/hooks/useSleepGuidance', () => ({
-  __esModule: true,
-  default: () => ({
-    bedtime: 1_800_010_000_000,
-    wake: 1_800_040_000_000,
-  }),
-}));
 jest.mock('~/components/CaffeineTodayGraph', () => {
   const { Text } = jest.requireActual('react-native');
   return {
@@ -100,9 +89,6 @@ describe('DashboardScreen Estimated Alertness hero', () => {
       screen.getByLabelText(/^Estimated alertness unavailable\./),
     ).toBeOnTheScreen();
     expect(screen.queryByText('Estimate')).not.toBeOnTheScreen();
-    expect(
-      screen.getByText('Alertness needs recent sleep'),
-    ).toBeOnTheScreen();
     expect(screen.getByText('Caffeine graph')).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Open Sleep' }));
@@ -138,9 +124,111 @@ describe('DashboardScreen Estimated Alertness hero', () => {
     expect(
       screen.queryByRole('button', { name: 'Open Sleep' }),
     ).not.toBeOnTheScreen();
+  });
+
+  it('keeps empty signals quiet and offers sample data only before anything is recorded', async () => {
+    const user = userEvent.setup();
+    await render(<DashboardScreen />);
+
     expect(
-      screen.getByText(/^Estimated alertness \d+$/),
+      screen.getByRole('button', {
+        name: 'Caffeine Logged, No data, Nothing logged yet today.',
+      }),
     ).toBeOnTheScreen();
+    expect(screen.getByText('Add Sleep')).toBeOnTheScreen();
+    expect(screen.getByText('Take Reaction Test')).toBeOnTheScreen();
+    expect(screen.queryByText('No Data')).not.toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Load Sample Data' }));
+    expect(useStore.getState().demoMode).toBe(true);
+  });
+
+  it('sends the Caffeine Logged signal to Log whether or not today is empty', async () => {
+    // Local 9:00 AM keeps both doses on their intended calendar days.
+    const now = new Date(2026, 8, 26, 9, 0, 0).getTime();
+    jest.useFakeTimers({ now });
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      // Older history, but nothing today.
+      useStore.setState({
+        doses: [{ id: 'yesterday', timestamp: now - 24 * hour, mg: 95 }],
+      });
+      const { rerender } = await render(<DashboardScreen />);
+
+      const empty = screen.getByRole('button', {
+        name: 'Caffeine Logged, No data, Nothing logged yet today.',
+      });
+      expect(empty).toHaveProp('accessibilityHint', 'Log Caffeine.');
+      // The signal is Summary's only logging action.
+      expect(
+        screen.getAllByText('Log Caffeine', { includeHiddenElements: true }),
+      ).toHaveLength(1);
+      await user.press(empty);
+      expect(navigate).toHaveBeenLastCalledWith('Log');
+
+      await act(async () => {
+        useStore.setState({
+          doses: [
+            { id: 'yesterday', timestamp: now - 24 * hour, mg: 95 },
+            { id: 'today', timestamp: now - 60_000, mg: 60 },
+          ],
+        });
+      });
+      await rerender(<DashboardScreen />);
+
+      const logged = screen.getByRole('button', { name: /^Caffeine Logged, 60 mg/ });
+      expect(logged).toHaveProp('accessibilityHint', 'Open Log.');
+      expect(
+        screen.queryByText('Log Caffeine', { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+      await user.press(logged);
+      expect(navigate).toHaveBeenLastCalledWith('Log');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('labels sample data with a compact status line and on each sample signal', async () => {
+    // Local 9:00 AM keeps the dose on today's calendar day in any time zone.
+    const now = new Date(2026, 8, 26, 9, 0, 0).getTime();
+    jest.useFakeTimers({ now });
+    try {
+      useStore.setState({
+        demoMode: true,
+        doses: [{ id: 'demo:dose:0', timestamp: now - 60_000, mg: 95 }],
+        sleeps: [
+          {
+            id: 'demo:sleep:0',
+            start: now - 10 * hour,
+            end: now - 3 * hour,
+            type: 'sleep',
+          },
+        ],
+      });
+      await render(<DashboardScreen />);
+
+      expect(
+        screen.getByText('Showing sample data: example records, not yours.'),
+      ).toBeOnTheScreen();
+      // No hero-sized alert or generic action above the real signals.
+      expect(screen.queryByText('You’re viewing sample data.')).not.toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: 'More Details' }),
+      ).not.toBeOnTheScreen();
+      // The badge stays on the caffeine and sleep signals.
+      expect(screen.getAllByText('Sample Data')).toHaveLength(2);
+      expect(screen.getByText('95 mg')).toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: 'Load Sample Data' }),
+      ).not.toBeOnTheScreen();
+
+      await userEvent
+        .setup({ advanceTimers: jest.advanceTimersByTime })
+        .press(screen.getByRole('button', { name: 'Clear Sample Data' }));
+      expect(useStore.getState().demoMode).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('refreshes the estimate as the clock moves without new data', async () => {

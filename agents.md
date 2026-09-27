@@ -154,6 +154,45 @@ not use Xcode 27 beta for release work.
   `CaffeineTodayGraph`. Estimates, readouts, and chart accessibility copy live
   in the pure `src/features/summary/presentation.ts`. With no sleep in the
   model's 24-hour window the ring shows no score, only a placeholder.
+- Focused-signal redesign, slice 1 (Summary): Pinned holds only Caffeine
+  Logged, Sleep, and Reaction Test, built as `SignalCardModel`s
+  (`src/features/signals/model.ts`, builders in
+  `src/features/summary/signals.ts`) and rendered by `SignalCard`. Empty
+  signals collapse to a quiet row; sample data carries a badge. The user's
+  cutoff is an annotation on `CaffeineTodayGraph` (`getCutoffAnnotation`),
+  and one "Log Caffeine" action opens Log. Sleep/Log/Insights adopt the
+  contract in later slices.
+- Focused-signal redesign, slice 2 (Sleep): the inspectable `HealthBarChart`
+  (tap/drag, VoiceOver-adjustable, missing days read as missing) leads, beside
+  a Most Recent Sleep `SignalCard` (`src/features/sleep/signals.ts`) whose
+  context leads with the absolute wake date ("Sun, Sep 21") and whose footer
+  gives its age ("6 days ago"). "Caffeine
+  timing before sleep" always uses the last 30 days and shows a number only at
+  14 paired nights (`PAIRED_NIGHTS_REQUIRED`); the distribution sits behind a
+  disclosure. The dose plan and `useCaffeineCutoff` are gone. One "Sleep Data"
+  entry reveals Health/manual/sample controls and Show All Data; walkthrough
+  step 6 anchors on it (`sleep-data`).
+- Focused-signal redesign, slice 3 (Log): Logged Today states the recorded
+  total and its source (same wording as Summary's Caffeine Logged); there is
+  no "remaining"/limit framing. Quick Add logs at once with a 1-second
+  double-tap guard and an Undo; Custom Entry sits beside it. Recent shows five
+  entries with full local date/time and source; manual rows open Edit Entry
+  (`updateDose`, delete behind an Alert), Sample Data rows are read-only.
+  Pure helpers live in `src/features/caffeine/presentation.ts`. Settings
+  calls `prefs.dailyLimitMg` a "Personal caffeine reference" (field name kept
+  for compatibility). Walkthrough steps 7–8 cover logging and corrections.
+- Focused-signal redesign, slice 4 (Insights): an inspectable
+  `HealthBarChart` of daily caffeine (days without entries read "No record",
+  never 0 mg) whose headline averages recorded days only. A comparison with
+  the previous period appears only when both have `getTrendMinimumDays`
+  recorded days (half the range, at least 4). One Reaction Test `SignalCard`
+  (`reactionInsightSignal`) shows the latest test's date and source; a median
+  baseline appears only at 3 tests in 30 days. Time of day, drinks, and
+  history sit behind a Details disclosure. No limit/adherence, reference line,
+  or bedtime/wake advice (`useSleepGuidance` is gone). Settings → Data owns
+  every CSV export (`src/services/storage/export.ts`); History and Insights
+  have none. Walkthrough steps 9–10 anchor on `insights-top` and
+  `insights-reaction`.
 - First-run setup (premium redesign, slice 3): `OnboardingScreen` renders one
   centered column on iPhone, narrow iPad windows, and accessibility text sizes,
   and a two-column composition (brand + "Your setup" summary beside the form

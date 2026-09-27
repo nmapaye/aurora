@@ -1,10 +1,11 @@
 import type { Dose } from '~/domain/models';
 import {
   buildCustomDose,
+  buildDosePatch,
   buildQuickAddDose,
   createCustomDoseDraft,
+  createEditDoseDraft,
   getTodayCaffeineTotal,
-  getRemainingDailyCaffeineLimit,
   validateCustomDoseDraft,
 } from '~/features/caffeine/logging';
 
@@ -22,7 +23,22 @@ describe('caffeine logging helpers', () => {
 
   it('totals doses inside the current local-day boundary only', () => {
     expect(getTodayCaffeineTotal(doses, now)).toBe(155);
-    expect(getRemainingDailyCaffeineLimit(doses, now, 400)).toBe(245);
+  });
+
+  it('round-trips an existing entry through the edit draft without losing fields', () => {
+    const dose: Dose = { id: 'dose:1', timestamp: now - 60_000, mg: 60, source: 'Espresso', note: 'Early' };
+    const draft = createEditDoseDraft(dose);
+
+    expect(draft).toEqual({ mg: '60', source: 'Espresso', timestamp: now - 60_000, note: 'Early' });
+    expect(buildDosePatch(draft)).toEqual({ timestamp: now - 60_000, mg: 60, source: 'Espresso', note: 'Early' });
+    expect(buildDosePatch({ ...draft, mg: '75', note: '  ' })).toEqual({
+      timestamp: now - 60_000,
+      mg: 75,
+      source: 'Espresso',
+      note: undefined,
+    });
+    // A patch never carries an id, so updateDose keeps the original record.
+    expect(buildDosePatch(draft)).not.toHaveProperty('id');
   });
 
   it.each([

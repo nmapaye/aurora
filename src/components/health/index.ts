@@ -4,4 +4,4 @@ export { HealthFormSheet } from './HealthFormSheet';
 export { HealthGroupedList, type HealthGroupedListRow } from './HealthGroupedList';
 export { HealthHighlightCard } from './HealthHighlightCard';
 export { HealthRangeControl } from './HealthRangeControl';
-export { HealthBarChart, type BarPoint } from './HealthBarChart';
+export { HealthBarChart, type BarInspection, type BarPoint } from './HealthBarChart';

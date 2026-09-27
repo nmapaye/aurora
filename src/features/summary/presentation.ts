@@ -56,6 +56,59 @@ export function describeAlertnessEstimate(estimate: AlertnessEstimate) {
   )} of sleep in the last 24 hours, active caffeine, and time of day. This is an estimate, not a measurement.`;
 }
 
+export type CutoffAnnotation = {
+  // Today's cutoff, which is where the curve marks it.
+  at: number;
+  isPast: boolean;
+  // The next cutoff to come: today's, or tomorrow's once today's has passed.
+  nextAt: number;
+  text: string;
+};
+
+// The user's own cutoff as context on today's curve, not a recommendation.
+// Before the cutoff it is always worth marking. After it, it only matters if
+// caffeine was logged today; otherwise there is nothing for it to annotate.
+// Tomorrow's cutoff is built from the calendar day so DST shifts keep the
+// same local hour.
+export function getCutoffAnnotation({
+  now,
+  cutoffHour,
+  doses,
+  formatTime = formatClockTime,
+}: {
+  now: number;
+  cutoffHour: number;
+  doses: readonly CaffeineDoseInput[];
+  formatTime?: (ts: number) => string;
+}): CutoffAnnotation | null {
+  if (!Number.isFinite(cutoffHour)) return null;
+  const hour = Math.max(0, Math.min(23, Math.round(cutoffHour)));
+  const today = new Date(now);
+  today.setHours(hour, 0, 0, 0);
+  const at = today.getTime();
+  const isPast = now >= at;
+  if (isPast) {
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const loggedToday = doses.some(
+      (dose) => dose.timestamp >= dayStart.getTime() && dose.timestamp <= now,
+    );
+    if (!loggedToday) return null;
+  }
+  const next = new Date(now);
+  if (isPast) next.setDate(next.getDate() + 1);
+  next.setHours(hour, 0, 0, 0);
+  const time = formatTime(at);
+  return {
+    at,
+    isPast,
+    nextAt: next.getTime(),
+    text: isPast
+      ? `Your cutoff was ${time}. Next: tomorrow, ${formatTime(next.getTime())}.`
+      : `Your cutoff: ${time} today.`,
+  };
+}
+
 // Index of the point whose x is closest to `x`. `xs` must be ascending.
 export function nearestIndex(xs: readonly number[], x: number) {
   if (xs.length === 0) return -1;
@@ -143,6 +196,36 @@ export function describeInspection(
       ? `${inspection.isFuture ? 'projected' : 'estimated'} alertness ${inspection.alertness.score}`
       : 'alertness needs recent sleep';
   return `${time}: ${active}, ${logged}, ${alertness}.`;
+}
+
+// Whether today's curve has anything to show: a dose logged today, or modeled
+// carryover that rounds to at least 1 mg somewhere in the day. Without either
+// the chart would be a flat 0 mg line, so the hero shows a short note instead.
+export function hasCaffeineSignal({
+  series,
+  doses,
+  dayStart,
+  dayEnd,
+}: {
+  series: readonly { mg: number }[];
+  doses: readonly CaffeineDoseInput[];
+  dayStart: number;
+  dayEnd: number;
+}) {
+  return (
+    doses.some((dose) => dose.timestamp >= dayStart && dose.timestamp < dayEnd) ||
+    series.some((point) => Math.round(point.mg) >= 1)
+  );
+}
+
+export const NO_CAFFEINE_NOTE = {
+  title: 'No caffeine logged today',
+  body: 'Today’s active-caffeine curve appears once you log a dose.',
+};
+
+export function describeNoCaffeineNote(cutoffText?: string) {
+  const base = `Caffeine today. ${NO_CAFFEINE_NOTE.title}, and none is carried over from earlier. ${NO_CAFFEINE_NOTE.body}`;
+  return cutoffText ? `${base} ${cutoffText}` : base;
 }
 
 export function describeCaffeineDay({

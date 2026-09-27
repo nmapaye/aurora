@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Constants from 'expo-constants';
-import { Alert, Linking, Switch, View } from 'react-native';
+import { Alert, Linking, Share, Switch, Text, View } from 'react-native';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
@@ -13,11 +13,18 @@ import {
 } from '~/components/ui';
 import { goBack } from '~/navigation';
 import { syncCutoffReminder } from '~/services/platform/notifications';
+import {
+  getDailyTotalRows,
+  makeDailyTotalsCSV,
+  makeDoseEntriesCSV,
+  makeVigilanceSessionsCSV,
+} from '~/services/storage/export';
 import { useStore } from '~/state/store';
 import { haptics } from '~/services/platform/haptics';
 import { formatClockHour } from '~/utils/format';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
+import { typeRamp } from '~/theme/tokens';
 
 const privacyPolicyUrl = 'https://nmapaye.github.io/aurora/privacy.html';
 const supportUrl = 'https://nmapaye.github.io/aurora/support.html';
@@ -33,7 +40,22 @@ export default function SettingsScreen() {
   const appearanceMode = useStore((s) => s.appearanceMode);
   const setAppearanceMode = useStore((s) => s.setAppearanceMode);
   const deleteAllData = useStore((s) => s.deleteAllData);
+  const doses = useStore((s) => s.doses);
+  const vigilanceSessions = useStore((s) => s.vigilanceSessions);
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  const [exportError, setExportError] = useState<string>();
+
+  // Settings owns every export. Each CSV holds only recorded rows (daily
+  // totals mark empty days "no record"), and names Manual or Sample Data.
+  const exportCsv = async (label: string, message: string) => {
+    setExportError(undefined);
+    try {
+      await Share.share({ message });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Sharing unavailable.';
+      setExportError(`Unable to export ${label}. ${reason}`);
+    }
+  };
 
   const confirmDeleteAll = () => {
     Alert.alert(
@@ -81,7 +103,7 @@ export default function SettingsScreen() {
   return (
     <AppScreen
       title="Settings"
-      subtitle="Tune caffeine and sleep guidance."
+      subtitle="Adjust estimates and your personal reference points."
       trailing={<Button title="Done" variant="plain" onPress={goBack} />}
     >
       <SectionHeader prominence="prominent" title="Appearance" />
@@ -97,7 +119,7 @@ export default function SettingsScreen() {
         />
       </SectionCard>
 
-      <SectionHeader prominence="prominent" title="Guidance" />
+      <SectionHeader prominence="prominent" title="Estimates and References" />
       <StepperField
         label="Caffeine half-life"
         value={prefs.halfLife}
@@ -116,17 +138,19 @@ export default function SettingsScreen() {
         min={5}
         max={10}
         formatValue={(value) => `${value.toFixed(1)} h`}
-        footer="Used for sleep guidance."
+        footer="Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it."
       />
+      {/* Stored as prefs.dailyLimitMg for compatibility; presented only as a
+          number the user picks, never as a limit, allowance, or guideline. */}
       <StepperField
-        label="Daily caffeine limit"
+        label="Personal caffeine reference"
         value={prefs.dailyLimitMg}
         onChange={(value) => setPrefs({ dailyLimitMg: Math.round(value) })}
         step={20}
         min={0}
         max={1000}
         formatValue={(value) => `${Math.round(value)} mg`}
-        footer="Shown in Insights."
+        footer="A daily amount you choose for your own reference. It is not a recommended or safe amount."
       />
       <StepperField
         label="Cutoff hour"
@@ -138,14 +162,14 @@ export default function SettingsScreen() {
         min={0}
         max={23}
         formatValue={(value) => formatClockHour(value)}
-        footer="Your daily guardrail."
+        footer="The time you choose for the cutoff marker and optional reminder."
       />
 
       <SectionHeader prominence="prominent" title="Notifications" />
       <SectionCard>
         <ListRow
           title="Cutoff reminder"
-          subtitle={`Daily at ${formatClockHour(prefs.cutoffHour)}, so caffeine stays clear of bedtime.`}
+          subtitle={`Daily at ${formatClockHour(prefs.cutoffHour)}, the cutoff time you chose.`}
           accessory={
             <Switch
               accessibilityLabel="Cutoff reminder"
@@ -191,6 +215,35 @@ export default function SettingsScreen() {
           title="Stored on this device"
           subtitle="Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health."
         />
+        <ListRow
+          title="Export Caffeine Entries"
+          subtitle={`CSV of every recorded entry (${doses.length}), with its source.`}
+          onPress={() => exportCsv('caffeine entries', makeDoseEntriesCSV(doses))}
+        />
+        <ListRow
+          title="Export Daily Caffeine Totals"
+          subtitle="CSV by day. Days without entries are marked “no record”, not 0 mg."
+          onPress={() => exportCsv('daily totals', makeDailyTotalsCSV(getDailyTotalRows(doses, Date.now())))}
+        />
+        <ListRow
+          title="Export Reaction Tests"
+          subtitle={`CSV of every Reaction Test (${vigilanceSessions.length}), with its source.`}
+          onPress={() =>
+            exportCsv(
+              'Reaction Tests',
+              makeVigilanceSessionsCSV([...vigilanceSessions].sort((a, b) => a.completedAt - b.completedAt)),
+            )
+          }
+        />
+        {exportError ? (
+          <Text
+            accessibilityRole="alert"
+            accessibilityLabel={exportError}
+            style={{ ...typeRamp.footnote, color: palette.destructive }}
+          >
+            {exportError}
+          </Text>
+        ) : null}
         <Button title="Delete All Data" role="destructive" onPress={confirmDeleteAll} />
       </SectionCard>
     </AppScreen>

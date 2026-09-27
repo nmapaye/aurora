@@ -5,28 +5,27 @@ export type AppWalkthroughRevealGroup =
   | 'summary-alert'
   | 'summary-pinned'
   | 'summary-today'
-  | 'summary-logging'
-  | 'summary-recent'
   | 'sleep-header'
   | 'sleep-history'
-  | 'sleep-sources'
+  | 'sleep-data'
   | 'log-header'
   | 'log-quick-add'
   | 'log-details'
   | 'insights-header'
   | 'insights-range'
-  | 'insights-highlights';
+  | 'insights-reaction';
 
 export type AppWalkthroughAnchor =
   | 'summary-top'
   | 'summary-pinned'
-  | 'summary-logging'
+  | 'summary-caffeine'
+  | 'summary-sleep'
   | 'sleep-top'
-  | 'sleep-sources'
+  | 'sleep-data'
   | 'log-top'
   | 'log-details'
   | 'insights-top'
-  | 'insights-highlights';
+  | 'insights-reaction';
 
 export type AppWalkthroughStep = {
   id: string;
@@ -51,7 +50,7 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     route: 'Summary',
     progress: '1 of 10',
     title: 'Your day at a glance',
-    body: 'Aurora brings caffeine, sleep, and alertness together.',
+    body: 'Estimated alertness and today’s caffeine curve, built from what you record.',
     // The Today hero leads Summary, so it arrives with the header.
     revealGroups: ['summary-header', 'summary-today', 'summary-alert'],
     anchor: 'summary-top',
@@ -61,8 +60,8 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'summary-signals',
     route: 'Summary',
     progress: '2 of 10',
-    title: 'See what shapes alertness',
-    body: 'These signals show how caffeine, sleep, and reaction speed shape your day.',
+    title: 'Your pinned signals',
+    body: 'Caffeine logged today, your latest sleep, and your latest Reaction Test, each with its date and source.',
     revealGroups: ['summary-pinned'],
     anchor: 'summary-pinned',
     primaryAction: 'Next',
@@ -71,10 +70,11 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'summary-logging',
     route: 'Summary',
     progress: '3 of 10',
-    title: 'Log in a tap',
-    body: 'Use a common amount, or open Custom Entry when you need more detail.',
-    revealGroups: ['summary-logging', 'summary-recent'],
-    anchor: 'summary-logging',
+    title: 'Log caffeine',
+    body: 'Caffeine Logged opens Log, where you record the amount, time, and source and see recent entries.',
+    // Points at the Caffeine Logged signal, Summary's one way into Log.
+    revealGroups: [],
+    anchor: 'summary-caffeine',
     primaryAction: 'Next',
   },
   {
@@ -82,17 +82,18 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     route: 'Summary',
     progress: '4 of 10',
     title: 'Next: your sleep',
-    body: 'See where rest data comes from and how timing shapes tomorrow.',
+    body: 'Sleep comes from Health or your own entries. The Sleep tab shows each night and where it came from.',
+    // Points back at the real Sleep signal rather than at empty space.
     revealGroups: [],
-    anchor: 'summary-logging',
+    anchor: 'summary-sleep',
     primaryAction: 'Next',
   },
   {
     id: 'sleep-understanding',
     route: 'Sleep',
     progress: '5 of 10',
-    title: 'Understand your sleep',
-    body: 'Use Week or Month to review your real sleep history and recent highlights.',
+    title: 'Your recorded nights',
+    body: 'Week or Month shows each night you recorded. Tap or drag the chart to read a day; Most Recent Sleep shows its date and source.',
     revealGroups: ['sleep-header', 'sleep-history'],
     anchor: 'sleep-top',
     primaryAction: 'Next',
@@ -101,18 +102,20 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'sleep-add-or-connect',
     route: 'Sleep',
     progress: '6 of 10',
-    title: 'Add or connect sleep',
-    body: 'Aurora can read Health data or save a manual sleep session.',
-    revealGroups: ['sleep-sources'],
-    anchor: 'sleep-sources',
+    title: 'Where your sleep comes from',
+    body: 'Sleep Data holds read-only Health access, manual entries, Sample Data, and every recorded night.',
+    // Points at the one Sleep Data entry that opens those controls.
+    revealGroups: ['sleep-data'],
+    anchor: 'sleep-data',
     primaryAction: 'Next',
   },
   {
     id: 'log-quick-add',
     route: 'Log',
     progress: '7 of 10',
-    title: 'Log in one tap',
-    body: 'Use the same quick amounts here and on Summary.',
+    title: 'Log caffeine',
+    body: 'Logged Today totals what you record. Tap a drink to log it now, with Undo right after, or use Custom Entry to set the amount and time.',
+    // Logged Today, Quick Add, and Custom Entry share the primary column.
     revealGroups: ['log-header', 'log-quick-add'],
     anchor: 'log-top',
     primaryAction: 'Next',
@@ -121,8 +124,9 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'log-details',
     route: 'Log',
     progress: '8 of 10',
-    title: 'Add details when they matter',
-    body: 'Custom Entry records amount, source, time, and an optional note.',
+    title: 'Fix a mistake',
+    body: 'Recent shows each entry’s date, time, amount, and source. Tap one to edit or delete it; Show All Caffeine Data holds the full history.',
+    // Points at Recent and the history row, which share one anchor.
     revealGroups: ['log-details'],
     anchor: 'log-details',
     primaryAction: 'Next',
@@ -131,8 +135,9 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'insights-patterns',
     route: 'Insights',
     progress: '9 of 10',
-    title: 'See patterns over time',
-    body: 'Change the range to compare caffeine, timing, and alertness.',
+    title: 'Your caffeine over time',
+    body: 'Choose W, 2W, or M. Tap or drag the chart to read a day; days without entries read as no record, not zero.',
+    // The range control and the inspectable chart share one reveal.
     revealGroups: ['insights-header', 'insights-range'],
     anchor: 'insights-top',
     primaryAction: 'Next',
@@ -141,10 +146,11 @@ export const APP_WALKTHROUGH_STEPS: readonly AppWalkthroughStep[] = [
     id: 'insights-learning',
     route: 'Insights',
     progress: '10 of 10',
-    title: 'Keep learning from your trends',
-    body: 'Review highlights or open Show All Data whenever you need the details.',
-    revealGroups: ['insights-highlights'],
-    anchor: 'insights-highlights',
+    title: 'Your Reaction Test',
+    body: 'Your latest test shows its date and source. A baseline appears only after 3 tests; Details holds time of day, drinks, and every entry.',
+    // Points at the Reaction Test signal; Details sits just below it.
+    revealGroups: ['insights-reaction'],
+    anchor: 'insights-reaction',
     primaryAction: 'Finish',
   },
 ];

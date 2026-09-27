@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 
 import SleepScreen from '~/screens/SleepScreen';
 import { useStore } from '~/state/store';
@@ -24,7 +24,6 @@ jest.mock('~/services/platform/health/appleHealth', () => ({
   default: { isAvailable: jest.fn().mockResolvedValue(true), requestAuthorization: jest.fn(), getSleepSamples: jest.fn() },
   makeHealthSleepSessionId: ({ start, end }: { start: number; end: number }) => `healthkit:sleep:${start}:${end}`,
 }));
-jest.mock('~/hooks/useCaffeineCutoff', () => ({ __esModule: true, default: () => ({ nextCutoff: Date.now() + 4 * 60 * 60 * 1000 }) }));
 jest.mock('~/navigation', () => ({ navigate: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
@@ -40,7 +39,7 @@ describe('SleepScreen wide layout', () => {
     });
   });
 
-  it('keeps the chart primary while placing highlights beside it on a wide iPad window', async () => {
+  it('keeps the chart primary while placing the night and timing signals beside it on a wide iPad window', async () => {
     await render(<SleepScreen />);
 
     expect(screen.getByTestId('sleep-wide-layout')).toBeOnTheScreen();
@@ -48,9 +47,11 @@ describe('SleepScreen wide layout', () => {
     expect(screen.getByTestId('sleep-primary-column')).toHaveStyle({
       width: 600,
     });
+    const supporting = within(screen.getByTestId('sleep-supporting-column'));
     expect(screen.getByTestId('sleep-supporting-column')).toHaveStyle({
       width: 540,
     });
-    expect(screen.getByText('Highlights')).toBeOnTheScreen();
+    expect(supporting.getByText('Most Recent Sleep')).toBeOnTheScreen();
+    expect(supporting.getByTestId('caffeine-timing-gathering')).toBeOnTheScreen();
   });
 });

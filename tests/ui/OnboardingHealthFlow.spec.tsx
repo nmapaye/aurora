@@ -34,10 +34,6 @@ jest.mock('~/services/platform/health/appleHealth', () => ({
   makeHealthSleepSessionId: ({ start, end }: { start: number; end: number }) =>
     `healthkit:sleep:${Math.round(start)}:${Math.round(end)}`,
 }));
-jest.mock('~/hooks/useCaffeineCutoff', () => ({
-  __esModule: true,
-  default: () => ({ nextCutoff: Date.now() + 4 * 60 * 60 * 1000 }),
-}));
 jest.mock('~/navigation', () => ({ goBack: jest.fn(), navigate: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
@@ -133,7 +129,7 @@ describe('onboarding Health import flow', () => {
     });
     await render(<SleepScreen />);
     const sleepUser = userEvent.setup();
-    await sleepUser.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await sleepUser.press(screen.getByRole('button', { name: /^Sleep Data/ }));
     await sleepUser.press(screen.getByRole('button', { name: 'Refresh Sleep' }));
 
     await waitFor(() => expect(AppleHealth.getSleepSamples).toHaveBeenCalledTimes(2));

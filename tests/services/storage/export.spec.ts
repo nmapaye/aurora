@@ -1,8 +1,9 @@
 import type { VigilanceSession } from '~/domain/vigilance';
 import {
   formatLocalDate,
+  getDailyTotalRows,
   makeDailyTotalsCSV,
-  makeSummaryText,
+  makeDoseEntriesCSV,
   makeVigilanceSessionsCSV,
 } from '~/services/storage/export';
 
@@ -22,64 +23,78 @@ describe('storage export helpers', () => {
     );
   });
 
-  it('exports daily totals as escaped CSV rows', () => {
+  it('exports daily totals as escaped CSV rows, with a blank mg for days without a record', () => {
     const csv = makeDailyTotalsCSV([
-      { date: '2026-04-25', mg: 95 },
-      { date: '2026-04-26, late "boost"', mg: 12.5 },
+      { date: '2026-04-25', mg: 95, entries: 1, source: 'Manual' },
+      { date: '2026-04-26', mg: null, entries: 0 },
+      { date: '2026-04-27, late "boost"', mg: 12.5, entries: 2, source: 'Sample Data' },
     ]);
 
     expect(csv).toBe(
       [
-        'date,mg',
-        '"2026-04-25","95"',
-        '"2026-04-26, late ""boost""","12.5"',
+        'date,mg,entries,status,data_source',
+        '"2026-04-25","95","1","recorded","Manual"',
+        '"2026-04-26","","0","no record",""',
+        '"2026-04-27, late ""boost""","12.5","2","recorded","Sample Data"',
       ].join('\n')
     );
   });
 
-  it('omits optional summary sections when they are not provided', () => {
-    const summary = makeSummaryText({
-      range: 'Apr 20-26, 2026',
-      totalMg: 420,
-      avgMg: 60,
-    });
-
-    expect(summary).toBe(
+  it('builds one daily row per local day from the first record to today, never writing 0 mg for a gap', () => {
+    const now = new Date(2026, 6, 24, 12, 0, 0, 0).getTime();
+    const rows = getDailyTotalRows(
       [
-        'AURORA Summary Apr 20-26, 2026',
-        'Total: 420 mg',
-        'Average: 60 mg/day',
-      ].join('\n')
+        { id: 'a', timestamp: new Date(2026, 6, 21, 8).getTime(), mg: 95 },
+        { id: 'demo:dose:1', timestamp: new Date(2026, 6, 21, 15).getTime(), mg: 60 },
+        { id: 'b', timestamp: new Date(2026, 6, 23, 9).getTime(), mg: 70 },
+        // Future entries are not recorded intake yet.
+        { id: 'future', timestamp: new Date(2026, 6, 25, 9).getTime(), mg: 500 },
+      ],
+      now,
     );
+
+    expect(rows).toEqual([
+      { date: '2026-07-21', mg: 155, entries: 2, source: 'Manual and Sample Data' },
+      { date: '2026-07-22', mg: null, entries: 0 },
+      { date: '2026-07-23', mg: 70, entries: 1, source: 'Manual' },
+      { date: '2026-07-24', mg: null, entries: 0 },
+    ]);
+    const csv = makeDailyTotalsCSV(rows);
+    expect(csv).not.toMatch(/"2026-07-22","0"/);
+    expect(csv).toContain('"2026-07-22","","0","no record",""');
   });
 
-  it('includes optional summary sections when present', () => {
-    const summary = makeSummaryText({
-      range: 'Apr 20-26, 2026',
-      totalMg: 420,
-      avgMg: 60,
-      adherencePct: 86,
-      streakDays: 4,
-      dayparts: [
-        { label: 'Morning', mg: 300.4 },
-        { label: 'Afternoon', mg: 119.5 },
-      ],
-      sources: [
-        { label: 'Coffee', mg: 360, pct: 86 },
-        { label: 'Tea', mg: 60, pct: 14 },
-      ],
-    });
+  it('exports no daily rows when nothing was recorded', () => {
+    expect(getDailyTotalRows([], Date.now())).toEqual([]);
+    expect(makeDailyTotalsCSV([])).toBe('date,mg,entries,status,data_source');
+  });
 
-    expect(summary).toBe(
-      [
-        'AURORA Summary Apr 20-26, 2026',
-        'Total: 420 mg',
-        'Average: 60 mg/day',
-        'Adherence: 86% (streak 4d)',
-        'Dayparts: Morning:300 mg, Afternoon:120 mg',
-        'Sources: Coffee 360mg (86%), Tea 60mg (14%)',
-      ].join('\n')
-    );
+  it('steps daily rows by calendar day across a DST change', () => {
+    const originalZone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      const rows = getDailyTotalRows(
+        [{ id: 'a', timestamp: new Date(2026, 2, 7, 9).getTime(), mg: 95 }],
+        new Date(2026, 2, 9, 12).getTime(),
+      );
+      expect(rows.map((row) => row.date)).toEqual(['2026-03-07', '2026-03-08', '2026-03-09']);
+    } finally {
+      process.env.TZ = originalZone;
+    }
+  });
+
+  it('exports every recorded entry in time order with its data source', () => {
+    const csv = makeDoseEntriesCSV([
+      { id: 'demo:dose:2', timestamp: Date.UTC(2026, 6, 24, 16), mg: 60, source: 'Tea', note: 'Sample data' },
+      { id: 'dose "1"', timestamp: Date.UTC(2026, 6, 24, 15), mg: 95, source: 'Drip, large' },
+    ]);
+    const lines = csv.split('\n');
+
+    expect(lines[0]).toBe('id,local_date,timestamp,datetime,mg,drink,note,data_source');
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('"dose ""1"""');
+    expect(lines[1]).toContain('"2026-07-24T15:00:00.000Z","95","Drip, large","","Manual"');
+    expect(lines[2]).toContain('"60","Tea","Sample data","Sample Data"');
   });
 
   it('exports vigilance sessions with escaped cells and blank null metrics', () => {
@@ -119,6 +134,7 @@ describe('storage export helpers', () => {
           'reaction_std_dev_ms',
           'score',
           'rating',
+          'data_source',
         ].join(','),
         [
           '"session ""alpha"", one"',
@@ -135,6 +151,7 @@ describe('storage export helpers', () => {
           '""',
           '"18"',
           '"Sluggish"',
+          '"Recorded"',
         ].join(','),
       ].join('\n')
     );

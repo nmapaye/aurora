@@ -40,6 +40,19 @@ describe('about and data controls', () => {
     expect(screen.queryByText('Current release focus')).toBeNull();
   });
 
+  it('presents the stored daily amount as a personal reference, not a limit or guidance', async () => {
+    sync.mockResolvedValue(true);
+    useStore.getState().setPrefs({ dailyLimitMg: 300 });
+    await render(<SettingsScreen />);
+    expect(screen.getByText('Personal caffeine reference')).toBeOnTheScreen();
+    expect(screen.getByText('300 mg')).toBeOnTheScreen();
+    expect(screen.getByText(/not a recommended or safe amount/)).toBeOnTheScreen();
+    expect(screen.queryByText(/limit|allowance|guidance|guardrail|guideline|budget/i)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Increase Personal caffeine reference' }));
+    // The compatibility field name stays; only the wording changed.
+    expect(useStore.getState().prefs.dailyLimitMg).toBe(320);
+  });
+
   it('shows the cutoff reminder time in the device locale', async () => {
     sync.mockResolvedValue(true);
     useStore.getState().setPrefs({ cutoffHour: 16 });

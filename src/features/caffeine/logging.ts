@@ -39,14 +39,6 @@ export function getTodayCaffeineTotal(doses: readonly Dose[], now: number) {
   );
 }
 
-export function getRemainingDailyCaffeineLimit(
-  doses: readonly Dose[],
-  now: number,
-  dailyLimitMg: number,
-) {
-  return Math.max(0, dailyLimitMg - getTodayCaffeineTotal(doses, now));
-}
-
 export function createCustomDoseDraft(now: number): CustomDoseDraft {
   return { mg: '80', source: 'Drip', timestamp: now, note: '' };
 }
@@ -77,8 +69,22 @@ export function buildCustomDose(
   draft: CustomDoseDraft,
   createId: () => string,
 ): Dose {
+  return { id: createId(), ...buildDosePatch(draft) };
+}
+
+/** Loads an existing entry into the same draft shape Custom Entry uses. */
+export function createEditDoseDraft(dose: Dose): CustomDoseDraft {
   return {
-    id: createId(),
+    mg: String(dose.mg),
+    source: dose.source ?? '',
+    timestamp: dose.timestamp,
+    note: dose.note ?? '',
+  };
+}
+
+/** The fields a correction replaces; the entry keeps its id. */
+export function buildDosePatch(draft: CustomDoseDraft): Omit<Dose, 'id'> {
+  return {
     timestamp: draft.timestamp,
     mg: Number(draft.mg),
     source: draft.source.trim() || undefined,

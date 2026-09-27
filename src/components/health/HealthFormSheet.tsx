@@ -53,7 +53,10 @@ export function HealthFormSheet({
       const handle = findNodeHandle(headingRef.current);
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     } else if (wasVisibleRef.current) {
-      const handle = findNodeHandle(lastReturnFocusRef.current?.current ?? null);
+      // Prefer the trigger named at close: a sheet that deletes its own
+      // trigger (an edited row) hands focus to a surviving element instead.
+      const target = returnFocusRef?.current ?? lastReturnFocusRef.current?.current ?? null;
+      const handle = findNodeHandle(target);
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     }
     wasVisibleRef.current = visible;

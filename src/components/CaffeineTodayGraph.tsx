@@ -16,12 +16,17 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import AppSymbol from '~/components/AppSymbol';
 import {
   describeCaffeineDay,
   describeInspection,
+  describeNoCaffeineNote,
   formatClockTime,
+  getCutoffAnnotation,
+  hasCaffeineSignal,
   inspectCaffeinePoint,
   nearestIndex,
+  NO_CAFFEINE_NOTE,
   nowIndex,
 } from '~/features/summary/presentation';
 import useAppScheme from '~/hooks/useAppScheme';
@@ -77,14 +82,19 @@ function pathThrough(points: { x: number; y: number }[]) {
 // Today's active caffeine: the half-life model as a line (solid until now,
 // dashed as a projection), logged doses as dots on the baseline. Tap or drag
 // to inspect a time; VoiceOver users adjust the same selection in hour steps.
+// With `cutoffHour`, the user's own cutoff is marked on the curve when it is
+// relevant today. With nothing logged today and no carryover, a short note
+// replaces the flat chart.
 export default function CaffeineTodayGraph({
   height = 200,
   showCaption = true,
   inspectable = true,
+  cutoffHour,
 }: {
   height?: number;
   showCaption?: boolean;
   inspectable?: boolean;
+  cutoffHour?: number;
 }) {
   const palette = getAppPalette(useAppScheme());
   const largeText = useLargeText();
@@ -105,6 +115,17 @@ export default function CaffeineTodayGraph({
   const [selectedT, setSelectedT] = useState<number | null>(null);
   const accent = palette.caffeineAccent;
   const domain = Math.max(1, end - start);
+  const cutoff = useMemo(
+    () =>
+      cutoffHour === undefined
+        ? null
+        : getCutoffAnnotation({ now, cutoffHour, doses }),
+    [cutoffHour, doses, now],
+  );
+  const hasSignal = useMemo(
+    () => hasCaffeineSignal({ series, doses, dayStart: start, dayEnd: end }),
+    [doses, end, series, start],
+  );
 
   const chart = useMemo(() => {
     const plot = {
@@ -152,11 +173,12 @@ export default function CaffeineTodayGraph({
       futurePath: future.length > 1 ? pathThrough(future) : '',
       areaPath,
       nowX: xFor(now),
+      cutoffX: cutoff ? xFor(cutoff.at) : null,
       yTicks,
       hourTicks,
       doseMarks,
     };
-  }, [domain, doses, end, height, now, series, start, width]);
+  }, [cutoff, domain, doses, end, height, now, series, start, width]);
 
   const seriesTimes = useMemo(() => series.map((p) => p.t), [series]);
   const selectedIndex =
@@ -181,10 +203,15 @@ export default function CaffeineTodayGraph({
   const selectedPoint =
     selectedIndex !== null ? chart.points[activeIndex] : undefined;
 
-  const daySummary = useMemo(
-    () => describeCaffeineDay({ series, doses, dayStart: start, dayEnd: end }),
-    [doses, end, series, start],
-  );
+  const daySummary = useMemo(() => {
+    const day = describeCaffeineDay({
+      series,
+      doses,
+      dayStart: start,
+      dayEnd: end,
+    });
+    return cutoff ? `${day} ${cutoff.text}` : day;
+  }, [cutoff, doses, end, series, start]);
 
   // The responder is created once; refs keep it reading the latest geometry.
   const xsRef = useRef(chart.xs);
@@ -270,6 +297,52 @@ export default function CaffeineTodayGraph({
   };
 
   const readoutText = inspection ? describeInspection(inspection) : '';
+
+  if (!hasSignal) {
+    return (
+      <View style={{ width: '100%', gap: spacing.sm }}>
+        <View
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={describeNoCaffeineNote(cutoff?.text)}
+          testID="caffeine-empty-note"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: spacing.sm,
+          }}
+        >
+          <AppSymbol
+            name="cup.and.saucer"
+            fallback="cafe-outline"
+            size={20}
+            tintColor={palette.textTertiary}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{
+                ...typeRamp.subheadline,
+                fontWeight: '600',
+                color: palette.textPrimary,
+              }}
+            >
+              {NO_CAFFEINE_NOTE.title}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.footnote, color: palette.textSecondary }}
+            >
+              {NO_CAFFEINE_NOTE.body}
+            </Text>
+          </View>
+        </View>
+        {cutoff ? <CutoffNote text={cutoff.text} /> : null}
+      </View>
+    );
+  }
 
   return (
     <View style={{ width: '100%', gap: spacing.sm }}>
@@ -409,6 +482,20 @@ export default function CaffeineTodayGraph({
               strokeWidth={1}
             />
 
+            {chart.cutoffX !== null ? (
+              <Line
+                x1={chart.cutoffX}
+                x2={chart.cutoffX}
+                y1={chart.plot.y}
+                y2={chart.baseY}
+                stroke={palette.cutoffAccent}
+                strokeOpacity={0.8}
+                strokeDasharray={[1, 4]}
+                strokeLinecap="round"
+                strokeWidth={2}
+              />
+            ) : null}
+
             {chart.areaPath ? (
               <Path d={chart.areaPath} fill="url(#caffArea)" />
             ) : null}
@@ -525,6 +612,8 @@ export default function CaffeineTodayGraph({
           : null}
       </View>
 
+      {cutoff ? <CutoffNote text={cutoff.text} /> : null}
+
       {inspectable && selectedIndex !== null ? (
         <Pressable
           accessibilityRole="button"
@@ -559,6 +648,42 @@ export default function CaffeineTodayGraph({
           {inspectable ? ' Tap or drag to inspect.' : ''}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+function CutoffNote({ text }: { text: string }) {
+  const palette = getAppPalette(useAppScheme());
+  return (
+    <View
+      // The chart's own label (or the empty note's) already speaks the cutoff.
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+      }}
+    >
+      <View
+        style={{
+          width: 2,
+          height: 12,
+          borderRadius: 1,
+          backgroundColor: palette.cutoffAccent,
+        }}
+      />
+      <Text
+        testID="caffeine-cutoff-note"
+        maxFontSizeMultiplier={fontScaling.body}
+        style={{
+          flex: 1,
+          ...typeRamp.footnote,
+          color: palette.textSecondary,
+        }}
+      >
+        {text}
+      </Text>
     </View>
   );
 }

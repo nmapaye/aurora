@@ -16,9 +16,27 @@ jest.mock('~/hooks/useLargeText', () => ({
   default: jest.fn(() => false),
 }));
 
+// A dose logged a minute ago gives the chart a signal to draw at any hour.
+function seedRecentDose() {
+  useStore.setState({
+    doses: [{ id: 'dose-recent', timestamp: Date.now() - 60_000, mg: 95 }],
+    sleeps: [],
+  });
+}
+
+// A morning dose on the pinned afternoon clock.
+function seedMorningDose() {
+  const morning = new Date(Date.now());
+  morning.setHours(9, 0, 0, 0);
+  useStore.setState({
+    doses: [{ id: 'dose-1', timestamp: morning.getTime(), mg: 95 }],
+    sleeps: [],
+  });
+}
+
 describe('CaffeineTodayGraph readout layout', () => {
   beforeEach(() => {
-    useStore.setState({ doses: [], sleeps: [] });
+    seedRecentDose();
   });
 
   it('keeps readout values side by side at standard text sizes', async () => {
@@ -52,7 +70,7 @@ function pinClockToAfternoon() {
 describe('CaffeineTodayGraph inspection', () => {
   beforeEach(() => {
     pinClockToAfternoon();
-    useStore.setState({ doses: [], sleeps: [] });
+    seedMorningDose();
   });
   afterEach(() => jest.restoreAllMocks());
 
@@ -69,16 +87,48 @@ describe('CaffeineTodayGraph inspection', () => {
     const graph = await renderLaidOut();
 
     expect(graph).toHaveProp('accessibilityRole', 'adjustable');
-    expect(graph.props.accessibilityLabel).toBe(
-      'Active caffeine today chart. No caffeine logged today. Modeled active caffeine stays at 0 milligrams.',
+    expect(graph.props.accessibilityLabel).toMatch(
+      /^Active caffeine today chart\. 1 dose logged today, 95 milligrams total\. Modeled active caffeine peaks at \d+ milligrams at .+\.$/,
     );
     expect(graph.props.accessibilityValue.text).toMatch(
-      /^Now, .*no doses logged today by then, alertness needs recent sleep\.$/,
+      /^Now, .*95 milligrams logged today by then in 1 dose, alertness needs recent sleep\.$/,
     );
     expect(screen.getByText(/^Now · /)).toBeOnTheScreen();
     expect(screen.getByText('Needs recent sleep')).toBeOnTheScreen();
     expect(
       screen.queryByRole('button', { name: 'Return to now' }),
+    ).not.toBeOnTheScreen();
+  });
+
+  it('annotates an upcoming cutoff and speaks it with the chart summary', async () => {
+    await render(<CaffeineTodayGraph cutoffHour={16} />);
+
+    expect(screen.getByTestId('caffeine-cutoff-note', { includeHiddenElements: true }))
+      .toHaveTextContent(/^Your cutoff: .+ today\.$/);
+    expect(
+      screen.getByTestId('caffeine-today-graph').props.accessibilityLabel,
+    ).toMatch(/milligrams at .+\. Your cutoff: .+ today\.$/);
+  });
+
+  it('names tomorrow’s cutoff once today’s has passed with caffeine logged', async () => {
+    await render(<CaffeineTodayGraph cutoffHour={13} />);
+
+    expect(screen.getByTestId('caffeine-cutoff-note', { includeHiddenElements: true }))
+      .toHaveTextContent(/^Your cutoff was .+\. Next: tomorrow, .+\.$/);
+  });
+
+  it('omits the cutoff when it has passed with nothing logged, or when not requested', async () => {
+    useStore.setState({ doses: [] });
+    const { rerender } = await render(<CaffeineTodayGraph cutoffHour={13} />);
+    expect(
+      screen.queryByTestId('caffeine-cutoff-note', { includeHiddenElements: true }),
+    ).not.toBeOnTheScreen();
+
+    await act(async () => seedMorningDose());
+    await rerender(<CaffeineTodayGraph />);
+    expect(screen.getByTestId('caffeine-today-graph')).toBeOnTheScreen();
+    expect(
+      screen.queryByTestId('caffeine-cutoff-note', { includeHiddenElements: true }),
     ).not.toBeOnTheScreen();
   });
 
@@ -95,6 +145,54 @@ describe('CaffeineTodayGraph inspection', () => {
 
     await user.press(screen.getByRole('button', { name: 'Return to now' }));
     expect(screen.getByText(/^Now · /)).toBeOnTheScreen();
+  });
+});
+
+describe('CaffeineTodayGraph without a caffeine signal', () => {
+  beforeEach(() => {
+    pinClockToAfternoon();
+    useStore.setState({ doses: [], sleeps: [] });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('shows a compact note instead of a flat chart and 0 mg readouts', async () => {
+    await render(<CaffeineTodayGraph />);
+
+    const note = screen.getByTestId('caffeine-empty-note');
+    expect(note.props.accessibilityLabel).toBe(
+      'Caffeine today. No caffeine logged today, and none is carried over from earlier. Today’s active-caffeine curve appears once you log a dose.',
+    );
+    expect(screen.getByText('No caffeine logged today')).toBeOnTheScreen();
+    expect(screen.queryByTestId('caffeine-today-graph')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('caffeine-readout-values')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Needs recent sleep')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/0 mg/)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/half-life/)).not.toBeOnTheScreen();
+  });
+
+  it('keeps an upcoming cutoff and speaks it with the note', async () => {
+    await render(<CaffeineTodayGraph cutoffHour={16} />);
+
+    expect(
+      screen.getByTestId('caffeine-cutoff-note', { includeHiddenElements: true }),
+    ).toHaveTextContent(/^Your cutoff: .+ today\.$/);
+    expect(
+      screen.getByTestId('caffeine-empty-note').props.accessibilityLabel,
+    ).toMatch(/log a dose\. Your cutoff: .+ today\.$/);
+  });
+
+  it('draws the full curve for carryover from a dose logged yesterday', async () => {
+    const lateLastNight = new Date(Date.now());
+    lateLastNight.setDate(lateLastNight.getDate() - 1);
+    lateLastNight.setHours(22, 0, 0, 0);
+    useStore.setState({
+      doses: [{ id: 'dose-late', timestamp: lateLastNight.getTime(), mg: 200 }],
+    });
+    await render(<CaffeineTodayGraph />);
+
+    expect(screen.getByTestId('caffeine-today-graph')).toBeOnTheScreen();
+    expect(screen.getByTestId('caffeine-readout-values')).toBeOnTheScreen();
+    expect(screen.queryByTestId('caffeine-empty-note')).not.toBeOnTheScreen();
   });
 });
 
@@ -158,7 +256,7 @@ function touchDriver(graph: ReturnType<typeof screen.getByTestId>) {
 describe('CaffeineTodayGraph gesture arbitration', () => {
   beforeEach(() => {
     pinClockToAfternoon();
-    useStore.setState({ doses: [], sleeps: [] });
+    seedMorningDose();
   });
   afterEach(() => jest.restoreAllMocks());
 

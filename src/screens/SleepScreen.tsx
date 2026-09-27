@@ -4,13 +4,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
+import SignalCard from '~/components/SignalCard';
 import {
   HealthBarChart,
   HealthChartCard,
   HealthEmptyState,
   HealthFormSheet,
   HealthGroupedList,
-  HealthHighlightCard,
   HealthRangeControl,
 } from '~/components/health';
 import {
@@ -19,32 +19,24 @@ import {
   WalkthroughReveal,
 } from '~/features/appWalkthrough';
 import { createManualSleepDraft, createManualSleepId, validateManualSleep } from '~/features/sleep/manualSleep';
-import { formatSleepDuration, getCaffeineImpact, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
+import { describeSleepChartDay, formatSleepDuration, getSleepPresentation, type SleepRange } from '~/features/sleep/presentation';
+import { caffeineTimingSignal, recentNightSignal, type CaffeineTimingSignal } from '~/features/sleep/signals';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
 import useNow from '~/hooks/useNow';
 import useAppScheme from '~/hooks/useAppScheme';
-import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
 import useReduceMotion from '~/hooks/useReduceMotion';
 import { navigate } from '~/navigation';
 import AppleHealth from '~/services/platform/health/appleHealth';
 import { importHealthSleep } from '~/features/sleep/healthImport';
-import { createDoseId } from '~/features/caffeine/logging';
 import { useStore } from '~/state/store';
 import { haptics } from '~/services/platform/haptics';
 import { getAppPalette } from '~/theme/colors';
+import { fontScaling, radii, spacing, typeRamp } from '~/theme/tokens';
 
 const HOUR_MS = 60 * 60 * 1000;
-import { radii, spacing, typeRamp } from '~/theme/tokens';
-
 
 function formatTime(timestamp: number) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
-}
-
-function formatDifference(differenceMs: number) {
-  if (differenceMs === 0) return 'On target';
-  const value = formatSleepDuration(Math.abs(differenceMs));
-  return differenceMs > 0 ? `${value} over target` : `${value} under target`;
 }
 
 function formatDateTime(timestamp: number) {
@@ -53,12 +45,75 @@ function formatDateTime(timestamp: number) {
   }).format(new Date(timestamp));
 }
 
+// Describes when caffeine was last logged before sleep. Below the paired-night
+// gate it shows only progress, never a number; at the gate it shows one median
+// with its night count, and the distribution stays behind a disclosure.
+function CaffeineTiming({ signal, accent }: { signal: CaffeineTimingSignal; accent: string }) {
+  const palette = getAppPalette(useAppScheme());
+  const [showDetail, setShowDetail] = useState(false);
+
+  if (signal.status === 'gathering') {
+    return (
+      <View
+        testID="caffeine-timing-gathering"
+        accessible
+        accessibilityLabel={`${signal.label}. ${signal.text}`}
+        style={{
+          gap: 2,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: radii.card,
+          borderWidth: 1,
+          borderColor: palette.cardBorder,
+        }}
+      >
+        <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.subheadline, fontWeight: '600', color: palette.textSecondary }}>
+          {signal.label}
+        </Text>
+        <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.footnote, color: palette.textTertiary }}>
+          {signal.text}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      testID="caffeine-timing-observed"
+      style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.cardBorder }}
+    >
+      <View accessible accessibilityLabel={signal.accessibilityLabel} style={{ gap: spacing.xxs }}>
+        <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.headline, color: accent }}>
+          {signal.label}
+        </Text>
+        <Text maxFontSizeMultiplier={fontScaling.hero} style={{ ...typeRamp.title3, fontVariant: ['tabular-nums'], color: palette.textPrimary }}>
+          {signal.value}
+        </Text>
+        <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>
+          {signal.context}
+        </Text>
+        <Text maxFontSizeMultiplier={fontScaling.body} style={{ ...typeRamp.footnote, color: palette.textTertiary }}>
+          {signal.period}
+        </Text>
+      </View>
+      <HealthGroupedList
+        rows={[{
+          title: showDetail ? 'Hide Distribution' : 'Show Distribution',
+          accessibilityLabel: 'Timing distribution',
+          accessibilityHint: showDetail ? 'Hides the timing distribution' : 'Shows the timing distribution',
+          expanded: showDetail,
+          onPress: () => setShowDetail((visible) => !visible),
+        }, ...(showDetail ? signal.detailRows : [])]}
+      />
+    </View>
+  );
+}
+
 export default function SleepScreen() {
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const layout = useAdaptiveLayout();
   const reduceMotion = useReduceMotion();
-  const cutoff = useCaffeineCutoff();
   const sleeps = useStore((state) => state.sleeps);
   const doses = useStore((state) => state.doses);
   const prefs = useStore((state) => state.prefs);
@@ -66,7 +121,6 @@ export default function SleepScreen() {
   const healthSync = useStore((state) => state.healthSync);
   const demoMode = useStore((state) => state.demoMode);
   const addSleep = useStore((state) => state.addSleep);
-  const addDose = useStore((state) => state.addDose);
   const setOnboarding = useStore((state) => state.setOnboarding);
   const setHealthSync = useStore((state) => state.setHealthSync);
   const loadDemoData = useStore((state) => state.loadDemoData);
@@ -83,7 +137,7 @@ export default function SleepScreen() {
   const addDataRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
-  const sourcesAnchorRef = useRef<View>(null);
+  const sleepDataAnchorRef = useRef<View>(null);
   const walkthrough = useAppWalkthrough({
     route: 'Sleep',
     isWideLayout: layout.isWideLayout,
@@ -102,30 +156,16 @@ export default function SleepScreen() {
     () => getSleepPresentation(sleeps, prefs.targetSleep, range, now),
     [sleeps, prefs.targetSleep, range, now],
   );
+  const recentNight = useMemo(
+    () => recentNightSignal(sleeps, prefs.targetSleep, now),
+    [sleeps, prefs.targetSleep, now],
+  );
+  const caffeineTiming = useMemo(
+    () => caffeineTimingSignal(sleeps, doses, now),
+    [doses, now, sleeps],
+  );
   // Validation uses the live clock: the shared minute clock can lag a fresh draft.
   const validation = validateManualSleep(draft, Date.now());
-  const caffeineImpact = useMemo(
-    () => getCaffeineImpact(sleeps, doses, range, now),
-    [doses, now, range, sleeps],
-  );
-  const todayTotal = useMemo(() => {
-    const today = new Date(now).toDateString();
-    return doses.filter((dose) => new Date(dose.timestamp).toDateString() === today).reduce((sum, dose) => sum + dose.mg, 0);
-  }, [doses, now]);
-  const plan = useMemo(() => {
-    const wakeTime = presentation.lastNight?.wakeTime;
-    if (!wakeTime || !cutoff?.nextCutoff) return [] as { time: number; mg: number; label: string }[];
-    const start = Math.max(wakeTime + 30 * 60 * 1000, now);
-    if (cutoff.nextCutoff <= start) return [];
-    const remaining = Math.max(0, 200 - todayTotal);
-    const base = [80, 80, 40];
-    return base.reduce<{ time: number; mg: number; label: string }[]>((items, mg, index) => {
-      const time = start + index * 3.5 * 60 * 60 * 1000;
-      const allowed = Math.min(mg, Math.max(0, remaining - items.reduce((sum, item) => sum + item.mg, 0)));
-      if (time >= cutoff.nextCutoff || allowed < 20) return items;
-      return [...items, { time, mg: allowed, label: ['Kickstart', 'Sustain', 'Top-up'][index] ?? 'Plan' }];
-    }, []);
-  }, [cutoff?.nextCutoff, now, presentation.lastNight?.wakeTime, todayTotal]);
   const refreshFailureMessage = refreshError
     ? `Health refresh failed. ${refreshError}`
     : healthSync.importStatus === 'failed'
@@ -186,6 +226,11 @@ export default function SleepScreen() {
     }
   };
 
+  const openAddSleep = () => {
+    setDraft(createManualSleepDraft(Date.now()));
+    setShowForm(true);
+  };
+
   const saveManualSleep = () => {
     if (!validation.valid) return;
     haptics.success();
@@ -195,50 +240,51 @@ export default function SleepScreen() {
     setAnnouncement('Sleep session saved.');
     AccessibilityInfo.announceForAccessibility('Sleep session saved.');
   };
-  const logFirstPlanDose = () => {
-    const first = plan[0];
-    if (!first) return;
-    addDose({ id: createDoseId(now), timestamp: now, mg: first.mg, source: 'Plan' });
-  };
 
+  const hasChartData = presentation.recordedNights > 0;
+  const latestRecordedIndex = presentation.points.reduce(
+    (latest, point, index) => (point.durationMs !== null ? index : latest),
+    presentation.points.length - 1,
+  );
   const chart = (
-    <HealthChartCard title="Time Asleep" value={presentation.headline} dateRange={presentation.dateRange} accessibilitySummary={presentation.accessibilitySummary} emptyState={<HealthEmptyState message="No sleep data for this range." detail="Add a manual session or connect Health." symbol="bed.double.fill" fallback="bed" />}>
-      {presentation.points.some((point) => point.durationMs !== null) ? (
+    <HealthChartCard
+      title="Time Asleep"
+      value={presentation.averageDurationMs !== null ? formatSleepDuration(presentation.averageDurationMs) : undefined}
+      dateRange={hasChartData
+        ? `Average of ${presentation.recordedNights} recorded ${presentation.recordedNights === 1 ? 'night' : 'nights'} · ${presentation.dateRange}`
+        : presentation.dateRange}
+      accessibilitySummary={presentation.accessibilitySummary}
+      interactiveChildren
+      emptyState={<HealthEmptyState message="No sleep recorded in this range." detail="Add a night or connect Health in Sleep Data." symbol="bed.double.fill" fallback="bed" />}
+    >
+      {hasChartData ? (
         <HealthBarChart
           testID="sleep-bars"
-          height={92}
+          height={layout.isWideLayout ? 140 : 104}
           points={presentation.points.map((point) => ({ key: point.date, value: point.durationMs === null ? null : point.durationMs / HOUR_MS }))}
           max={10}
           color={palette.sleepAccent}
-          reference={{ value: prefs.targetSleep, label: `${prefs.targetSleep}h goal` }}
+          reference={{ value: prefs.targetSleep, label: `${prefs.targetSleep}h target` }}
           startLabel={new Date(presentation.points[0].date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           endLabel="Today"
+          inspection={{
+            accessibilityLabel: presentation.accessibilitySummary,
+            defaultIndex: latestRecordedIndex,
+            describe: (index) => describeSleepChartDay(presentation.points[index]),
+          }}
         />
       ) : undefined}
     </HealthChartCard>
   );
-  const highlights = (
+  const supporting = (
     <View style={{ gap: spacing.sm }}>
-      <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Highlights</Text>
-      {presentation.lastNight ? (
-        <View style={{ flexDirection: layout.isWideLayout ? 'row' : 'column', gap: spacing.sm }}>
-          <HealthHighlightCard label="Last Night" value={formatSleepDuration(presentation.lastNight.durationMs)} detail={formatDifference(presentation.lastNight.targetDifferenceMs ?? 0)} accentColor={palette.sleepAccent} />
-          <HealthHighlightCard label="Wake Time" value={formatTime(presentation.lastNight.wakeTime)} detail="Anchors today’s caffeine plan" accentColor={palette.sleepAccent} />
-        </View>
-      ) : <HealthEmptyState message="No recent sleep session." />}
-      <HealthHighlightCard
-        label="Caffeine Impact"
-        value={caffeineImpact.qualifyingNights ? `${caffeineImpact.medianDeltaMin} min` : 'No timing data'}
-        detail={caffeineImpact.showCorrelation
-          ? 'Enough nights to see your pattern.'
-          : `${caffeineImpact.qualifyingNights}/14 nights logged. Keep going to see a reliable pattern.`}
-        accentColor={palette.sleepAccent}
+      <SignalCard
+        model={recentNight}
+        icon="bed"
+        accent={palette.sleepAccent}
+        onPress={recentNight.status === 'empty' ? openAddSleep : () => navigate('SleepHistory')}
       />
-      {caffeineImpact.qualifyingNights ? <HealthGroupedList rows={[
-        { title: 'Last-dose timing', subtitle: 'Median time between final dose and sleep', value: `${caffeineImpact.medianDeltaMin} min` },
-        { title: 'Typical range', subtitle: '10th to 90th percentile', value: `${caffeineImpact.p10}–${caffeineImpact.p90} min` },
-        { title: 'Median sleep span', subtitle: 'Across nights with a logged dose', value: `${Math.round(caffeineImpact.medianSleepMin / 60)}h` },
-      ]} /> : null}
+      <CaffeineTiming signal={caffeineTiming} accent={palette.sleepAccent} />
     </View>
   );
 
@@ -263,7 +309,7 @@ export default function SleepScreen() {
   return (
     <AppScreen
       title="Sleep"
-      trailing={<Button ref={addDataRef} title="Add Data" variant="plain" onPress={() => { setDraft(createManualSleepDraft(Date.now())); setShowForm(true); }} />}
+      trailing={<Button ref={addDataRef} title="Add Data" variant="plain" onPress={openAddSleep} />}
       scrollRef={scrollRef}
       contentRef={contentRef}
       scrollEnabled={!walkthrough.active}
@@ -296,38 +342,34 @@ export default function SleepScreen() {
             >
               {chart}
             </View>
-            {layout.isWideLayout ? (
-              <View
-                testID="sleep-supporting-column"
-                style={{ width: layout.rightColumnWidth }}
-              >
-                {highlights}
-              </View>
-            ) : null}
+            <View
+              testID={layout.isWideLayout ? 'sleep-supporting-column' : undefined}
+              style={{ width: layout.isWideLayout ? layout.rightColumnWidth : '100%' }}
+            >
+              {supporting}
+            </View>
           </View>
-          {!layout.isWideLayout ? highlights : null}
         </WalkthroughReveal>
-        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-sources')} reduceMotion={walkthrough.reduceMotion}>
-          <View ref={sourcesAnchorRef} collapsable={false} onLayout={() => walkthrough.measureAnchor('sleep-sources', sourcesAnchorRef.current)} style={{ gap: spacing.md }}>
-            <View style={{ gap: spacing.sm }}>
-              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Next Best Actions</Text>
-              {plan.length ? <HealthGroupedList rows={plan.map((item) => ({ title: item.label, subtitle: `Recommended at ${formatTime(item.time)}`, value: `${item.mg} mg` }))} /> : <HealthEmptyState message="Add a wake time to see your 200 mg plan." />}
-              {plan[0] ? <Button title="Log First Dose Now" variant="tinted" onPress={logFirstPlanDose} /> : null}
-              {plan[0] ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Based on today’s intake and your cutoff.</Text> : null}
-            </View>
-            <View style={{ gap: spacing.sm }}>
-              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>Options</Text>
-              <HealthGroupedList rows={[{ title: 'Data Sources & Access', subtitle: healthState, onPress: () => setShowSources((visible) => !visible) }, { title: 'Show All Data', subtitle: `${sleeps.length} sessions`, onPress: () => navigate('SleepHistory') }]} />
-              {showSources ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
-                <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
-                <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>
-                <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Imported: {healthSync.importedCount} {healthSync.importedCount === 1 ? 'night' : 'nights'}</Text>
-                {healthSync.lastSyncedAt ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Last sync: {formatTime(healthSync.lastSyncedAt)}</Text> : null}
-                {healthSync.lastMessage ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>{healthSync.lastMessage}</Text> : null}
-                <Button title={onboarding.permissionStatus === 'granted' ? 'Refresh Sleep' : 'Connect to Health'} variant="primary" onPress={connectHealth} disabled={loading || healthAvailable === false} loading={loading} />
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}><Button title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'} onPress={loadDemoData} /><Button title="Clear Samples" variant="plain" role="destructive" onPress={clearDemoData} disabled={!demoMode} /></View>
-              </View> : null}
-            </View>
+        <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('sleep-data')} reduceMotion={walkthrough.reduceMotion}>
+          <View testID="sleep-data-anchor" ref={sleepDataAnchorRef} collapsable={false} onLayout={() => walkthrough.measureAnchor('sleep-data', sleepDataAnchorRef.current)} style={{ gap: spacing.sm }}>
+            <HealthGroupedList rows={[{
+              title: 'Sleep Data',
+              subtitle: healthState,
+              accessibilityLabel: `Sleep Data, ${healthState}`,
+              accessibilityHint: showSources ? 'Hides Health, manual, and sample data controls' : 'Shows Health, manual, and sample data controls',
+              expanded: showSources,
+              onPress: () => setShowSources((visible) => !visible),
+            }]} />
+            {showSources ? <View testID="sleep-data-panel" style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radii.card, backgroundColor: palette.card }}>
+              <Text style={{ ...typeRamp.headline, color: palette.textPrimary }}>{healthState}</Text>
+              <Text style={{ ...typeRamp.subheadline, color: palette.textSecondary }}>{healthDescription}</Text>
+              <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Health access is read-only. Imported: {healthSync.importedCount} {healthSync.importedCount === 1 ? 'night' : 'nights'}</Text>
+              {healthSync.lastSyncedAt ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>Last sync: {formatTime(healthSync.lastSyncedAt)}</Text> : null}
+              {healthSync.lastMessage ? <Text style={{ ...typeRamp.footnote, color: palette.textSecondary }}>{healthSync.lastMessage}</Text> : null}
+              <Button title={onboarding.permissionStatus === 'granted' ? 'Refresh Sleep' : 'Connect to Health'} variant="primary" onPress={connectHealth} disabled={loading || healthAvailable === false} loading={loading} />
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}><Button title="Add Sleep Manually" onPress={openAddSleep} /><Button title="Show All Data" accessibilityLabel={`Show All Data, ${sleeps.length} ${sleeps.length === 1 ? 'session' : 'sessions'}`} onPress={() => navigate('SleepHistory')} /></View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}><Button title={demoMode ? 'Refresh Sample Data' : 'Load Sample Data'} onPress={loadDemoData} /><Button title="Clear Samples" variant="plain" role="destructive" onPress={clearDemoData} disabled={!demoMode} /></View>
+            </View> : null}
           </View>
         </WalkthroughReveal>
       </View>

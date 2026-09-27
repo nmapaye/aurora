@@ -1,11 +1,11 @@
 import React from 'react';
 import {
+  act,
   render,
   screen,
   userEvent,
-  waitFor,
 } from '@testing-library/react-native';
-import { Share } from 'react-native';
+import { Alert, Share } from 'react-native';
 
 import CaffeineHistoryScreen from '~/screens/CaffeineHistoryScreen';
 import { goBack } from '~/navigation';
@@ -40,17 +40,14 @@ describe('CaffeineHistoryScreen', () => {
     expect(screen.getByText('80 mg • Tea')).toBeOnTheScreen();
     await user.type(screen.getByPlaceholderText('Search amount, source, or note'), 'Morning');
     expect(screen.getByText('80 mg • Tea')).toBeOnTheScreen();
-    await user.press(screen.getByRole('button', { name: 'Export' }));
-    await waitFor(() =>
-      expect(Share.share).toHaveBeenCalledWith({
-        message:
-          'id,timestamp,datetime,mg,source,note\n' +
-          '"dose:tea","1784880000000","2026-07-24T08:00:00.000Z","80","Tea","Morning"',
-      }),
-    );
     await user.press(screen.getByRole('button', { name: 'Edit' }));
     await user.press(screen.getByRole('button', { name: 'Save' }));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await user.press(screen.getByRole('button', { name: 'Delete' }));
+    // Nothing is removed until the confirmation's destructive action runs.
+    expect(useStore.getState().doses).toHaveLength(1);
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    await act(() => buttons.find((button) => button.text === 'Delete')?.onPress?.());
     expect(useStore.getState().doses).toHaveLength(0);
   });
 
@@ -63,22 +60,11 @@ describe('CaffeineHistoryScreen', () => {
     expect(goBack).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an inline export error and clears it after a successful retry', async () => {
-    jest.mocked(Share.share).mockRejectedValueOnce(new Error('Sharing unavailable'));
-    const user = userEvent.setup();
+  it('leaves export to Settings → Data', async () => {
     await render(<CaffeineHistoryScreen />);
 
-    await user.press(screen.getByRole('button', { name: 'Export' }));
-    expect(
-      await screen.findByRole('alert', { name: 'Unable to export caffeine history. Sharing unavailable' }),
-    ).toBeOnTheScreen();
-
-    await user.press(screen.getByRole('button', { name: 'Export' }));
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Unable to export caffeine history. Sharing unavailable'),
-      ).not.toBeOnTheScreen(),
-    );
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeOnTheScreen();
+    expect(Share.share).not.toHaveBeenCalled();
   });
 
   afterEach(() => jest.restoreAllMocks());

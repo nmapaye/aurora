@@ -359,11 +359,11 @@ describe('sleep presentation', () => {
       p10: 180,
       p90: 240,
       medianSleepMin: 480,
-      showCorrelation: false,
+      meetsPairedNightGate: false,
     });
   });
 
-  it('withholds pattern language until 14 distinct qualifying local nights', () => {
+  it('opens the paired-night gate at 14 distinct qualifying local nights', () => {
     const sessions = Array.from({ length: 14 }, (_, index) => sleep(`manual:sleep:${index}`, index + 1));
     const doses = sessions.map((session, index) => ({
       id: `dose:${index}`,
@@ -373,7 +373,7 @@ describe('sleep presentation', () => {
 
     expect(getCaffeineImpact(sessions, doses, 'month', now)).toMatchObject({
       qualifyingNights: 14,
-      showCorrelation: true,
+      meetsPairedNightGate: true,
       medianDeltaMin: 180,
     });
   });
