@@ -220,7 +220,8 @@ export default function InsightsScreen() {
           <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-range')} reduceMotion={walkthrough.reduceMotion} style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%' }}>
             <View testID="insights-primary-column" style={{ width: layout.isWideLayout ? layout.leftColumnWidth : '100%', gap: spacing.sm }}>
               {chart}
-              <TrendNote trend={presentation.trend} />
+              {/* Nothing recorded: the chart's empty state says it; a 0-of-7 note is noise. */}
+              {!presentation.isEmpty ? <TrendNote trend={presentation.trend} /> : null}
             </View>
           </WalkthroughReveal>
           <WalkthroughReveal active={walkthrough.active} revealed={walkthrough.isRevealed('insights-reaction')} reduceMotion={walkthrough.reduceMotion} style={{ width: layout.isWideLayout ? layout.rightColumnWidth : '100%' }}>

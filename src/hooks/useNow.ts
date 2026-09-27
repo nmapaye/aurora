@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import type { AppStateStatus, NativeEventSubscription } from 'react-native';
 
+import { useStore } from '~/state/store';
+
 // Modeled values (active caffeine, estimated alertness) drift with the clock
 // even when stored data does not. Every consumer shares one clock: it ticks
 // once a minute while the app is active, pauses in the background, and
@@ -12,6 +14,7 @@ export const NOW_TICK_MS = 60_000;
 let current = Date.now();
 let timer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: NativeEventSubscription | null = null;
+let recordsSubscription: (() => void) | null = null;
 const listeners = new Set<() => void>();
 
 function tick() {
@@ -47,6 +50,18 @@ function subscribe(listener: () => void) {
       onAppStateChange,
     );
     if (AppState.currentState !== 'background') startTimer();
+    // A record saved "now" must never sit ahead of the shared clock, or
+    // every recorded-so-far filter (timestamp <= now) would hide it until the
+    // next minute tick. Re-read the clock whenever recorded data changes.
+    recordsSubscription = useStore.subscribe((state, previous) => {
+      if (
+        state.doses !== previous.doses ||
+        state.sleeps !== previous.sleeps ||
+        state.vigilanceSessions !== previous.vigilanceSessions
+      ) {
+        tick();
+      }
+    });
   }
   return () => {
     listeners.delete(listener);
@@ -54,6 +69,8 @@ function subscribe(listener: () => void) {
     stopTimer();
     appStateSubscription?.remove();
     appStateSubscription = null;
+    recordsSubscription?.();
+    recordsSubscription = null;
   };
 }
 

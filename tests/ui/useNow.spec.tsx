@@ -4,6 +4,7 @@ import { AppState, Text } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 
 import useNow, { NOW_TICK_MS } from '~/hooks/useNow';
+import { useStore } from '~/state/store';
 
 function Clock({ label }: { label: string }) {
   return <Text testID={label}>{useNow()}</Text>;
@@ -69,7 +70,11 @@ describe('useNow', () => {
       </>,
     );
     expect(shown('a')).toBe(start);
-    expect(AppState.addEventListener).toHaveBeenCalledTimes(1);
+    // Only the clock's own 'change' listener counts; the store's storage layer
+    // registers a memoryWarning listener when it is imported.
+    expect(
+      jest.mocked(AppState.addEventListener).mock.calls.filter(([type]) => type === 'change'),
+    ).toHaveLength(1);
     expect(ownedTimerCount()).toBe(1);
 
     await act(async () => {
@@ -105,5 +110,20 @@ describe('useNow', () => {
     });
     expect(ownedTimerCount()).toBe(0);
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('catches up immediately when a record is saved between ticks', async () => {
+    await render(<Clock label="clock" />);
+    const before = Number(screen.getByTestId('clock').props.children);
+
+    // 30 s into the minute: a dose saved now must not be "in the future".
+    jest.setSystemTime(start + 30_000);
+    await act(async () => {
+      useStore.getState().addDose({ id: 'fresh', timestamp: Date.now(), mg: 95 });
+    });
+
+    const after = Number(screen.getByTestId('clock').props.children);
+    expect(after).toBeGreaterThan(before);
+    expect(after).toBeGreaterThanOrEqual(start + 30_000);
   });
 });
