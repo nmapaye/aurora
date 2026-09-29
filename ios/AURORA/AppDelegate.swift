@@ -8,18 +8,26 @@ class AppDelegate: ExpoAppDelegate {
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  private var launchOptions: [UIApplication.LaunchOptionsKey: Any]?
 
   public override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    self.launchOptions = launchOptions
+    return prepareReactNative(application)
+  }
+
+  private func prepareReactNative(_ application: UIApplication) -> Bool {
+    if reactNativeFactory != nil { return true }
+
     do {
       let documents = try FileManager.default.url(
         for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
       try StoragePrivacy.prepareMMKV(in: documents)
     } catch {
       // Do not start MMKV or import Health records until backup exclusion holds.
-      showStorageRecovery(application, launchOptions: launchOptions)
+      // The connecting scene presents recovery without starting React Native.
       return true
     }
 
@@ -30,20 +38,39 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
-#if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-#endif
-
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  func startReactNative(
+    in window: UIWindow,
+    connectionOptions: UIScene.ConnectionOptions
+  ) {
+    self.window = window
+    _ = prepareReactNative(UIApplication.shared)
+    guard let factory = reactNativeFactory else {
+      showStorageRecovery(in: window, connectionOptions: connectionOptions)
+      return
+    }
+
+    // UIKit supplies cold-start links to the scene, not didFinishLaunching.
+    var options = launchOptions ?? [:]
+    if let context = connectionOptions.urlContexts.first {
+      options[.url] = context.url
+      options[.sourceApplication] = context.options.sourceApplication
+      options[.annotation] = context.options.annotation
+    }
+    if let activity = connectionOptions.userActivities.first {
+      options[.userActivityDictionary] = [
+        "UIApplicationLaunchOptionsUserActivityTypeKey": activity.activityType,
+        "UIApplicationLaunchOptionsUserActivityKey": activity,
+      ]
+    }
+    factory.startReactNative(withModuleName: "main", in: window, launchOptions: options)
+  }
+
   private func showStorageRecovery(
-    _ application: UIApplication,
-    launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    in window: UIWindow,
+    connectionOptions: UIScene.ConnectionOptions
   ) {
     let controller = UIViewController()
     controller.view.backgroundColor = .systemBackground
@@ -56,8 +83,9 @@ class AppDelegate: ExpoAppDelegate {
     retry.setTitle("Retry opening AURORA", for: .normal)
     retry.titleLabel?.font = .preferredFont(forTextStyle: .headline)
     retry.titleLabel?.adjustsFontForContentSizeCategory = true
-    retry.addAction(UIAction { [weak self] _ in
-      _ = self?.application(application, didFinishLaunchingWithOptions: launchOptions)
+    retry.addAction(UIAction { [weak self, weak window] _ in
+      guard let window else { return }
+      self?.startReactNative(in: window, connectionOptions: connectionOptions)
     }, for: .touchUpInside)
     let scroll = UIScrollView()
     scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -79,9 +107,8 @@ class AppDelegate: ExpoAppDelegate {
       stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48),
       retry.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
     ])
-    window = UIWindow(frame: UIScreen.main.bounds)
-    window?.rootViewController = controller
-    window?.makeKeyAndVisible()
+    window.rootViewController = controller
+    window.makeKeyAndVisible()
   }
 
   // Linking API
@@ -101,6 +128,59 @@ class AppDelegate: ExpoAppDelegate {
   ) -> Bool {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+  }
+}
+
+// Expo SDK 57's installed runtime still uses application delegate callbacks.
+// Bridge the single scene to those callbacks until Expo supplies its scene delegate.
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  private var appDelegate: AppDelegate? {
+    UIApplication.shared.delegate as? AppDelegate
+  }
+
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    guard let windowScene = scene as? UIWindowScene else { return }
+    let window = UIWindow(windowScene: windowScene)
+    self.window = window
+    appDelegate?.startReactNative(in: window, connectionOptions: connectionOptions)
+  }
+
+  func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
+    for context in contexts {
+      var options: [UIApplication.OpenURLOptionsKey: Any] = [
+        .openInPlace: context.options.openInPlace,
+      ]
+      options[.sourceApplication] = context.options.sourceApplication
+      options[.annotation] = context.options.annotation
+      _ = appDelegate?.application(UIApplication.shared, open: context.url, options: options)
+    }
+  }
+
+  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+    _ = appDelegate?.application(
+      UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
+  }
+
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    appDelegate?.applicationDidBecomeActive(UIApplication.shared)
+  }
+
+  func sceneWillResignActive(_ scene: UIScene) {
+    appDelegate?.applicationWillResignActive(UIApplication.shared)
+  }
+
+  func sceneWillEnterForeground(_ scene: UIScene) {
+    appDelegate?.applicationWillEnterForeground(UIApplication.shared)
+  }
+
+  func sceneDidEnterBackground(_ scene: UIScene) {
+    appDelegate?.applicationDidEnterBackground(UIApplication.shared)
   }
 }
 
