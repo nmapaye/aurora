@@ -1,6 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import SettingsScreen from '~/screens/SettingsScreen';
+import { formatClockHour } from '~/utils/format';
 import { syncCutoffReminder } from '~/services/platform/notifications';
 import { useStore } from '~/state/store';
 jest.mock('~/services/platform/notifications', () => ({ syncCutoffReminder: jest.fn() }));
@@ -29,3 +31,58 @@ it('explains permission denial without discarding the preference', async () => {
 });
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+
+describe('about and data controls', () => {
+  it('shows the app version and no internal release notes', async () => {
+    sync.mockResolvedValue(true);
+    await render(<SettingsScreen />);
+    expect(screen.getByText('Version')).toBeOnTheScreen();
+    expect(screen.queryByText('Current release focus')).toBeNull();
+  });
+
+  it('presents the stored daily amount as a personal reference, not a limit or guidance', async () => {
+    sync.mockResolvedValue(true);
+    useStore.getState().setPrefs({ dailyLimitMg: 300 });
+    await render(<SettingsScreen />);
+    expect(screen.getByText('Personal caffeine reference')).toBeOnTheScreen();
+    expect(screen.getByText('300 mg')).toBeOnTheScreen();
+    expect(screen.getByText(/not a recommended or safe amount/)).toBeOnTheScreen();
+    expect(screen.queryByText(/limit|allowance|guidance|guardrail|guideline|budget/i)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Increase Personal caffeine reference' }));
+    // The compatibility field name stays; only the wording changed.
+    expect(useStore.getState().prefs.dailyLimitMg).toBe(320);
+  });
+
+  it('shows the cutoff reminder time in the device locale', async () => {
+    sync.mockResolvedValue(true);
+    useStore.getState().setPrefs({ cutoffHour: 16 });
+    await render(<SettingsScreen />);
+    expect(screen.queryByText(/16:00/)).toBeNull();
+    expect(screen.getAllByText(new RegExp(formatClockHour(16))).length).toBeGreaterThan(0);
+  });
+
+  it('confirms before deleting all data', async () => {
+    sync.mockResolvedValue(true);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const deleteAllData = jest.spyOn(useStore.getState(), 'deleteAllData');
+    useStore.setState({ doses: [{ id: 'd1', timestamp: 1, mg: 60 }] });
+    await render(<SettingsScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: /Delete All Data/ }));
+    expect(alert).toHaveBeenCalled();
+    expect(useStore.getState().doses).toHaveLength(1);
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    buttons.find((b) => b.text === 'Delete')?.onPress?.();
+    expect(useStore.getState().doses).toEqual([]);
+    deleteAllData.mockRestore();
+  });
+});
+
+it('toggles the cutoff reminder with a switch', async () => {
+  sync.mockResolvedValue(true);
+  useStore.getState().setPrefs({ notifyCutoff: false });
+  await render(<SettingsScreen />);
+  const toggle = screen.getByRole('switch', { name: 'Cutoff reminder' });
+  expect(toggle).not.toBeChecked();
+  await fireEvent.press(toggle);
+  expect(useStore.getState().prefs.notifyCutoff).toBe(true);
+});

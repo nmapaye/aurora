@@ -11,7 +11,8 @@ it('keeps Save in keyboard-avoiding scroll content with safe-area padding', asyn
   await render(<HealthFormSheet visible title="Add sleep" onCancel={jest.fn()} onSave={save}>
     <TextInput accessibilityLabel="Notes" />
   </HealthFormSheet>);
-  expect(screen.getByTestId('health-form-keyboard')).toHaveStyle({ flex: 1, paddingTop: 24 });
+  expect(screen.getByTestId('health-form-sheet-modal')).toHaveProp('presentationStyle', 'pageSheet');
+  expect(screen.getByTestId('health-form-keyboard')).toHaveStyle({ flex: 1 });
   const scroll = screen.getByTestId('health-form-scroll');
   expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
   expect(scroll.props.contentContainerStyle.paddingBottom).toBeGreaterThanOrEqual(34);

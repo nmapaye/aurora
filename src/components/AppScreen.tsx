@@ -6,8 +6,10 @@ import {
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  type RefreshControlProps,
   StyleProp,
   Text,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from 'react-native';
@@ -44,6 +46,7 @@ type Props = {
   headerTransform?: (header: React.ReactNode) => React.ReactNode;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onViewportLayout?: (event: LayoutChangeEvent) => void;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 };
 
 export default function AppScreen({
@@ -58,6 +61,7 @@ export default function AppScreen({
   scrollRef,
   contentRef,
   scrollEnabled = true,
+  refreshControl,
   interactionEnabled = true,
   bottomOverlay,
   headerTransform,
@@ -67,10 +71,13 @@ export default function AppScreen({
   const scheme = useAppScheme();
   const palette = getAppPalette(scheme);
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const layout = useAdaptiveLayout();
   const [overlayHeight, setOverlayHeight] = useState(0);
+  // The scroll view's automatic content inset already clears the home
+  // indicator and the native tab bar, so only the overlay needs room here.
   const bottomPadding = getAppScreenBottomPadding(
-    insets.bottom,
+    0,
     bottomOverlay ? overlayHeight : 0,
   );
 
@@ -146,8 +153,14 @@ export default function AppScreen({
         testID="app-screen-scroll"
         ref={scrollRef}
         contentInsetAdjustmentBehavior="automatic"
+        // Taps on controls work while a keyboard is up. Touch capture follows
+        // the React tree, so without this a form sheet rendered inside a
+        // screen lost its first tap (Save, Cancel, chips) to keyboard
+        // dismissal.
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={showsVerticalScrollIndicator}
         scrollEnabled={scrollEnabled}
+        refreshControl={refreshControl}
         onScroll={onScroll}
         scrollEventThrottle={16}
         style={{ flex: 1, backgroundColor: palette.groupedBackground }}
@@ -163,6 +176,10 @@ export default function AppScreen({
         ]}
       >
         <View
+          // Fabric doesn't re-measure existing Text when only the system text
+          // size changes, which left headings clipped until relaunch.
+          // Remounting the content on a new font scale lays it out fresh.
+          key={`font-scale-${fontScale}`}
           testID="app-screen-content"
           ref={contentRef}
           pointerEvents={interactionEnabled ? 'auto' : 'none'}
@@ -191,7 +208,7 @@ export default function AppScreen({
             position: 'absolute',
             left: layout.horizontalPadding,
             right: layout.horizontalPadding,
-            bottom: spacing.sm,
+            bottom: insets.bottom + spacing.sm,
           }}
         >
           {bottomOverlay}

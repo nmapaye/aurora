@@ -34,8 +34,6 @@
     </array>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>NSAppTransportSecurity</key>
@@ -45,10 +43,33 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+    <string>Aurora does not read clinical health records. It only reads Sleep Analysis from Apple Health.</string>
     <key>NSHealthShareUsageDescription</key>
-    <string>Aurora reads sleep to tailor your caffeine plan.</string>
+    <string>Aurora reads your Sleep Analysis from Apple Health to estimate sleep debt, time your caffeine cutoff, and show sleep trends. Access is read-only and stays on this device.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Aurora does not write to Apple Health. Sleep access is read-only.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+      <key>UIApplicationSupportsMultipleScenes</key>
+      <false/>
+      <key>UISceneConfigurations</key>
+      <dict>
+        <key>UIWindowSceneSessionRoleApplication</key>
+        <array>
+          <dict>
+            <key>UISceneConfigurationName</key>
+            <string>Default Configuration</string>
+            <key>UISceneDelegateClassName</key>
+            <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+          </dict>
+        </array>
+      </dict>
+    </dict>
     <key>UIAppFonts</key>
     <array>
       <string>Ionicons.ttf</string>

@@ -3,11 +3,19 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_HALFLIFE_H, DEFAULT_TARGET_SLEEP_H } from '~/domain/constants';
 import type { Dose, SleepSession } from '~/domain/models';
 import type { VigilanceSession } from '~/domain/vigilance';
-import { createDemoSnapshot } from '~/dev/mockData';
+import { createDemoSnapshot } from '~/features/sampleData/sampleData';
 import {
   normalizeHealthSleepSessionIdentities,
 } from '~/features/sleep/healthSleep';
 import { jsonStringStorage } from '~/services/storage';
+import {
+  isDose,
+  isHealthSleepId,
+  isSleepSession,
+  isVigilanceSession,
+  validItems,
+  withinHealthRetention,
+} from './validate';
 
 type Prefs = {
   halfLife: number;
@@ -50,6 +58,16 @@ type State = {
   removeDose: (id: string) => void;
   addSleep: (s: SleepSession) => void;
   upsertSleepSessions: (items: SleepSession[]) => void;
+  /**
+   * Replaces Health-imported sleep inside [windowStart, windowEnd] with
+   * `items`, so samples deleted in Health disappear here too. Manual and
+   * sample sleep is untouched.
+   */
+  replaceHealthSleepWindow: (
+    items: SleepSession[],
+    windowStart: number,
+    windowEnd: number,
+  ) => void;
   updateManualSleep: (
     id: string,
     patch: Partial<Pick<SleepSession, 'start' | 'end' | 'note'>>,
@@ -62,6 +80,7 @@ type State = {
   setAppearanceMode: (mode: AppearanceMode) => void;
   loadDemoData: () => void;
   clearDemoData: () => void;
+  deleteAllData: () => void;
   completeOnboarding: (p?: Partial<Onboarding>) => void;
   advanceAppWalkthrough: () => void;
   completeAppWalkthrough: () => void;
@@ -154,6 +173,23 @@ function normalizeHealthImportStatus(
   return 'idle';
 }
 
+function normalizePrefs(prefs: unknown): Partial<Prefs> {
+  if (typeof prefs !== 'object' || prefs === null) return {};
+  const source = prefs as Record<string, unknown>;
+  const result: Partial<Prefs> = {};
+  (['halfLife', 'targetSleep', 'dailyLimitMg', 'cutoffHour'] as const).forEach((key) => {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) result[key] = value;
+  });
+  if (typeof source.notifyCutoff === 'boolean') result.notifyCutoff = source.notifyCutoff;
+  if (typeof source.tz === 'string') result.tz = source.tz;
+  return result;
+}
+
+function sortSleeps(sleeps: SleepSession[]) {
+  return sleeps.sort((a, b) => b.end - a.end);
+}
+
 function normalizePersistedState(persistedState?: MigratingPersistedState): PersistedState {
   const { summaryWalkthroughCompleted: _legacyWalkthrough, ...persistedOnboarding } =
     persistedState?.onboarding ?? {};
@@ -168,10 +204,22 @@ function normalizePersistedState(persistedState?: MigratingPersistedState): Pers
   const interruptedImport = persistedHealthSync?.importStatus === 'importing';
 
   return {
-    doses: persistedState?.doses ?? [],
-    sleeps: normalizeHealthSleepSessionIdentities(persistedState?.sleeps ?? []),
-    vigilanceSessions: persistedState?.vigilanceSessions ?? [],
-    prefs: { ...defaultPrefs, ...persistedState?.prefs },
+    doses: validItems(persistedState?.doses, isDose),
+    sleeps: withinHealthRetention(
+      normalizeHealthSleepSessionIdentities(
+        validItems(persistedState?.sleeps, isSleepSession),
+      ),
+    ),
+    vigilanceSessions: validItems(
+      persistedState?.vigilanceSessions,
+      isVigilanceSession,
+    ).map((session) =>
+      // 'Fatigued' read as a diagnosis; older results show the softer label.
+      (session.rating as string) === 'Fatigued'
+        ? { ...session, rating: 'Sluggish' as const }
+        : session,
+    ),
+    prefs: { ...defaultPrefs, ...normalizePrefs(persistedState?.prefs) },
     onboarding,
     healthSync: {
       ...defaultHealthSync,
@@ -216,7 +264,23 @@ export const useStore = create<State>()(
             deduped.set(item.id, item);
           });
           return {
-            sleeps: [...deduped.values()].sort((a, b) => b.end - a.end),
+            sleeps: sortSleeps(withinHealthRetention([...deduped.values()])),
+          };
+        }),
+      replaceHealthSleepWindow: (items, windowStart, windowEnd) =>
+        set((s) => {
+          const kept = normalizeHealthSleepSessionIdentities(s.sleeps).filter(
+            (sleep) =>
+              !isHealthSleepId(sleep.id) ||
+              sleep.end < windowStart ||
+              sleep.start > windowEnd,
+          );
+          const deduped = new Map(kept.map((sleep) => [sleep.id, sleep]));
+          normalizeHealthSleepSessionIdentities(items).forEach((item) => {
+            deduped.set(item.id, item);
+          });
+          return {
+            sleeps: sortSleeps(withinHealthRetention([...deduped.values()])),
           };
         }),
       updateManualSleep: (id, patch) => {
@@ -273,6 +337,14 @@ export const useStore = create<State>()(
           vigilanceSessions: withoutDemoId(s.vigilanceSessions),
           demoMode: false,
         })),
+      deleteAllData: () =>
+        set({
+          doses: [],
+          sleeps: [],
+          vigilanceSessions: [],
+          demoMode: false,
+          healthSync: { ...defaultHealthSync },
+        }),
       completeOnboarding: (p) =>
         set((s) => ({
           onboarding: {

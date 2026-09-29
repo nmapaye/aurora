@@ -34,3 +34,24 @@ it('returns false for denied permission without scheduling', async () => {
   await expect(syncCutoffReminder(true, 16)).resolves.toBe(false);
   expect(native.scheduleNotificationAsync).not.toHaveBeenCalled();
 });
+it('never raises the permission prompt during background reconciliation', async () => {
+  native.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true } as never);
+
+  await expect(syncCutoffReminder(true, 16, { prompt: false })).resolves.toBe(false);
+
+  expect(native.requestPermissionsAsync).not.toHaveBeenCalled();
+  expect(native.scheduleNotificationAsync).not.toHaveBeenCalled();
+});
+it('does not let a foreground reconcile supersede an in-flight user choice', async () => {
+  let grant!: (value: never) => void;
+  native.getPermissionsAsync.mockImplementationOnce(() => new Promise(r => { grant = r; }));
+  const userChoice = syncCutoffReminder(true, 16);
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  // The permission dialog returns the app to active while the user's sync waits.
+  const reconcile = syncCutoffReminder(true, 16, { prompt: false });
+  grant({ granted: true } as never);
+
+  await expect(userChoice).resolves.toBe(true);
+  await expect(reconcile).resolves.toBe(true);
+  expect(native.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+});

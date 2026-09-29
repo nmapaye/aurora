@@ -34,10 +34,6 @@ jest.mock('~/services/platform/health/appleHealth', () => ({
   makeHealthSleepSessionId: ({ start, end }: { start: number; end: number }) =>
     `healthkit:sleep:${Math.round(start)}:${Math.round(end)}`,
 }));
-jest.mock('~/hooks/useCaffeineCutoff', () => ({
-  __esModule: true,
-  default: () => ({ nextCutoff: Date.now() + 4 * 60 * 60 * 1000 }),
-}));
 jest.mock('~/navigation', () => ({ goBack: jest.fn(), navigate: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
@@ -75,7 +71,7 @@ describe('onboarding Health import flow', () => {
     jest.spyOn(Date, 'now').mockReturnValue(now);
     jest.mocked(requestHealthPermissions).mockResolvedValue({
       status: 'granted',
-      message: 'Health request completed. Aurora will check for readable sleep samples.',
+      message: 'Health access requested. Aurora will look for recent sleep.',
     });
     jest.mocked(AppleHealth.getSleepSamples).mockResolvedValue([sample]);
     useStore.setState({
@@ -114,7 +110,7 @@ describe('onboarding Health import flow', () => {
     );
     await waitFor(() =>
       expect(useStore.getState().healthSync.lastMessage).toBe(
-        'Imported 1 recent sleep sample from Health.',
+        'Imported 1 night of sleep from Health.',
       ),
     );
     expect(importStatus()).toBe('succeeded');
@@ -133,7 +129,7 @@ describe('onboarding Health import flow', () => {
     });
     await render(<SleepScreen />);
     const sleepUser = userEvent.setup();
-    await sleepUser.press(screen.getByRole('button', { name: 'Data Sources & Access' }));
+    await sleepUser.press(screen.getByRole('button', { name: /^Sleep Data/ }));
     await sleepUser.press(screen.getByRole('button', { name: 'Refresh Sleep' }));
 
     await waitFor(() => expect(AppleHealth.getSleepSamples).toHaveBeenCalledTimes(2));
@@ -145,8 +141,8 @@ describe('onboarding Health import flow', () => {
     await render(<OnboardingScreen />);
     const user = await openPermissions();
     await user.press(screen.getByRole('button', { name: 'Allow Health Access' }));
-    expect(await screen.findByText('Status: No readable sleep data')).toBeOnTheScreen();
-    expect(screen.getByText(/No recent readable sleep samples.*may be no records.*read access/i)).toBeOnTheScreen();
+    expect(await screen.findByText('Status: No sleep found')).toBeOnTheScreen();
+    expect(screen.getByText(/No recent sleep found in Health.*can read Sleep/i)).toBeOnTheScreen();
     expect(screen.queryByText(/access (is )?granted/i)).not.toBeOnTheScreen();
     expect(screen.queryByText(/review imported sleep/i)).not.toBeOnTheScreen();
     expect(importStatus()).toBe('succeeded');
@@ -155,7 +151,7 @@ describe('onboarding Health import flow', () => {
 
   it.each([
     ['query rejection', () => Promise.reject(new Error('Health database unavailable')), 'Health database unavailable'],
-    ['malformed payload', () => Promise.resolve(undefined as never), 'invalid payload'],
+    ['malformed payload', () => Promise.resolve(undefined as never), 'couldn’t read'],
   ])('keeps authorization granted but renders an error state for %s', async (_case, result, message) => {
     jest.mocked(AppleHealth.getSleepSamples).mockImplementationOnce(result);
     await render(<OnboardingScreen />);
@@ -164,7 +160,7 @@ describe('onboarding Health import flow', () => {
 
     expect(
       await screen.findByRole('alert', {
-        name: new RegExp(`Health request completed. Import failed.*${message}`, 'i'),
+        name: new RegExp(`Health access requested, but the import failed.*${message}`, 'i'),
       }),
     ).toBeOnTheScreen();
     expect(screen.getByText('Status: Import failed')).toBeOnTheScreen();
@@ -189,7 +185,10 @@ describe('onboarding Health import flow', () => {
     useStore.getState().completeAppWalkthrough();
     await render(<SleepScreen />);
 
-    expect(screen.getByText('Sample Data')).toBeOnTheScreen();
+    // The Sleep Data section reports its state, and the sleep signal carries
+    // its own sample badge.
+    expect(screen.getByLabelText('Sleep Data, Sample Data')).toBeOnTheScreen();
+    expect(screen.getAllByText('Sample Data').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText('Health refresh failed')).not.toBeOnTheScreen();
   });
 
@@ -209,7 +208,7 @@ describe('onboarding Health import flow', () => {
     expect(screen.getByText('Status: Import failed')).toBeOnTheScreen();
     expect(
       screen.getByRole('alert', {
-        name: /Health request completed. Import failed.*Health database unavailable/i,
+        name: /Health access requested, but the import failed.*Health database unavailable/i,
       }),
     ).toBeOnTheScreen();
     expect(screen.queryByText('Status: Import completed')).not.toBeOnTheScreen();
@@ -305,7 +304,7 @@ describe('onboarding Health import flow', () => {
 
     expect(screen.getByText('Status: Import pending')).toBeOnTheScreen();
     expect(
-      screen.getByText('Health request completed. Recent sleep import is pending.'),
+      screen.getByText('Health access requested. Your sleep import hasn’t finished.'),
     ).toBeOnTheScreen();
     expect(screen.queryByText('Status: Importing')).not.toBeOnTheScreen();
     expect(screen.queryByText('Status: Import completed')).not.toBeOnTheScreen();

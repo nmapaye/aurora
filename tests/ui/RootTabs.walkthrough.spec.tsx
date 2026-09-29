@@ -15,57 +15,30 @@ jest.mock('~/screens/DashboardScreen', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Summary screen</Text>,
+    default: function MockSummaryScreen() { return <Text>Summary screen</Text>; },
   };
 });
 jest.mock('~/screens/SleepScreen', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Sleep screen</Text>,
+    default: function MockSleepScreen() { return <Text>Sleep screen</Text>; },
   };
 });
 jest.mock('~/screens/LogIntakeScreen', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Log screen</Text>,
+    default: function MockLogScreen() { return <Text>Log screen</Text>; },
   };
 });
 jest.mock('~/screens/InsightsScreen', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Insights screen</Text>,
+    default: function MockInsightsScreen() { return <Text>Insights screen</Text>; },
   };
 });
-jest.mock('~/components/AppIcon', () => {
-  const { Text } = jest.requireActual('react-native');
-  return {
-    __esModule: true,
-    appIcons: {
-      summary: 'summary',
-      summarySelected: 'summary-selected',
-      sleep: 'sleep',
-      sleepSelected: 'sleep-selected',
-      log: 'log',
-      logSelected: 'log-selected',
-      insights: 'insights',
-      insightsSelected: 'insights-selected',
-      fallback: 'fallback',
-    },
-    default: ({ name }: { name: string }) => <Text>{name}</Text>,
-  };
-});
-jest.mock('react-native-safe-area-context', () => ({
-  ...jest.requireActual('react-native-safe-area-context'),
-  useSafeAreaInsets: () => ({
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-  }),
-}));
 jest.mock('~/hooks/useAppScheme', () => ({
   __esModule: true,
   default: () => 'light',
@@ -84,43 +57,51 @@ describe('RootTabs summary walkthrough gating', () => {
     });
   });
 
-  it('disables every tab button until completion is persisted', async () => {
+  type HostNode = { type: string; props: Record<string, unknown>; children?: (HostNode | string)[] | null };
+  // The native tab items are host components; read their props from the tree.
+  const tabScreens = () => {
+    const found: HostNode[] = [];
+    const walk = (node: HostNode | string | null | undefined) => {
+      if (!node || typeof node === 'string') return;
+      if (node.type === 'RNSTabsScreenIOS') found.push(node);
+      node.children?.forEach(walk);
+    };
+    const tree = screen.toJSON() as HostNode | HostNode[] | null;
+    (Array.isArray(tree) ? tree : [tree]).forEach(walk);
+    return found;
+  };
+
+  it('blocks native tab selection until completion is persisted', async () => {
     await render(
       <NavigationContainer>
         <RootTabs />
       </NavigationContainer>,
     );
 
-    expect(
-      screen.getByRole('button', {
-        name: 'Summary, tab, 1 of 4',
-      }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', {
-        name: 'Sleep, tab, 2 of 4',
-      }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', {
-        name: 'Log, tab, 3 of 4',
-      }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', {
-        name: 'Insights, tab, 4 of 4',
-      }),
-    ).toBeDisabled();
+    const locked = tabScreens();
+    expect(locked.map((tab) => tab.props.title)).toEqual(['Summary', 'Sleep', 'Log', 'Insights']);
+    expect(locked.every((tab) => tab.props.preventNativeSelection === true)).toBe(true);
 
     await act(async () => {
       useStore.getState().completeAppWalkthrough();
     });
 
-    expect(
-      screen.getByRole('button', {
-        name: 'Sleep, tab, 2 of 4',
-      }),
-    ).toBeEnabled();
+    expect(tabScreens().every((tab) => tab.props.preventNativeSelection === false)).toBe(true);
+  });
+
+  it('uses SF Symbols, filled when selected', async () => {
+    await render(
+      <NavigationContainer>
+        <RootTabs />
+      </NavigationContainer>,
+    );
+
+    const sleep = tabScreens().find((tab) => tab.props.title === 'Sleep');
+    expect(sleep?.props).toMatchObject({
+      iconType: 'sfSymbol',
+      iconResourceName: 'moon',
+      selectedIconResourceName: 'moon.fill',
+    });
   });
 
   it.each([

@@ -87,7 +87,7 @@ describe('AppScreen walkthrough controls', () => {
       screen.getByTestId('app-screen-scroll').props
         .contentContainerStyle,
     );
-    expect(styles.paddingBottom).toBe(244);
+    expect(styles.paddingBottom).toBe(224);
   });
 
   it('hides locked descendants from assistive technology and restores safe defaults', async () => {
@@ -166,4 +166,9 @@ describe('AppScreen walkthrough controls', () => {
     expect(onMetric).toHaveBeenCalledTimes(1);
     expect(onQuickAdd).toHaveBeenCalledTimes(1);
   });
+});
+
+it('lets taps reach controls while a keyboard is up', async () => {
+  await render(<AppScreen title="Log"><></></AppScreen>);
+  expect(screen.getByTestId('app-screen-scroll')).toHaveProp('keyboardShouldPersistTaps', 'handled');
 });

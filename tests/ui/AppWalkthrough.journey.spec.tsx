@@ -301,11 +301,11 @@ describe('app walkthrough journey coordinator', () => {
     expect(scrollRef.current?.scrollTo).not.toHaveBeenCalledWith(
       expect.objectContaining({ animated: true }),
     );
-    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
     expect(
       AccessibilityInfo.announceForAccessibility,
     ).toHaveBeenCalledWith(
-      'See patterns over time. Change the range to compare caffeine, timing, and alertness.',
+      'Your caffeine over time. Choose W, 2W, or M. Tap or drag the chart to read a day; days without entries read as no record, not zero.',
     );
     expect(AccessibilityInfo.setAccessibilityFocus).toHaveBeenCalledTimes(1);
   });

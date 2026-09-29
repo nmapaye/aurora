@@ -221,7 +221,8 @@ describe('useAppWalkthrough animated coordination', () => {
     });
     expect(result.current.coachVisible).toBe(true);
     expect(result.current.reduceMotion).toBe(true);
-    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+    // Haptics are feedback, not motion, so Reduce Motion leaves them on.
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
   });
 
   it('cancels a stale settle when the viewport rotates during positioning', async () => {

@@ -36,7 +36,7 @@ describe('vigilance scoring and task flow', () => {
     });
 
     expect(result.score).toBeLessThan(40);
-    expect(result.rating).toBe('Fatigued');
+    expect(result.rating).toBe('Sluggish');
   });
 
   it('treats sub-150ms taps as false starts and 500ms taps as lapses', () => {

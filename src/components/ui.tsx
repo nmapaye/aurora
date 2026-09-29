@@ -18,20 +18,93 @@ import AppSymbol, {
   type AppSymbolName,
 } from '~/components/AppSymbol';
 import useAppScheme from '~/hooks/useAppScheme';
+import { haptics } from '~/services/platform/haptics';
 import {
   getAppPalette,
   getStatusColors,
+  getSurfaceColors,
   type StatusTone,
+  type SurfaceVariant,
 } from '~/theme/colors';
 import {
+  borders,
   controlSizes,
+  elevation,
+  eyebrowText,
   fontScaling,
   iconSizes,
+  motion,
   numericText,
   radii,
   spacing,
   typeRamp,
 } from '~/theme/tokens';
+
+export function Surface({
+  children,
+  variant = 'raised',
+  radius = radii.card,
+  padded = true,
+  style,
+  testID,
+}: {
+  children: React.ReactNode;
+  variant?: SurfaceVariant;
+  radius?: number;
+  padded?: boolean;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}) {
+  const scheme = useAppScheme();
+  const surface = getSurfaceColors(variant, scheme);
+  return (
+    <View
+      testID={testID}
+      style={[
+        {
+          backgroundColor: surface.backgroundColor,
+          borderColor: surface.borderColor,
+          borderWidth: borders.hairline,
+          borderRadius: radius,
+          padding: padded ? spacing.md : 0,
+        },
+        variant === 'raised' && scheme !== 'dark' ? elevation.raised : null,
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+export function Divider({ inset = 0 }: { inset?: number }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        height: borders.hairline,
+        marginLeft: inset,
+        backgroundColor: palette.separator,
+      }}
+    />
+  );
+}
+
+export function Eyebrow({ text }: { text: string }) {
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  return (
+    <Text
+      maxFontSizeMultiplier={fontScaling.body}
+      style={{ ...eyebrowText, color: palette.textSecondary }}
+    >
+      {text}
+    </Text>
+  );
+}
 
 export function SectionHeader({
   title,
@@ -74,7 +147,7 @@ export function SectionHeader({
               borderRadius: radii.control,
               paddingHorizontal: spacing.xs,
               justifyContent: 'center',
-              opacity: pressed ? 0.65 : 1,
+              opacity: pressed ? motion.pressedOpacity : 1,
             })}
           >
             <Text
@@ -96,127 +169,7 @@ export function SectionCard({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: palette.card,
-          borderRadius: radii.card,
-          padding: spacing.md,
-          borderWidth: scheme === 'dark' ? 0 : 1,
-          borderColor: palette.cardBorder,
-          gap: spacing.sm,
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-}
-
-export function HealthMetricCard({
-  icon,
-  label,
-  labelColor,
-  value,
-  detail,
-  dateLabel,
-  onPress,
-}: {
-  icon: AppIconName;
-  label: string;
-  labelColor: string;
-  value: string;
-  detail?: string;
-  dateLabel?: string;
-  onPress?: () => void;
-}) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  const content = (
-    <View
-      style={{
-        minHeight: 118,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        gap: spacing.xl,
-      }}
-    >
-      <View
-        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
-      >
-        <AppIcon name={icon} size={iconSizes.row} color={labelColor} />
-        <Text
-          maxFontSizeMultiplier={fontScaling.body}
-          style={{
-            flex: 1,
-            ...typeRamp.headline,
-            color: labelColor,
-          }}
-        >
-          {label}
-        </Text>
-        {dateLabel ? (
-          <Text
-            maxFontSizeMultiplier={fontScaling.body}
-            style={{
-              ...typeRamp.body,
-              color: palette.textTertiary,
-            }}
-          >
-            {dateLabel}
-          </Text>
-        ) : null}
-        {onPress ? (
-          <AppIcon
-            name="chevron-forward"
-            size={iconSizes.row}
-            color={palette.textTertiary}
-          />
-        ) : null}
-      </View>
-      <View style={{ gap: spacing.xxs }}>
-        <Text
-          maxFontSizeMultiplier={fontScaling.hero}
-          style={{
-            ...numericText,
-            color: palette.textPrimary,
-          }}
-        >
-          {value}
-        </Text>
-        {detail ? (
-          <Text
-            maxFontSizeMultiplier={fontScaling.body}
-            style={{
-              ...typeRamp.subheadline,
-              color: palette.textSecondary,
-            }}
-          >
-            {detail}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => ({
-        overflow: 'hidden',
-        borderRadius: radii.hero,
-        backgroundColor: pressed ? palette.pressed : palette.card,
-      })}
-    >
-      {content}
-    </Pressable>
-  );
+  return <Surface style={[{ gap: spacing.sm }, style]}>{children}</Surface>;
 }
 
 export function HealthOptionCard({
@@ -243,9 +196,12 @@ export function HealthOptionCard({
   const accent = color ?? palette.tint;
   return (
     <Pressable
-      accessibilityRole="button"
+      accessible
+      // A static info card is read as text, not announced as a button.
+      accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
+      accessibilityState={onPress ? { selected } : undefined}
+      disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
@@ -256,7 +212,7 @@ export function HealthOptionCard({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.md,
         backgroundColor: pressed ? palette.pressed : palette.card,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: selected ? accent : palette.cardBorder,
       })}
     >
@@ -510,7 +466,7 @@ export function StatTile({
           backgroundColor: palette.cardMuted,
           borderRadius: radii.card,
           padding: spacing.sm,
-          borderWidth: scheme === 'dark' ? 0 : 1,
+          borderWidth: borders.hairline,
           borderColor: palette.cardBorder,
           gap: spacing.xxs,
         },
@@ -644,7 +600,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
 }: {
-  options: { key: T; label: string }[];
+  options: { key: T; label: string; accessibilityLabel?: string }[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -652,12 +608,13 @@ export function SegmentedControl<T extends string>({
   const palette = getAppPalette(scheme);
   return (
     <View
+      accessibilityRole="tablist"
       style={{
         flexDirection: 'row',
         padding: spacing.xxs,
         borderRadius: radii.control,
         backgroundColor: palette.cardMuted,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: palette.cardBorder,
       }}
     >
@@ -666,9 +623,13 @@ export function SegmentedControl<T extends string>({
         return (
           <Pressable
             key={option.key}
-            accessibilityRole="button"
+            accessibilityRole="tab"
+            accessibilityLabel={option.accessibilityLabel}
             accessibilityState={{ selected: active }}
-            onPress={() => onChange(option.key)}
+            onPress={() => {
+              if (!active) haptics.selection();
+              onChange(option.key);
+            }}
             style={({ pressed }) => ({
               flex: 1,
               minHeight: controlSizes.minimumTouchTarget,
@@ -714,11 +675,7 @@ export function FormField({
     <View style={{ gap: spacing.xs }}>
       <Text
         maxFontSizeMultiplier={fontScaling.body}
-        style={{
-          ...typeRamp.footnote,
-          fontWeight: '600',
-          color: palette.textSecondary,
-        }}
+        style={{ ...eyebrowText, color: palette.textSecondary }}
       >
         {label.toUpperCase()}
       </Text>
@@ -909,7 +866,10 @@ function StepperButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
+      onPress={() => {
+        haptics.selection();
+        onPress();
+      }}
       style={({ pressed }) => ({
         width: controlSizes.minimumTouchTarget,
         height: controlSizes.minimumTouchTarget,
@@ -917,7 +877,7 @@ function StepperButton({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed ? palette.pressed : palette.cardMuted,
-        borderWidth: scheme === 'dark' ? 0 : 1,
+        borderWidth: borders.hairline,
         borderColor: palette.cardBorder,
       })}
     >
@@ -962,7 +922,7 @@ export function FieldInput({
           paddingHorizontal: spacing.sm,
           paddingVertical: spacing.sm,
           backgroundColor: palette.fieldBackground,
-          borderWidth: scheme === 'dark' ? 0 : 1,
+          borderWidth: borders.hairline,
           borderColor: palette.cardBorder,
           color: palette.textPrimary,
           ...typeRamp.body,

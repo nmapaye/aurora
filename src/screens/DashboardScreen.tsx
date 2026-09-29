@@ -2,157 +2,143 @@ import React, { useMemo, useRef } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
 
+import AlertnessRing from '~/components/AlertnessRing';
+import AppIcon from '~/components/AppIcon';
 import AppScreen from '~/components/AppScreen';
 import Button from '~/components/Button';
 import CaffeineTodayGraph from '~/components/CaffeineTodayGraph';
+import SignalCard from '~/components/SignalCard';
+import { Divider, Eyebrow, SectionHeader, Surface } from '~/components/ui';
 import {
-  HealthAlertCard,
-  HealthMetricCard,
-  ListRow,
-  SectionCard,
-  SectionHeader,
-} from '~/components/ui';
+  estimateAlertness,
+  formatSleepHours,
+} from '~/features/summary/presentation';
+import {
+  caffeineLoggedSignal,
+  reactionTestSignal,
+  sleepSignal,
+} from '~/features/summary/signals';
 import {
   AppWalkthroughCoach,
   useAppWalkthrough,
   WalkthroughReveal,
 } from '~/features/appWalkthrough';
 import useAdaptiveLayout from '~/hooks/useAdaptiveLayout';
-import { useAlertnessSeries } from '~/hooks/useAlertnessSeries';
-import useCaffeineCutoff from '~/hooks/useCaffeineCutoff';
-import useSleepGuidance from '~/hooks/useSleepGuidance';
+import useLargeText from '~/hooks/useLargeText';
+import useNow from '~/hooks/useNow';
 import { navigate } from '~/navigation';
 import { useStore } from '~/state/store';
-import { CAFFEINE_PRESETS } from '~/features/caffeine/presets';
 import useAppScheme from '~/hooks/useAppScheme';
 import { getAppPalette } from '~/theme/colors';
-import { radii, spacing, typeRamp } from '~/theme/tokens';
-
-function fmtTime(ts?: number) {
-  if (!ts) return '—';
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(ts));
-  } catch {
-    return new Date(ts).toLocaleTimeString();
-  }
-}
-
-function fmtDateTime(ts: number) {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(ts));
-  } catch {
-    return new Date(ts).toLocaleString();
-  }
-}
-
-function fmtDay(ts?: number) {
-  if (!ts) return 'Today';
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-    }).format(new Date(ts));
-  } catch {
-    return new Date(ts).toDateString();
-  }
-}
-
-function fmtDuration(ms?: number) {
-  if (!ms || ms <= 0) return 'No Data';
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.round((ms % 3_600_000) / 60_000);
-  return `${hours}h ${minutes}m`;
-}
+import { fontScaling, iconSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 
 export default function DashboardScreen() {
   const layout = useAdaptiveLayout();
-  const palette = getAppPalette(useAppScheme());
-  const { nowScore, mgActiveNow: mgActive } =
-    (useAlertnessSeries() as any) || {};
-  const cutoff = useCaffeineCutoff();
-  const sleepGuidance = useSleepGuidance();
+  const largeText = useLargeText();
+  const scheme = useAppScheme();
+  const palette = getAppPalette(scheme);
+  // Modeled values depend on the clock, not just stored data.
+  const now = useNow();
 
   const doses = useStore((s) => s.doses);
-  const sleepCount = useStore((s) => s.sleeps.length);
-  const latestSleep = useStore(
-    (s) => [...s.sleeps].sort((a, b) => b.end - a.end)[0],
-  );
-  const latestVigilanceSession = useStore((s) => s.vigilanceSessions[0]);
-  const addDose = useStore((s) => s.addDose);
+  const sleeps = useStore((s) => s.sleeps);
+  const prefs = useStore((s) => s.prefs);
+  const vigilanceSessions = useStore((s) => s.vigilanceSessions);
   const demoMode = useStore((s) => s.demoMode);
   const loadDemoData = useStore((s) => s.loadDemoData);
+  const clearDemoData = useStore((s) => s.clearDemoData);
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
   const pinnedAnchorRef = useRef<View>(null);
-  const loggingAnchorRef = useRef<View>(null);
+  const sleepAnchorRef = useRef<View>(null);
+  const caffeineAnchorRef = useRef<View>(null);
 
-  const todaySummary = useMemo(() => {
-    const now = new Date();
-    const key = (value: Date) =>
-      `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
-    const todayKey = key(now);
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = key(yesterday);
+  const estimate = useMemo(
+    () => estimateAlertness(now, doses, sleeps, prefs),
+    [now, doses, sleeps, prefs],
+  );
 
-    let todayTotal = 0;
-    let yesterdayTotal = 0;
-    const recent = [...doses]
-      .filter((dose) => {
-        const doseKey = key(new Date(dose.timestamp));
-        if (doseKey === todayKey) {
-          todayTotal += dose.mg;
-          return true;
-        }
-        if (doseKey === yesterdayKey) {
-          yesterdayTotal += dose.mg;
-        }
-        return false;
-      })
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 4);
+  const signals = useMemo(
+    () => ({
+      caffeine: caffeineLoggedSignal(doses, now),
+      sleep: sleepSignal(sleeps, prefs.targetSleep, now),
+      reaction: reactionTestSignal(vigilanceSessions, now),
+    }),
+    [doses, now, prefs.targetSleep, sleeps, vigilanceSessions],
+  );
 
-    const delta = todayTotal - yesterdayTotal;
-    const deltaText = `${delta >= 0 ? '+' : ''}${delta} mg vs yesterday`;
-    return { todayTotal, deltaText, recent };
-  }, [doses]);
+  const hasAnyData =
+    doses.length > 0 || sleeps.length > 0 || vigilanceSessions.length > 0;
 
-  const quickAdd = (mg: number, source: string) => {
-    const id = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2)}`;
-    addDose({ id, timestamp: Date.now(), mg, source });
-  };
-
-  const alertCard =
-    demoMode || todaySummary.recent.length === 0 ? (
-      <HealthAlertCard
-        tone={demoMode ? 'info' : 'warning'}
-        label={demoMode ? 'Sample Data' : 'New Day'}
-        dateLabel={fmtDay(Date.now())}
-        icon={demoMode ? 'sparkles-outline' : 'alert-circle-outline'}
-        title={demoMode ? 'Sample flow is ready.' : 'No data yet.'}
-        body={
-          demoMode
-            ? 'Sleep, caffeine, and vigilance are seeded.'
-            : 'Log caffeine or load sample data to fill Summary.'
-        }
-        actionLabel={demoMode ? 'More Details' : 'Load Sample Data'}
-        onAction={
-          demoMode
-            ? () => navigate('Insights')
-            : loadDemoData
-        }
+  // Sample data is always announced, but as a one-line status, not a card
+  // louder than the real signals below it. A person with nothing recorded
+  // yet gets a quiet offer to explore with it.
+  const alertCard = demoMode ? (
+    <View
+      testID="summary-sample-status"
+      style={{
+        flexDirection: largeText ? 'column' : 'row',
+        alignItems: largeText ? 'flex-start' : 'center',
+        gap: spacing.xs,
+      }}
+    >
+      <View
+        style={{
+          flex: largeText ? undefined : 1,
+          alignSelf: largeText ? 'stretch' : undefined,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.xs,
+        }}
+      >
+        <AppIcon
+          name="sparkles-outline"
+          size={iconSizes.row}
+          color={palette.textSecondary}
+        />
+        <Text
+          maxFontSizeMultiplier={fontScaling.body}
+          style={{
+            flex: 1,
+            ...typeRamp.footnote,
+            color: palette.textSecondary,
+          }}
+        >
+          Showing sample data: example records, not yours.
+        </Text>
+      </View>
+      <Button
+        title="Clear Samples"
+        accessibilityLabel="Clear Sample Data"
+        variant="plain"
+        onPress={clearDemoData}
       />
-    ) : null;
+    </View>
+  ) : !hasAnyData ? (
+    <View
+      style={{
+        flexDirection: largeText ? 'column' : 'row',
+        alignItems: largeText ? 'flex-start' : 'center',
+        gap: spacing.xs,
+      }}
+    >
+      <Text
+        maxFontSizeMultiplier={fontScaling.body}
+        style={{
+          flex: largeText ? undefined : 1,
+          ...typeRamp.footnote,
+          color: palette.textSecondary,
+        }}
+      >
+        Nothing recorded yet. You can explore with a labeled sample week.
+      </Text>
+      <Button
+        title="Load Sample Data"
+        variant="plain"
+        onPress={loadDemoData}
+      />
+    </View>
+  ) : null;
 
   const walkthrough = useAppWalkthrough({
     route: 'Summary',
@@ -163,10 +149,18 @@ export default function DashboardScreen() {
 
   const measurePinned = (_event: LayoutChangeEvent) => {
     walkthrough.measureAnchor('summary-pinned', pinnedAnchorRef.current);
+    // The Caffeine and Sleep signals sit inside the pinned stack, so their own
+    // onLayout does not fire when content above the stack moves them.
+    walkthrough.measureAnchor('summary-caffeine', caffeineAnchorRef.current);
+    walkthrough.measureAnchor('summary-sleep', sleepAnchorRef.current);
   };
 
-  const measureLogging = (_event: LayoutChangeEvent) => {
-    walkthrough.measureAnchor('summary-logging', loggingAnchorRef.current);
+  const measureCaffeine = (_event: LayoutChangeEvent) => {
+    walkthrough.measureAnchor('summary-caffeine', caffeineAnchorRef.current);
+  };
+
+  const measureSleep = (_event: LayoutChangeEvent) => {
+    walkthrough.measureAnchor('summary-sleep', sleepAnchorRef.current);
   };
 
   const revealedAlert = alertCard ? (
@@ -174,100 +168,54 @@ export default function DashboardScreen() {
       active={walkthrough.active}
       revealed={walkthrough.isRevealed('summary-alert')}
       reduceMotion={walkthrough.reduceMotion}
-      staggerIndex={1}
+      staggerIndex={2}
     >
       {alertCard}
     </WalkthroughReveal>
   ) : null;
 
-  const pinnedMetricCards = [
+  const pinnedSignals = [
     {
       key: 'caffeine',
       element: (
-        <HealthMetricCard
-          icon="cafe"
-          label="Caffeine"
-          labelColor={palette.caffeineAccent}
-          dateLabel="Today"
-          value={`${Math.round(todaySummary.todayTotal)} mg`}
-          detail={todaySummary.deltaText}
-          onPress={() => navigate('Insights')}
-        />
-      ),
-    },
-    {
-      key: 'active-caffeine',
-      element: (
-        <HealthMetricCard
-          icon="pulse"
-          label="Active Caffeine"
-          labelColor={palette.activeCaffeineAccent}
-          dateLabel="Now"
-          value={`${Math.round(mgActive ?? 0)} mg`}
-          detail={`Alertness ${Math.round(nowScore ?? 0)}`}
-          onPress={() => navigate('Insights')}
-        />
+        // Summary's one way into Log, empty or populated; Log holds recent
+        // entries and history. Step 3 of the walkthrough points here.
+        <View
+          ref={caffeineAnchorRef}
+          collapsable={false}
+          onLayout={measureCaffeine}
+        >
+          <SignalCard
+            model={signals.caffeine}
+            icon="cafe"
+            accent={palette.caffeineAccent}
+            onPress={() => navigate('Log')}
+          />
+        </View>
       ),
     },
     {
       key: 'sleep',
       element: (
-        <HealthMetricCard
-          icon="bed"
-          label="Sleep"
-          labelColor={palette.sleepAccent}
-          dateLabel={fmtDay(latestSleep?.end)}
-          value={
-            latestSleep
-              ? fmtDuration(latestSleep.end - latestSleep.start)
-              : 'No Data'
-          }
-          detail={
-            latestSleep
-              ? `${sleepCount} session${sleepCount === 1 ? '' : 's'} available`
-              : 'Connect Health or use demo data'
-          }
-          onPress={() => navigate('Sleep')}
-        />
+        // Step 4 of the walkthrough points at this signal on its way to Sleep.
+        <View ref={sleepAnchorRef} collapsable={false} onLayout={measureSleep}>
+          <SignalCard
+            model={signals.sleep}
+            icon="bed"
+            accent={palette.sleepAccent}
+            onPress={() => navigate('Sleep')}
+          />
+        </View>
       ),
     },
     {
-      key: 'vigilance',
+      key: 'reaction-test',
       element: (
-        <HealthMetricCard
+        <SignalCard
+          model={signals.reaction}
           icon="speedometer"
-          label="Vigilance"
-          labelColor={palette.vigilanceAccent}
-          dateLabel={
-            latestVigilanceSession
-              ? fmtDay(latestVigilanceSession.completedAt)
-              : 'Today'
-          }
-          value={
-            latestVigilanceSession
-              ? `${latestVigilanceSession.score}`
-              : 'No Data'
-          }
-          detail={
-            latestVigilanceSession
-              ? `${latestVigilanceSession.rating} • ${latestVigilanceSession.medianReactionMs ?? '—'} ms median`
-              : 'Run a 60-second test'
-          }
+          accent={palette.vigilanceAccent}
           onPress={() => navigate('VigilanceTest')}
-        />
-      ),
-    },
-    {
-      key: 'cutoff',
-      element: (
-        <HealthMetricCard
-          icon="moon"
-          label="Caffeine Cutoff"
-          labelColor={palette.cutoffAccent}
-          dateLabel="Today"
-          value={fmtTime(cutoff?.nextCutoff)}
-          detail={`Bed ${fmtTime(sleepGuidance?.bedtime)} • Wake ${fmtTime(sleepGuidance?.wake)}`}
-          onPress={() => navigate('Sleep')}
         />
       ),
     },
@@ -281,14 +229,10 @@ export default function DashboardScreen() {
         reduceMotion={walkthrough.reduceMotion}
         staggerIndex={0}
       >
-        <SectionHeader
-          prominence="prominent"
-          title="Pinned"
-          actionLabel="Edit"
-        />
+        <SectionHeader prominence="prominent" title="Pinned" />
       </WalkthroughReveal>
       <View style={{ gap: spacing.md }}>
-        {pinnedMetricCards.map((card, index) => (
+        {pinnedSignals.map((card, index) => (
           <WalkthroughReveal
             key={card.key}
             active={walkthrough.active}
@@ -303,154 +247,99 @@ export default function DashboardScreen() {
     </>
   );
 
-  const revealedLogSection = (
-    <>
-      <WalkthroughReveal
-        active={walkthrough.active}
-        revealed={walkthrough.isRevealed('summary-logging')}
-        reduceMotion={walkthrough.reduceMotion}
-      >
-        <SectionHeader title="Log" />
-      </WalkthroughReveal>
-      <WalkthroughReveal
-        active={walkthrough.active}
-        revealed={walkthrough.isRevealed('summary-logging')}
-        reduceMotion={walkthrough.reduceMotion}
-        staggerIndex={1}
-      >
-        <SectionCard>
-          <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: spacing.sm,
-            }}
-          >
-            {CAFFEINE_PRESETS.map((preset, index) => (
-              <WalkthroughReveal
-                key={preset.id}
-                active={walkthrough.active}
-                revealed={walkthrough.isRevealed('summary-logging')}
-                reduceMotion={walkthrough.reduceMotion}
-                staggerIndex={index + 2}
-              >
-                <Button
-                  title={`${preset.label} ${preset.mg}mg`}
-                  variant="plain"
-                  onPress={() => quickAdd(preset.mg, preset.label)}
-                />
-              </WalkthroughReveal>
-            ))}
-          </View>
-          <WalkthroughReveal
-            active={walkthrough.active}
-            revealed={walkthrough.isRevealed('summary-logging')}
-            reduceMotion={walkthrough.reduceMotion}
-            staggerIndex={6}
-          >
-            <Button
-              title="Custom Entry"
-              variant="plain"
-              onPress={() => navigate('Log')}
-            />
-          </WalkthroughReveal>
-        </SectionCard>
-      </WalkthroughReveal>
-    </>
-  );
-
-  const recentSection = (
-    <>
-      <SectionHeader
-        title="Recent Activity"
-        action={
-          <Button
-            title="See History"
-            variant="plain"
-            onPress={() => navigate('Insights')}
-          />
+  // Hero: Estimated Alertness from the existing model, paired with the
+  // caffeine curve. Without recent sleep the ring shows no score. On iPhone
+  // the ring and copy sit side by side so the curve starts on the first
+  // screen; at large text sizes the copy moves below the ring and takes the
+  // full width.
+  const alertnessCopy =
+    estimate.status === 'estimated'
+      ? {
+          title: `From ${formatSleepHours(estimate.sleepHours)} of sleep`,
+          body: estimate.includesSample
+            ? 'Includes Sample Data. Plus active caffeine and time of day. Not a measurement.'
+            : 'Plus active caffeine and time of day. Not a measurement.',
         }
-      />
-      <SectionCard>
-        {todaySummary.recent.length === 0 ? (
-          <Text
-            style={{
-              ...typeRamp.subheadline,
-              color: palette.textTertiary,
-            }}
-          >
-            No doses logged today.
-          </Text>
-        ) : (
-          todaySummary.recent.map((dose) => (
-            <ListRow
-              key={dose.id}
-              title={`${dose.mg} mg${dose.source ? ` • ${dose.source}` : ''}`}
-              subtitle={fmtDateTime(dose.timestamp)}
-            />
-          ))
-        )}
-      </SectionCard>
-    </>
-  );
+      : {
+          title: 'No recent sleep',
+          body: 'Add sleep from the last 24 hours to see an estimate.',
+        };
 
   const todayPanel = (
-    <SectionCard
-      style={{ borderRadius: radii.hero, padding: spacing.lg, gap: spacing.md }}
-    >
+    <View style={{ gap: spacing.md }}>
       <SectionHeader
         prominence="prominent"
         title="Today"
         actionLabel="Details"
         onAction={() => navigate('Insights')}
       />
-      <CaffeineTodayGraph
-        height={340}
-        showCaption={false}
-        compact
-        variant="panel"
-      />
-      <View style={{ gap: spacing.xxs }}>
-        <ListRow
-          title="Caffeine"
-          subtitle={todaySummary.deltaText}
-          value={`${Math.round(todaySummary.todayTotal)} mg`}
-        />
-        <ListRow
-          title="Active now"
-          subtitle={`Alertness ${Math.round(nowScore ?? 0)}`}
-          value={`${Math.round(mgActive ?? 0)} mg`}
-        />
-        <ListRow
-          title="Cutoff"
-          subtitle={`Bed ${fmtTime(sleepGuidance?.bedtime)}`}
-          value={fmtTime(cutoff?.nextCutoff)}
-        />
-        <ListRow
-          title="Vigilance"
-          subtitle={
-            latestVigilanceSession
-              ? `${latestVigilanceSession.rating} • ${latestVigilanceSession.medianReactionMs ?? '—'} ms median`
-              : 'No session yet'
-          }
-          value={
-            latestVigilanceSession ? `${latestVigilanceSession.score}` : '—'
-          }
-        />
-      </View>
-    </SectionCard>
-  );
-
-  const revealedRecentSection = (
-    <WalkthroughReveal
-      active={walkthrough.active}
-      revealed={walkthrough.isRevealed('summary-recent')}
-      reduceMotion={walkthrough.reduceMotion}
-      staggerIndex={7}
-      style={{ gap: spacing.md }}
-    >
-      {recentSection}
-    </WalkthroughReveal>
+      <Surface
+        radius={radii.hero}
+        style={{
+          padding: layout.isWideLayout ? spacing.lg : spacing.md,
+          gap: layout.isWideLayout ? spacing.lg : spacing.md,
+        }}
+      >
+        <View
+          testID="summary-hero"
+          style={{
+            flexDirection: largeText ? 'column' : 'row',
+            flexWrap: largeText ? 'nowrap' : 'wrap',
+            alignItems: largeText ? 'stretch' : 'center',
+            gap: layout.isWideLayout ? spacing.lg : spacing.md,
+          }}
+        >
+          <AlertnessRing
+            estimate={estimate}
+            size={layout.isWideLayout ? 152 : 104}
+          />
+          <View
+            style={
+              largeText
+                ? { gap: spacing.xxs }
+                : { flex: 1, minWidth: 160, gap: spacing.xxs }
+            }
+          >
+            <Eyebrow text="Estimated Alertness" />
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{
+                ...(layout.isWideLayout ? typeRamp.title3 : typeRamp.headline),
+                color: palette.textPrimary,
+              }}
+            >
+              {alertnessCopy.title}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{ ...typeRamp.footnote, color: palette.textSecondary }}
+            >
+              {alertnessCopy.body}
+            </Text>
+            {estimate.status === 'needs-sleep' ? (
+              <Button
+                title="Open Sleep"
+                variant="tinted"
+                onPress={() => navigate('Sleep')}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: spacing.xs,
+                  paddingVertical: spacing.xs,
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
+        <Divider />
+        <View style={{ gap: spacing.sm }}>
+          <Eyebrow text="Caffeine Today" />
+          <CaffeineTodayGraph
+            height={layout.isWideLayout ? 240 : 160}
+            cutoffHour={prefs.cutoffHour}
+          />
+        </View>
+      </Surface>
+    </View>
   );
 
   const revealedTodayPanel = (
@@ -482,6 +371,17 @@ export default function DashboardScreen() {
     </WalkthroughReveal>
   ) : null;
 
+  const pinnedColumn = (
+    <View
+      ref={pinnedAnchorRef}
+      collapsable={false}
+      onLayout={measurePinned}
+      style={{ gap: spacing.md }}
+    >
+      {pinnedCards}
+    </View>
+  );
+
   return (
     <AppScreen
       title="Summary"
@@ -512,49 +412,18 @@ export default function DashboardScreen() {
           }}
         >
           <View style={{ width: layout.leftColumnWidth, gap: spacing.md }}>
+            {revealedTodayPanel}
             {revealedAlert}
-            <View
-              ref={pinnedAnchorRef}
-              collapsable={false}
-              onLayout={measurePinned}
-              style={{ gap: spacing.md }}
-            >
-              {pinnedCards}
-            </View>
-            <View
-              ref={loggingAnchorRef}
-              collapsable={false}
-              onLayout={measureLogging}
-              style={{ gap: spacing.md }}
-            >
-              {revealedLogSection}
-              {revealedRecentSection}
-            </View>
           </View>
           <View style={{ width: layout.rightColumnWidth, gap: spacing.md }}>
-            {revealedTodayPanel}
+            {pinnedColumn}
           </View>
         </View>
       ) : (
         <>
+          {revealedTodayPanel}
           {revealedAlert}
-          <View
-            ref={pinnedAnchorRef}
-            collapsable={false}
-            onLayout={measurePinned}
-            style={{ gap: spacing.md }}
-          >
-            {pinnedCards}
-          </View>
-          <View
-            ref={loggingAnchorRef}
-            collapsable={false}
-            onLayout={measureLogging}
-            style={{ gap: spacing.md }}
-          >
-            {revealedLogSection}
-            {revealedRecentSection}
-          </View>
+          {pinnedColumn}
         </>
       )}
     </AppScreen>

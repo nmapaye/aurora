@@ -11,6 +11,7 @@ import {
 } from '~/features/appWalkthrough/model';
 import AppWalkthroughCoach from '~/features/appWalkthrough/AppWalkthroughCoach';
 import WalkthroughReveal from '~/features/appWalkthrough/WalkthroughReveal';
+import { fontScaling } from '~/theme/tokens';
 
 jest.mock('~/hooks/useAppScheme', () => ({
   __esModule: true,
@@ -126,11 +127,15 @@ describe('App walkthrough presentation', () => {
     });
     expect(skip).toHaveStyle({ minHeight: 44 });
     expect(finish).toHaveStyle({ minHeight: 44 });
-    expect(screen.getByText('Skip')).not.toHaveProp(
+    // Buttons follow the shared Dynamic Type cap so labels grow without
+    // overflowing the coach card.
+    expect(screen.getByText('Skip')).toHaveProp(
       'maxFontSizeMultiplier',
+      fontScaling.body,
     );
-    expect(screen.getByText('Finish')).not.toHaveProp(
+    expect(screen.getByText('Finish')).toHaveProp(
       'maxFontSizeMultiplier',
+      fontScaling.body,
     );
   });
 });

@@ -12,6 +12,14 @@ type Reporter = (payload: {
 const marks: Mark[] = [];
 const measures: Measure[] = [];
 let reporter: Reporter | null = null;
+// Marks and measures are kept for debugging only; cap them so a long session
+// never grows these buffers without bound.
+const MAX_ENTRIES = 200;
+
+function keep<T>(buffer: T[], entry: T) {
+  buffer.push(entry);
+  if (buffer.length > MAX_ENTRIES) buffer.splice(0, buffer.length - MAX_ENTRIES);
+}
 
 // Monotonic clock when available; falls back gracefully.
 const now = (): number => {
@@ -24,7 +32,7 @@ const now = (): number => {
 /** Place a named timestamp mark. */
 export function mark(name: string): number {
   const t = now();
-  marks.push({ name, t });
+  keep(marks, { name, t });
   if (__DEV__) {
     console.log('[perf:mark]', name, t.toFixed(2));
   }
@@ -40,7 +48,7 @@ export function measure(name: string, startMark: string, endMark: string): Measu
   const start = getLastMark(startMark)?.t;
   if (start == null) return null;
   const m: Measure = { name, duration: end - start, start, end };
-  measures.push(m);
+  keep(measures, m);
   if (__DEV__) {
     console.log('[perf:measure]', name, `${m.duration.toFixed(2)}ms`);
   }
@@ -56,7 +64,7 @@ export function withTiming<T>(name: string, fn: () => T): T {
   } finally {
     const e = now();
     const m: Measure = { name, duration: e - s, start: s, end: e };
-    measures.push(m);
+    keep(measures, m);
     if (__DEV__) {
       console.log('[perf:withTiming]', name, `${m.duration.toFixed(2)}ms`);
     }
@@ -72,7 +80,7 @@ export async function withTimingAsync<T>(name: string, fn: () => Promise<T>): Pr
   } finally {
     const e = now();
     const m: Measure = { name, duration: e - s, start: s, end: e };
-    measures.push(m);
+    keep(measures, m);
     if (__DEV__) {
       console.log('[perf:withTimingAsync]', name, `${m.duration.toFixed(2)}ms`);
     }
@@ -86,7 +94,7 @@ export function section(name: string): () => Measure {
   return () => {
     const e = now();
     const m: Measure = { name, duration: e - s, start: s, end: e };
-    measures.push(m);
+    keep(measures, m);
     flush({ marks: [], measures: [m] });
     return m;
   };

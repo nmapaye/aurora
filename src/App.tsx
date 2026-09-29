@@ -17,12 +17,15 @@ import { isUsingFallbackStorage } from '~/services/storage';
 import { useStore } from '~/state/store';
 import RootNavigator from '~/navigation/RootNavigator';
 import { useAppInit } from '~/hooks/useAppInit';
+import { useForegroundSync } from '~/hooks/useForegroundSync';
+import Button from '~/components/Button';
 import useAppScheme from '~/hooks/useAppScheme';
 import type { RootStackParamList } from '~/navigation/types';
 import linking from '~/navigation/linking';
 import OnboardingScreen from '~/screens/Onboarding/OnboardingScreen';
 import * as perf from '~/instrumentation/perf';
 import { getAppPalette } from '~/theme/colors';
+import BrandMark from '~/components/BrandMark';
 import { ProgressState } from '~/components/ui';
 import { spacing, typeRamp } from '~/theme/tokens';
 
@@ -36,7 +39,37 @@ LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
 ]);
 
-// Error boundary to prevent hard black screens from render-time throws
+function ErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const palette = getAppPalette(useAppScheme());
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: spacing.xl,
+        gap: spacing.md,
+        backgroundColor: palette.groupedBackground,
+      }}
+    >
+      <BrandMark size={56} />
+      <Text
+        accessibilityRole="header"
+        style={{ ...typeRamp.title3, color: palette.textPrimary, textAlign: 'center' }}
+      >
+        Aurora hit a problem
+      </Text>
+      <Text
+        style={{ ...typeRamp.body, color: palette.textSecondary, textAlign: 'center' }}
+      >
+        Your data is safe on this device. Try again to reload the screen.
+      </Text>
+      <Button title="Try Again" onPress={onRetry} />
+    </View>
+  );
+}
+
+// Catches render-time throws so a single bad screen never leaves a blank app.
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error?: Error }
@@ -45,35 +78,13 @@ class RootErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidCatch(error: Error, info: any) {
-    try {
-      (perf as any).mark?.('app:error');
-    } catch {}
-    console.error('[root]', error, info);
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    perf.mark('app:error');
+    console.error('[root]', error, info.componentStack);
   }
   render() {
     if (this.state.error) {
-      return (
-        <View
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: spacing.md,
-          }}
-        >
-          <Text style={{ ...typeRamp.title3, marginBottom: spacing.xs }}>
-            Something went wrong.
-          </Text>
-          <Text
-            selectable
-            numberOfLines={5}
-            style={{ opacity: 0.7, textAlign: 'center' }}
-          >
-            {this.state.error.message}
-          </Text>
-        </View>
-      );
+      return <ErrorFallback onRetry={() => this.setState({ error: undefined })} />;
     }
     return this.props.children;
   }
@@ -83,7 +94,16 @@ class RootErrorBoundary extends React.Component<
 
 function BootGate() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.xl,
+      }}
+    >
+      {/* Matches the launch screen mark so the handoff reads as one moment. */}
+      <BrandMark size={72} />
       <ProgressState label="Loading Aurora…" />
     </View>
   );
@@ -93,6 +113,7 @@ export default function App() {
   const ready = useAppInit();
   const scheme = useAppScheme();
   const onboardingComplete = useStore((s) => s.onboarding.completed);
+  useForegroundSync(ready && onboardingComplete);
   const theme = useMemo<Theme>(() => {
     const palette = getAppPalette(scheme);
     const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -112,16 +133,15 @@ export default function App() {
 
   useEffect(() => {
     try {
-      (perf as any).mark?.('app:start');
+      perf.mark('app:start');
     } catch {}
   }, []);
 
   useEffect(() => {
     if (ready) {
       try {
-        (perf as any).mark?.('app:ready');
-        (perf as any).measure?.('app:boot', 'app:start', 'app:ready');
-        (perf as any).enableFPSMonitor?.(false);
+        perf.mark('app:ready');
+        perf.measure('app:boot', 'app:start', 'app:ready');
       } catch {}
     }
   }, [ready]);
@@ -161,7 +181,7 @@ export default function App() {
                   linking={linking}
                   onReady={() => {
                     try {
-                      (perf as any).mark?.('nav:ready');
+                      perf.mark('nav:ready');
                     } catch {}
                   }}
                 >

@@ -33,14 +33,14 @@ describe('AppSymbol', () => {
       />,
     );
 
-    expect(screen.getByTestId('sf-symbol')).toHaveProp(
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp(
       'name',
       'cup.and.saucer.fill',
     );
-    expect(screen.getByTestId('sf-symbol')).toHaveProp('tintColor', '#0A84FF');
-    expect(screen.getByTestId('sf-symbol')).toHaveStyle({ width: 20, height: 20 });
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp('tintColor', '#0A84FF');
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveStyle({ width: 20, height: 20 });
     expect(screen.getByLabelText('Espresso')).toBeOnTheScreen();
-    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', true);
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp('accessible', true);
   });
 
   it('keeps unlabeled symbols decorative and lets an explicit accessible prop win', async () => {
@@ -50,7 +50,7 @@ describe('AppSymbol', () => {
       <AppSymbol name="leaf.fill" fallback="leaf" />,
     );
 
-    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', false);
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp('accessible', false);
 
     await rerender(
       <AppSymbol
@@ -61,13 +61,13 @@ describe('AppSymbol', () => {
       />,
     );
 
-    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', false);
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp('accessible', false);
 
     await rerender(
       <AppSymbol name="leaf.fill" fallback="leaf" accessible />,
     );
 
-    expect(screen.getByTestId('sf-symbol')).toHaveProp('accessible', true);
+    expect(screen.getByTestId('sf-symbol', { includeHiddenElements: true })).toHaveProp('accessible', true);
   });
 
   it('renders its Ionicons fallback outside iOS', async () => {
@@ -85,5 +85,15 @@ describe('AppSymbol', () => {
     expect(screen.getByTestId('ionicon-fallback')).toHaveProp('name', 'flash');
     expect(screen.getByTestId('ionicon-fallback')).toHaveProp('size', 24);
     expect(screen.getByTestId('ionicon-fallback')).toHaveProp('color', '#0A84FF');
+  });
+});
+
+describe('AppSymbol accessibility', () => {
+  it('hides a decorative symbol so its description never joins a parent label', async () => {
+    (Platform as { OS: string }).OS = 'ios';
+    await render(<AppSymbol name="heart" fallback="heart-outline" />);
+    const symbol = screen.getByTestId('sf-symbol', { includeHiddenElements: true });
+    expect(symbol).toHaveProp('accessibilityElementsHidden', true);
+    expect(symbol).toHaveProp('importantForAccessibility', 'no-hide-descendants');
   });
 });

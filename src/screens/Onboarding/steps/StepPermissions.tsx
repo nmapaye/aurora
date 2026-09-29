@@ -1,8 +1,14 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
+import AppIcon, { type AppIconName } from '~/components/AppIcon';
 import Button from '~/components/Button';
-import { InlineStatus, ProgressState, SectionCard } from '~/components/ui';
+import {
+  Divider,
+  InlineStatus,
+  ProgressState,
+  SectionCard,
+} from '~/components/ui';
 import useAppScheme from '~/hooks/useAppScheme';
 import type {
   HealthImportStatus,
@@ -10,7 +16,7 @@ import type {
   OnboardingSource,
 } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
-import { spacing, typeRamp } from '~/theme/tokens';
+import { fontScaling, iconSizes, spacing, typeRamp } from '~/theme/tokens';
 
 type Props = {
   source: OnboardingSource;
@@ -40,7 +46,7 @@ export default function StepPermissions({
     : healthRequestCompleted && importStatus === 'importing'
       ? 'Importing'
       : healthRequestCompleted && importStatus === 'succeeded'
-        ? importedCount > 0 ? 'Import completed' : 'No readable sleep data'
+        ? importedCount > 0 ? 'Import completed' : 'No sleep found'
         : healthRequestCompleted
           ? 'Import pending'
           : permissionStatus === 'denied'
@@ -69,66 +75,79 @@ export default function StepPermissions({
   const adjacentCopy = isManual
     ? 'You can connect Health later from Sleep.'
     : permissionStatus === 'denied'
-      ? 'Health access request did not complete. Manual sleep logging remains available.'
+      ? 'Health access wasn’t set up. You can still log sleep manually.'
       : permissionStatus === 'unsupported'
         ? 'Health import is unavailable on this device.'
         : healthRequestCompleted && importStatus === 'importing'
-          ? 'Health request completed. Importing recent sleep from Health.'
+          ? 'Health access requested. Importing recent sleep from Health.'
           : healthRequestCompleted && importStatus === 'succeeded'
             ? importMessage ?? 'Health sleep import completed.'
             : healthRequestCompleted
-              ? 'Health request completed. Recent sleep import is pending.'
+              ? 'Health access requested. Your sleep import hasn’t finished.'
               : 'Aurora reads sleep only. It does not write anything back into the Health app.';
+
+  // Before any request, explain what will be asked instead of showing a
+  // status for something that has not happened yet.
+  const showFacts = !isManual && permissionStatus === 'idle';
 
   return (
     <View style={{ gap: spacing.md }}>
-      <View style={{ gap: spacing.xs }}>
-        <Text
-          style={{
-            ...typeRamp.title1,
-            fontWeight: '700',
-            letterSpacing: 0,
-            color: palette.textPrimary,
-          }}
-        >
-          Permissions
-        </Text>
-        <Text
-          style={{
-            ...typeRamp.body,
-            color: palette.textSecondary,
-          }}
-        >
-          {isManual
-            ? 'Manual mode is ready.'
-            : 'Allow Aurora to read recent sleep from Health.'}
-        </Text>
-      </View>
-
-      <SectionCard>
-        <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
-        {importFailed ? (
-          <Text
-            accessibilityRole="alert"
-            accessibilityLabel={`Health request completed. Import failed. ${failedDetail}`}
-            style={{
-              ...typeRamp.subheadline,
-              color: palette.destructive,
-            }}
-          >
-            Health request completed. Import failed. {failedDetail}
-          </Text>
-        ) : (
-          <Text
-            style={{
-              ...typeRamp.subheadline,
-              color: palette.textSecondary,
-            }}
-          >
-            {adjacentCopy}
-          </Text>
-        )}
-      </SectionCard>
+      {isManual ? (
+        <SectionCard>
+          <FactRow
+            icon="create-outline"
+            title="Log as you go"
+            body="Add caffeine from Log and nights from Sleep. Aurora reads nothing from Health."
+          />
+        </SectionCard>
+      ) : showFacts ? (
+        <SectionCard style={{ gap: spacing.md }}>
+          <FactRow
+            icon="moon-outline"
+            title="Sleep only"
+            body="Aurora requests read access to sleep analysis and nothing else."
+          />
+          <Divider inset={iconSizes.button + spacing.sm} />
+          <FactRow
+            icon="lock-closed-outline"
+            title="Read-only"
+            body="Aurora reads sleep only. It does not write anything back into the Health app."
+          />
+          <Divider inset={iconSizes.button + spacing.sm} />
+          <FactRow
+            icon="options-outline"
+            title="Your choice"
+            body="Pick what to share in the Health sheet, and change it anytime in the Health app."
+          />
+        </SectionCard>
+      ) : (
+        <SectionCard>
+          <InlineStatus tone={statusTone} text={`Status: ${stateLabel}`} />
+          {importFailed ? (
+            <Text
+              accessibilityRole="alert"
+              accessibilityLabel={`Health access requested, but the import failed. ${failedDetail}`}
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{
+                ...typeRamp.subheadline,
+                color: palette.destructive,
+              }}
+            >
+              Health access requested, but the import failed. {failedDetail}
+            </Text>
+          ) : (
+            <Text
+              maxFontSizeMultiplier={fontScaling.body}
+              style={{
+                ...typeRamp.subheadline,
+                color: palette.textSecondary,
+              }}
+            >
+              {adjacentCopy}
+            </Text>
+          )}
+        </SectionCard>
+      )}
 
       {!isManual ? (
         busy ? (
@@ -142,13 +161,49 @@ export default function StepPermissions({
             />
           </SectionCard>
         ) : (
+          // After a request, Finish setup becomes the primary action and this
+          // stays available as a quieter retry.
           <Button
             title="Allow Health Access"
-            variant="primary"
+            variant={showFacts ? 'primary' : 'tinted'}
             onPress={onRequest}
           />
         )
       ) : null}
+    </View>
+  );
+}
+
+function FactRow({
+  icon,
+  title,
+  body,
+}: {
+  icon: AppIconName;
+  title: string;
+  body: string;
+}) {
+  const palette = getAppPalette(useAppScheme());
+  return (
+    <View
+      accessible
+      style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}
+    >
+      <AppIcon name={icon} size={iconSizes.button} color={palette.tint} />
+      <View style={{ flex: 1, gap: spacing.xxs }}>
+        <Text
+          maxFontSizeMultiplier={fontScaling.body}
+          style={{ ...typeRamp.headline, color: palette.textPrimary }}
+        >
+          {title}
+        </Text>
+        <Text
+          maxFontSizeMultiplier={fontScaling.body}
+          style={{ ...typeRamp.subheadline, color: palette.textSecondary }}
+        >
+          {body}
+        </Text>
+      </View>
     </View>
   );
 }

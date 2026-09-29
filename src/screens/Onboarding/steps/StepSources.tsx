@@ -1,7 +1,8 @@
 import React from 'react';
 import { View } from 'react-native';
 
-import { HealthOptionCard, SectionHeader } from '~/components/ui';
+import { HealthOptionCard } from '~/components/ui';
+import { describeSleepSource } from '~/features/onboarding/presentation';
 import useAppScheme from '~/hooks/useAppScheme';
 import type { OnboardingSource } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
@@ -12,44 +13,33 @@ type Props = {
   onSelect: (value: OnboardingSource) => void;
 };
 
+const options: { key: OnboardingSource; body: string }[] = [
+  {
+    key: 'healthkit',
+    body: 'Read recent sleep from the Health app. Aurora never writes to Health.',
+  },
+  {
+    key: 'manual',
+    body: 'Log nights yourself. You can connect Health later from Sleep.',
+  },
+];
+
 export default function StepSources({ selectedSource, onSelect }: Props) {
-  const scheme = useAppScheme();
-  const palette = getAppPalette(scheme);
-  const options: { key: OnboardingSource; title: string; body: string }[] = [
-    {
-      key: 'healthkit',
-      title: 'Health',
-      body: 'Read recent sleep from the Health app.',
-    },
-    {
-      key: 'manual',
-      title: 'Manual',
-      body: 'Skip Health for now. You can connect later.',
-    },
-  ];
+  const palette = getAppPalette(useAppScheme());
 
   return (
-    <View style={{ gap: spacing.md }}>
-      <SectionHeader prominence="prominent" title="Data Source" />
-
-      <View style={{ gap: spacing.sm }}>
-        {options.map((option) => {
-          const selected = option.key === selectedSource;
-          return (
-            <HealthOptionCard
-              key={option.key}
-              onPress={() => onSelect(option.key)}
-              selected={selected}
-              icon={option.key === 'healthkit' ? 'heart' : 'create-outline'}
-              title={option.title}
-              subtitle={option.body}
-              color={
-                option.key === 'healthkit' ? palette.healthAccent : palette.tint
-              }
-            />
-          );
-        })}
-      </View>
+    <View style={{ gap: spacing.sm }}>
+      {options.map((option) => (
+        <HealthOptionCard
+          key={option.key}
+          onPress={() => onSelect(option.key)}
+          selected={option.key === selectedSource}
+          icon={option.key === 'healthkit' ? 'heart-outline' : 'create-outline'}
+          title={describeSleepSource(option.key)}
+          subtitle={option.body}
+          color={palette.tint}
+        />
+      ))}
     </View>
   );
 }

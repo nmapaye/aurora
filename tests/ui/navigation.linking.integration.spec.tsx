@@ -13,58 +13,36 @@ jest.mock('expo-constants', () => ({
 }));
 jest.mock('~/screens/DashboardScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Summary screen</Text> };
+  return { __esModule: true, default: function MockSummaryScreen() { return <Text>Summary screen</Text>; } };
 });
 jest.mock('~/screens/SleepScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Sleep screen</Text> };
+  return { __esModule: true, default: function MockSleepScreen() { return <Text>Sleep screen</Text>; } };
 });
 jest.mock('~/screens/LogIntakeScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Log screen</Text> };
+  return { __esModule: true, default: function MockLogScreen() { return <Text>Log screen</Text>; } };
 });
 jest.mock('~/screens/InsightsScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Insights screen</Text> };
+  return { __esModule: true, default: function MockInsightsScreen() { return <Text>Insights screen</Text>; } };
 });
 jest.mock('~/screens/VigilanceTestScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Vigilance screen</Text> };
+  return { __esModule: true, default: function MockVigilanceScreen() { return <Text>Vigilance screen</Text>; } };
 });
 jest.mock('~/screens/SettingsScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Settings screen</Text> };
+  return { __esModule: true, default: function MockSettingsScreen() { return <Text>Settings screen</Text>; } };
 });
 jest.mock('~/screens/SleepHistoryScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Sleep History screen</Text> };
+  return { __esModule: true, default: function MockSleepHistoryScreen() { return <Text>Sleep History screen</Text>; } };
 });
 jest.mock('~/screens/CaffeineHistoryScreen', () => {
   const { Text } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => <Text>Caffeine History screen</Text> };
+  return { __esModule: true, default: function MockCaffeineHistoryScreen() { return <Text>Caffeine History screen</Text>; } };
 });
-jest.mock('~/components/AppIcon', () => {
-  const { Text } = jest.requireActual('react-native');
-  return {
-    __esModule: true,
-    appIcons: {
-      summary: 'summary',
-      summarySelected: 'summary-selected',
-      sleep: 'sleep',
-      sleepSelected: 'sleep-selected',
-      log: 'log',
-      logSelected: 'log-selected',
-      insights: 'insights',
-      insightsSelected: 'insights-selected',
-      fallback: 'fallback',
-    },
-    default: ({ name }: { name: string }) => <Text>{name}</Text>,
-  };
-});
-jest.mock('react-native-safe-area-context', () => ({
-  ...jest.requireActual('react-native-safe-area-context'),
-  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
-}));
 jest.mock('~/hooks/useAppScheme', () => ({
   __esModule: true,
   default: () => 'light',

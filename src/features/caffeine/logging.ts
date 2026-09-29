@@ -8,6 +8,14 @@ export type CustomDoseDraft = {
   note: string;
 };
 
+/** One id format for every logged dose (quick add, custom entry, plan). */
+export function createDoseId(
+  now = Date.now(),
+  entropy = Math.random().toString(36).slice(2),
+) {
+  return `${now.toString(36)}-${entropy}`;
+}
+
 export type DraftValidation =
   | { valid: true; message?: undefined }
   | { valid: false; message: string };
@@ -29,14 +37,6 @@ export function getTodayCaffeineTotal(doses: readonly Dose[], now: number) {
         : total,
     0,
   );
-}
-
-export function getRemainingDailyCaffeineLimit(
-  doses: readonly Dose[],
-  now: number,
-  dailyLimitMg: number,
-) {
-  return Math.max(0, dailyLimitMg - getTodayCaffeineTotal(doses, now));
 }
 
 export function createCustomDoseDraft(now: number): CustomDoseDraft {
@@ -69,8 +69,22 @@ export function buildCustomDose(
   draft: CustomDoseDraft,
   createId: () => string,
 ): Dose {
+  return { id: createId(), ...buildDosePatch(draft) };
+}
+
+/** Loads an existing entry into the same draft shape Custom Entry uses. */
+export function createEditDoseDraft(dose: Dose): CustomDoseDraft {
   return {
-    id: createId(),
+    mg: String(dose.mg),
+    source: dose.source ?? '',
+    timestamp: dose.timestamp,
+    note: dose.note ?? '',
+  };
+}
+
+/** The fields a correction replaces; the entry keeps its id. */
+export function buildDosePatch(draft: CustomDoseDraft): Omit<Dose, 'id'> {
+  return {
     timestamp: draft.timestamp,
     mg: Number(draft.mg),
     source: draft.source.trim() || undefined,

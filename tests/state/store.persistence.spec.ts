@@ -60,6 +60,8 @@ const nonDefaultPersistedState = {
   appearanceMode: 'dark' as const,
 };
 
+afterEach(() => jest.restoreAllMocks());
+
 describe('store persistence round-trip', () => {
   it('persists exactly the keys covered by this fixture', () => {
     const persisted = useStore.persist.getOptions().partialize!(useStore.getState());
@@ -130,6 +132,8 @@ describe('store persistence round-trip', () => {
   });
 
   it('migrates and dedupes only boundary-equivalent legacy Health sleep IDs', async () => {
+    // Keep the fixture inside the Health retention window.
+    jest.spyOn(Date, 'now').mockReturnValue(1_700_100_000_000);
     const start = 1_700_000_000_000;
     const end = start + 8 * 3_600_000;
     jsonStringStorage.setItem(

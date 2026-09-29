@@ -8,6 +8,8 @@ import { controlSizes, radii, spacing, typeRamp } from '~/theme/tokens';
 type Option<T extends string> = {
   value: T;
   label: string;
+  /** Spoken name when the visible label is an abbreviation ("2W"). */
+  accessibilityLabel?: string;
 };
 
 type Props<T extends string> = {
@@ -27,6 +29,7 @@ export function HealthRangeControl<T extends string>({
 
   return (
     <View
+      accessibilityRole="tablist"
       accessibilityLabel={accessibilityLabel}
       style={{
         alignSelf: 'flex-start',
@@ -43,8 +46,8 @@ export function HealthRangeControl<T extends string>({
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="button"
-            accessibilityLabel={option.label}
+            accessibilityRole="tab"
+            accessibilityLabel={option.accessibilityLabel ?? option.label}
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
             style={({ pressed }) => ({

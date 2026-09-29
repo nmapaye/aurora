@@ -3,6 +3,9 @@ import type { Dose, SleepSession } from '~/domain/models';
 const HOUR_MS = 60 * 60 * 1000;
 // Shorter gaps are brief awakenings; 90 minutes starts a distinct sleep opportunity.
 const SLEEP_EPISODE_GAP_MS = 90 * 60 * 1000;
+// A timing number needs this many nights that each have a sleep episode and
+// caffeine logged in the 12 hours before it.
+export const PAIRED_NIGHTS_REQUIRED = 14;
 
 export type SleepRange = 'week' | 'month';
 export type SleepChartPoint = { date: number; durationMs: number | null };
@@ -144,9 +147,39 @@ export function formatSleepDuration(durationMs: number) {
   return `${hours}h ${minutes}m`;
 }
 
+// The chart readout for one day. A day with no recorded sleep says so; it is
+// never read out as zero.
+export function describeSleepChartDay(point: SleepChartPoint) {
+  let title: string;
+  try {
+    title = new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(point.date));
+  } catch {
+    title = new Date(point.date).toDateString();
+  }
+  const value =
+    point.durationMs === null
+      ? 'No sleep recorded'
+      : formatSleepDuration(point.durationMs);
+  return { title, value, text: `${title}, ${value}` };
+}
+
 export function sleepSourceLabel(id: string) {
   if (id.startsWith('demo:sleep:')) return 'Sample Data';
   return id.startsWith('healthkit:sleep:') ? 'Health' : 'Manual';
+}
+
+// A merged night can combine sources (a manual entry next to a Health or
+// sample night). Name every source so a partly-sample night never reads as
+// purely manual.
+export function episodeSourceLabel(ids: readonly string[]) {
+  const labels = [...new Set(ids.map(sleepSourceLabel))];
+  const order = ['Health', 'Manual', 'Sample Data'];
+  labels.sort((left, right) => order.indexOf(left) - order.indexOf(right));
+  return labels.join(' and ');
 }
 
 export function getCaffeineImpact(
@@ -176,7 +209,7 @@ export function getCaffeineImpact(
     p10: percentile(deltas, 0.1),
     p90: percentile(deltas, 0.9),
     medianSleepMin: median(durations),
-    showCorrelation: pairs.length >= 14,
+    meetsPairedNightGate: pairs.length >= PAIRED_NIGHTS_REQUIRED,
   };
 }
 
@@ -199,6 +232,11 @@ export function getSleepPresentation(
   });
 
   const recorded = points.filter((point) => point.durationMs !== null);
+  // Averages recorded days only; a missing day is not a zero-hour night.
+  const averageDurationMs = recorded.length
+    ? recorded.reduce((sum, point) => sum + (point.durationMs ?? 0), 0) /
+      recorded.length
+    : null;
   const latest = [...sessionsByDay.values()]
     .flatMap((episodes) => primarySleepEpisode(episodes) ?? [])
     .sort((left, right) => right.wakeTime - left.wakeTime)[0];
@@ -215,12 +253,15 @@ export function getSleepPresentation(
     dateRange,
     points,
     headline: latest ? formatSleepDuration(durationMs) : 'No Data',
+    recordedNights: recorded.length,
+    averageDurationMs,
     accessibilitySummary,
     lastNight: latest
       ? {
           session: [...latest.sessions].sort(
             (left, right) => right.end - left.end,
           )[0],
+          sessionIds: latest.sessions.map((session) => session.id),
           durationMs,
           sleepStart: latest.sleepStart,
           wakeTime: latest.wakeTime,

@@ -7,11 +7,18 @@ import { fontScaling, numericText, radii, spacing, typeRamp } from '~/theme/toke
 
 type Props = {
   title: string;
-  value: string;
+  /** Omit rather than show a placeholder number when there is no data. */
+  value?: string;
   dateRange: string;
   accessibilitySummary: string;
   children?: React.ReactNode;
   emptyState?: React.ReactNode;
+  /**
+   * Set when the children are themselves accessible (an inspectable chart):
+   * the card then stops grouping everything into one element, and only its
+   * header speaks as a unit.
+   */
+  interactiveChildren?: boolean;
 };
 
 export function HealthChartCard({
@@ -21,13 +28,15 @@ export function HealthChartCard({
   accessibilitySummary,
   children,
   emptyState,
+  interactiveChildren = false,
 }: Props) {
   const palette = getAppPalette(useAppScheme());
+  const grouped = !interactiveChildren || !children;
 
   return (
     <View
-      accessible
-      accessibilityLabel={accessibilitySummary}
+      accessible={grouped}
+      accessibilityLabel={grouped ? accessibilitySummary : undefined}
       style={{
         backgroundColor: palette.card,
         borderRadius: radii.hero,
@@ -37,19 +46,28 @@ export function HealthChartCard({
         gap: spacing.md,
       }}
     >
-      <View style={{ gap: spacing.xxs }}>
+      <View
+        accessible={!grouped}
+        accessibilityRole={grouped ? undefined : 'header'}
+        accessibilityLabel={
+          grouped ? undefined : [title, value, dateRange].filter(Boolean).join(', ')
+        }
+        style={{ gap: spacing.xxs }}
+      >
         <Text
           maxFontSizeMultiplier={fontScaling.body}
           style={{ ...typeRamp.headline, color: palette.textPrimary }}
         >
           {title}
         </Text>
-        <Text
-          maxFontSizeMultiplier={fontScaling.hero}
-          style={{ ...numericText, color: palette.textPrimary }}
-        >
-          {value}
-        </Text>
+        {value ? (
+          <Text
+            maxFontSizeMultiplier={fontScaling.hero}
+            style={{ ...numericText, color: palette.textPrimary }}
+          >
+            {value}
+          </Text>
+        ) : null}
         <Text
           maxFontSizeMultiplier={fontScaling.body}
           style={{ ...typeRamp.footnote, color: palette.textSecondary }}

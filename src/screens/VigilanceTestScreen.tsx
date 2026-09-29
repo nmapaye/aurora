@@ -13,8 +13,10 @@ import {
   type VigilanceTaskState,
   VIGILANCE_FALSE_START_MS,
   VIGILANCE_LAPSE_MS,
+  VIGILANCE_RESPONSE_WINDOW_MS,
   VIGILANCE_TEST_DURATION_MS,
 } from '~/domain/vigilance';
+import { haptics } from '~/services/platform/haptics';
 import { useStore } from '~/state/store';
 import { getAppPalette } from '~/theme/colors';
 import { numericText, radii, spacing, typeRamp } from '~/theme/tokens';
@@ -41,27 +43,62 @@ export default function VigilanceTestScreen() {
   const savedRef = useRef(false);
   const runningRef = useRef(false);
   const [interrupted, setInterrupted] = useState(false);
+  // The task clock runs outside React: one timeout aimed at the next event
+  // (cue due, response window over, countdown second, end of test). The cue
+  // appears on time instead of on the next poll, so reaction times are not
+  // inflated, and the screen renders only when something visible changes.
+  const stateRef = useRef(taskState);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopClock = () => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const commit = (next: VigilanceTaskState, now: number) => {
+    stateRef.current = next;
+    setTaskState(next);
+    setTickNow(now);
+  };
+
+  const scheduleNextEvent = () => {
+    stopClock();
+    const state = stateRef.current;
+    if (!runningRef.current || state.phase !== 'running') return;
+    const now = Date.now();
+    const events = [state.endsAt, state.nextCueAt];
+    if (state.cueShownAt !== null) {
+      events.push(state.cueShownAt + VIGILANCE_RESPONSE_WINDOW_MS);
+    }
+    if (state.endsAt !== null) {
+      const remaining = state.endsAt - now;
+      events.push(now + (remaining % 1000 || 1000));
+    }
+    const due = Math.min(
+      ...events.filter((time): time is number => time !== null),
+    );
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      if (!runningRef.current) return;
+      const firedAt = Date.now();
+      commit(advanceVigilanceTask(stateRef.current, firedAt), firedAt);
+      scheduleNextEvent();
+    }, Math.max(0, due - now));
+  };
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active' || !runningRef.current) return;
       runningRef.current = false;
+      stopClock();
       setInterrupted(true);
-      setTaskState(createVigilanceTaskState());
+      commit(createVigilanceTaskState(), Date.now());
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      stopClock();
+    };
   }, []);
-
-  useEffect(() => {
-    if (taskState.phase !== 'running') return undefined;
-    const timer = setInterval(() => {
-      if (!runningRef.current) return;
-      const now = Date.now();
-      setTickNow(now);
-      setTaskState((current) => advanceVigilanceTask(current, now));
-    }, 100);
-    return () => clearInterval(timer);
-  }, [taskState.phase]);
 
   useEffect(() => {
     if (
@@ -143,15 +180,21 @@ export default function VigilanceTestScreen() {
     savedRef.current = false;
     setSavedSessionId(null);
     const now = Date.now();
-    setTickNow(now);
-    setTaskState(startVigilanceTask(now));
+    commit(startVigilanceTask(now), now);
+    scheduleNextEvent();
   };
 
   const handleTap = () => {
     if (!runningRef.current) return;
     const now = Date.now();
-    setTickNow(now);
-    setTaskState((current) => registerVigilanceTap(current, now));
+    const next = registerVigilanceTap(stateRef.current, now);
+    if (next.feedback === 'false_start' && next.falseStartCount > stateRef.current.falseStartCount) {
+      haptics.warning();
+    } else if (next !== stateRef.current) {
+      haptics.tap();
+    }
+    commit(next, now);
+    scheduleNextEvent();
   };
 
   return (
@@ -230,7 +273,7 @@ export default function VigilanceTestScreen() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Vigilance test area"
+          accessibilityLabel="Reaction test area"
           onPress={taskState.phase === 'running' ? handleTap : undefined}
           disabled={taskState.phase !== 'running'}
           style={{
@@ -264,7 +307,7 @@ export default function VigilanceTestScreen() {
                   textAlign: 'center',
                 }}
               >
-                Measure your attentiveness
+                Check your reaction speed
               </Text>
               <Text
                 style={{
@@ -298,7 +341,7 @@ export default function VigilanceTestScreen() {
                     : palette.textSecondary,
                 }}
               >
-                {currentCueVisible ? 'Cue live' : 'Hold steady'}
+                {currentCueVisible ? 'Now' : 'Hold steady'}
               </Text>
               <Text
                 style={{
@@ -393,6 +436,15 @@ export default function VigilanceTestScreen() {
                   {latestSession.falseStartCount}
                 </Text>
               </View>
+              <Text
+                style={{
+                  ...typeRamp.footnote,
+                  color: palette.textSecondary,
+                  textAlign: 'center',
+                }}
+              >
+                A quick check of reaction speed, not a medical assessment.
+              </Text>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button
                   title="Run Again"

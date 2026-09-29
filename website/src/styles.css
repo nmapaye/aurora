@@ -56,15 +56,11 @@ button {
 }
 
 .brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 42px;
   height: 42px;
-  border-radius: 14px;
-  background: #0a84ff;
-  color: #fff;
-  font-weight: 700;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px #e6dfd2;
 }
 
 .brand-copy {

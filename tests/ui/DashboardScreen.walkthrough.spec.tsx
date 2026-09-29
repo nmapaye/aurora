@@ -19,30 +19,11 @@ import { navigate } from '~/navigation';
 import DashboardScreen from '~/screens/DashboardScreen';
 import { useStore } from '~/state/store';
 
-jest.mock('~/hooks/useAlertnessSeries', () => ({
-  useAlertnessSeries: () => ({
-    nowScore: 0,
-    mgActiveNow: 0,
-  }),
-}));
-jest.mock('~/hooks/useCaffeineCutoff', () => ({
-  __esModule: true,
-  default: () => ({
-    nextCutoff: 1_800_000_000_000,
-  }),
-}));
-jest.mock('~/hooks/useSleepGuidance', () => ({
-  __esModule: true,
-  default: () => ({
-    bedtime: 1_800_010_000_000,
-    wake: 1_800_040_000_000,
-  }),
-}));
 jest.mock('~/components/CaffeineTodayGraph', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => <Text>Caffeine graph</Text>,
+    default: function MockCaffeineGraphScreen() { return <Text>Caffeine graph</Text>; },
   };
 });
 jest.mock('~/navigation', () => ({
@@ -198,12 +179,12 @@ describe('DashboardScreen summary walkthrough composition', () => {
       screen.queryByRole('button', { name: 'Open settings' }),
     ).not.toBeOnTheScreen();
     expect(
-      screen.queryByRole('button', { name: 'Espresso 60mg' }),
+      screen.queryByRole('button', { name: /^Caffeine Logged/ }),
     ).not.toBeOnTheScreen();
     expect(screen.getAllByRole('button')).toHaveLength(2);
     expect(
       findRoleAncestor(
-        screen.getByText('Caffeine', {
+        screen.getByText('Caffeine Logged', {
           includeHiddenElements: true,
         }),
         'button',
@@ -211,20 +192,26 @@ describe('DashboardScreen summary walkthrough composition', () => {
     ).toBeOnTheScreen();
   });
 
-  it('preserves the real Recent Activity section gap inside its reveal', async () => {
+  it('leaves the Caffeine Logged signal as the only logging action', async () => {
     await render(<DashboardScreen />);
 
-    const recentReveal = findRevealAncestor(
-      screen.getByText('Recent Activity', {
-        includeHiddenElements: true,
-      }),
-    );
-    expect(StyleSheet.flatten(recentReveal.props.style)).toMatchObject({
-      gap: 16,
-    });
+    expect(
+      screen.getAllByText('Log Caffeine', { includeHiddenElements: true }),
+    ).toHaveLength(1);
+    expect(
+      findRevealAncestor(
+        screen.getByRole('button', {
+          name: /^Caffeine Logged/,
+          includeHiddenElements: true,
+        }),
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.queryByText('Recent Activity', { includeHiddenElements: true }),
+    ).not.toBeOnTheScreen();
   });
 
-  it('restores Settings, metric, and quick-add interactions after completion', async () => {
+  it('restores Settings, signal, and logging interactions after completion', async () => {
     const user = userEvent.setup();
     const { rerender } = await render(<DashboardScreen />);
 
@@ -239,24 +226,19 @@ describe('DashboardScreen summary walkthrough composition', () => {
       name: 'Open settings',
     });
     const caffeine = findRoleAncestor(
-      screen.getByText('Caffeine'),
+      screen.getByText('Caffeine Logged'),
       'button',
     );
-    const espresso = screen.getByRole('button', {
-      name: 'Espresso 60mg',
-    });
 
     await user.press(settings);
     await user.press(caffeine);
-    await user.press(espresso);
 
     expect(navigate).toHaveBeenNthCalledWith(1, 'Settings');
-    expect(navigate).toHaveBeenNthCalledWith(2, 'Insights');
-    expect(useStore.getState().doses).toHaveLength(1);
-    expect(useStore.getState().doses[0]).toMatchObject({
-      mg: 60,
-      source: 'Espresso',
-    });
+    // The caffeine signal is Summary's one route into Log.
+    expect(navigate).toHaveBeenNthCalledWith(2, 'Log');
+    expect(navigate).toHaveBeenCalledTimes(2);
+    // Summary opens Log rather than logging a dose itself.
+    expect(useStore.getState().doses).toHaveLength(0);
   });
 
   it('reserves the current coach height before reveal without a late layout jump', async () => {
@@ -290,7 +272,7 @@ describe('DashboardScreen summary walkthrough composition', () => {
         screen.getByTestId('app-screen-scroll').props
           .contentContainerStyle,
       ),
-    ).toMatchObject({ paddingBottom: 244 });
+    ).toMatchObject({ paddingBottom: 224 });
 
     setWalkthrough({ coachVisible: true });
     await rerender(<DashboardScreen />);
@@ -305,6 +287,6 @@ describe('DashboardScreen summary walkthrough composition', () => {
         screen.getByTestId('app-screen-scroll').props
           .contentContainerStyle,
       ),
-    ).toMatchObject({ paddingBottom: 244 });
+    ).toMatchObject({ paddingBottom: 224 });
   });
 });
