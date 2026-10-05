@@ -237,9 +237,9 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         let inputs = EstimateInputs(prefs: prefs, clock: utc)
         #expect(inputs.clock.timeZone.identifier == "Asia/Tokyo")
         prefs.tz = "Not/AZone"
-        #expect(EstimateInputs(prefs: prefs, clock: utc).clock.timeZone.identifier == "UTC")
+        #expect(EstimateInputs(prefs: prefs, clock: utc).clock.timeZone == utc.timeZone)
         prefs.tz = nil
-        #expect(EstimateInputs(prefs: prefs, clock: pacific).clock.timeZone.identifier == "America/Los_Angeles")
+        #expect(EstimateInputs(prefs: prefs, clock: pacific).clock.timeZone == pacific.timeZone)
     }
 
     @Test func cutoffRollsOverOnDSTChange() throws {
