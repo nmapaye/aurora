@@ -1,0 +1,99 @@
+name: iOS App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Aurora/**'
+      - 'AuroraCore/**'
+      - 'AuroraTests/**'
+      - 'AuroraUITests/**'
+      - 'Aurora.xcodeproj/**'
+      - '.github/workflows/ios-app-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Aurora/**'
+      - 'AuroraCore/**'
+      - 'AuroraTests/**'
+      - 'AuroraUITests/**'
+      - 'Aurora.xcodeproj/**'
+      - '.github/workflows/ios-app-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: ios-app (${{ matrix.device }})
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          udid=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          kind = '${{ matrix.device }}'
+          devices = json.load(sys.stdin)['devices']
+          runtimes = sorted((r for r in devices if 'iOS' in r), reverse=True)
+          for runtime in runtimes:
+              for d in devices[runtime]:
+                  if d['name'].startswith(kind):
+                      print(d['udid']); sys.exit(0)
+          sys.exit('no ' + kind + ' simulator found')
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        run: |
+          mkdir -p build
+          set +e
+          xcodebuild test \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-test.log 2>&1
+          status=$?
+          grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
+          exit $status
+
+      - name: Release build
+        if: matrix.device == 'iPhone'
+        run: |
+          mkdir -p build
+          set +e
+          xcodebuild build \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-release.log 2>&1
+          status=$?
+          grep -E "error:|\*\* .* \*\*" build/xcodebuild-release.log | head -200
+          exit $status
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xcodebuild-logs-${{ matrix.device }}
+          path: build/*.log

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.nmapaye.aurora</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aurora</string>
+				<string>com.nmapaye.aurora</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+	<string>Aurora does not read clinical health records. It only reads Sleep Analysis from Apple Health.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Aurora reads your Sleep Analysis from Apple Health to estimate sleep debt, time your caffeine cutoff, and show sleep trends. Access is read-only and stays on this device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Aurora does not write to Apple Health. Sleep access is read-only.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+</dict>
+</plist>
