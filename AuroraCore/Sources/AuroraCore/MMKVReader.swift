@@ -9,7 +9,7 @@ import Foundation
 /// replaces an earlier one, and an empty value deletes the key.
 ///
 /// String values are themselves length-prefixed, and some MMKV versions add a
-/// second prefix, so `string(forKey:)` accepts either form.
+/// second prefix, so `string(forKey:)` accepts raw, single and double forms.
 public struct MMKVReader: Sendable {
     public enum Failure: Error, Equatable {
         case tooShort
@@ -55,15 +55,21 @@ public struct MMKVReader: Sendable {
             guard let body = try? cursor.lengthPrefixed(), cursor.isAtEnd else { return nil }
             return body
         }
-        func looksLikeJSON(_ bytes: [UInt8]) -> Bool {
-            bytes.first == UInt8(ascii: "{") || bytes.first == UInt8(ascii: "[")
+        func isJSON(_ bytes: [UInt8]) -> Bool {
+            (try? JSONDecoder().decode(JSONValue.self, from: Data(bytes))) != nil
         }
-        let candidates: [[UInt8]?] = {
-            guard let once = unwrap(bytes) else { return [bytes] }
-            if looksLikeJSON(once) { return [once] }
-            return [unwrap(once), once, bytes]
-        }()
-        for candidate in candidates.compactMap({ $0 }) {
+        // A value can be raw, or carry one or two length prefixes. The raw
+        // value and its unwrapped form can both look plausible: a 124-byte
+        // JSON string opens with `{` (123), which also reads as a length.
+        // The candidate that parses as JSON wins; otherwise the first one
+        // that is valid UTF-8.
+        let once = unwrap(bytes)
+        let twice = once.flatMap(unwrap)
+        let candidates = [once, twice, bytes].compactMap { $0 }
+        if let json = candidates.first(where: isJSON) {
+            return String(bytes: json, encoding: .utf8)
+        }
+        for candidate in candidates {
             if let string = String(bytes: candidate, encoding: .utf8) { return string }
         }
         return nil

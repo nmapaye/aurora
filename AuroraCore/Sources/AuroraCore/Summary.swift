@@ -24,8 +24,15 @@ public struct EstimateInputs: Sendable {
         self.clock = clock
     }
 
+    /// A stored `prefs.tz` sets the zone for the time-of-day term, as it did
+    /// in the original model; otherwise `clock`'s zone applies.
     public init(prefs: Prefs, clock: LocalClock) {
-        self.init(halfLifeHours: prefs.halfLife, targetSleepHours: prefs.targetSleep, clock: clock)
+        let zone = prefs.tz.flatMap(TimeZone.init(identifier:))
+        self.init(
+            halfLifeHours: prefs.halfLife,
+            targetSleepHours: prefs.targetSleep,
+            clock: zone.map(LocalClock.init(timeZone:)) ?? clock
+        )
     }
 }
 

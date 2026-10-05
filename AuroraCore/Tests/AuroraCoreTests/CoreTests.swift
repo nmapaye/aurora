@@ -116,6 +116,27 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(state.doses == [Dose(id: "a", timestamp: 1, mg: 95)])
     }
 
+    @Test func mmkvRawJSONWhoseFirstByteLooksLikeALength() throws {
+        // `{` is 123, so a raw 124-byte JSON value also parses as a
+        // length-prefixed 123-byte value. The JSON reading must win.
+        var blob = #"{"state":{"prefs":{"halfLife":0.5,"targetSleep":10,"dailyLimitMg":1000}},"version":1,"pad":""}"#
+        while blob.utf8.count < 124 { blob.insert("x", at: blob.index(blob.endIndex, offsetBy: -2)) }
+        #expect(blob.utf8.count == 124)
+        let raw = MMKVReader.encode([(key: "aurora/state", value: blob)], valuePrefixes: 0)
+        #expect(try MMKVReader(data: raw).string(forKey: "aurora/state") == blob)
+        let state = try LegacyState.decode(blob, now: now)
+        #expect(state.prefs.halfLife == 0.5)
+    }
+
+    @Test func mmkvPrefixedValueWhoseLengthIs123() throws {
+        // The single-prefixed form of a 123-byte JSON value starts with
+        // byte 123 too; here the unwrapped value is the JSON.
+        var blob = #"{"state":{},"version":6,"pad":""}"#
+        while blob.utf8.count < 123 { blob.insert("x", at: blob.index(blob.endIndex, offsetBy: -2)) }
+        let data = MMKVReader.encode([(key: "aurora/state", value: blob)], valuePrefixes: 1)
+        #expect(try MMKVReader(data: data).string(forKey: "aurora/state") == blob)
+    }
+
     @Test func mmkvEmptyValueDeletesKey() throws {
         let data = MMKVReader.encode([(key: "k", value: "v"), (key: "k", value: "")], valuePrefixes: 0)
         #expect(try MMKVReader(data: data).string(forKey: "k") == nil)
@@ -208,6 +229,17 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(series.series.map(\.t) == series.series.map(\.t).sorted())
         #expect(series.series.contains { $0.t == now })
         #expect(series.series[8].hasDose)
+    }
+
+    @Test func storedTimeZoneSetsTheCircadianTerm() {
+        var prefs = Prefs.defaults
+        prefs.tz = "Asia/Tokyo"
+        let inputs = EstimateInputs(prefs: prefs, clock: utc)
+        #expect(inputs.clock.timeZone.identifier == "Asia/Tokyo")
+        prefs.tz = "Not/AZone"
+        #expect(EstimateInputs(prefs: prefs, clock: utc).clock.timeZone.identifier == "UTC")
+        prefs.tz = nil
+        #expect(EstimateInputs(prefs: prefs, clock: pacific).clock.timeZone.identifier == "America/Los_Angeles")
     }
 
     @Test func cutoffRollsOverOnDSTChange() throws {
