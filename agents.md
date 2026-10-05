@@ -1,225 +1,126 @@
-# Aurora — Agent Handoff
-
-Last updated: 2026-07-25 (branch `codex/health-style-secondary-pages`)
+# Aurora: Agent Handoff
 
 ## What this is
 
-Aurora is an iPhone and iPad app built with Expo SDK 54, React Native 0.81,
-React 19, and TypeScript. It tracks caffeine intake against sleep and
-alertness through optional read-only HealthKit sleep import, manual dose
-logging, a 60-second vigilance reaction test, and the pure alertness model in
-`src/domain/algorithm/`. State uses Zustand with MMKV persistence in
-`src/state/store.ts`. A standalone Vite showcase site lives in `website/`.
+Aurora is a native SwiftUI app for iPhone and iPad (iOS 17+). It tracks
+caffeine against sleep and alertness through optional read-only HealthKit
+sleep import, manual logging, a 60-second Reaction Test, and an alertness
+estimate. A standalone Vite showcase site lives in `website/`.
+
+The app was rewritten from React Native and Expo in October 2026. The rules,
+copy and estimates were ported one-to-one. The core tests still compare
+against fixtures the TypeScript code generated before it was removed, in UTC
+and America/Los_Angeles.
 
 The target is a paid App Store v0.1.0 release, free TestFlight beta testing,
-and an optional Gumroad companion guide/support package.
+and an optional Gumroad companion guide.
 
-## Active feature handoff
+## Layout
 
-The current effort is the Apple Health-style rebuild of Sleep, Log, and
-Insights plus a one-time ten-step walkthrough across Summary, Sleep, Log, and
-Insights.
+- `AuroraCore/`: a Swift package with no UIKit, which builds on Linux too.
+  - `Models.swift` and `AppState.swift`: the stored records and every action
+    that changes them.
+  - `Algorithms.swift`: caffeine decay, circadian term, sleep debt, inertia,
+    alertness.
+  - `Summary.swift`, `Sleep.swift`, `Insights.swift`, `CaffeineLog.swift`:
+    what each screen shows and says.
+  - `Signals.swift`: the signal card contract.
+  - `Export.swift`: the three CSVs.
+  - `Walkthrough.swift`: the ten steps, their reducer and deep links.
+  - `LegacyState.swift` and `MMKVReader.swift`: the import from the old
+    build.
+- `Aurora/`: the app.
+  - `App/AppModel.swift` owns the state and saves after every change.
+  - `App/Router.swift` holds tabs, pushed screens and modals.
+  - `App/MainTabs.swift` holds the tab bar and the walkthrough coach.
+  - `Services/` covers storage, HealthKit, reminders and haptics.
+  - `Screens/` has one folder per screen.
+- `AuroraTests/` (Swift Testing) and `AuroraUITests/` (XCTest).
 
-- Isolated worktree:
-  `.worktrees/health-style-secondary-pages`
-- Branch: `codex/health-style-secondary-pages`
-- Main baseline: `2d523bbb`
-- Approved design:
-  `docs/superpowers/specs/2026-07-24-health-style-secondary-pages-design.md`
-- Execution plan:
-  `docs/superpowers/plans/2026-07-24-health-style-secondary-pages.md`
-- Subagent ledger and review artifacts:
-  `.superpowers/sdd/` (ignored)
+`Aurora.xcodeproj` uses folder-synchronized groups. New files under
+`Aurora/`, `AuroraTests/` or `AuroraUITests/` join their target without
+project edits. `Info.plist` and `Aurora.entitlements` are excluded from the
+app's resources in the project file.
 
-Do not modify the dirty primary checkout or `.worktrees/main-merge`; their
-unrelated/generated changes belong to the user.
+## Rules that must hold
 
-### Progress
-
-1. Foundation complete and reviewed through `2b63d99`: `expo-symbols`,
-   `AppSymbol`, shared Health-style components, and the exact shared presets
-   Espresso 60 mg, Drip 95 mg, Matcha 70 mg, Energy 160 mg.
-2. Walkthrough state/model complete and reviewed through `d15e4c1`: persisted
-   version 5, ten exact steps, legacy Summary completion migration, cursor
-   clamping, and tab-gating helpers. The old Summary-only controller remains
-   intentionally until integration task 6.
-3. Sleep complete and reviewed through `8bc49de`: W/M 7-/30-day presentation,
-   30-day read-only Health refresh, honest Health states, manual Add/Edit/Delete
-   with notes and `manual:sleep:` IDs, `SleepHistory`, caffeine-impact
-   baseline, DST-safe calendar days, native date/time controls, accessibility,
-   and compact/wide coverage. The Task 3 gate passed 36 suites / 164 tests.
-4. Log redesign is currently in progress from `8bc49de` with the fresh
-   `task4_log_redesign` subagent. It owns the shared preset integration,
-   Today/Quick Add/Recent/Add Details hierarchy, custom-entry sheet,
-   confirmation behavior, and `CaffeineHistory`.
-5. Remaining sequential gates: review/fix Log; implement/review Insights and
-   history; integrate/review the ten-step walkthrough and accessibility; then
-   final whole-branch review and full delivery verification.
-
-Each implementation task uses a fresh subagent, strict red-green-refactor TDD,
-an independent specification/code-quality review, and fix/re-review loops
-before the next task begins. Keep implementation tasks sequential because they
-share navigation, screens, and tests.
-
-### Current feature constraints
-
-- Keep everything React Native and Expo Go-previewable; do not add `@expo/ui`
-  or a SwiftUI bridge.
-- Keep HealthKit read-only. Add no analytics, telemetry, or synthetic
-  walkthrough data.
-- Manual sleep alone is editable/deletable; Health and Sample Data remain
-  labeled and read-only.
+- Describe what was recorded. Never prescribe a dose, a bedtime, a wake time
+  or a sleep-cycle schedule, and never frame caffeine against a limit,
+  allowance or "remaining" amount. `CopyRules.violations(in:)` lists the
+  banned phrasing, and core tests run user-facing copy through it.
+- The stored `dailyLimitMg` is the user's "Personal caffeine reference". It
+  is never a safe amount or a goal.
+- A day with no record is "No record", never 0 mg. Averages count recorded
+  days only.
+- Caffeine timing before sleep shows a number only at 14 paired nights in
+  the last 30 days. A Reaction Test baseline appears only at 3 tests in 30
+  days. A period comparison appears only when both periods have enough
+  recorded days.
+- Sample Data (ids starting `demo:`) is labeled and read-only everywhere.
+  Health sleep is read-only. Only manual sleep (`manual:sleep:`) and
+  recorded caffeine can be edited or deleted.
+- HealthKit is read-only, Sleep Analysis only. Never describe access as
+  granted: HealthKit doesn't reveal read decisions.
 - The walkthrough has exactly ten steps: Summary 1–4, Sleep 5–6, Log 7–8,
-  Insights 9–10. Skip completes globally; Finish appears only at step 10.
-- Disable data-changing controls during the walkthrough. Resume the persisted
-  step after relaunch and honor Reduce Motion and VoiceOver.
-- W/M Sleep means 7/30 days. W/2W/M Insights means 7/14/30 days and defaults
-  to 2W.
-- Track shared `HealthFormSheet` trigger-focus restoration for task 6's
-  cross-screen accessibility pass.
+  Insights 9–10. While it is pending, tab selection is locked and deep links
+  go to the current step's tab.
+- Day math goes through `LocalClock` and number rounding through `jsRound`,
+  so DST and halves behave as they did in the old build.
 
-### Local command note
+## Storage
 
-The default shell may select Node 25, but the repository requires Node 24.
-Run npm commands with:
+`StateStore` writes `Application Support/Aurora/state.json`. The folder is
+excluded from backups, and the exclusion is confirmed before anything is
+read; otherwise the app shows a recovery screen. A file that fails to decode
+is moved to `state.corrupt.<ms>.json`, never overwritten. `AppState` decodes
+missing keys as defaults, so adding a field needs no migration. Bump
+`AppState.schemaVersion` only for a change that does.
 
-```bash
-/opt/homebrew/opt/node@24/bin/node \
-  /opt/homebrew/opt/node@24/lib/node_modules/npm/bin/npm-cli.js <command>
-```
+On first launch, `LegacyImport` reads the React Native build's
+`Documents/mmkv/aurora` (key `aurora/state`), saves the records, and removes
+the old folder. An unreadable old store is left alone.
 
-## Native development model
+## Checks
 
-The committed `ios/AURORA.xcworkspace` is authoritative for native
-configuration, signing, builds, profiling, and releases. Aurora maintains only
-the iPhone and iPad application.
+- `cd AuroraCore && swift test`
+- `xcodebuild test -project Aurora.xcodeproj -scheme Aurora -destination 'platform=iOS Simulator,name=iPhone 17'`
+- `npm run site:type-check` and `npm run site:build` for the website
 
-- Run `npm run ios:bootstrap` after cloning or changing native dependencies.
-- Start Metro with `npm start`.
-- Open the workspace with `npm run ios:open` and run the shared `AURORA`
-  scheme in Xcode.
-- Never open the `.xcodeproj` directly.
-- Never run `expo prebuild`; it can overwrite the manually owned project.
-- Use `npm run ios:build:debug` and `npm run ios:build:release` for unsigned
-  simulator build gates.
-
-See `docs/xcode-development.md` for exact ownership boundaries.
-
-## Routine checks
-
-- `npm run type-check`
-- `npm run lint`
-- `npm test -- --runInBand`
-- `npx expo export --platform ios`
-- `npm run site:type-check`
-- `npm run site:build`
-
-The last reviewed feature checkpoint (`8bc49de`) covered 36 suites and 164
-tests. Native build checks require stable Xcode 26.6 or 27.x with the iOS
-26.4+ SDK (last verified with Xcode 27.0, 27A266a, on 2026-09-27); never use
-a beta Xcode for release work.
-
-## Landmines and repository knowledge
-
-1. **The Xcode project is manually owned.** Native changes belong in the
-   project file, shared scheme, plists, entitlements, asset catalogs,
-   storyboard, AppDelegate, and Podfile. Review SDK migrations as dedicated
-   native diffs.
-2. **Persistence has a guard.** Any new persisted field must be added to
-   `normalizePersistedState` in `src/state/store.ts` and to the fixture in
-   `tests/state/store.persistence.spec.ts`.
-3. **The historical SSH-key alert was false.** The removed file only contained
-   the text `REMOVED`; full-history scanning confirmed no private key was
-   committed.
-4. **Validate after conflict resolution.** A previous GitHub UI merge broke
-   JSX on `main`; always type-check and test the resolved branch.
-5. **Do not bypass FortiGate TLS errors.** If a network re-signs GitHub
-   traffic, wait for a clean network or let the repository owner decide.
-6. **Ionicons is embedded natively.** If glyphs render blank, inspect
-   `UIAppFonts` in `ios/AURORA/Info.plist` and the Xcode Copy Bundle Resources
-   phase. Do not add runtime `loadAsync` calls.
-7. **Jest mocks native modules** in `tests/setup.ts`. Keep testable behavior in
-   pure modules where possible.
+CI runs Swift Core (Linux and macOS), iOS App (iPhone and iPad simulators
+plus a Release build), CodeQL (Actions, JavaScript/TypeScript, Swift) and
+gitleaks. Never merge on red.
 
 ## Icons and brand
 
-- Calm luxury rebrand (premium redesign, slice 1): warm ivory light surfaces
-  (`#F6F2EA`), deep ink dark surfaces (`#0F1317`), sea-glass accent
-  (`#1E6B64` light / `#7CC4B8` dark). Raw primitives and the wave-mark
-  geometry live in `src/theme/brand.ts`; screens use semantic roles from
-  `getAppPalette` and the tokens in `src/theme/tokens.ts`.
-- Shared primitives: `Surface`, `Divider`, `Eyebrow` in `src/components/ui.tsx`
-  and `BrandMark` in `src/components/BrandMark.tsx`.
-- Summary (premium redesign, slice 2): the Today hero pairs `AlertnessRing`
-  (Estimated Alertness, straight from `alertnessScore`) with an inspectable
-  `CaffeineTodayGraph`. Estimates, readouts, and chart accessibility copy live
-  in the pure `src/features/summary/presentation.ts`. With no sleep in the
-  model's 24-hour window the ring shows no score, only a placeholder.
-- Focused-signal redesign, slice 1 (Summary): Pinned holds only Caffeine
-  Logged, Sleep, and Reaction Test, built as `SignalCardModel`s
-  (`src/features/signals/model.ts`, builders in
-  `src/features/summary/signals.ts`) and rendered by `SignalCard`. Empty
-  signals collapse to a quiet row; sample data carries a badge. The user's
-  cutoff is an annotation on `CaffeineTodayGraph` (`getCutoffAnnotation`),
-  and one "Log Caffeine" action opens Log. Sleep/Log/Insights adopt the
-  contract in later slices.
-- Focused-signal redesign, slice 2 (Sleep): the inspectable `HealthBarChart`
-  (tap/drag, VoiceOver-adjustable, missing days read as missing) leads, beside
-  a Most Recent Sleep `SignalCard` (`src/features/sleep/signals.ts`) whose
-  context leads with the absolute wake date ("Sun, Sep 21") and whose footer
-  gives its age ("6 days ago"). "Caffeine
-  timing before sleep" always uses the last 30 days and shows a number only at
-  14 paired nights (`PAIRED_NIGHTS_REQUIRED`); the distribution sits behind a
-  disclosure. The dose plan and `useCaffeineCutoff` are gone. One "Sleep Data"
-  entry reveals Health/manual/sample controls and Show All Data; walkthrough
-  step 6 anchors on it (`sleep-data`).
-- Focused-signal redesign, slice 3 (Log): Logged Today states the recorded
-  total and its source (same wording as Summary's Caffeine Logged); there is
-  no "remaining"/limit framing. Quick Add logs at once with a 1-second
-  double-tap guard and an Undo; Custom Entry sits beside it. Recent shows five
-  entries with full local date/time and source; manual rows open Edit Entry
-  (`updateDose`, delete behind an Alert), Sample Data rows are read-only.
-  Pure helpers live in `src/features/caffeine/presentation.ts`. Settings
-  calls `prefs.dailyLimitMg` a "Personal caffeine reference" (field name kept
-  for compatibility). Walkthrough steps 7–8 cover logging and corrections.
-- Focused-signal redesign, slice 4 (Insights): an inspectable
-  `HealthBarChart` of daily caffeine (days without entries read "No record",
-  never 0 mg) whose headline averages recorded days only. A comparison with
-  the previous period appears only when both have `getTrendMinimumDays`
-  recorded days (half the range, at least 4). One Reaction Test `SignalCard`
-  (`reactionInsightSignal`) shows the latest test's date and source; a median
-  baseline appears only at 3 tests in 30 days. Time of day, drinks, and
-  history sit behind a Details disclosure. No limit/adherence, reference line,
-  or bedtime/wake advice (`useSleepGuidance` is gone). Settings → Data owns
-  every CSV export (`src/services/storage/export.ts`); History and Insights
-  have none. Walkthrough steps 9–10 anchor on `insights-top` and
-  `insights-reaction`.
-- First-run setup (premium redesign, slice 3): `OnboardingScreen` renders one
-  centered column on iPhone, narrow iPad windows, and accessibility text sizes,
-  and a two-column composition (brand + "Your setup" summary beside the form
-  card) at 800 pt and wider. Step copy, layout choice, and honest Health-access
-  wording live in the pure `src/features/onboarding/presentation.ts`. The
-  decorative `BrandHorizon` uses `auroraHorizon` in `src/theme/brand.ts`.
-- Mark copies: `website/public/aurora-mark.svg` and `scripts/make-icons.mjs`
-  mirror `auroraMark` in `src/theme/brand.ts`; keep all three in sync.
-- `node scripts/make-icons.mjs` (Node 24) regenerates the source/store icons,
-  the light/dark splash sources, the PNGs in the Xcode catalog, and
-  small-size previews in `build/icon-previews/`.
-- Xcode owns `ios/AURORA/Images.xcassets`. Its `Contents.json` files are
-  edited by hand (the splash color and image have dark appearances). Review
-  the catalog in Xcode after regenerating.
+- Warm ivory light surfaces (`#F6F2EA`), deep ink dark surfaces (`#0F1317`),
+  and a sea-glass accent (`#1E6B64` light, `#7CC4B8` dark). Every color role
+  lives in `Aurora/Theme/Palette.swift`.
+- The wave mark is drawn by `AuroraMark` in `Aurora/App/AuroraApp.swift` and
+  mirrored by `scripts/make-icons.mjs` and `website/public/aurora-mark.svg`.
+  Keep all three in sync.
+- `npm run icons` (Node 24) regenerates the icon PNGs in
+  `Aurora/Assets.xcassets/AppIcon.appiconset`.
+
+## Landmines
+
+1. **The historical SSH-key alert was false.** The removed file only
+   contained the text `REMOVED`; full-history scanning confirmed no private
+   key was committed.
+2. **Do not bypass FortiGate TLS errors.** If a network re-signs GitHub
+   traffic, wait for a clean network or let the repository owner decide.
+3. **Unsigned builds can't reach HealthKit.** Set a team to test Health.
 
 ## Remaining release work
 
-1. Install and select stable Xcode 26.6 or 27.x, switch the local shell to Node 24,
-   and run `npm run ios:bootstrap`.
-2. Configure the Apple Developer team and App Store Connect record for
+1. Configure the Apple Developer team and the App Store Connect record for
    `com.nmapaye.aurora`.
-3. Pass unsigned Debug and Release simulator builds plus physical iPhone/iPad
-   smoke tests.
-4. Create and validate a signed archive in Xcode Organizer, then distribute an
-   internal TestFlight build.
-5. Remove the temporary `eas.json` rollback path only after that Organizer
-   archive validates.
-6. Fill the real website and metadata link placeholders after the public
-   App Store/TestFlight destinations exist.
+2. Run the device checklist on a physical iPhone and iPad:
+   - HealthKit allow, deny and import
+   - the cutoff reminder
+   - VoiceOver, Dynamic Type and Reduce Motion
+   - chart drag versus scroll
+   - migration from a phone that ran the React Native build
+3. Archive in Xcode, validate in Organizer, and distribute an internal
+   TestFlight build.
+4. Fill the real website and metadata link placeholders once the public App
+   Store and TestFlight pages exist.

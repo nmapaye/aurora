@@ -18,13 +18,12 @@ Until those variables are set, the website intentionally shows setup labels inst
 
 ## Canonical Xcode Organizer Workflow
 
-1. Install and select stable Xcode 26.6, switch to Node 24, and run
-   `npm run ios:bootstrap -- --deployment`.
-2. Configure automatic signing on the `AURORA` target with the Apple Developer
+1. Install and select stable Xcode 26.6 or 27.x, then open `Aurora.xcodeproj`.
+2. Configure automatic signing on the `Aurora` target with the Apple Developer
    team that owns `com.nmapaye.aurora`.
 3. Confirm the marketing version in Xcode and increment the build number before
    every upload.
-4. Select the shared `AURORA` scheme and a generic iOS device destination, then
+4. Select the shared `Aurora` scheme and a generic iOS device destination, then
    choose Product → Archive.
 5. In Organizer, choose Validate App. Resolve all signing, entitlement,
    privacy, and metadata findings before proceeding.
@@ -88,10 +87,12 @@ TestFlight processing remains a separate release gate.
 - Custom caffeine entry appears in history.
 - Custom-entry time selection preserves the chosen time.
 - Vigilance test completes and saves a result.
-- Insights summary and daily totals CSV can be shared.
+- The three CSV exports in Settings → Data can be shared.
 - All four tabs preserve their navigation paths.
-- Opening the registered `aurora://` scheme launches Aurora without crashing.
-  Route-level deep-link prefixes are not configured in this migration.
+- Opening `aurora://summary`, `aurora://sleep`, `aurora://log`,
+  `aurora://insights`, `aurora://settings`, `aurora://vigilance`,
+  `aurora://sleep/history` and `aurora://caffeine/history` lands on that
+  screen. During the walkthrough, each lands on the current step's tab.
 - Enabling the daily cutoff reminder schedules a local notification; disabling
   it cancels the reminder without requesting remote-push capability.
 
@@ -111,13 +112,16 @@ Run this on a physical iPhone from the actual TestFlight build before sharing th
 - Add a quick caffeine dose and confirm the dashboard total changes.
 - Add a custom caffeine dose and confirm it appears in history.
 - Complete one vigilance test and confirm the result is saved in insights.
-- Export/share the insights summary or daily totals CSV and confirm the iOS share sheet opens.
+- From Settings → Data, export the daily totals CSV and confirm the iOS share sheet opens.
 - Enable and disable the daily cutoff reminder and verify local scheduling and
   cancellation.
 - Open the registered `aurora://` scheme and confirm Aurora launches without
   crashing.
 - Visit every tab and return to the previous stack without losing state.
 - Force quit and reopen Aurora, then confirm saved records and dashboard state still load.
+- On a device that ran the React Native build, install the Swift build over it
+  and confirm every caffeine entry, sleep session, Reaction Test and setting
+  carried over.
 
 ## Manual Physical iPad/TestFlight Smoke Checklist
 
@@ -129,7 +133,7 @@ iPhone and iPad device families. Then complete these iPad-specific checks:
 - Complete manual-only onboarding and confirm the adaptive layout does not clip or overlap content.
 - Visit Home, Log, Sleep, Insights, History, Vigilance, and Settings.
 - Confirm Health unavailable/available messaging is clear for the test device.
-- Confirm icons, splash, Settings privacy/support links, and share sheet behavior.
+- Confirm icons, the launch screen, Settings privacy/support links, and share sheet behavior.
 - Force quit and reopen Aurora, then confirm saved records and dashboard state still load.
 
 ## Accessibility and Appearance Review
@@ -160,22 +164,21 @@ Record the release-candidate result before submission:
 
 ## Release Checks
 
-Run these exact local checks from the repo root (`/Users/nmapaye/Documents/Local Coding Projects/aurora`) before sharing an App Store, Gumroad, or TestFlight link:
+Run these checks from the repo root before sharing an App Store, Gumroad, or
+TestFlight link:
 
 ```sh
-npm run ios:bootstrap -- --deployment
-npx expo-doctor
-npm run type-check
-npm run lint
-npm test -- --runInBand
+(cd AuroraCore && swift test)
+xcodebuild test -project Aurora.xcodeproj -scheme Aurora \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+xcodebuild test -project Aurora.xcodeproj -scheme Aurora \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)'
+xcodebuild build -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
 npm run site:type-check
 npm run site:build
-npx expo export --platform ios
-npm run ios:build:debug
-npm run ios:build:release
-git diff --exit-code -- ios
 ```
 
-All Expo Doctor checks must pass; do not suppress a new incompatibility. Finish
-with the physical iPhone/iPad, accessibility, signed-archive, and internal
-TestFlight gates above.
+Use whichever iPhone and iPad simulators your Xcode lists. Finish with the
+physical iPhone/iPad, accessibility, signed-archive, and internal TestFlight
+gates above.

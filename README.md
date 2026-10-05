@@ -4,84 +4,80 @@ Another Unwise Refill? O.K, Reconsider Alertness.
 
 Aurora is an iPhone and iPad app for understanding how caffeine timing, sleep,
 and alertness fit together. It supports optional read-only Apple Health sleep
-import, manual caffeine logging, a 60-second vigilance reaction test, and
-private on-device insights.
+import, manual caffeine logging, a 60-second reaction test, and private
+on-device insights.
 
-Aurora does not currently include cloud sync, an Apple Watch companion app,
-encrypted import/export, or background automation.
+Aurora does not include cloud sync, an Apple Watch companion app, encrypted
+import/export, or background automation.
 
 ## Requirements
 
-- macOS with stable Xcode 26.6 or 27.x and the iOS 26.4 SDK or newer. Never use a beta
-  Xcode for release work.
-- Node.js 24 and npm 11.6 or newer.
-- CocoaPods 1.16.2, matching `ios/Podfile.lock`.
+- macOS with stable Xcode 26.6 or 27.x. Never use a beta Xcode for release
+  work.
+- iOS 17 or later on the device or simulator.
 
-The repository pins its Node major in `.node-version`. The committed Xcode
-workspace is authoritative for native configuration, signing, builds,
-profiling, and releases.
+Nothing else is needed to build the app. Node.js 24 is only used for the
+website and the icon script.
 
-## Install
+## Develop in Xcode
 
 ```sh
 git clone https://github.com/nmapaye/aurora
 cd aurora
-npm install
-npm run ios:bootstrap
+open Aurora.xcodeproj
 ```
 
-The bootstrap checks the required tool versions, refreshes the ignored local
-Node path used by Xcode, and installs pods without changing native
-configuration.
+Select the shared `Aurora` scheme and an iPhone or iPad destination, then Run.
+HealthKit needs a signed build: set your team under Signing & Capabilities.
+Unsigned builds can't reach HealthKit, so Health access reads as not set up.
 
-## Develop in Xcode
+## Project layout
 
-Start Metro in one terminal:
+- `AuroraCore/` is a Swift package with every rule that doesn't need UIKit:
+  the records and their validation, the alertness, caffeine, and sleep
+  models, what each screen says, CSV export, Sample Data, and the import of
+  data left by the old React Native build. It builds and tests on macOS and
+  Linux.
+- `Aurora/` is the SwiftUI app. `App/` holds the model, router, and tabs;
+  `Services/` holds storage, HealthKit, reminders, and haptics; `Screens/`
+  has one folder per screen.
+- `AuroraTests/` and `AuroraUITests/` are the app's unit and UI tests.
 
-```sh
-npm start
-```
+The Xcode project uses folder-synchronized groups, so files added under these
+folders join their target without editing the project file.
 
-Open the CocoaPods workspace:
+## Data
 
-```sh
-npm run ios:open
-```
+State is one JSON file in Application Support, excluded from device backups.
+The app checks that exclusion before reading anything and shows a recovery
+screen if it can't confirm it.
 
-Select the shared `AURORA` scheme and an iPhone or iPad destination, then use
-Xcode's Run action. Use Fast Refresh and React Native DevTools for TypeScript,
-and Xcode's console, LLDB, and Instruments for native work.
-
-Always open `ios/AURORA.xcworkspace`, never `ios/AURORA.xcodeproj`. Do not run
-`expo prebuild`: Aurora's native project is maintained manually and prebuild
-can overwrite it. See `docs/xcode-development.md` for ownership boundaries and
-the full workflow.
+On first launch, Aurora imports records left by the React Native build
+(`Documents/mmkv/aurora`) and then removes that store. If the old store can't
+be read, it is left in place untouched.
 
 ## App permissions
 
-- Apple Health access is optional and read-only. The native project contains
-  `NSHealthShareUsageDescription` and the HealthKit entitlement.
-- Daily cutoff reminders are local notifications. They do not require the APNs
-  push entitlement.
-- If Health access is unavailable, denied, or empty, manual logging and sample
-  data remain available.
+- Apple Health access is optional and read-only (Sleep Analysis only).
+- The daily cutoff reminder is a local notification. It needs no push
+  entitlement.
+- If Health access is unavailable, denied, or empty, manual logging and
+  Sample Data still work.
 
 ## Checks
 
 ```sh
-npm run type-check
-npm run lint
-npm test -- --runInBand
-npx expo export --platform ios
-npm run ios:build:debug
-npm run ios:build:release
+cd AuroraCore && swift test
+xcodebuild test -project Aurora.xcodeproj -scheme Aurora \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-The two native build checks require the full supported Xcode installation.
+CI runs the core tests on Linux and macOS, the app's unit and UI tests on
+iPhone and iPad simulators, a Release build, CodeQL, and gitleaks.
 
 ## Showcase website
 
-The standalone Vite site remains independent from the Expo app:
+The standalone Vite site in `website/` is independent of the app:
 
 ```sh
 npm run site:dev
@@ -98,37 +94,13 @@ Aurora targets a paid App Store v0.1.0 release, with free TestFlight beta
 testing and an optional Gumroad companion guide. TestFlight access must not be
 sold, and a raw IPA must not be distributed as the product.
 
-See `docs/demo-release.md` for release checks and physical iPhone/iPad smoke
-tests. Create releases with Product → Archive in Xcode, Validate App in
-Organizer, then Distribute App → App Store Connect. Increment Xcode's build
-number before every upload.
+See `docs/demo-release.md` for release checks and device smoke tests. Create
+releases with Product → Archive in Xcode, Validate App in Organizer, then
+Distribute App → App Store Connect. Increment the build number before every
+upload.
 
-The existing EAS configuration remains only as a temporary emergency rollback
-until the first signed Organizer archive validates. It uses Xcode's local
-version values and is not a second supported release workflow.
+## Icons
 
-## Icons and launch assets
-
-Run `node scripts/make-icons.mjs` to regenerate the source icon and splash
-files. Because Xcode owns the native asset catalog, review and update
-`ios/AURORA/Images.xcassets` explicitly; never use prebuild to synchronize it.
-
-## Troubleshooting
-
-Clear Metro's cache:
-
-```sh
-npm start -- --clear
-```
-
-Refresh the local Node path and pods:
-
-```sh
-npm run ios:bootstrap
-```
-
-Confirm the active developer directory:
-
-```sh
-xcode-select -p
-```
+`npm run icons` regenerates the app icon PNGs in
+`Aurora/Assets.xcassets/AppIcon.appiconset` and the source copies in
+`assets/`. Review the result in Xcode before committing.
