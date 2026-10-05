@@ -10,6 +10,7 @@ on:
       - 'AuroraUITests/**'
       - 'Aurora.xcodeproj/**'
       - '.github/workflows/ios-app-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
   pull_request:
     paths:
       - 'Aurora/**'
@@ -18,6 +19,7 @@ on:
       - 'AuroraUITests/**'
       - 'Aurora.xcodeproj/**'
       - '.github/workflows/ios-app-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
   workflow_dispatch:
 
 permissions:
@@ -71,6 +73,7 @@ jobs:
             > build/xcodebuild-test.log 2>&1
           status=$?
           grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
           exit $status
 
       - name: Release build
@@ -88,6 +91,7 @@ jobs:
             > build/xcodebuild-release.log 2>&1
           status=$?
           grep -E "error:|\*\* .* \*\*" build/xcodebuild-release.log | head -200
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release.log
           exit $status
 
       - name: Upload logs
