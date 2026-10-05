@@ -8,22 +8,29 @@ struct MainTabs: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
 
+    /// What the tab bar shows. The iPad tab bar keeps a refused selection on
+    /// screen, so a locked tap is undone by setting this back.
+    @State private var shown: AppTab = .summary
+
     private var walkthroughPending: Bool { model.state.isWalkthroughPending }
 
     var body: some View {
         @Bindable var router = router
-        let selection = Binding<AppTab>(
-            get: { router.tab },
-            set: { newValue in
-                guard !walkthroughPending else { return }
-                router.tab = newValue
-            }
-        )
-        TabView(selection: selection) {
+        TabView(selection: $shown) {
             tab(.summary, path: $router.summaryPath) { SummaryView() }
             tab(.sleep, path: $router.sleepPath) { SleepView() }
             tab(.log, path: $router.logPath) { LogView() }
             tab(.insights, path: $router.insightsPath) { InsightsView() }
+        }
+        .onChange(of: shown) { _, newValue in
+            if walkthroughPending {
+                if newValue != router.tab { shown = router.tab }
+            } else {
+                router.tab = newValue
+            }
+        }
+        .onChange(of: router.tab) { _, newValue in
+            if shown != newValue { shown = newValue }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if walkthroughPending {
@@ -40,6 +47,7 @@ struct MainTabs: View {
             if walkthroughPending {
                 router.tab = Walkthrough.tab(forStep: model.state.onboarding.appWalkthroughStep)
             }
+            shown = router.tab
         }
     }
 
