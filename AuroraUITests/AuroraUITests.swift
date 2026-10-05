@@ -21,21 +21,41 @@ final class AuroraUITests: XCTestCase {
         next.tap()
     }
 
+    /// Taps a tab. The iPhone tab bar is not always reported as a tab bar,
+    /// so a plain button with the tab's label is the fallback.
+    private func tapTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let inBar = app.tabBars.buttons[name]
+        if inBar.waitForExistence(timeout: 3) {
+            inBar.tap()
+            return
+        }
+        let plain = app.buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+        if plain.waitForExistence(timeout: 2) {
+            plain.tap()
+            return
+        }
+        let tree = app.debugDescription
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: " | ")
+        XCTFail("No \(name) tab. Tree: \(tree.prefix(6000))", file: file, line: line)
+    }
+
     func testWalkthroughLocksTabsUntilSkipped() {
         finishManualSetup()
         let skip = app.buttons["walkthrough-skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 5))
-        app.tabBars.buttons["Log"].tap()
+        tapTab("Log")
         XCTAssertFalse(app.buttons["quick-add-drip"].waitForExistence(timeout: 1), "Tabs stay locked during the walkthrough")
         skip.tap()
-        app.tabBars.buttons["Log"].tap()
+        tapTab("Log")
         XCTAssertTrue(app.buttons["quick-add-drip"].waitForExistence(timeout: 5))
     }
 
     func testQuickAddThenUndo() {
         finishManualSetup()
         app.buttons["walkthrough-skip"].tap()
-        app.tabBars.buttons["Log"].tap()
+        tapTab("Log")
         app.buttons["quick-add-drip"].tap()
         let undo = app.buttons["quick-add-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5))
@@ -49,7 +69,7 @@ final class AuroraUITests: XCTestCase {
         finishManualSetup()
         app.buttons["walkthrough-skip"].tap()
         app.buttons["Load Sample Data"].firstMatch.tap()
-        app.tabBars.buttons["Log"].tap()
+        tapTab("Log")
         let sampleRow = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS 'Sample Data, read-only'"))
             .firstMatch

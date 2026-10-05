@@ -94,6 +94,7 @@ struct LogView: View {
                 .padding(Metrics.sm)
                 .background(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).fill(StatusTone.success.background))
                 .transition(.opacity)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("quick-add-confirmation")
             }
             Button {

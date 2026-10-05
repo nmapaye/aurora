@@ -200,6 +200,7 @@ struct SleepView: View {
                             .disabled(!state.demoMode)
                     }
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("sleep-data-panel")
             }
         }
