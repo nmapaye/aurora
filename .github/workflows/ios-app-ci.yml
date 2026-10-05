@@ -11,7 +11,6 @@ on:
       - 'Aurora.xcodeproj/**'
       - '.github/workflows/ios-app-ci.yml'
   pull_request:
-    branches: [main]
     paths:
       - 'Aurora/**'
       - 'AuroraCore/**'
