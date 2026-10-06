@@ -422,6 +422,36 @@ import Testing
     }
 }
 
+@Suite struct CSVExportTests {
+    final class Calls: @unchecked Sendable { var count = 0 }
+
+    @Test func textIsBuiltOnlyWhenShared() throws {
+        let calls = Calls()
+        let file = CSVFile(name: "aurora-lazy.csv") {
+            calls.count += 1
+            return "date,mg\n"
+        }
+        // Settings creates these on every draw; nothing is built yet.
+        #expect(calls.count == 0)
+        let url = try file.write()
+        #expect(calls.count == 1)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "date,mg\n")
+        try CSVFile.purgeExports()
+    }
+
+    @Test func ancientEntriesExportWithoutFillingEveryDay() throws {
+        let now = AppModel.currentMillis()
+        let doses = [Dose(id: "a", timestamp: -8.64e15, mg: 50), Dose(id: "b", timestamp: now - 60_000, mg: 95)]
+        let clock = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)
+        let file = CSVFile(name: "aurora-daily-test.csv") {
+            Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: now, clock: clock))
+        }
+        let text = try String(contentsOf: try file.write(), encoding: .utf8)
+        #expect(text.split(separator: "\n").count == 3)
+        try CSVFile.purgeExports()
+    }
+}
+
 @Suite struct HealthAccessTests {
     @Test func requestsReadOnlySleepAccess() {
         #expect(HealthKitService.shareTypes.isEmpty)

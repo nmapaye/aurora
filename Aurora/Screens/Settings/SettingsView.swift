@@ -89,15 +89,21 @@ struct SettingsView: View {
 
                 Section {
                     row("Stored on this device", detail: "Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health.")
-                    ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv", text: Export.doseEntriesCSV(state.doses, clock: model.clock)),
+                    ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv") { [doses = state.doses, clock = model.clock] in
+                        Export.doseEntriesCSV(doses, clock: clock)
+                    },
                               preview: SharePreview("Caffeine entries")) {
                         row("Export Caffeine Entries", detail: "CSV of every recorded entry (\(state.doses.count)), with its source.")
                     }
-                    ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv", text: Export.dailyTotalsCSV(Export.dailyTotalRows(state.doses, now: model.now, clock: model.clock))),
+                    ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv") { [doses = state.doses, now = model.now, clock = model.clock] in
+                        Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: now, clock: clock))
+                    },
                               preview: SharePreview("Daily caffeine totals")) {
                         row("Export Daily Caffeine Totals", detail: "CSV by day. Days without entries are marked “no record”, not 0 mg.")
                     }
-                    ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv", text: Export.vigilanceSessionsCSV(state.vigilanceSessions)),
+                    ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv") { [sessions = state.vigilanceSessions] in
+                        Export.vigilanceSessionsCSV(sessions)
+                    },
                               preview: SharePreview("Reaction Tests")) {
                         row("Export Reaction Tests", detail: "CSV of every Reaction Test (\(state.vigilanceSessions.count)), with its source.")
                     }
@@ -198,11 +204,22 @@ struct SettingsView: View {
     }
 }
 
-/// A CSV export handed to the share sheet as a file. Exports are written to
-/// one temporary folder so Delete All Data can remove them.
+/// A CSV export handed to the share sheet as a file. The text is built only
+/// when the share actually happens, not each time Settings draws, and
+/// exports are written to one temporary folder so Delete All Data can remove
+/// them.
 struct CSVFile: Transferable {
     let name: String
-    let text: String
+    let contents: @Sendable () -> String
+
+    init(name: String, contents: @escaping @Sendable () -> String) {
+        self.name = name
+        self.contents = contents
+    }
+
+    init(name: String, text: String) {
+        self.init(name: name) { text }
+    }
 
     static var exportDirectory: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("AuroraExports", isDirectory: true)
@@ -218,7 +235,7 @@ struct CSVFile: Transferable {
     func write() throws -> URL {
         try FileManager.default.createDirectory(at: Self.exportDirectory, withIntermediateDirectories: true)
         let url = Self.exportDirectory.appendingPathComponent(name)
-        try Data(text.utf8).write(to: url, options: [.atomic, .completeFileProtection])
+        try Data(contents().utf8).write(to: url, options: [.atomic, .completeFileProtection])
         return url
     }
 
