@@ -145,8 +145,12 @@ def main():
         with open(os.path.join(core_src, "MMKVPredef.h")) as handle:
             core_version = next(line.split('"')[1] for line in handle if "MMKV_VERSION =" in line)
 
-        # Bytes 4-7 (MMKV's item-size placeholder) differ from run to run;
-        # the reader skips them. Everything else is the same each time.
+        # Bytes 4-7 hold MMKV's item-size placeholder, a varint whose value
+        # MMKV picks at random (AESCrypt::randomItemSizeHolder(4)) between
+        # 0x200000 and 0x0FFFFFFF: always a canonical 4-byte varint, so it
+        # differs from run to run. MMKVReader parses it with the same strict
+        # varint rules as every other length and ignores its value.
+        # Everything else is the same each time.
         shutil.rmtree(OUT, ignore_errors=True)
         os.makedirs(OUT)
         manifest = {

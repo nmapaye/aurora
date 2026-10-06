@@ -101,6 +101,15 @@ import Testing
 
     static let placeholder: [UInt8] = [0xFF, 0xFF, 0xFF, 0x07]
 
+    /// MMKV fills bytes 4-7 with a random placeholder from 0x200000 to
+    /// 0x0FFFFFFF (AESCrypt::randomItemSizeHolder(4)), which is the canonical
+    /// 4-byte varint range; both ends must parse.
+    @Test(arguments: [[UInt8]([0x80, 0x80, 0x80, 0x01]), [0xFF, 0xFF, 0xFF, 0x7F]])
+    func everyPlaceholderMMKVWritesParses(placeholder: [UInt8]) throws {
+        let reader = try MMKVReader(data: Self.file(placeholder + [1, 0x6B, 2, 1, 0x41]))
+        #expect(reader.string(forKey: "k") == "A")
+    }
+
     @Test func lengthNearIntMaxThrows() {
         // A ten-byte varint that older code decoded to Int.max, then added to
         // the cursor position.
