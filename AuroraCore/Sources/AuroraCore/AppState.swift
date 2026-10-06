@@ -52,9 +52,10 @@ public struct AppState: Codable, Equatable, Sendable {
         doses.append(dose)
     }
 
-    /// Replaces an entry's recorded fields. The entry keeps its id.
+    /// Replaces an entry's recorded fields. The entry keeps its id. Sample
+    /// Data is read-only, so sample entries are left alone.
     public mutating func updateDose(id: String, timestamp: Millis, mg: Double, source: String?, note: String?) {
-        guard let index = doses.firstIndex(where: { $0.id == id }) else { return }
+        guard !RecordID.isSample(id), let index = doses.firstIndex(where: { $0.id == id }) else { return }
         doses[index].timestamp = timestamp
         doses[index].mg = mg
         doses[index].source = source
@@ -65,7 +66,9 @@ public struct AppState: Codable, Equatable, Sendable {
         updateDose(id: id, timestamp: patch.timestamp, mg: patch.mg, source: patch.source, note: patch.note)
     }
 
+    /// Sample entries are removed only by clearing Sample Data.
     public mutating func removeDose(id: String) {
+        guard !RecordID.isSample(id) else { return }
         doses.removeAll { $0.id == id }
     }
 

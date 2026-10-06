@@ -325,3 +325,84 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(none.detail.hasPrefix("Check sleep records"))
     }
 }
+
+/// Regressions for the risky paths named in the pre-review audit.
+@Suite struct PreflightTests {
+    @Test func sampleDosesIgnoreEditsAndDeletes() {
+        var state = AppState()
+        state.loadSampleData(now: now, clock: utc)
+        guard let sample = state.doses.first else {
+            Issue.record("no sample doses")
+            return
+        }
+        state.updateDose(id: sample.id, timestamp: 1, mg: 1, source: nil, note: nil)
+        state.removeDose(id: sample.id)
+        #expect(state.doses.first == sample)
+        #expect(!CaffeineLog.isEditable(sample))
+    }
+
+    @Test func sampleSleepAndReactionTestsStayPut() {
+        var state = AppState()
+        state.loadSampleData(now: now, clock: utc)
+        let sleeps = state.sleeps
+        let sessions = state.vigilanceSessions
+        #expect(!sleeps.isEmpty && !sessions.isEmpty)
+        for sleep in sleeps {
+            state.updateManualSleep(id: sleep.id, start: 0, end: 1, note: "x")
+            state.removeManualSleep(id: sleep.id)
+        }
+        #expect(state.sleeps == sleeps)
+        #expect(state.vigilanceSessions == sessions)
+    }
+
+    @Test func legacySleepIDsAreReadOnly() {
+        // An old Health ID that does not match its own boundaries keeps its
+        // id and is not manual, so it cannot be changed.
+        var state = AppState()
+        state.sleeps = HealthSleepIdentity.normalize([SleepSession(id: "sleep:1:2", start: 100, end: 200)])
+        let before = state.sleeps
+        for sleep in before {
+            state.updateManualSleep(id: sleep.id, end: 300)
+            state.removeManualSleep(id: sleep.id)
+        }
+        #expect(state.sleeps == before)
+        #expect(before.allSatisfy { !RecordID.isManualSleep($0.id) })
+    }
+
+    @Test func overlappingManualAndHealthSleepCountsOnce() {
+        // Health 23:00-07:00 and a manual 01:00-05:00 entry for the same night.
+        let wake = utc.startOfDay(now) + 7 * hourMs
+        let sessions = [
+            SleepSession(id: HealthSleepIdentity.id(start: wake - 8 * hourMs, end: wake), start: wake - 8 * hourMs, end: wake),
+            SleepSession(id: "manual:sleep:1:a", start: wake - 6 * hourMs, end: wake - 2 * hourMs),
+        ]
+        let week = SleepModel.presentation(sessions: sessions, targetSleepHours: 8, range: .week, now: now, clock: utc, text: fixtureText)
+        #expect(week.points.last?.durationMs == 8 * hourMs)
+        #expect(week.recordedNights == 1)
+    }
+
+    @Test func daysWithoutSleepAreMissingNotZero() {
+        let wake = utc.startOfDay(now) + 7 * hourMs
+        let sessions = [SleepSession(id: "manual:sleep:1:a", start: wake - 6 * hourMs, end: wake)]
+        let week = SleepModel.presentation(sessions: sessions, targetSleepHours: 8, range: .week, now: now, clock: utc, text: fixtureText)
+        #expect(week.points.count == 7)
+        #expect(week.points.dropLast().allSatisfy { $0.durationMs == nil })
+        #expect(week.averageDurationMs == 6 * hourMs)
+    }
+
+    @Test func manualSleepAcrossDSTUsesElapsedTime() {
+        // US DST ends Nov 1 2026 at 02:00 PDT; 23:00 to 07:00 local is nine hours.
+        let start = localMillis(pacific, 2026, 10, 31, 23)
+        let end = localMillis(pacific, 2026, 11, 1, 7)
+        let sessions = [SleepSession(id: "manual:sleep:1:a", start: start, end: end)]
+        let week = SleepModel.presentation(sessions: sessions, targetSleepHours: 8, range: .week, now: end + hourMs, clock: pacific, text: fixtureText)
+        #expect(week.points.last?.durationMs == 9 * hourMs)
+    }
+}
+
+private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Millis {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = clock.timeZone
+    let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    return date.timeIntervalSince1970 * 1000
+}
