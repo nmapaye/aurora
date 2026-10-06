@@ -54,8 +54,9 @@ struct StateStore {
         /// The file exists but couldn't be read, for example while the
         /// device is locked before its first unlock. Nothing is changed.
         case unreadable
-        /// The file was read but doesn't decode. It stays in place, and a
-        /// copy is kept beside it when the copy succeeds.
+        /// The file was read but doesn't decode, or holds records with no
+        /// calendar date and no copy of it could be kept. It stays in place,
+        /// and a copy is kept beside it when the copy succeeds.
         case corrupt(backup: URL?)
     }
 
@@ -74,19 +75,30 @@ struct StateStore {
         guard manager.fileExists(atPath: fileURL.path) else { return .missing }
         guard let data = try? Data(contentsOf: fileURL) else { return .unreadable }
         if let state = try? JSONDecoder().decode(AppState.self, from: data) {
-            return .loaded(state)
+            // A hand-edited file can hold times with no calendar date, which
+            // the screens and exports can't use. Those records are dropped,
+            // but only once the file as found has a copy kept beside it;
+            // without one, nothing is written until the person decides.
+            let cleaned = state.droppingInvalidTimes()
+            guard cleaned != state else { return .loaded(state) }
+            return keepCopy(of: data, now: now) == nil ? .corrupt(backup: nil) : .loaded(cleaned)
         }
-        // Retrying shouldn't pile up copies of the same damaged file.
+        return .corrupt(backup: keepCopy(of: data, now: now))
+    }
+
+    /// Copies `data` (the current state.json) aside, reusing an identical
+    /// copy so retries don't pile them up. `nil` if the copy failed.
+    private func keepCopy(of data: Data, now: Date) -> URL? {
         if let existing = corruptBackups().first(where: { (try? Data(contentsOf: $0)) == data }) {
-            return .corrupt(backup: existing)
+            return existing
         }
         let stamp = Int(now.timeIntervalSince1970 * 1000)
         let backup = directory.appendingPathComponent("\(backupPrefix)\(stamp).json")
         do {
-            try manager.copyItem(at: fileURL, to: backup)
-            return .corrupt(backup: backup)
+            try FileManager.default.copyItem(at: fileURL, to: backup)
+            return backup
         } catch {
-            return .corrupt(backup: nil)
+            return nil
         }
     }
 

@@ -227,6 +227,37 @@ import Testing
         #expect(!store.corruptBackups().isEmpty)
     }
 
+    @Test func undateableRecordsAreDroppedAtLoadWithACopyKept() throws {
+        // As a hand edit could leave it: one ordinary dose, one at 1e300 ms.
+        try StateStore(directory: storeDirectory).prepare()
+        var edited = AppState()
+        edited.onboarding.completed = true
+        edited.doses = [
+            Dose(id: "ok", timestamp: 1_790_000_000_000, mg: 95),
+            Dose(id: "huge", timestamp: 1e300, mg: 60),
+        ]
+        let original = try JSONEncoder().encode(edited)
+        try original.write(to: stateFile)
+
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .ready)
+        #expect(model.state.doses.map(\.id) == ["ok"])
+        let backups = StateStore(directory: storeDirectory).corruptBackups()
+        #expect(backups.count == 1)
+        #expect(try Data(contentsOf: backups[0]) == original)
+        // Settings' exports run on the cleaned records.
+        let csv = Export.doseEntriesCSV(model.state.doses, clock: model.clock)
+        #expect(!csv.contains("huge"))
+
+        // The next save writes the cleaned state; relaunching doesn't copy again.
+        model.setPrefs { $0.cutoffHour = 13 }
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.state.doses.map(\.id) == ["ok"])
+        #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
+    }
+
     @Test func unreadableStateOffersOnlyRetry() throws {
         // A directory where the file should be: it exists but can't be read.
         try FileManager.default.createDirectory(at: stateFile, withIntermediateDirectories: true)
