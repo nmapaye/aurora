@@ -478,6 +478,9 @@ import Testing
         model.load()
         model.setPrefs { $0.cutoffHour = 12 }
         model.loadSampleData()
+        // Loading Sample Data completes onboarding, which starts the
+        // walkthrough; Delete All Data is in Settings, reachable after it.
+        model.completeWalkthrough()
         model.deleteAllData()
         #expect(model.state.doses.isEmpty && model.state.sleeps.isEmpty)
         #expect(model.state.prefs.cutoffHour == 12)
