@@ -60,6 +60,18 @@ public enum JSONValue: Equatable, Sendable, Decodable {
         if case .number(let number) = self, number.isFinite { return number }
         return nil
     }
+
+    /// The largest instant JavaScript's `Date` can hold, in milliseconds
+    /// either side of the epoch. The React Native build couldn't use a time
+    /// outside it (it became an Invalid Date), and calendar arithmetic that
+    /// far out isn't meaningful, so such a time marks the record malformed.
+    static let maxInstant: Double = 8.64e15
+
+    /// A finite number inside JavaScript's `Date` range.
+    var instant: Millis? {
+        guard let number = finite, abs(number) <= Self.maxInstant else { return nil }
+        return number
+    }
 }
 
 /// Reads the React Native build's persisted store (`aurora/state` in MMKV):
@@ -138,7 +150,7 @@ public enum LegacyState {
     static func dose(_ value: JSONValue) -> Dose? {
         guard let object = value.object,
               let id = id(object["id"]),
-              let timestamp = object["timestamp"]?.finite,
+              let timestamp = object["timestamp"]?.instant,
               let mg = object["mg"]?.finite, mg >= 0 else { return nil }
         return Dose(id: id, timestamp: timestamp, mg: mg, source: object["source"]?.string, note: object["note"]?.string)
     }
@@ -146,8 +158,8 @@ public enum LegacyState {
     static func sleep(_ value: JSONValue) -> SleepSession? {
         guard let object = value.object,
               let id = id(object["id"]),
-              let start = object["start"]?.finite,
-              let end = object["end"]?.finite, end > start,
+              let start = object["start"]?.instant,
+              let end = object["end"]?.instant, end > start,
               let type = object["type"]?.string.flatMap(SleepType.init(rawValue:)) else { return nil }
         return SleepSession(id: id, start: start, end: end, type: type, note: object["note"]?.string)
     }
@@ -155,14 +167,18 @@ public enum LegacyState {
     static func vigilance(_ value: JSONValue) -> VigilanceSession? {
         guard let object = value.object,
               let id = id(object["id"]),
-              let startedAt = object["startedAt"]?.finite,
-              let completedAt = object["completedAt"]?.finite,
+              let startedAt = object["startedAt"]?.instant,
+              let completedAt = object["completedAt"]?.instant,
               let score = object["score"]?.finite,
               let ratingText = object["rating"]?.string else { return nil }
         // "Fatigued" read as a diagnosis; older results get the softer label.
+        // Scores are 0-100 and counts are never negative; a stored value outside
+        // that (only a damaged or hand-edited store has one) is pulled back in
+        // rather than carried through as a giant number.
+        let boundedScore = clamp(jsRoundInt(score), 0, 100)
         let rating = VigilanceRating(rawValue: ratingText == "Fatigued" ? "Sluggish" : ratingText)
-            ?? Vigilance.rating(for: jsRoundInt(score))
-        func int(_ key: String) -> Int { object[key]?.finite.map(jsRoundInt) ?? 0 }
+            ?? Vigilance.rating(for: boundedScore)
+        func int(_ key: String) -> Int { max(0, object[key]?.finite.map(jsRoundInt) ?? 0) }
         return VigilanceSession(
             id: id,
             startedAt: startedAt,
@@ -176,7 +192,7 @@ public enum LegacyState {
             meanReactionMs: object["meanReactionMs"]?.finite,
             fastestReactionMs: object["fastestReactionMs"]?.finite,
             reactionStdDevMs: object["reactionStdDevMs"]?.finite,
-            score: jsRoundInt(score),
+            score: boundedScore,
             rating: rating
         )
     }
@@ -207,7 +223,7 @@ public enum LegacyState {
         if let value = onboarding["permissionStatus"]?.string.flatMap(HealthPermissionStatus.init(rawValue:)) {
             normalizedOnboarding.permissionStatus = value
         }
-        if let value = onboarding["completedAt"]?.finite { normalizedOnboarding.completedAt = value }
+        if let value = onboarding["completedAt"]?.instant { normalizedOnboarding.completedAt = value }
         if let value = onboarding["appWalkthroughCompleted"]?.bool { normalizedOnboarding.appWalkthroughCompleted = value }
         normalizedOnboarding.appWalkthroughStep = onboarding["appWalkthroughStep"]?.finite
             .map { AppState.clampWalkthroughStep(Int(floor(clamp($0, -1, 100)))) } ?? 0
@@ -215,9 +231,9 @@ public enum LegacyState {
 
         let healthSync = state["healthSync"]?.object ?? [:]
         var normalizedSync = HealthSync.defaults
-        if let value = healthSync["lastSyncedAt"]?.finite { normalizedSync.lastSyncedAt = value }
+        if let value = healthSync["lastSyncedAt"]?.instant { normalizedSync.lastSyncedAt = value }
         if let value = healthSync["lastMessage"]?.string { normalizedSync.lastMessage = value }
-        if let value = healthSync["importedCount"]?.finite { normalizedSync.importedCount = jsRoundInt(value) }
+        if let value = healthSync["importedCount"]?.finite { normalizedSync.importedCount = max(0, jsRoundInt(value)) }
         if healthSync["importStatus"]?.string == "importing" {
             normalizedSync.lastMessage = "Health import was interrupted. Try again."
         }

@@ -246,8 +246,7 @@ public struct TodayCaffeineSeries: Equatable, Sendable {
         clock: LocalClock,
         stepMinutes: Double = 60
     ) -> TodayCaffeineSeries {
-        let start = clock.startOfDay(now)
-        let end = clock.addingDays(1, to: start)
+        let (start, end) = clock.dayBounds(now)
         let stepMs = max(1, stepMinutes * minuteMs)
         let count = max(2, jsRoundInt((end - start) / stepMs) + 1)
 

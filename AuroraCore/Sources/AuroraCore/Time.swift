@@ -15,9 +15,22 @@ public func jsRound(_ value: Double) -> Double {
     (value + 0.5).rounded(.down)
 }
 
+/// `jsRound` as an `Int`. Stored records can hold any finite number, and
+/// `Int(_:)` traps outside its range, so this saturates instead.
 @inlinable
 public func jsRoundInt(_ value: Double) -> Int {
-    Int(jsRound(value))
+    saturatingInt(jsRound(value))
+}
+
+/// `Int(value)` without the trap: NaN is 0, and values beyond `Int`'s range
+/// become `Int.min` or `Int.max`. `Double(Int.max)` is 2^63, one past the
+/// largest `Int`, so anything at or above it saturates.
+@inlinable
+public func saturatingInt(_ value: Double) -> Int {
+    if value.isNaN { return 0 }
+    if value >= Double(Int.max) { return .max }
+    if value <= Double(Int.min) { return .min }
+    return Int(value)
 }
 
 @inlinable
@@ -88,6 +101,13 @@ public struct LocalClock: Sendable {
             return ms + Millis(days) * dayMs
         }
         return millis(result)
+    }
+
+    /// The local calendar day containing `ms`: its midnight, and the next
+    /// day's midnight (23 or 25 hours later across a DST change).
+    public func dayBounds(_ ms: Millis) -> (start: Millis, end: Millis) {
+        let start = startOfDay(ms)
+        return (start, addingDays(1, to: start))
     }
 
     public func hour(_ ms: Millis) -> Int {

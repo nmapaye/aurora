@@ -6,11 +6,13 @@ on:
     paths:
       - 'AuroraCore/**'
       - '.github/workflows/core-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
   pull_request:
     branches: [main]
     paths:
       - 'AuroraCore/**'
       - '.github/workflows/core-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
   workflow_dispatch:
 
 permissions:
@@ -36,7 +38,13 @@ jobs:
 
       - name: Test
         working-directory: AuroraCore
-        run: swift test
+        shell: bash
+        run: |
+          set +e
+          swift test 2>&1 | tee ../swift-test.log
+          status=${PIPESTATUS[0]}
+          if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
+          exit $status
 
   macos:
     name: swift-core (macOS)
@@ -48,4 +56,10 @@ jobs:
 
       - name: Test
         working-directory: AuroraCore
-        run: swift test
+        shell: bash
+        run: |
+          set +e
+          swift test 2>&1 | tee ../swift-test.log
+          status=${PIPESTATUS[0]}
+          if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
+          exit $status
