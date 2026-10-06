@@ -422,8 +422,16 @@ import Testing
     }
 }
 
+/// These run alongside the main-actor suite, whose Delete All test uses the
+/// shared export folder, so each writes into its own folder instead.
 @Suite struct CSVExportTests {
     final class Calls: @unchecked Sendable { var count = 0 }
+
+    let folder: URL
+
+    init() {
+        folder = FileManager.default.temporaryDirectory.appendingPathComponent("aurora-csv-\(UUID().uuidString)", isDirectory: true)
+    }
 
     @Test func textIsBuiltOnlyWhenShared() throws {
         let calls = Calls()
@@ -433,10 +441,10 @@ import Testing
         }
         // Settings creates these on every draw; nothing is built yet.
         #expect(calls.count == 0)
-        let url = try file.write()
+        let url = try file.write(to: folder)
         #expect(calls.count == 1)
         #expect(try String(contentsOf: url, encoding: .utf8) == "date,mg\n")
-        try CSVFile.purgeExports()
+        try FileManager.default.removeItem(at: folder)
     }
 
     @Test func ancientEntriesExportWithoutFillingEveryDay() throws {
@@ -447,9 +455,9 @@ import Testing
         let file = CSVFile(name: "aurora-daily-test.csv") {
             Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: now, clock: clock))
         }
-        let text = try String(contentsOf: try file.write(), encoding: .utf8)
+        let text = try String(contentsOf: try file.write(to: folder), encoding: .utf8)
         #expect(text.split(separator: "\n").count == 3)
-        try CSVFile.purgeExports()
+        try FileManager.default.removeItem(at: folder)
     }
 }
 

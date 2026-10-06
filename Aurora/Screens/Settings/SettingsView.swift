@@ -232,9 +232,11 @@ struct CSVFile: Transferable {
         }
     }
 
-    func write() throws -> URL {
-        try FileManager.default.createDirectory(at: Self.exportDirectory, withIntermediateDirectories: true)
-        let url = Self.exportDirectory.appendingPathComponent(name)
+    /// Writes the file into `directory`, the shared export folder unless a
+    /// test passes its own.
+    func write(to directory: URL = CSVFile.exportDirectory) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
         try Data(contents().utf8).write(to: url, options: [.atomic, .completeFileProtection])
         return url
     }
