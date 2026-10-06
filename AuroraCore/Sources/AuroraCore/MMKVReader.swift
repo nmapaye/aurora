@@ -8,8 +8,9 @@ import Foundation
 /// pairs, each a varint length and bytes. Writes append pairs, so a later pair
 /// replaces an earlier one, and an empty value deletes the key.
 ///
-/// String values are themselves length-prefixed, and some MMKV versions add a
-/// second prefix, so `string(forKey:)` accepts raw, single and double forms.
+/// String values are themselves length-prefixed. MMKV Core v2.0.0, which the
+/// React Native build shipped, writes one prefix (see the fixtures in
+/// `Fixtures/mmkv`); `string(forKey:)` also accepts raw and double forms.
 public struct MMKVReader: Sendable {
     public enum Failure: Error, Equatable {
         case tooShort
@@ -23,7 +24,7 @@ public struct MMKVReader: Sendable {
         let bytes = [UInt8](data)
         guard bytes.count >= 4 else { throw Failure.tooShort }
         let actualSize = Int(bytes[0]) | Int(bytes[1]) << 8 | Int(bytes[2]) << 16 | Int(bytes[3]) << 24
-        guard actualSize >= 0, 4 + actualSize <= bytes.count else { throw Failure.badLength }
+        guard actualSize <= bytes.count - 4 else { throw Failure.badLength }
         var cursor = Cursor(bytes: Array(bytes[4..<(4 + actualSize)]))
         var values: [String: Data] = [:]
         if !cursor.isAtEnd {
@@ -81,22 +82,29 @@ public struct MMKVReader: Sendable {
 
         var isAtEnd: Bool { position >= bytes.count }
 
+        /// A protobuf varint holding a 32-bit value, which is all MMKV writes
+        /// for sizes and lengths. Longer, overflowing or padded encodings
+        /// (a redundant zero group such as `80 00`) are rejected as
+        /// malformed rather than trusted.
         mutating func varint() throws -> Int {
-            var result = 0
-            var shift = 0
-            while true {
-                guard position < bytes.count, shift < 64 else { throw Failure.malformed }
+            var result: UInt64 = 0
+            for index in 0..<5 {
+                guard position < bytes.count else { throw Failure.malformed }
                 let byte = bytes[position]
                 position += 1
-                result |= Int(byte & 0x7F) << shift
-                if byte & 0x80 == 0 { return result }
-                shift += 7
+                result |= UInt64(byte & 0x7F) << (7 * UInt64(index))
+                if byte & 0x80 == 0 {
+                    guard index == 0 || byte != 0, result <= UInt64(UInt32.max) else { throw Failure.malformed }
+                    return Int(result)
+                }
             }
+            throw Failure.malformed
         }
 
         mutating func lengthPrefixed() throws -> [UInt8] {
             let length = try varint()
-            guard length >= 0, position + length <= bytes.count else { throw Failure.malformed }
+            // Compare against what is left, so a huge length cannot overflow.
+            guard length <= bytes.count - position else { throw Failure.malformed }
             defer { position += length }
             return Array(bytes[position..<(position + length)])
         }
