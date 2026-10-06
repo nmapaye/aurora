@@ -36,3 +36,10 @@ ios/Pods/
 
 expo-env.d.ts
 # @end expo-cli
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+.swiftpm/

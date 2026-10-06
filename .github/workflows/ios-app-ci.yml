@@ -1,0 +1,133 @@
+name: iOS App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Aurora/**'
+      - 'AuroraCore/**'
+      - 'AuroraTests/**'
+      - 'AuroraUITests/**'
+      - 'Aurora.xcodeproj/**'
+      - '.github/workflows/ios-app-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
+  pull_request:
+    paths:
+      - 'Aurora/**'
+      - 'AuroraCore/**'
+      - 'AuroraTests/**'
+      - 'AuroraUITests/**'
+      - 'Aurora.xcodeproj/**'
+      - '.github/workflows/ios-app-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: ios-app (${{ matrix.device }})
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          udid=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          kind = '${{ matrix.device }}'
+          devices = json.load(sys.stdin)['devices']
+          runtimes = sorted((r for r in devices if 'iOS' in r), reverse=True)
+          for runtime in runtimes:
+              for d in devices[runtime]:
+                  if d['name'].startswith(kind):
+                      print(d['udid']); sys.exit(0)
+          sys.exit('no ' + kind + ' simulator found')
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      # Boot the simulator and wait until it is fully up before any test
+      # launches the app; a cold iPad simulator booting during the first
+      # launch timed out the launch.
+      - name: Boot simulator
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
+          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      - name: Build for testing
+        run: |
+          mkdir -p build
+          set +e
+          xcodebuild build-for-testing \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-build.log 2>&1
+          status=$?
+          grep -E "error:|\*\* .* \*\*" build/xcodebuild-build.log | head -200
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
+          exit $status
+
+      - name: Test
+        run: |
+          set +e
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -resultBundlePath build/AuroraTests.xcresult \
+            > build/xcodebuild-test.log 2>&1
+          status=$?
+          grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
+          # Launch and runner failures don't use the error: format; surface them
+          # too, within the ten error annotations a step keeps.
+          grep -iE "failed to launch|timed out|launch timeout|crashed|lost connection|failed background assertion|signal [0-9]+" build/xcodebuild-test.log \
+            | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
+          exit $status
+
+      - name: Release build
+        if: matrix.device == 'iPhone'
+        run: |
+          mkdir -p build
+          set +e
+          xcodebuild build \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-release.log 2>&1
+          status=$?
+          grep -E "error:|\*\* .* \*\*" build/xcodebuild-release.log | head -200
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release.log
+          exit $status
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xcodebuild-logs-${{ matrix.device }}
+          path: |
+            build/*.log
+            build/AuroraTests.xcresult

@@ -1,0 +1,542 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		EA93EEA91207E78E0E107926 /* AuroraCore in Frameworks */ = {isa = PBXBuildFile; productRef = A5073060D1AC5149506FF767 /* AuroraCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3AAB893A2F03A5775690C89F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3D4C91345015A4DD0A099400;
+			remoteInfo = Aurora;
+		};
+		BE1F750CE6C0273DEAC92DFF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3D4C91345015A4DD0A099400;
+			remoteInfo = Aurora;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		81918909E83595C8F4212CCC /* Aurora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aurora.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		858E33F033846B57054E0712 /* AuroraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuroraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5FE318CAEC410BF655BDF08E /* AuroraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuroraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		2B79DDF87934F09DEC13E147 /* Exceptions for "Aurora" folder in "Aurora" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Aurora.entitlements,
+				Info.plist,
+			);
+			target = 3D4C91345015A4DD0A099400 /* Aurora */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CE882751F8B3EE4485706ED4 /* Aurora */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				2B79DDF87934F09DEC13E147 /* Exceptions for "Aurora" folder in "Aurora" target */,
+			);
+			path = Aurora;
+			sourceTree = "<group>";
+		};
+		F850DA3429877D0A2E262956 /* AuroraTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AuroraTests;
+			sourceTree = "<group>";
+		};
+		E7CED7055384AC2F8AF582FC /* AuroraUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AuroraUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0248D6DB510EB0F7E9C05175 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EA93EEA91207E78E0E107926 /* AuroraCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DF4C4AD544E90164AB8FCC3D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9D1756C68919C7F80C856227 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8D3FC6DB5D0827F168A73277 = {
+			isa = PBXGroup;
+			children = (
+				CE882751F8B3EE4485706ED4 /* Aurora */,
+				F850DA3429877D0A2E262956 /* AuroraTests */,
+				E7CED7055384AC2F8AF582FC /* AuroraUITests */,
+				1BADDC1D73C1A20F347483E1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1BADDC1D73C1A20F347483E1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				81918909E83595C8F4212CCC /* Aurora.app */,
+				858E33F033846B57054E0712 /* AuroraTests.xctest */,
+				5FE318CAEC410BF655BDF08E /* AuroraUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3D4C91345015A4DD0A099400 /* Aurora */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BD0845A7C99D8C4F2B33FA8A /* Build configuration list for PBXNativeTarget "Aurora" */;
+			buildPhases = (
+				DA10D9DD089DF2AFEBC5ED5A /* Sources */,
+				0248D6DB510EB0F7E9C05175 /* Frameworks */,
+				82A968CB662751220D4DFE2D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CE882751F8B3EE4485706ED4 /* Aurora */,
+			);
+			name = Aurora;
+			packageProductDependencies = (
+				A5073060D1AC5149506FF767 /* AuroraCore */,
+			);
+			productName = Aurora;
+			productReference = 81918909E83595C8F4212CCC /* Aurora.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DFEE19449146DDDB4DD78AD1 /* AuroraTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 87178D9FD2D24AFB106C5AE8 /* Build configuration list for PBXNativeTarget "AuroraTests" */;
+			buildPhases = (
+				8F11E0AE1293B031D2165BF2 /* Sources */,
+				DF4C4AD544E90164AB8FCC3D /* Frameworks */,
+				887D9852F7F2A508189160F7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EBE8F3D6D5F03BFD34393319 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F850DA3429877D0A2E262956 /* AuroraTests */,
+			);
+			name = AuroraTests;
+			productName = AuroraTests;
+			productReference = 858E33F033846B57054E0712 /* AuroraTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BE49777E3E8080A9213E0E57 /* AuroraUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 06BAA870419D2540223A2169 /* Build configuration list for PBXNativeTarget "AuroraUITests" */;
+			buildPhases = (
+				491473A2D7C935869666DA0E /* Sources */,
+				9D1756C68919C7F80C856227 /* Frameworks */,
+				5F5390436FBBAD5171D3FC74 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8ECC643488DB9F658957D852 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E7CED7055384AC2F8AF582FC /* AuroraUITests */,
+			);
+			name = AuroraUITests;
+			productName = AuroraUITests;
+			productReference = 5FE318CAEC410BF655BDF08E /* AuroraUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					3D4C91345015A4DD0A099400 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					DFEE19449146DDDB4DD78AD1 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 3D4C91345015A4DD0A099400;
+					};
+					BE49777E3E8080A9213E0E57 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 3D4C91345015A4DD0A099400;
+					};
+				};
+			};
+			buildConfigurationList = F0683104C9BEA900D6F8EBE9 /* Build configuration list for PBXProject "Aurora" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8D3FC6DB5D0827F168A73277;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BF62D5750C54C30193F7CDCF /* XCLocalSwiftPackageReference "AuroraCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1BADDC1D73C1A20F347483E1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3D4C91345015A4DD0A099400 /* Aurora */,
+				DFEE19449146DDDB4DD78AD1 /* AuroraTests */,
+				BE49777E3E8080A9213E0E57 /* AuroraUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		82A968CB662751220D4DFE2D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		887D9852F7F2A508189160F7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F5390436FBBAD5171D3FC74 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DA10D9DD089DF2AFEBC5ED5A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8F11E0AE1293B031D2165BF2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		491473A2D7C935869666DA0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EBE8F3D6D5F03BFD34393319 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3D4C91345015A4DD0A099400 /* Aurora */;
+			targetProxy = 3AAB893A2F03A5775690C89F /* PBXContainerItemProxy */;
+		};
+		8ECC643488DB9F658957D852 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3D4C91345015A4DD0A099400 /* Aurora */;
+			targetProxy = BE1F750CE6C0273DEAC92DFF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		59233E4D684FB5A1A72525B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8D5ED1041709BB7FC1DE2B10 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		72FB3ED29B4639D83EC5DB14 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Aurora/Aurora.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Aurora/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AURORA;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		191734982F22ABEBB64A1AE0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Aurora/Aurora.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Aurora/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AURORA;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5AB3A6BF84C2901E813939E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aurora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Aurora";
+			};
+			name = Debug;
+		};
+		54ECD3B736C66C8688F6C25B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aurora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Aurora";
+			};
+			name = Release;
+		};
+		B80F150CE879B8684BAF4B51 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Aurora;
+			};
+			name = Debug;
+		};
+		8918E05DD326D21CE5E3E50E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nmapaye.aurora.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Aurora;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F0683104C9BEA900D6F8EBE9 /* Build configuration list for PBXProject "Aurora" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				59233E4D684FB5A1A72525B8 /* Debug */,
+				8D5ED1041709BB7FC1DE2B10 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BD0845A7C99D8C4F2B33FA8A /* Build configuration list for PBXNativeTarget "Aurora" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72FB3ED29B4639D83EC5DB14 /* Debug */,
+				191734982F22ABEBB64A1AE0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		87178D9FD2D24AFB106C5AE8 /* Build configuration list for PBXNativeTarget "AuroraTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5AB3A6BF84C2901E813939E6 /* Debug */,
+				54ECD3B736C66C8688F6C25B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		06BAA870419D2540223A2169 /* Build configuration list for PBXNativeTarget "AuroraUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B80F150CE879B8684BAF4B51 /* Debug */,
+				8918E05DD326D21CE5E3E50E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		BF62D5750C54C30193F7CDCF /* XCLocalSwiftPackageReference "AuroraCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = AuroraCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A5073060D1AC5149506FF767 /* AuroraCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AuroraCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}
