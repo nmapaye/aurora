@@ -232,6 +232,7 @@ import Testing
         try StateStore(directory: storeDirectory).prepare()
         var edited = AppState()
         edited.onboarding.completed = true
+        edited.onboarding.appWalkthroughCompleted = true
         edited.doses = [
             Dose(id: "ok", timestamp: 1_790_000_000_000, mg: 95),
             Dose(id: "huge", timestamp: 1e300, mg: 60),
@@ -279,6 +280,7 @@ import Testing
         let model = makeModel()
         model.load()
         model.completeOnboarding()
+        model.completeWalkthrough()
         #expect(!model.saveFailed)
         // A read-only folder makes the atomic write fail.
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: storeDirectory.path)
@@ -297,6 +299,7 @@ import Testing
         let first = makeModel()
         first.load()
         first.completeOnboarding()
+        first.completeWalkthrough()
         let good = try Data(contentsOf: stateFile)
 
         // The temporary file decodes, but to a different state.
@@ -314,6 +317,7 @@ import Testing
         let first = makeModel()
         first.load()
         first.completeOnboarding()
+        first.completeWalkthrough()
         let orphan = storeDirectory.appendingPathComponent("state.json.saving-XYZ")
         try Data("partial".utf8).write(to: orphan)
 
@@ -330,6 +334,7 @@ import Testing
         let first = makeModel()
         first.load()
         first.completeOnboarding()
+        first.completeWalkthrough()
         let good = try Data(contentsOf: stateFile)
         // The temporary file is written and checked, then the folder turns
         // read-only, so the rename that swaps it in fails.
@@ -442,6 +447,32 @@ import Testing
         #expect(!finished.state.isWalkthroughPending)
     }
 
+    @Test func dataChangesWaitForTheWalkthrough() throws {
+        let model = makeModel()
+        model.load()
+        model.completeOnboarding()
+        #expect(model.state.isWalkthroughPending)
+        let before = model.state
+
+        #expect(model.quickAdd(CaffeinePreset.all[0]) == nil)
+        _ = model.addCustomDose(CustomDoseDraft(mg: "80", source: "Tea", timestamp: AppModel.currentMillis() - 60_000, note: ""))
+        model.loadSampleData()
+        model.setPrefs { $0.cutoffHour = 9 }
+        model.setAppearance(.dark)
+        model.deleteAllData()
+        #expect(model.state == before)
+        #expect(try savedState() == before)
+
+        // The walkthrough's own steps still go through.
+        model.advanceWalkthrough()
+        #expect(model.state.onboarding.appWalkthroughStep == 1)
+        model.completeWalkthrough()
+        #expect(!model.state.isWalkthroughPending)
+        #expect(model.quickAdd(CaffeinePreset.all[0]) != nil)
+        model.setPrefs { $0.cutoffHour = 9 }
+        #expect(try savedState().prefs.cutoffHour == 9)
+    }
+
     @Test func deleteAllKeepsSettings() {
         let model = makeModel()
         model.load()
@@ -450,6 +481,52 @@ import Testing
         model.deleteAllData()
         #expect(model.state.doses.isEmpty && model.state.sleeps.isEmpty)
         #expect(model.state.prefs.cutoffHour == 12)
+    }
+}
+
+@MainActor
+@Suite struct RouterLockTests {
+    @Test func aLockedRouterIgnoresEveryWayOut() {
+        let router = Router()
+        router.presentSettings()
+        router.push(.caffeine, on: .log)
+        router.lock(to: .sleep)
+        // Locking moves to the step's tab and closes what was open.
+        #expect(router.tab == .sleep)
+        #expect(!router.showSettings)
+        #expect(router.logPath.isEmpty)
+
+        router.select(.log)
+        router.push(.sleep, on: .sleep)
+        router.presentSettings()
+        router.presentReactionTest()
+        for link in [DeepLink.tab(.insights), .settings, .reactionTest, .sleepHistory, .caffeineHistory] {
+            router.open(link)
+        }
+        #expect(router.tab == .sleep)
+        #expect(router.sleepPath.isEmpty && router.logPath.isEmpty)
+        #expect(!router.showSettings && !router.showReactionTest)
+
+        // The walkthrough itself moves between tabs.
+        router.lock(to: .log)
+        #expect(router.tab == .log)
+    }
+
+    @Test func unlockingRestoresNavigation() {
+        let router = Router()
+        router.lock(to: .insights)
+        router.unlock()
+        router.select(.summary)
+        #expect(router.tab == .summary)
+        router.open(.caffeineHistory)
+        #expect(router.tab == .log && router.logPath == [.caffeine])
+        router.presentSettings()
+        #expect(router.showSettings)
+        router.dismissSettings()
+        router.presentReactionTest()
+        #expect(router.showReactionTest)
+        router.push(.sleep, on: .sleep)
+        #expect(router.tab == .sleep && router.sleepPath == [.sleep])
     }
 }
 

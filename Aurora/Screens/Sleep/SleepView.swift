@@ -87,7 +87,7 @@ struct SleepView: View {
             if signal.status == .empty {
                 editing = .new
             } else {
-                router.sleepPath.append(.sleep)
+                router.push(.sleep, on: .sleep)
             }
         }
     }
@@ -189,7 +189,7 @@ struct SleepView: View {
                     HStack(spacing: Metrics.sm) {
                         Button("Add Sleep Manually") { editing = .new }
                             .buttonStyle(.auroraSecondary)
-                        Button("Show All Data") { router.sleepPath.append(.sleep) }
+                        Button("Show All Data") { router.push(.sleep, on: .sleep) }
                             .buttonStyle(.auroraSecondary)
                             .accessibilityLabel("Show All Data, \(state.sleeps.count) \(state.sleeps.count == 1 ? "session" : "sessions")")
                     }

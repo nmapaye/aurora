@@ -1,9 +1,10 @@
 import AuroraCore
 import SwiftUI
 
-/// The four tabs in the native tab bar. While the walkthrough is pending,
-/// tab selection is locked: the bar ignores taps and the walkthrough moves
-/// between tabs itself.
+/// The four tabs in the native tab bar. While the walkthrough is pending the
+/// router is locked to the step's tab (see `Router`), so the bar, in-screen
+/// buttons, links and modals can't leave it, and data-changing controls are
+/// shown as unavailable.
 struct MainTabs: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -13,6 +14,7 @@ struct MainTabs: View {
     @State private var shown: AppTab = .summary
 
     private var walkthroughPending: Bool { model.state.isWalkthroughPending }
+    private var walkthroughStep: Int { model.state.onboarding.appWalkthroughStep }
 
     var body: some View {
         @Bindable var router = router
@@ -22,32 +24,40 @@ struct MainTabs: View {
             tab(.log, path: $router.logPath) { LogView() }
             tab(.insights, path: $router.insightsPath) { InsightsView() }
         }
+        .environment(\.walkthroughLocked, walkthroughPending)
         .onChange(of: shown) { _, newValue in
-            if walkthroughPending {
-                if newValue != router.tab { shown = router.tab }
-            } else {
-                router.tab = newValue
-            }
+            router.select(newValue)
+            if shown != router.tab { shown = router.tab }
         }
         .onChange(of: router.tab) { _, newValue in
             if shown != newValue { shown = newValue }
         }
+        .onChange(of: walkthroughPending) { _, _ in syncLock() }
+        .onChange(of: walkthroughStep) { _, _ in syncLock() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if walkthroughPending {
                 WalkthroughCoach()
             }
         }
-        .sheet(isPresented: $router.showSettings) {
+        .sheet(isPresented: Binding(get: { router.showSettings }, set: { if !$0 { router.dismissSettings() } })) {
             SettingsView()
         }
-        .fullScreenCover(isPresented: $router.showReactionTest) {
+        .fullScreenCover(isPresented: Binding(get: { router.showReactionTest }, set: { if !$0 { router.dismissReactionTest() } })) {
             ReactionTestView()
         }
         .onAppear {
-            if walkthroughPending {
-                router.tab = Walkthrough.tab(forStep: model.state.onboarding.appWalkthroughStep)
-            }
+            syncLock()
             shown = router.tab
+        }
+    }
+
+    /// Locks the router to the current step's tab while the walkthrough runs,
+    /// and unlocks it once it is finished or skipped.
+    private func syncLock() {
+        if walkthroughPending {
+            router.lock(to: Walkthrough.tab(forStep: walkthroughStep))
+        } else {
+            router.unlock()
         }
     }
 
@@ -124,7 +134,8 @@ struct WalkthroughCoach: View {
             return
         }
         model.advanceWalkthrough()
-        router.tab = Walkthrough.tab(forStep: model.state.onboarding.appWalkthroughStep)
+        // MainTabs also follows the step; locking here moves the tab at once.
+        router.lock(to: Walkthrough.tab(forStep: model.state.onboarding.appWalkthroughStep))
     }
 
     private func announce(_ step: Walkthrough.Step) {

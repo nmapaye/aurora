@@ -123,7 +123,7 @@ struct LogView: View {
                     }
                 }
             }
-            Button("Show All Caffeine Data") { router.logPath.append(.caffeine) }
+            Button("Show All Caffeine Data") { router.push(.caffeine, on: .log) }
                 .font(.subheadline.weight(.semibold))
                 .padding(.top, Metrics.xxs)
         }

@@ -79,9 +79,9 @@ struct InsightsView: View {
     private func reaction(_ p: InsightsPresentation) -> some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             SignalCard(model: p.reaction.signal, symbol: "speedometer", accent: Palette.vigilanceAccent) {
-                router.showReactionTest = true
+                router.presentReactionTest()
             }
-            Button("Take Reaction Test") { router.showReactionTest = true }
+            Button("Take Reaction Test") { router.presentReactionTest() }
                 .buttonStyle(.auroraSecondary)
         }
     }
@@ -125,8 +125,7 @@ struct InsightsView: View {
                     }
                 }
                 Button("Show All Caffeine Data") {
-                    router.tab = .log
-                    router.logPath = [.caffeine]
+                    router.open(.caffeineHistory)
                 }
                 .font(.subheadline.weight(.semibold))
             }

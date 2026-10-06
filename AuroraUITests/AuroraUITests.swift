@@ -102,6 +102,35 @@ final class AuroraUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dose-save"].exists, "Sample entries open no editor")
     }
 
+    /// During the walkthrough the screen's own buttons can't leave it or
+    /// change anything; once it is skipped they work again.
+    func testWalkthroughLocksInScreenNavigationAndChanges() {
+        finishManualSetup()
+        expectToAppear(app.buttons["walkthrough-skip"], "the walkthrough coach")
+        expectToAppear(onScreen("Summary"), "Summary at step 1")
+
+        let settings = app.buttons["open-settings"]
+        expectToAppear(settings, "the Settings button")
+        XCTAssertFalse(settings.isEnabled, "Settings is unavailable during the walkthrough")
+        let sample = app.buttons["Load Sample Data"].firstMatch
+        expectToAppear(sample, "Load Sample Data on Summary")
+        XCTAssertFalse(sample.isEnabled, "Sample Data can't be loaded during the walkthrough")
+        let details = app.buttons["Details"].firstMatch
+        if details.exists { XCTAssertFalse(details.isEnabled) }
+        XCTAssertFalse(app.navigationBars["Settings"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["summary-sample-status"].exists)
+        XCTAssertTrue(app.staticTexts["1 of 10"].exists)
+
+        app.buttons["walkthrough-skip"].tap()
+        XCTAssertTrue(settings.waitForExistence(timeout: 5) && settings.isEnabled)
+        settings.tap()
+        expectToAppear(app.navigationBars["Settings"], "Settings after skipping")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(sample.waitForExistence(timeout: 5) && sample.isEnabled)
+        sample.tap()
+        expectToAppear(app.descendants(matching: .any)["summary-sample-status"], "the sample notice after skipping")
+    }
+
     /// All ten steps in order, each on its own tab, with the tab bar locked
     /// throughout, then Finish unlocks it.
     func testWalkthroughRunsAllTenStepsAndFinishes() {

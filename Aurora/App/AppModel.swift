@@ -177,8 +177,12 @@ final class AppModel {
         }
     }
 
-    private func update(_ change: (inout AppState) -> Void) {
-        guard phase == .ready else { return }
+    /// Applies and saves a change. While the walkthrough is pending only the
+    /// walkthrough's own steps and the automatic Health refresh go through;
+    /// records, settings and Sample Data stay as they are until it is
+    /// finished or skipped.
+    private func update(duringWalkthrough allowed: Bool = false, _ change: (inout AppState) -> Void) {
+        guard phase == .ready, allowed || !state.isWalkthroughPending else { return }
         change(&state)
         persist()
     }
@@ -202,7 +206,7 @@ final class AppModel {
 
     /// Quick Add. A second tap within a second is ignored as a double tap.
     func quickAdd(_ preset: CaffeinePreset) -> Dose? {
-        guard phase == .ready else { return nil }
+        guard phase == .ready, !state.isWalkthroughPending else { return nil }
         tick()
         guard CaffeineLog.acceptsQuickAdd(lastAcceptedAt: lastQuickAddAt, at: now) else { return nil }
         lastQuickAddAt = now
@@ -290,18 +294,18 @@ final class AppModel {
     func importHealth(days: Double = HealthImport.refreshDays, failurePrefix: String = "Health refresh failed.") async {
         tick()
         let end = now
-        update {
+        update(duringWalkthrough: true) {
             $0.healthSync.importStatus = .importing
             $0.healthSync.lastMessage = HealthImport.importingMessage
         }
         do {
             let samples = try await health.sleepSamples(from: end - days * dayMs, to: end)
             tick()
-            update { _ = HealthImport.apply(samples, days: days, now: end, to: &$0) }
+            update(duringWalkthrough: true) { _ = HealthImport.apply(samples, days: days, now: end, to: &$0) }
         } catch {
             tick()
             let message = (error as? LocalizedError)?.errorDescription ?? "Unable to read sleep data."
-            update { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }
+            update(duringWalkthrough: true) { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }
         }
     }
 
@@ -407,11 +411,11 @@ final class AppModel {
     }
 
     func advanceWalkthrough() {
-        update { $0.advanceWalkthrough() }
+        update(duringWalkthrough: true) { $0.advanceWalkthrough() }
     }
 
     func completeWalkthrough() {
-        update { $0.completeWalkthrough() }
+        update(duringWalkthrough: true) { $0.completeWalkthrough() }
     }
 
     var colorScheme: ColorScheme? {

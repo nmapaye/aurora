@@ -55,7 +55,7 @@ struct SummaryView: View {
             HStack {
                 SectionLabel(text: "Today")
                 Spacer()
-                Button("Details") { router.tab = .insights }
+                Button("Details") { router.select(.insights) }
                     .font(.subheadline.weight(.semibold))
             }
             VStack(alignment: .leading, spacing: Metrics.md) {
@@ -98,7 +98,7 @@ struct SummaryView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Open Sleep") { router.tab = .sleep }
+                Button("Open Sleep") { router.select(.sleep) }
                     .buttonStyle(.bordered)
                     .padding(.top, Metrics.xs)
             }
@@ -113,17 +113,17 @@ struct SummaryView: View {
                 model: SummarySignals.caffeineLogged(doses: state.doses, now: now, clock: model.clock, formatTime: model.text.clockTime),
                 symbol: "cup.and.saucer.fill",
                 accent: Palette.caffeineAccent
-            ) { router.tab = .log }
+            ) { router.select(.log) }
             SignalCard(
                 model: SummarySignals.sleep(sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: model.clock, text: model.text),
                 symbol: "bed.double.fill",
                 accent: Palette.sleepAccent
-            ) { router.tab = .sleep }
+            ) { router.select(.sleep) }
             SignalCard(
                 model: SummarySignals.reactionTest(sessions: state.vigilanceSessions, now: now, clock: model.clock, text: model.text),
                 symbol: "speedometer",
                 accent: Palette.vigilanceAccent
-            ) { router.showReactionTest = true }
+            ) { router.presentReactionTest() }
         }
     }
 }

@@ -12,6 +12,9 @@ struct AppScreen<Content: View, Trailing: View>: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(Router.self) private var router
+    /// During the walkthrough the screen's controls are unavailable; the
+    /// scroll view stays scrollable and the coach sits outside it.
+    @Environment(\.walkthroughLocked) private var walkthroughLocked
 
     var body: some View {
         GeometryReader { proxy in
@@ -20,6 +23,7 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 VStack(alignment: .leading, spacing: Metrics.xl) {
                     header
                     content()
+                        .disabled(walkthroughLocked)
                 }
                 .frame(maxWidth: wide ? Metrics.wideContentMaxWidth : Metrics.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, wide ? Metrics.lg : Metrics.md)
@@ -49,9 +53,10 @@ struct AppScreen<Content: View, Trailing: View>: View {
             }
             Spacer(minLength: Metrics.sm)
             trailing()
+                .disabled(walkthroughLocked)
             if showsSettings {
                 Button {
-                    router.showSettings = true
+                    router.presentSettings()
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.title3)
@@ -61,6 +66,8 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 }
                 .foregroundStyle(Palette.tint)
                 .accessibilityLabel("Open settings")
+                .accessibilityIdentifier("open-settings")
+                .disabled(walkthroughLocked)
             }
         }
         .padding(.top, Metrics.md)
