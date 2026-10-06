@@ -427,7 +427,8 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         {"id":"big2","timestamp":1790520060000,"mg":1.7976931348623157e308},
         {"id":"far","timestamp":1e300,"mg":95},
         {"id":"past","timestamp":-1e300,"mg":95},
-        {"id":"edge","timestamp":8.64e15,"mg":95}
+        {"id":"edge","timestamp":8.64e15,"mg":95},
+        {"id":"ancient","timestamp":-8.64e15,"mg":50}
       ],
       "sleeps":[
         {"id":"manual:sleep:1:a","start":-1e300,"end":1e300,"type":"sleep"},
@@ -449,7 +450,7 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         // Amounts keep their finite values, as the TypeScript validators did.
         // A time outside JavaScript's Date range marks the record malformed;
         // the edge of that range is kept.
-        #expect(state.doses.map(\.id).sorted() == ["big", "big2", "edge"])
+        #expect(state.doses.map(\.id).sorted() == ["ancient", "big", "big2", "edge"])
         #expect(state.sleeps.map(\.id) == ["manual:sleep:2:b"])
         #expect(state.vigilanceSessions.map(\.id).sorted() == ["v1", "v2"])
         #expect(state.healthSync.lastSyncedAt == nil)
@@ -488,7 +489,11 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         }
         _ = SleepModel.caffeineTimingSignal(sleeps: state.sleeps, doses: state.doses, now: now, clock: utc)
         _ = SleepModel.recentNightSignal(sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: utc, text: fixtureText)
+        // The -8.64e15 dose is about 100 million days back; filling that span
+        // would hang. Only recorded days are listed instead.
         let rows = Export.dailyTotalRows(state.doses, now: now, clock: utc)
+        #expect(rows.count == 2)
+        #expect(rows.allSatisfy { $0.mg != nil })
         _ = Export.dailyTotalsCSV(rows)
         _ = Export.doseEntriesCSV(state.doses, clock: utc)
         _ = Export.vigilanceSessionsCSV(state.vigilanceSessions)
@@ -501,6 +506,38 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         #expect(formatHoursMinutes(durationMs: -90 * minuteMs) == "-2h 30m")
         #expect(formatHoursMinutes(durationMs: 0) == "0h 0m")
         #expect(formatGap(durationMs: -1e300).hasSuffix("m"))
+    }
+
+    @Test func dailyRowsFillGapsUpToTheCap() {
+        let today = utc.startOfDay(now)
+        let recent = [Dose(id: "a", timestamp: today - 10 * dayMs + hourMs, mg: 95)]
+        let rows = Export.dailyTotalRows(recent, now: now, clock: utc)
+        #expect(rows.count == 11)
+        #expect(rows.first?.mg == 95)
+        #expect(rows.dropFirst().allSatisfy { $0.mg == nil && $0.entries == 0 })
+
+        // Exactly at the cap the span is still filled, one row per day.
+        let atCap = [Dose(id: "b", timestamp: utc.addingDays(-Export.maxFilledDays, to: today), mg: 60)]
+        #expect(Export.dailyTotalRows(atCap, now: now, clock: utc).count == Export.maxFilledDays + 1)
+    }
+
+    @Test func dailyRowsListOnlyRecordedDaysPastTheCap() {
+        let today = utc.startOfDay(now)
+        let old = utc.addingDays(-(Export.maxFilledDays + 1), to: today)
+        let doses = [
+            Dose(id: "ancient-1", timestamp: -8.64e15, mg: 50),
+            Dose(id: "ancient-2", timestamp: -8.64e15 + hourMs, mg: 25),
+            Dose(id: "old", timestamp: old, mg: 70),
+            Dose(id: "today", timestamp: now - hourMs, mg: 95),
+            Dose(id: "demo:dose:1", timestamp: now - 2 * hourMs, mg: 60),
+        ]
+        let rows = Export.dailyTotalRows(doses, now: now, clock: utc)
+        // Every recorded day, oldest first, and nothing invented between them.
+        #expect(rows.map(\.mg) == [75, 70, 155])
+        #expect(rows.map(\.entries) == [2, 1, 2])
+        #expect(rows.last?.date == utc.isoDay(now))
+        #expect(rows.last?.source == RecordSource.of(ids: ["today", "demo:dose:1"])?.rawValue)
+        #expect(!Export.dailyTotalsCSV(rows).contains("no record"))
     }
 
     @Test func emptyKeyIsMalformedNotSkipped() {

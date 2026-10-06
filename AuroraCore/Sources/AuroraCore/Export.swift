@@ -41,9 +41,17 @@ public enum Export {
         return (["date,mg,entries,status,data_source"] + lines).joined(separator: "\n")
     }
 
+    /// Gap filling stops past this many days (about 100 years). A longer
+    /// span only comes from a mistyped or damaged date, and filling it would
+    /// mean millions of rows: -8.64e15 ms, the earliest time a store can
+    /// hold, is about 100 million days ago.
+    public static let maxFilledDays = 36_600
+
     /// One row per local calendar day from the first recorded day through
     /// today, stepping by calendar date so DST days are neither skipped nor
-    /// doubled.
+    /// doubled. When that span is longer than `maxFilledDays`, only days with
+    /// entries are listed, so every recorded day is still exported and the
+    /// work grows with the entries, not the span.
     public static func dailyTotalRows(_ doses: [Dose], now: Millis, clock: LocalClock) -> [DailyTotal] {
         let recorded = doses.filter { $0.timestamp.isFinite && $0.mg.isFinite && $0.timestamp <= now }
         guard let first = recorded.map(\.timestamp).min() else { return [] }
@@ -51,18 +59,33 @@ public enum Export {
         for dose in recorded {
             byDay[clock.isoDay(dose.timestamp), default: []].append(dose)
         }
-        var rows: [DailyTotal] = []
+        func total(_ date: String, _ dayDoses: [Dose]) -> DailyTotal {
+            DailyTotal(
+                date: date,
+                mg: jsRoundInt(dayDoses.reduce(0) { $0 + $1.mg }),
+                entries: dayDoses.count,
+                source: dataSource(dayDoses.map(\.id))
+            )
+        }
         var day = clock.startOfDay(first)
         let last = clock.startOfDay(now)
+        guard (last - day) / dayMs <= Double(maxFilledDays) else {
+            // Recorded days only, oldest first. The day's start orders them,
+            // since ISO strings don't sort across negative years.
+            var starts: [String: Millis] = [:]
+            for dose in recorded {
+                let key = clock.isoDay(dose.timestamp)
+                starts[key] = starts[key] ?? clock.startOfDay(dose.timestamp)
+            }
+            return byDay.keys
+                .sorted { (starts[$0] ?? 0, $0) < (starts[$1] ?? 0, $1) }
+                .map { total($0, byDay[$0] ?? []) }
+        }
+        var rows: [DailyTotal] = []
         while day <= last {
             let date = clock.isoDay(day)
             if let dayDoses = byDay[date] {
-                rows.append(DailyTotal(
-                    date: date,
-                    mg: jsRoundInt(dayDoses.reduce(0) { $0 + $1.mg }),
-                    entries: dayDoses.count,
-                    source: dataSource(dayDoses.map(\.id))
-                ))
+                rows.append(total(date, dayDoses))
             } else {
                 rows.append(DailyTotal(date: date, mg: nil, entries: 0))
             }
