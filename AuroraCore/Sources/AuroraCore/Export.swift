@@ -53,7 +53,9 @@ public enum Export {
     /// entries are listed, so every recorded day is still exported and the
     /// work grows with the entries, not the span.
     public static func dailyTotalRows(_ doses: [Dose], now: Millis, clock: LocalClock) -> [DailyTotal] {
-        let recorded = doses.filter { $0.timestamp.isFinite && $0.mg.isFinite && $0.timestamp <= now }
+        // A dose without a calendar date can't be placed on a day; it still
+        // appears in the entries export.
+        let recorded = doses.filter { isValidRecordTime($0.timestamp) && $0.mg.isFinite && $0.timestamp <= now }
         guard let first = recorded.map(\.timestamp).min() else { return [] }
         var byDay: [String: [Dose]] = [:]
         for dose in recorded {

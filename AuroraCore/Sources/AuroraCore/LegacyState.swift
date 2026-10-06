@@ -65,11 +65,11 @@ public enum JSONValue: Equatable, Sendable, Decodable {
     /// either side of the epoch. The React Native build couldn't use a time
     /// outside it (it became an Invalid Date), and calendar arithmetic that
     /// far out isn't meaningful, so such a time marks the record malformed.
-    static let maxInstant: Double = 8.64e15
+    static let maxInstant: Double = maxRecordTime
 
     /// A finite number inside JavaScript's `Date` range.
     var instant: Millis? {
-        guard let number = finite, abs(number) <= Self.maxInstant else { return nil }
+        guard let number = finite, isValidRecordTime(number) else { return nil }
         return number
     }
 }

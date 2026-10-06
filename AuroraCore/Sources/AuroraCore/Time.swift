@@ -4,6 +4,15 @@ import Foundation
 /// numbers, so the values read from the React Native build round-trip exactly.
 public typealias Millis = Double
 
+/// The range a JavaScript `Date` can hold: 8.64e15 ms either side of the
+/// epoch. A record time outside it, or not finite, has no calendar date;
+/// the original app couldn't use one either.
+public let maxRecordTime: Millis = 8.64e15
+
+public func isValidRecordTime(_ ms: Millis) -> Bool {
+    ms.isFinite && abs(ms) <= maxRecordTime
+}
+
 public let minuteMs: Millis = 60_000
 public let hourMs: Millis = 3_600_000
 public let dayMs: Millis = 86_400_000
@@ -120,7 +129,10 @@ public struct LocalClock: Sendable {
     /// Before 15 Oct 1582 Foundation's Gregorian calendar gives Julian dates,
     /// where JavaScript extends the Gregorian one, so such old dates are
     /// distinct and ordered but can differ from the original's by days.
+    /// A time outside `isValidRecordTime` gives (0, 0, 0) without asking the
+    /// calendar, which can't place it.
     public func calendarDay(_ ms: Millis) -> (year: Int, month: Int, day: Int) {
+        guard isValidRecordTime(ms) else { return (0, 0, 0) }
         let parts = calendar.dateComponents([.era, .year, .month, .day], from: date(ms))
         return (astronomicalYear(era: parts.era, year: parts.year), parts.month ?? 0, parts.day ?? 0)
     }
@@ -134,7 +146,9 @@ public struct LocalClock: Sendable {
 
     /// "2026-09-27" in local time. Years before 1 AD use ISO 8601's expanded
     /// form, as `toISOString` does: 1 BC is "0000", 2026 BC is "-002025".
+    /// An invalid time gives "", a blank cell in exports.
     public func isoDay(_ ms: Millis) -> String {
+        guard isValidRecordTime(ms) else { return "" }
         let day = calendarDay(ms)
         return "\(isoYear(day.year))-\(twoDigits(day.month))-\(twoDigits(day.day))"
     }
@@ -154,12 +168,17 @@ public struct LocalClock: Sendable {
 /// 0000-9999. The time is first truncated to whole milliseconds, as a
 /// JavaScript `Date` stores it. Dates before 15 Oct 1582 come out in
 /// Foundation's Julian reckoning (see `LocalClock.calendarDay`).
+/// A time outside `isValidRecordTime` gives "", where `toISOString` would
+/// throw: past 8.64e15 the millisecond arithmetic below loses precision
+/// and could not be converted to an Int.
 public func isoTimestamp(_ ms: Millis) -> String {
+    guard isValidRecordTime(ms) else { return "" }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC")!
     let whole = ms.rounded(.towardZero)
     let seconds = (whole / 1000).rounded(.down)
-    let millis = Int(whole - seconds * 1000)
+    // Exact here: every valid time is an integer well below 2^53.
+    let millis = clamp(Int(whole - seconds * 1000), 0, 999)
     let parts = calendar.dateComponents([.era, .year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: seconds))
     let year = astronomicalYear(era: parts.era, year: parts.year)
     let date = "\(expandedYear(year))-\(twoDigits(parts.month ?? 0))-\(twoDigits(parts.day ?? 0))"
