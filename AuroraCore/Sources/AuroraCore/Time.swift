@@ -114,20 +114,29 @@ public struct LocalClock: Sendable {
         calendar.component(.hour, from: date(ms))
     }
 
-    /// Year, month and day as a key: two instants share a key only when they
-    /// fall on the same local calendar day.
-    public func dayKey(_ ms: Millis) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date(ms))
-        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+    /// The local calendar date of `ms`, with an astronomical year: Foundation
+    /// counts Gregorian years within an era, so 6 Oct 2026 BC and AD share
+    /// year 2026. Here 1 BC is year 0 and 2 BC is -1, as ISO 8601 numbers them.
+    /// Before 15 Oct 1582 Foundation's Gregorian calendar gives Julian dates,
+    /// where JavaScript extends the Gregorian one, so such old dates are
+    /// distinct and ordered but can differ from the original's by days.
+    public func calendarDay(_ ms: Millis) -> (year: Int, month: Int, day: Int) {
+        let parts = calendar.dateComponents([.era, .year, .month, .day], from: date(ms))
+        return (astronomicalYear(era: parts.era, year: parts.year), parts.month ?? 0, parts.day ?? 0)
     }
 
-    /// "2026-09-27" in local time.
+    /// Year, month and day as a key: two instants share a key only when they
+    /// fall on the same local calendar day, BC dates included.
+    public func dayKey(_ ms: Millis) -> String {
+        let day = calendarDay(ms)
+        return "\(day.year)-\(day.month)-\(day.day)"
+    }
+
+    /// "2026-09-27" in local time. Years before 1 AD use ISO 8601's expanded
+    /// form, as `toISOString` does: 1 BC is "0000", 2026 BC is "-002025".
     public func isoDay(_ ms: Millis) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date(ms))
-        let year = parts.year ?? 0
-        let month = parts.month ?? 0
-        let day = parts.day ?? 0
-        return String(format: "%04d-%02d-%02d", year, month, day)
+        let day = calendarDay(ms)
+        return "\(isoYear(day.year))-\(twoDigits(day.month))-\(twoDigits(day.day))"
     }
 
     /// Local midnights of the `days` calendar days ending with the day of `now`,
@@ -140,11 +149,47 @@ public struct LocalClock: Sendable {
     }
 }
 
-/// ISO 8601 with milliseconds in UTC, matching `Date.prototype.toISOString`.
+/// ISO 8601 with milliseconds in UTC, matching `Date.prototype.toISOString`,
+/// including its expanded years ("-002025-10-06T12:00:00.000Z") outside
+/// 0000-9999. The time is first truncated to whole milliseconds, as a
+/// JavaScript `Date` stores it. Dates before 15 Oct 1582 come out in
+/// Foundation's Julian reckoning (see `LocalClock.calendarDay`).
 public func isoTimestamp(_ ms: Millis) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = TimeZone(identifier: "UTC")
-    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-    return formatter.string(from: Date(timeIntervalSince1970: ms / 1000))
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    let whole = ms.rounded(.towardZero)
+    let seconds = (whole / 1000).rounded(.down)
+    let millis = Int(whole - seconds * 1000)
+    let parts = calendar.dateComponents([.era, .year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: seconds))
+    let year = astronomicalYear(era: parts.era, year: parts.year)
+    let date = "\(expandedYear(year))-\(twoDigits(parts.month ?? 0))-\(twoDigits(parts.day ?? 0))"
+    let time = "\(twoDigits(parts.hour ?? 0)):\(twoDigits(parts.minute ?? 0)):\(twoDigits(parts.second ?? 0)).\(threeDigits(millis))"
+    return "\(date)T\(time)Z"
+}
+
+/// Gregorian era 0 is BC: its year 1 is astronomical year 0.
+func astronomicalYear(era: Int?, year: Int?) -> Int {
+    let year = year ?? 0
+    return era == 0 ? 1 - year : year
+}
+
+/// Four digits for 0000-9999; outside that a sign and six digits, as ISO
+/// 8601 expanded years and `toISOString` write them.
+func expandedYear(_ year: Int) -> String {
+    if (0...9999).contains(year) { return padded(year, 4) }
+    return (year < 0 ? "-" : "+") + padded(abs(year), 6)
+}
+
+/// Like `expandedYear`, but later years keep plain digits, as `isoDay`
+/// always wrote them.
+func isoYear(_ year: Int) -> String {
+    year < 0 ? "-" + padded(abs(year), 6) : padded(year, 4)
+}
+
+func twoDigits(_ value: Int) -> String { padded(value, 2) }
+func threeDigits(_ value: Int) -> String { padded(value, 3) }
+
+func padded(_ value: Int, _ width: Int) -> String {
+    let digits = String(value)
+    return digits.count >= width ? digits : String(repeating: "0", count: width - digits.count) + digits
 }

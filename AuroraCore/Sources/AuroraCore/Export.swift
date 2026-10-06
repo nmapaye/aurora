@@ -70,16 +70,15 @@ public enum Export {
         var day = clock.startOfDay(first)
         let last = clock.startOfDay(now)
         guard (last - day) / dayMs <= Double(maxFilledDays) else {
-            // Recorded days only, oldest first. The day's start orders them,
-            // since ISO strings don't sort across negative years.
-            var starts: [String: Millis] = [:]
+            // Recorded days only, grouped by each day's absolute start and
+            // listed oldest first; date strings don't sort across BC years.
+            var byStart: [Millis: [Dose]] = [:]
             for dose in recorded {
-                let key = clock.isoDay(dose.timestamp)
-                starts[key] = starts[key] ?? clock.startOfDay(dose.timestamp)
+                byStart[clock.startOfDay(dose.timestamp), default: []].append(dose)
             }
-            return byDay.keys
-                .sorted { (starts[$0] ?? 0, $0) < (starts[$1] ?? 0, $1) }
-                .map { total($0, byDay[$0] ?? []) }
+            return byStart.keys.sorted().map { start in
+                total(clock.isoDay(start), byStart[start] ?? [])
+            }
         }
         var rows: [DailyTotal] = []
         while day <= last {

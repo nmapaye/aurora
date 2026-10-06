@@ -540,6 +540,64 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         #expect(!Export.dailyTotalsCSV(rows).contains("no record"))
     }
 
+    /// Noon UTC on a Gregorian date, BC when `bc`.
+    static func noon(_ year: Int, _ month: Int, _ day: Int, bc: Bool = false) -> Millis {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let date = calendar.date(from: DateComponents(era: bc ? 0 : 1, year: year, month: month, day: day, hour: 12))!
+        return date.timeIntervalSince1970 * 1000
+    }
+
+    @Test func bcAndAdTwinsGetDistinctDays() {
+        let ad = Self.noon(2026, 9, 27)
+        let bc = Self.noon(2026, 9, 27, bc: true)
+        #expect(bc < -1e14 && bc >= -8.64e15)
+        // Foundation's .year is within the era, so both used to read 2026.
+        #expect(utc.dayKey(ad) != utc.dayKey(bc))
+        #expect(utc.calendarDay(bc).year == -2025)
+        #expect(utc.isoDay(ad) == "2026-09-27")
+        #expect(utc.isoDay(bc) == "-002025-09-27")
+        #expect(utc.isoDay(Self.noon(1, 1, 1, bc: true)) == "0000-01-01")
+        #expect(utc.isoDay(Self.noon(1, 1, 1)) == "0001-01-01")
+    }
+
+    @Test func isoTimestampsMatchToISOString() {
+        #expect(isoTimestamp(0) == "1970-01-01T00:00:00.000Z")
+        #expect(isoTimestamp(now) == "2026-09-27T16:41:00.000Z")
+        #expect(isoTimestamp(-1500) == "1969-12-31T23:59:58.500Z")
+        #expect(isoTimestamp(1_790_527_260_123.9) == "2026-09-27T16:41:00.123Z")
+        #expect(isoTimestamp(Self.noon(2026, 9, 27, bc: true)) == "-002025-09-27T12:00:00.000Z")
+        #expect(isoTimestamp(Self.noon(1, 1, 1, bc: true)) == "0000-01-01T12:00:00.000Z")
+        #expect(isoTimestamp(8.64e15) == "+275760-09-13T00:00:00.000Z")
+    }
+
+    @Test func bcTwinsExportAsSeparateDays() {
+        let ad = Dose(id: "ad", timestamp: Self.noon(2026, 9, 1), mg: 95)
+        let bc = Dose(id: "bc", timestamp: Self.noon(2026, 9, 1, bc: true), mg: 40)
+        let rows = Export.dailyTotalRows([ad, bc], now: now, clock: utc)
+        #expect(rows.map(\.date) == ["-002025-09-01", "2026-09-01"])
+        #expect(rows.map(\.mg) == [40, 95])
+        #expect(rows.map(\.entries) == [1, 1])
+        let csv = Export.doseEntriesCSV([ad, bc], clock: utc)
+        #expect(csv.contains("-002025-09-01T12:00:00.000Z"))
+        #expect(csv.contains("2026-09-01T12:00:00.000Z"))
+    }
+
+    @Test func bcTwinsStayOutOfRecentWindows() {
+        let today = Dose(id: "ad", timestamp: now - hourMs, mg: 95)
+        let twin = Dose(id: "bc", timestamp: Self.noon(2026, 9, 27, bc: true), mg: 400)
+        for range in InsightsRange.allCases {
+            let insights = Insights.presentation(doses: [today, twin], vigilanceSessions: [], range: range, now: now, clock: utc, text: fixtureText)
+            #expect(insights.points.compactMap(\.mg).reduce(0, +) == 95)
+            #expect(insights.points.map(\.entries).reduce(0, +) == 1)
+        }
+        let wake = Self.noon(2026, 9, 27, bc: true)
+        let sleep = SleepSession(id: "manual:sleep:1:bc", start: wake - 8 * hourMs, end: wake)
+        let week = SleepModel.presentation(sessions: [sleep], targetSleepHours: 8, range: .week, now: now, clock: utc, text: fixtureText)
+        #expect(week.recordedNights == 0)
+        #expect(week.points.allSatisfy { $0.durationMs == nil })
+    }
+
     @Test func emptyKeyIsMalformedNotSkipped() {
         // The reviewer's payload: an empty key, then 1:"A" 1:"B". Skipping the
         // key without its value would read a record A:B that was never written.
