@@ -1,0 +1,65 @@
+name: Swift Core
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'AuroraCore/**'
+      - '.github/workflows/core-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AuroraCore/**'
+      - '.github/workflows/core-ci.yml'
+      - '.github/scripts/xcode-annotate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: swift-core (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: swift:6.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Build
+        working-directory: AuroraCore
+        run: swift build --build-tests
+
+      - name: Test
+        working-directory: AuroraCore
+        shell: bash
+        run: |
+          set +e
+          swift test 2>&1 | tee ../swift-test.log
+          status=${PIPESTATUS[0]}
+          if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
+          exit $status
+
+  macos:
+    name: swift-core (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Test
+        working-directory: AuroraCore
+        shell: bash
+        run: |
+          set +e
+          swift test 2>&1 | tee ../swift-test.log
+          status=${PIPESTATUS[0]}
+          if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
+          exit $status
