@@ -3,7 +3,8 @@
 // MMKV::initializeMMKV(<Documents>/mmkv), MMKV::mmkvWithID("aurora"), and
 // MMKV::set(std::string, key) for string values.
 // Usage: gen <rootDir> <opsFile>; ops are lines "set<TAB>key<TAB>valueFile",
-// "del<TAB>key" or "trim". It prints each key MMKV reads back, with its
+// "del<TAB>key", "trim", or "reopen" (close and reopen the instance, as a
+// relaunch would). It prints each key MMKV reads back, with its
 // string value in hex, so the manifest records MMKV's own reading.
 #include "MMKV.h"
 #include <fstream>
@@ -19,7 +20,8 @@ static std::string slurp(const std::string &path) {
 int main(int argc, char **argv) {
     if (argc != 3) { std::cerr << "usage\n"; return 2; }
     MMKV::initializeMMKV(argv[1], MMKVLogNone);
-    MMKV *kv = MMKV::mmkvWithID("aurora", MMKV_SINGLE_PROCESS, nullptr, nullptr);
+    auto open = [] { return MMKV::mmkvWithID("aurora", MMKV_SINGLE_PROCESS, nullptr, nullptr); };
+    MMKV *kv = open();
     if (!kv) { std::cerr << "open failed\n"; return 1; }
     std::ifstream ops(argv[2]);
     std::string line;
@@ -30,6 +32,7 @@ int main(int argc, char **argv) {
         if (op == "set") { if (!kv->set(slurp(b), a)) return 3; }
         else if (op == "del") kv->removeValueForKey(a);
         else if (op == "trim") kv->trim();
+        else if (op == "reopen") { kv->sync(MMKV_SYNC); kv->close(); kv = open(); if (!kv) return 1; }
         else if (!op.empty()) { std::cerr << "bad op " << op << "\n"; return 2; }
     }
     // Read back through MMKV itself so each fixture records what MMKV returns.

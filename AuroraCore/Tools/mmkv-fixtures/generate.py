@@ -64,7 +64,8 @@ def scenarios():
     return {
         # One write of a current blob.
         "single": [("set", STATE_KEY, raw["v6importing"])],
-        # Zustand rewrites the whole blob on every change; the last one wins.
+        # Zustand rewrites the whole blob on every change. With only one key
+        # MMKV overwrites it in place, so the file holds a single record.
         "overwritten": [("set", STATE_KEY, raw["v1"]), ("set", STATE_KEY, raw["v4"]), ("set", STATE_KEY, raw["v6importing"])],
         # The RN storage adapter copied an unparsable blob aside, then the store saved fresh state.
         "corrupt-backup": [("set", STATE_KEY, "{not json"), ("set", BACKUP_KEY, "{not json"), ("set", STATE_KEY, raw["v5"])],
@@ -75,9 +76,43 @@ def scenarios():
         "length-124": [("set", STATE_KEY, padded_json(124))],
         # Large enough to need multi-byte lengths and to grow the file past one page.
         "large": [("set", STATE_KEY, many_doses(100))],
+        # With a second key present MMKV appends instead of rewriting, so the
+        # file holds stale copies of the state and the last one wins. One
+        # write lands after a relaunch.
+        "appended": [("set", BACKUP_KEY, "{not json"), ("set", STATE_KEY, raw["v1"]), ("set", STATE_KEY, raw["v4"]),
+                     ("reopen",), ("set", STATE_KEY, raw["v6importing"])],
         # Many rewrites, then a trim, so MMKV compacts and rewrites the file.
         "rewritten": [("set", STATE_KEY, many_doses(i)) for i in range(1, 60)] + [("trim",)],
     }
+
+
+def count_records(path):
+    """Key/value records in the file, stale ones included, read independently of AuroraCore."""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    size = int.from_bytes(data[:4], "little")
+    body = data[4:4 + size]
+
+    def varint(position):
+        result, shift = 0, 0
+        while True:
+            byte = body[position]
+            position += 1
+            result |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                return result, position
+            shift += 7
+
+    counts = {}
+    _, position = varint(0)
+    while position < len(body):
+        length, position = varint(position)
+        key = body[position:position + length].decode()
+        position += length
+        length, position = varint(position)
+        position += length
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def run(cmd, **kwargs):
@@ -110,6 +145,8 @@ def main():
         with open(os.path.join(core_src, "MMKVPredef.h")) as handle:
             core_version = next(line.split('"')[1] for line in handle if "MMKV_VERSION =" in line)
 
+        # Bytes 4-7 (MMKV's item-size placeholder) differ from run to run;
+        # the reader skips them. Everything else is the same each time.
         shutil.rmtree(OUT, ignore_errors=True)
         os.makedirs(OUT)
         manifest = {
@@ -146,7 +183,7 @@ def main():
                 shutil.copyfile(os.path.join(root, file), os.path.join(OUT, name, file))
                 with open(os.path.join(root, file), "rb") as handle:
                     files[file] = hashlib.sha256(handle.read()).hexdigest()
-            manifest["scenarios"][name] = {"files": files, "values": values}
+            manifest["scenarios"][name] = {"files": files, "values": values, "records": count_records(os.path.join(root, "aurora"))}
         with open(os.path.join(OUT, "manifest.json"), "w", encoding="utf-8") as handle:
             json.dump(manifest, handle, ensure_ascii=False, indent=1, sort_keys=True)
             handle.write("\n")

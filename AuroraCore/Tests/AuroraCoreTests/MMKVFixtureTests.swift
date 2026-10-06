@@ -34,7 +34,7 @@ import Testing
         let manifest = try Self.manifest()
         #expect(manifest.text("package") == "react-native-mmkv@3.3.0")
         #expect(manifest.text("mmkvCore") == "v2.0.0")
-        #expect(try Self.scenarios().count == 8)
+        #expect(try Self.scenarios().count == 9)
     }
 
     @Test func readsEveryKeyMMKVReadsBack() throws {
@@ -69,6 +69,18 @@ import Testing
         let reader = try MMKVReader(contentsOf: scenario.file)
         #expect(reader.string(forKey: "aurora/state.corrupt.1790510400000") == "{not json")
         #expect(reader.string(forKey: "aurora/state")?.hasPrefix("{\"version\":5") == true)
+    }
+
+    @Test func appendedOverwritesKeepTheLastWrite() throws {
+        // With a second key present MMKV appends, so the file still holds
+        // the stale v1 and v4 blobs; one write came after a reopen.
+        let manifest = try Self.manifest()
+        let records = manifest["scenarios"]?["appended"]?["records"]
+        #expect(records?.int("aurora/state") == 3)
+        let scenario = try #require(try Self.scenarios().first { $0.name == "appended" })
+        let raw = try #require(try MMKVReader(contentsOf: scenario.file).string(forKey: "aurora/state"))
+        let legacy = try Fixture.load("legacy")
+        #expect(raw == legacy["cases"]?["v6importing"]?.text("raw"))
     }
 
     @Test func truncatedRealFileIsRejected() throws {
