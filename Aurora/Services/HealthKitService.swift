@@ -19,13 +19,17 @@ final class HealthKitService: @unchecked Sendable {
     private let store = HKHealthStore()
     private let sleepType = HKCategoryType(.sleepAnalysis)
 
+    /// Aurora asks to write nothing and to read only Sleep Analysis.
+    static let shareTypes: Set<HKSampleType> = []
+    static let readTypes: Set<HKObjectType> = [HKCategoryType(.sleepAnalysis)]
+
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
     /// Shows the Health sheet. Returns once the request completes, whatever
     /// the person chose.
     func requestReadAccess() async throws {
         guard isAvailable else { throw Failure.unavailable }
-        try await store.requestAuthorization(toShare: [], read: [sleepType])
+        try await store.requestAuthorization(toShare: Self.shareTypes, read: Self.readTypes)
     }
 
     /// Asleep samples (unspecified, core, deep, REM) that end inside the

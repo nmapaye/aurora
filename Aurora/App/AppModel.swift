@@ -13,15 +13,49 @@ final class AppModel {
         case loading
         /// Backup exclusion couldn't be confirmed, so no records are read.
         case storageUnavailable
+        /// Saved records couldn't be opened. Nothing is written until the
+        /// person retries successfully or chooses to start fresh.
+        case recovery(Recovery)
         case ready
+    }
+
+    enum Recovery: Equatable {
+        /// `state.json` exists but couldn't be read; often the device is still
+        /// locked. Retrying is the only option, since the records may be fine.
+        case unreadable
+        /// `state.json` doesn't decode. `backupKept` says a copy was made.
+        case corrupt(backupKept: Bool)
+        /// The React Native build's store exists but couldn't be read. It is
+        /// left untouched, and the import runs again on every launch until it
+        /// succeeds or the person starts fresh.
+        case legacyUnreadable
+        /// The old records were read but saving them failed.
+        case importNotSaved
+
+        /// Starting fresh only when the original is safe: a corrupt file must
+        /// have a copy, and the old store is never touched.
+        var allowsStartFresh: Bool {
+            switch self {
+            case .unreadable, .importNotSaved: false
+            case .corrupt(let backupKept): backupKept
+            case .legacyUnreadable: true
+            }
+        }
+    }
+
+    enum DeletionResult: Equatable {
+        case completed
+        /// Records were cleared, but a kept copy or export couldn't be removed.
+        case incomplete
     }
 
     private(set) var phase: Phase = .loading
     private(set) var state = AppState()
     /// Moves every minute and on foreground, so "today" rolls over at midnight.
     private(set) var now: Millis = AppModel.currentMillis()
-    /// Shown once when the old app's file couldn't be read.
-    var legacyImportFailed = false
+    /// The last save failed; the change is still on screen but not on disk.
+    private(set) var saveFailed = false
+    private(set) var deletionResult: DeletionResult?
     private(set) var reminderStatus: ReminderService.Status = .off
     var pendingLink: DeepLink?
 
@@ -33,6 +67,14 @@ final class AppModel {
     private let legacy: () -> LegacyImport?
     private var store: StateStore?
     private var lastQuickAddAt: Millis?
+    /// DEBUG builds only: start from an empty store for UI tests.
+    private let uiTestReset: Bool
+
+    #if DEBUG
+    static let launchedForUITestReset = ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset")
+    #else
+    static let launchedForUITestReset = false
+    #endif
 
     init(
         clock: LocalClock = .current,
@@ -40,8 +82,10 @@ final class AppModel {
         health: HealthKitService = HealthKitService(),
         reminders: ReminderService = ReminderService(),
         makeStore: @escaping () throws -> StateStore = StateStore.live,
-        legacy: @escaping () -> LegacyImport? = LegacyImport.live
+        legacy: @escaping () -> LegacyImport? = LegacyImport.live,
+        uiTestReset: Bool = AppModel.launchedForUITestReset
     ) {
+        self.uiTestReset = uiTestReset
         self.clock = clock
         self.text = text
         self.health = health
@@ -67,26 +111,46 @@ final class AppModel {
             try store.prepare()
             self.store = store
             tick()
-            if let saved = store.load() {
-                state = saved
-            } else if let legacy = legacy() {
-                switch legacy.read(now: now) {
-                case .imported(let imported):
-                    state = imported
-                    try store.save(state)
-                    legacy.removeLegacyStore()
-                case .unreadable:
-                    legacyImportFailed = true
-                case .none:
-                    break
-                }
-            }
-            if ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset") {
+            // UI tests start from an empty store. This runs before any
+            // migration and never reads or removes the old store. Release
+            // builds can't set it.
+            if uiTestReset {
+                try store.purge(includingState: true)
                 state = AppState()
+                phase = .ready
+                return
             }
-            phase = .ready
+            switch store.load() {
+            case .loaded(let saved):
+                state = saved
+                phase = .ready
+            case .unreadable:
+                phase = .recovery(.unreadable)
+            case .corrupt(let backup):
+                phase = .recovery(.corrupt(backupKept: backup != nil))
+            case .missing:
+                importLegacy(into: store)
+            }
         } catch {
             phase = .storageUnavailable
+        }
+    }
+
+    private func importLegacy(into store: StateStore) {
+        switch legacy()?.read(now: now) ?? LegacyImport.Outcome.none {
+        case .none:
+            state = AppState()
+            phase = .ready
+        case .unreadable:
+            phase = .recovery(.legacyUnreadable)
+        case .imported(let imported):
+            do {
+                try store.save(imported)
+                state = imported
+                phase = .ready
+            } catch {
+                phase = .recovery(.importNotSaved)
+            }
         }
     }
 
@@ -95,20 +159,46 @@ final class AppModel {
         load()
     }
 
+    /// Replaces unreadable records with an empty store, once the person
+    /// confirms. The corrupt file's copy and the old store are kept.
+    func startFresh() {
+        guard case .recovery(let recovery) = phase, recovery.allowsStartFresh, let store else { return }
+        do {
+            try store.save(AppState())
+            state = AppState()
+            saveFailed = false
+            phase = .ready
+        } catch {
+            saveFailed = true
+        }
+    }
+
     private func update(_ change: (inout AppState) -> Void) {
+        guard phase == .ready else { return }
         change(&state)
         persist()
     }
 
     private func persist() {
-        guard let store else { return }
-        try? store.save(state)
+        guard phase == .ready, let store else { return }
+        do {
+            try store.save(state)
+            saveFailed = false
+        } catch {
+            saveFailed = true
+        }
+    }
+
+    /// Tries the failed save again with what is on screen.
+    func retrySave() {
+        persist()
     }
 
     // MARK: Caffeine
 
     /// Quick Add. A second tap within a second is ignored as a double tap.
     func quickAdd(_ preset: CaffeinePreset) -> Dose? {
+        guard phase == .ready else { return nil }
         tick()
         guard CaffeineLog.acceptsQuickAdd(lastAcceptedAt: lastQuickAddAt, at: now) else { return nil }
         lastQuickAddAt = now
@@ -252,8 +342,23 @@ final class AppModel {
         update { $0.clearSampleData() }
     }
 
+    /// Clears every record, then removes what Aurora kept on the side: copies
+    /// of unreadable files, the React Native build's store and CSV exports.
+    /// Settings asks the person to confirm first.
     func deleteAllData() {
         update { $0.deleteAllData() }
+        guard phase == .ready, !saveFailed, let store else {
+            deletionResult = .incomplete
+            return
+        }
+        do {
+            try store.purge(includingState: false)
+            try legacy()?.purge()
+            try CSVFile.purgeExports()
+            deletionResult = .completed
+        } catch {
+            deletionResult = .incomplete
+        }
     }
 
     // MARK: Reaction Test

@@ -103,6 +103,14 @@ struct SettingsView: View {
                     }
                     Button("Delete All Data", role: .destructive) { confirmDelete = true }
                         .accessibilityIdentifier("delete-all-data")
+                    if let result = model.deletionResult {
+                        Text(result == .completed
+                             ? "All Aurora data was deleted from this device."
+                             : "Some Aurora files couldn’t be removed. Try Delete All Data again.")
+                            .font(.footnote)
+                            .foregroundStyle(result == .completed ? Palette.textSecondary : StatusTone.error.foreground)
+                            .accessibilityIdentifier("delete-all-result")
+                    }
                 } header: {
                     Text("Data")
                 }
@@ -123,7 +131,7 @@ struct SettingsView: View {
                     model.deleteAllData()
                 }
             } message: {
-                Text("This removes every caffeine entry, sleep session, and reaction test stored in Aurora. Your Apple Health data is not changed.")
+                Text("This removes every caffeine entry, sleep session, and reaction test stored in Aurora, along with copies of unreadable files, the previous version’s data, and exported CSV files. Your Apple Health data is not changed.")
             }
             .sensoryFeedback(.warning, trigger: deletedCount)
             .task { await model.resyncReminder() }
@@ -163,6 +171,7 @@ struct SettingsView: View {
             case .off: return (enabled ? "Updating reminder…" : "Reminder off.", false)
             case .scheduled: return ("Reminder scheduled.", false)
             case .denied: return ("Notification permission is off. Allow notifications in system Settings, then retry.", true)
+            case .failed: return ("The reminder couldn’t be scheduled. Retry.", true)
             }
         }()
         VStack(alignment: .leading, spacing: 2) {
@@ -189,16 +198,33 @@ struct SettingsView: View {
     }
 }
 
-/// A CSV export handed to the share sheet as a file.
+/// A CSV export handed to the share sheet as a file. Exports are written to
+/// one temporary folder so Delete All Data can remove them.
 struct CSVFile: Transferable {
     let name: String
     let text: String
 
+    static var exportDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("AuroraExports", isDirectory: true)
+    }
+
+    static func purgeExports() throws {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: exportDirectory.path) {
+            try manager.removeItem(at: exportDirectory)
+        }
+    }
+
+    func write() throws -> URL {
+        try FileManager.default.createDirectory(at: Self.exportDirectory, withIntermediateDirectories: true)
+        let url = Self.exportDirectory.appendingPathComponent(name)
+        try Data(text.utf8).write(to: url, options: [.atomic, .completeFileProtection])
+        return url
+    }
+
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .commaSeparatedText) { file in
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(file.name)
-            try Data(file.text.utf8).write(to: url, options: .atomic)
-            return SentTransferredFile(url)
+            SentTransferredFile(try file.write())
         }
     }
 }

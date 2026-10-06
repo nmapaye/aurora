@@ -1,5 +1,6 @@
 import AuroraCore
 import Foundation
+import HealthKit
 import Testing
 @testable import Aurora
 
@@ -15,14 +16,35 @@ import Testing
     private var storeDirectory: URL { root.appendingPathComponent("Support/Aurora", isDirectory: true) }
     private var documents: URL { root.appendingPathComponent("Documents", isDirectory: true) }
 
-    private func makeModel() -> AppModel {
+    private var stateFile: URL { storeDirectory.appendingPathComponent("state.json") }
+    private var mmkv: URL { documents.appendingPathComponent("mmkv", isDirectory: true) }
+    private var legacyFile: URL { mmkv.appendingPathComponent("aurora") }
+
+    private func makeModel(uiTestReset: Bool = false) -> AppModel {
         let directory = storeDirectory
         let docs = documents
         return AppModel(
             clock: LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!),
             makeStore: { StateStore(directory: directory) },
-            legacy: { LegacyImport(documents: docs) }
+            legacy: { LegacyImport(documents: docs) },
+            uiTestReset: uiTestReset
         )
+    }
+
+    private static let legacyBlob = #"{"state":{"doses":[{"id":"abc","timestamp":1790000000000,"mg":95,"source":"Drip"}],"onboarding":{"completed":true,"appWalkthroughCompleted":true}},"version":6}"#
+
+    /// The React Native store, with the corrupt-copy key its storage adapter kept.
+    private func writeLegacyStore(_ blob: String = legacyBlob) throws {
+        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
+        try MMKVReader.encode([
+            (key: "aurora/state.corrupt.1790000000000", value: "{bad"),
+            (key: "aurora/state", value: blob),
+        ]).write(to: legacyFile)
+        try Data(repeating: 0, count: 8).write(to: mmkv.appendingPathComponent("aurora.crc"))
+    }
+
+    private func savedState() throws -> AppState {
+        try JSONDecoder().decode(AppState.self, from: Data(contentsOf: stateFile))
     }
 
     @Test func recordsSurviveRelaunch() throws {
@@ -73,44 +95,200 @@ import Testing
         #expect(model.state.doses.first { $0.id == sample.id } == sample)
     }
 
-    @Test func importsTheReactNativeStore() throws {
-        let mmkv = documents.appendingPathComponent("mmkv", isDirectory: true)
-        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
-        let blob = #"{"state":{"doses":[{"id":"abc","timestamp":1790000000000,"mg":95,"source":"Drip"}],"onboarding":{"completed":true,"appWalkthroughCompleted":true}},"version":6}"#
-        try MMKVReader.encode([(key: "aurora/state", value: blob)]).write(to: mmkv.appendingPathComponent("aurora"))
+    @Test func importsTheReactNativeStoreAndKeepsIt() throws {
+        try writeLegacyStore()
+        let original = try Data(contentsOf: legacyFile)
 
         let model = makeModel()
         model.load()
+        #expect(model.phase == .ready)
         #expect(model.state.doses.map(\.id) == ["abc"])
         #expect(model.state.onboarding.completed)
-        #expect(!FileManager.default.fileExists(atPath: mmkv.path))
+        // Saved and read back before anything else, and the old store is untouched.
+        #expect(try savedState() == model.state)
+        #expect(try Data(contentsOf: legacyFile) == original)
+        #expect(FileManager.default.fileExists(atPath: mmkv.appendingPathComponent("aurora.crc").path))
 
         let relaunched = makeModel()
         relaunched.load()
         #expect(relaunched.state.doses.map(\.id) == ["abc"])
     }
 
-    @Test func unreadableLegacyStoreIsKept() throws {
-        let mmkv = documents.appendingPathComponent("mmkv", isDirectory: true)
+    @Test func migratedStateWinsOverTheOldStore() throws {
+        try writeLegacyStore()
+        let model = makeModel()
+        model.load()
+        model.deleteDose(id: "abc")
+        // The old store still holds "abc"; state.json existing ends the migration.
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.state.doses.isEmpty)
+    }
+
+    @Test func unreadableLegacyStoreBlocksWritesAndIsRetried() throws {
         try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
-        let file = mmkv.appendingPathComponent("aurora")
-        try Data([1, 2]).write(to: file)
+        try Data([1, 2]).write(to: legacyFile)
 
         let model = makeModel()
         model.load()
-        #expect(model.legacyImportFailed)
-        #expect(model.state.doses.isEmpty)
-        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(model.phase == .recovery(.legacyUnreadable))
+        #expect(model.quickAdd(CaffeinePreset.all[0]) == nil)
+        model.setPrefs { $0.cutoffHour = 9 }
+        #expect(!FileManager.default.fileExists(atPath: stateFile.path))
+        #expect(try Data(contentsOf: legacyFile) == Data([1, 2]))
+
+        // The next launch tries again, and succeeds once the file reads.
+        try writeLegacyStore()
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.phase == .ready)
+        #expect(relaunched.state.doses.map(\.id) == ["abc"])
     }
 
-    @Test func corruptStateIsMovedAside() throws {
-        try StateStore(directory: storeDirectory).prepare()
-        try Data("{oops".utf8).write(to: storeDirectory.appendingPathComponent("state.json"))
+    @Test func startingFreshAfterAFailedImportKeepsTheOldStore() throws {
+        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
+        try Data([1, 2]).write(to: legacyFile)
+        let model = makeModel()
+        model.load()
+        model.startFresh()
+        #expect(model.phase == .ready)
+        #expect(try savedState() == AppState())
+        #expect(try Data(contentsOf: legacyFile) == Data([1, 2]))
+    }
+
+    @Test func emptyLegacyStoreIsNotAFailure() throws {
+        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
+        try MMKVReader.encode([(key: "other", value: "x")]).write(to: legacyFile)
         let model = makeModel()
         model.load()
         #expect(model.phase == .ready)
-        let files = try FileManager.default.contentsOfDirectory(atPath: storeDirectory.path)
-        #expect(files.contains { $0.hasPrefix("state.corrupt.") })
+        #expect(model.state == AppState())
+    }
+
+    @Test func corruptStateIsKeptAndBlocksWrites() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        try Data("{oops".utf8).write(to: stateFile)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .recovery(.corrupt(backupKept: true)))
+        let store = StateStore(directory: storeDirectory)
+        let backups = store.corruptBackups()
+        #expect(backups.count == 1)
+        #expect(try Data(contentsOf: backups[0]) == Data("{oops".utf8))
+
+        // Nothing writes over the damaged file until the person chooses.
+        #expect(model.quickAdd(CaffeinePreset.all[0]) == nil)
+        model.loadSampleData()
+        #expect(try Data(contentsOf: stateFile) == Data("{oops".utf8))
+
+        // Retrying keeps one copy, then starting fresh replaces state.json only.
+        model.retryStorage()
+        #expect(store.corruptBackups().count == 1)
+        model.startFresh()
+        #expect(model.phase == .ready)
+        #expect(try savedState() == AppState())
+        #expect(!store.corruptBackups().isEmpty)
+    }
+
+    @Test func unreadableStateOffersOnlyRetry() throws {
+        // A directory where the file should be: it exists but can't be read.
+        try FileManager.default.createDirectory(at: stateFile, withIntermediateDirectories: true)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .recovery(.unreadable))
+        #expect(!AppModel.Recovery.unreadable.allowsStartFresh)
+        model.startFresh()
+        #expect(model.phase == .recovery(.unreadable))
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: stateFile.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+
+        try FileManager.default.removeItem(at: stateFile)
+        model.retryStorage()
+        #expect(model.phase == .ready)
+    }
+
+    @Test func failedSavesAreSurfacedAndRetried() throws {
+        let model = makeModel()
+        model.load()
+        model.completeOnboarding()
+        #expect(!model.saveFailed)
+        // A read-only folder makes the atomic write fail.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: storeDirectory.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: storeDirectory.path) }
+        let dose = try #require(model.quickAdd(CaffeinePreset.all[0]))
+        #expect(model.saveFailed)
+        #expect(try savedState().doses.isEmpty)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: storeDirectory.path)
+        model.retrySave()
+        #expect(!model.saveFailed)
+        #expect(try savedState().doses == [dose])
+    }
+
+    @Test func uiTestResetRunsBeforeMigrationAndLeavesTheOldStore() throws {
+        try writeLegacyStore()
+        let original = try Data(contentsOf: legacyFile)
+        let first = makeModel()
+        first.load()
+        #expect(first.state.doses.count == 1)
+
+        let reset = makeModel(uiTestReset: true)
+        reset.load()
+        #expect(reset.phase == .ready)
+        #expect(reset.state == AppState())
+        #expect(!FileManager.default.fileExists(atPath: stateFile.path))
+        #expect(try Data(contentsOf: legacyFile) == original)
+    }
+
+    @Test func releaseBuildsIgnoreTheUITestReset() {
+        #if !DEBUG
+        #expect(!AppModel.launchedForUITestReset)
+        #endif
+    }
+
+    @Test func deleteAllRemovesKeptCopiesOldStoreAndExports() throws {
+        try writeLegacyStore()
+        let model = makeModel()
+        model.load()
+        let store = StateStore(directory: storeDirectory)
+        try Data("{old".utf8).write(to: storeDirectory.appendingPathComponent("state.corrupt.1.json"))
+        let export = try CSVFile(name: "aurora-test.csv", text: "a,b\n").write()
+        #expect(FileManager.default.fileExists(atPath: export.path))
+
+        model.deleteAllData()
+        #expect(model.deletionResult == .completed)
+        #expect(model.state.doses.isEmpty)
+        #expect(try savedState().doses.isEmpty)
+        #expect(store.corruptBackups().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: mmkv.path))
+        #expect(!FileManager.default.fileExists(atPath: CSVFile.exportDirectory.path))
+
+        // Nothing comes back from the old store on relaunch.
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.state.doses.isEmpty)
+    }
+
+    @Test func walkthroughResumesAfterRelaunchAndLocksLinks() {
+        let model = makeModel()
+        model.load()
+        model.completeOnboarding()
+        for _ in 0..<4 { model.advanceWalkthrough() }
+
+        let relaunched = makeModel()
+        relaunched.load()
+        let state = relaunched.state
+        #expect(state.isWalkthroughPending)
+        #expect(state.onboarding.appWalkthroughStep == 4)
+        // Step 5 is on Sleep; a link elsewhere lands on the step's tab.
+        #expect(DeepLink.tab(.insights).resolved(walkthroughPending: true, step: 4) == .tab(Walkthrough.tab(forStep: 4)))
+
+        for _ in 0..<20 { relaunched.advanceWalkthrough() }
+        #expect(relaunched.state.onboarding.appWalkthroughStep == 9)
+        relaunched.completeWalkthrough()
+        let finished = makeModel()
+        finished.load()
+        #expect(!finished.state.isWalkthroughPending)
     }
 
     @Test func deleteAllKeepsSettings() {
@@ -121,5 +299,17 @@ import Testing
         model.deleteAllData()
         #expect(model.state.doses.isEmpty && model.state.sleeps.isEmpty)
         #expect(model.state.prefs.cutoffHour == 12)
+    }
+}
+
+@Suite struct HealthAccessTests {
+    @Test func requestsReadOnlySleepAccess() {
+        #expect(HealthKitService.shareTypes.isEmpty)
+        #expect(HealthKitService.readTypes == [HKCategoryType(.sleepAnalysis)])
+    }
+
+    @Test func usageTextSaysHealthIsReadOnly() {
+        let info = Bundle.main.infoDictionary ?? [:]
+        #expect((info["NSHealthUpdateUsageDescription"] as? String)?.contains("does not write") == true)
     }
 }
