@@ -598,6 +598,85 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         #expect(week.points.allSatisfy { $0.durationMs == nil })
     }
 
+    @Test(arguments: [1e35, 1e100, 1e300, -1e300, 8.64e15 + 1, -8.64e15 - 1, .nan, .infinity, -.infinity])
+    func timesWithoutADateFormatBlank(ms: Double) {
+        // Past ~1e35 the millisecond remainder cancels to a value Int can't
+        // hold; these must come back blank, not trap.
+        #expect(!isValidRecordTime(ms))
+        #expect(isoTimestamp(ms) == "")
+        #expect(utc.isoDay(ms) == "")
+        let day = utc.calendarDay(ms)
+        #expect(day.year == 0 && day.month == 0 && day.day == 0)
+    }
+
+    @Test func theDateRangeEdgesStillFormat() {
+        #expect(isoTimestamp(8.64e15) == "+275760-09-13T00:00:00.000Z")
+        let earliest = isoTimestamp(-8.64e15)
+        #expect(earliest.hasPrefix("-27") && earliest.hasSuffix("T00:00:00.000Z"))
+        #expect(!utc.isoDay(-8.64e15).isEmpty)
+        #expect(isoTimestamp(1_790_527_260_123.9) == "2026-09-27T16:41:00.123Z")
+    }
+
+    /// Records as a hand-edited state.json can hold them: JSONDecoder takes
+    /// any finite number, and tests can also build NaN directly.
+    static let undateable: [Dose] = [
+        Dose(id: "ok", timestamp: now - hourMs, mg: 95),
+        Dose(id: "huge", timestamp: 1e300, mg: 60),
+        Dose(id: "negative", timestamp: -1e100, mg: 40),
+        Dose(id: "nan", timestamp: .nan, mg: 30),
+    ]
+
+    @Test func everyCSVExportHandlesUndateableRecords() {
+        let entries = Export.doseEntriesCSV(Self.undateable, clock: utc)
+        let lines = entries.split(separator: "\n")
+        // Finite records keep their row; the date and time cells are blank.
+        #expect(lines.count == 4)
+        let huge = lines.first { $0.hasPrefix("\"huge\"") }
+        #expect(huge?.contains("\"\",\"1e+300\",\"\"") == true)
+        #expect(lines.contains { $0.hasPrefix("\"ok\"") && $0.contains("2026-09-27") })
+
+        let rows = Export.dailyTotalRows(Self.undateable, now: now, clock: utc)
+        #expect(rows.map(\.mg) == [95])
+        _ = Export.dailyTotalsCSV(rows)
+
+        let sessions = [
+            VigilanceSession(id: "v", startedAt: 1e300, completedAt: .infinity, durationMs: 60_000, trialCount: 1,
+                             validReactionCount: 1, falseStartCount: 0, lapseCount: 0, medianReactionMs: 300,
+                             meanReactionMs: 300, fastestReactionMs: 300, reactionStdDevMs: 0, score: 80, rating: .sharp),
+        ]
+        let vigilance = Export.vigilanceSessionsCSV(sessions)
+        #expect(vigilance.split(separator: "\n").last?.hasPrefix("\"v\",\"\",\"\"") == true)
+    }
+
+    @Test func loadingDropsRecordsWithoutADate() throws {
+        var state = AppState()
+        state.doses = Self.undateable.filter { !$0.timestamp.isNaN }
+        state.sleeps = [
+            SleepSession(id: "manual:sleep:1:a", start: now - 8 * hourMs, end: now - hourMs),
+            SleepSession(id: "manual:sleep:2:b", start: -1e300, end: now),
+        ]
+        state.vigilanceSessions = [
+            VigilanceSession(id: "v", startedAt: 1e300, completedAt: 1e300 + 1, durationMs: 1, trialCount: 0,
+                             validReactionCount: 0, falseStartCount: 0, lapseCount: 0, medianReactionMs: nil,
+                             meanReactionMs: nil, fastestReactionMs: nil, reactionStdDevMs: nil, score: 0, rating: .sluggish),
+        ]
+        state.onboarding.completedAt = 1e300
+        state.healthSync.lastSyncedAt = -1e300
+        // It survives a JSON round trip, as a hand-edited file would.
+        let decoded = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(state))
+        let cleaned = decoded.droppingInvalidTimes()
+        #expect(cleaned.doses.map(\.id) == ["ok"])
+        #expect(cleaned.sleeps.map(\.id) == ["manual:sleep:1:a"])
+        #expect(cleaned.vigilanceSessions.isEmpty)
+        #expect(cleaned.onboarding.completedAt == nil)
+        #expect(cleaned.healthSync.lastSyncedAt == nil)
+        #expect(cleaned.droppingInvalidTimes() == cleaned)
+        // An ordinary state is left exactly as it was.
+        var ordinary = AppState()
+        ordinary.loadSampleData(now: now, clock: utc)
+        #expect(ordinary.droppingInvalidTimes() == ordinary)
+    }
+
     @Test func emptyKeyIsMalformedNotSkipped() {
         // The reviewer's payload: an empty key, then 1:"A" 1:"B". Skipping the
         // key without its value would read a record A:B that was never written.
