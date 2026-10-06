@@ -58,11 +58,11 @@ final class ReminderService {
     private(set) var lastStatus: Status = .off
 
     init(
-        center: NotificationScheduling = SystemNotificationCenter(),
+        center: NotificationScheduling? = nil,
         clock: @escaping () -> LocalClock = { .current },
         text: @escaping () -> DateText = { .current }
     ) {
-        self.center = center
+        self.center = center ?? SystemNotificationCenter()
         self.clock = clock
         self.text = text
     }

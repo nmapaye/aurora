@@ -80,7 +80,7 @@ final class AppModel {
         clock: LocalClock = .current,
         text: DateText = .current,
         health: HealthKitService = HealthKitService(),
-        reminders: ReminderService = ReminderService(),
+        reminders: ReminderService? = nil,
         makeStore: @escaping () throws -> StateStore = StateStore.live,
         legacy: @escaping () -> LegacyImport? = LegacyImport.live,
         uiTestReset: Bool = AppModel.launchedForUITestReset
@@ -89,7 +89,7 @@ final class AppModel {
         self.clock = clock
         self.text = text
         self.health = health
-        self.reminders = reminders
+        self.reminders = reminders ?? ReminderService()
         self.makeStore = makeStore
         self.legacy = legacy
     }
