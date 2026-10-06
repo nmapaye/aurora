@@ -8,10 +8,6 @@ on:
       - '.github/workflows/core-ci.yml'
       - '.github/scripts/xcode-annotate.py'
   pull_request:
-    paths:
-      - 'AuroraCore/**'
-      - '.github/workflows/core-ci.yml'
-      - '.github/scripts/xcode-annotate.py'
   workflow_dispatch:
 
 permissions:
@@ -22,7 +18,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pull requests run this workflow whatever they touch, so the gate below
+  # always reports. The real jobs run only when in AuroraCore changed.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      relevant: ${{ steps.diff.outputs.relevant }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+
+      - name: Compare with the base branch
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A pull_request checkout is the merge commit; its first parent is
+          # the base branch, so this lists what the PR changes.
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "$changed"
+          if grep -qE '^(AuroraCore/|\.github/workflows/core-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
   linux:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     name: swift-core (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -46,6 +78,8 @@ jobs:
           exit $status
 
   macos:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     name: swift-core (macOS)
     runs-on: macos-26
     timeout-minutes: 30
@@ -62,3 +96,27 @@ jobs:
           status=${PIPESTATUS[0]}
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
+
+  # The one check the main ruleset requires. It passes when every job
+  # passed, or when the jobs were skipped because nothing in AuroraCore changed.
+  gate:
+    name: Swift Core gate
+    needs: [changes, linux, macos]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check results
+        env:
+          CHANGES: ${{ needs.changes.result }}
+        run: |
+          set -euo pipefail
+          [ "$CHANGES" = "success" ] || { echo "::error::changes job: $CHANGES"; exit 1; }
+          check() {
+            case "$2" in
+              success|skipped) echo "$1: $2" ;;
+              *) echo "::error::$1: $2"; exit 1 ;;
+            esac
+          }
+          check "linux" "${{ needs.linux.result }}"
+          check "macos" "${{ needs.macos.result }}"
