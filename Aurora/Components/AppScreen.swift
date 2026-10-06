@@ -40,6 +40,7 @@ struct AppScreen<Content: View, Trailing: View>: View {
                     .font(.largeTitle.bold())
                     .foregroundStyle(Palette.textPrimary)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("screen-title-\(title)")
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)

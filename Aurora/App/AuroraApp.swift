@@ -135,6 +135,12 @@ struct StorageRecoveryView: View {
             Text(copy.body)
                 .foregroundStyle(Palette.textSecondary)
                 .accessibilityIdentifier("storage-recovery-message")
+            if model.startFreshFailed {
+                Text("Aurora couldn’t start fresh because saving failed. Nothing was changed. Try again.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(StatusTone.error.foreground)
+                    .accessibilityIdentifier("storage-start-fresh-failed")
+            }
             Button("Try Again") { model.retryStorage() }
                 .buttonStyle(.auroraPrimary)
                 .accessibilityIdentifier("storage-retry")

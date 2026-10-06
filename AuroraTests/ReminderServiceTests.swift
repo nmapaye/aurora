@@ -98,7 +98,9 @@ final class FakeNotificationCenter: NotificationScheduling {
         async let first = service.sync(enabled: true, cutoffHour: 14, prompt: false)
         while !center.isParked { await Task.yield() }
         async let second = service.sync(enabled: false, cutoffHour: 14, prompt: false)
-        await Task.yield()
+        // Release only once the second sync has registered, so the first is
+        // superseded every time rather than by timing.
+        while service.latestIntent < 2 { await Task.yield() }
         center.release()
         let results = await (first, second)
         #expect(results.0 == .off)

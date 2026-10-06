@@ -34,11 +34,30 @@ final class AuroraUITests: XCTestCase {
             plain.tap()
             return
         }
-        let tree = app.debugDescription
+        XCTFail("No \(name) tab. Tree: \(tree())", file: file, line: line)
+    }
+
+    /// The element tree on one line, for failure messages: job logs aren't
+    /// always reachable, but annotations are.
+    private func tree() -> String {
+        String(app.debugDescription
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .joined(separator: " | ")
-        XCTFail("No \(name) tab. Tree: \(tree.prefix(6000))", file: file, line: line)
+            .prefix(6000))
+    }
+
+    /// Fails with the element tree when `element` doesn't appear.
+    @discardableResult
+    private func expectToAppear(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 5,
+                                file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        if element.waitForExistence(timeout: timeout) { return true }
+        XCTFail("\(what) did not appear. Tree: \(tree())", file: file, line: line)
+        return false
+    }
+
+    private func onScreen(_ title: String) -> XCUIElement {
+        app.staticTexts["screen-title-\(title)"]
     }
 
     func testWalkthroughLocksTabsUntilSkipped() {
@@ -68,13 +87,58 @@ final class AuroraUITests: XCTestCase {
     func testSampleEntriesAreReadOnly() {
         finishManualSetup()
         app.buttons["walkthrough-skip"].tap()
-        app.buttons["Load Sample Data"].firstMatch.tap()
+        let load = app.buttons["Load Sample Data"].firstMatch
+        expectToAppear(load, "Load Sample Data on Summary")
+        load.tap()
+        expectToAppear(app.descendants(matching: .any)["summary-sample-status"], "the sample-data notice on Summary")
         tapTab("Log")
+        expectToAppear(onScreen("Log"), "the Log screen")
         let sampleRow = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS 'Sample Data, read-only'"))
             .firstMatch
-        XCTAssertTrue(sampleRow.waitForExistence(timeout: 5))
+        guard expectToAppear(sampleRow, "a read-only sample row on Log") else { return }
         sampleRow.tap()
         XCTAssertFalse(app.navigationBars["Edit Entry"].waitForExistence(timeout: 1))
+        XCTAssertFalse(app.buttons["dose-save"].exists, "Sample entries open no editor")
+    }
+
+    /// All ten steps in order, each on its own tab, with the tab bar locked
+    /// throughout, then Finish unlocks it.
+    func testWalkthroughRunsAllTenStepsAndFinishes() {
+        finishManualSetup()
+        let tabs = ["Summary", "Summary", "Summary", "Summary", "Sleep", "Sleep", "Log", "Log", "Insights", "Insights"]
+        let next = app.buttons["walkthrough-next"]
+        for (index, tab) in tabs.enumerated() {
+            let step = index + 1
+            expectToAppear(app.staticTexts["\(step) of 10"], "step \(step)'s progress")
+            expectToAppear(onScreen(tab), "the \(tab) screen at step \(step)")
+            if step == 7 {
+                // A locked tap elsewhere leaves the walkthrough where it is.
+                tapTab("Summary")
+                expectToAppear(onScreen("Log"), "the Log screen after a locked tap")
+                XCTAssertTrue(app.staticTexts["7 of 10"].exists)
+            }
+            XCTAssertEqual(next.label, step == 10 ? "Finish" : "Next")
+            next.tap()
+        }
+        XCTAssertFalse(app.buttons["walkthrough-skip"].waitForExistence(timeout: 2), "The coach is gone after Finish")
+        tapTab("Log")
+        expectToAppear(onScreen("Log"), "the Log screen after the walkthrough")
+    }
+
+    /// The walkthrough resumes at the saved step after the app is relaunched.
+    func testWalkthroughResumesAfterRelaunch() {
+        finishManualSetup()
+        let next = app.buttons["walkthrough-next"]
+        for step in 1...5 {
+            expectToAppear(app.staticTexts["\(step) of 10"], "step \(step)'s progress")
+            next.tap()
+        }
+        expectToAppear(app.staticTexts["6 of 10"], "step 6 before relaunch")
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        expectToAppear(app.staticTexts["6 of 10"], "step 6 after relaunch", timeout: 10)
+        expectToAppear(onScreen("Sleep"), "the Sleep screen after relaunch")
     }
 }

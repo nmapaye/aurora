@@ -20,12 +20,12 @@ import Testing
     private var mmkv: URL { documents.appendingPathComponent("mmkv", isDirectory: true) }
     private var legacyFile: URL { mmkv.appendingPathComponent("aurora") }
 
-    private func makeModel(uiTestReset: Bool = false) -> AppModel {
+    private func makeModel(uiTestReset: Bool = false, afterTemporaryWrite: @escaping (URL) throws -> Void = { _ in }) -> AppModel {
         let directory = storeDirectory
         let docs = documents
         return AppModel(
             clock: LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!),
-            makeStore: { StateStore(directory: directory) },
+            makeStore: { StateStore(directory: directory, afterTemporaryWrite: afterTemporaryWrite) },
             legacy: { LegacyImport(documents: docs) },
             uiTestReset: uiTestReset
         )
@@ -156,6 +156,43 @@ import Testing
         #expect(try Data(contentsOf: legacyFile) == Data([1, 2]))
     }
 
+    /// An MMKV file built byte by byte: the header, MMKV's placeholder, then
+    /// each key with its raw value bytes.
+    private func writeRawLegacyStore(_ pairs: [(String, [UInt8])]) throws {
+        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
+        var payload: [UInt8] = [0xFF, 0xFF, 0xFF, 0x07]
+        for (key, value) in pairs {
+            payload += [UInt8(key.utf8.count)] + Array(key.utf8) + [UInt8(value.count)] + value
+        }
+        let size = UInt32(payload.count)
+        try Data([UInt8(size & 0xFF), UInt8(size >> 8 & 0xFF), UInt8(size >> 16 & 0xFF), UInt8(size >> 24 & 0xFF)] + payload)
+            .write(to: legacyFile)
+    }
+
+    @Test func legacyStateThatIsNotUTF8IsUnreadableNotEmpty() throws {
+        try writeRawLegacyStore([("aurora/state", [0x02, 0xFF, 0xFE])])
+        let original = try Data(contentsOf: legacyFile)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .recovery(.legacyUnreadable))
+        #expect(!FileManager.default.fileExists(atPath: stateFile.path))
+        #expect(try Data(contentsOf: legacyFile) == original)
+    }
+
+    @Test func legacyStoreWithOnlyKeptCopiesIsUnreadable() throws {
+        try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
+        try MMKVReader.encode([(key: "aurora/state.corrupt.1790000000000", value: "{bad")]).write(to: legacyFile)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .recovery(.legacyUnreadable))
+        #expect(!FileManager.default.fileExists(atPath: stateFile.path))
+
+        // Relaunching tries again rather than treating the store as empty.
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.phase == .recovery(.legacyUnreadable))
+    }
+
     @Test func emptyLegacyStoreIsNotAFailure() throws {
         try FileManager.default.createDirectory(at: mmkv, withIntermediateDirectories: true)
         try MMKVReader.encode([(key: "other", value: "x")]).write(to: legacyFile)
@@ -223,6 +260,51 @@ import Testing
         model.retrySave()
         #expect(!model.saveFailed)
         #expect(try savedState().doses == [dose])
+    }
+
+    @Test func aMismatchedWriteLeavesThePreviousStateInPlace() throws {
+        let first = makeModel()
+        first.load()
+        first.completeOnboarding()
+        let good = try Data(contentsOf: stateFile)
+
+        // The temporary file decodes, but to a different state.
+        let other = try JSONEncoder().encode(AppState())
+        let model = makeModel(afterTemporaryWrite: { try other.write(to: $0) })
+        model.load()
+        _ = model.quickAdd(CaffeinePreset.all[0])
+        #expect(model.saveFailed)
+        #expect(try Data(contentsOf: stateFile) == good)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: storeDirectory.path).filter { $0.contains("saving") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test func aFailedImportSaveLeavesNoStateAndIsRetried() throws {
+        try writeLegacyStore()
+        let other = try JSONEncoder().encode(AppState())
+        let model = makeModel(afterTemporaryWrite: { try other.write(to: $0) })
+        model.load()
+        #expect(model.phase == .recovery(.importNotSaved))
+        #expect(!FileManager.default.fileExists(atPath: stateFile.path))
+
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.phase == .ready)
+        #expect(relaunched.state.doses.map(\.id) == ["abc"])
+    }
+
+    @Test func startFreshFailureIsShownInRecovery() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        try Data("{oops".utf8).write(to: stateFile)
+        let model = makeModel(afterTemporaryWrite: { _ in throw CocoaError(.fileWriteNoPermission) })
+        model.load()
+        #expect(model.phase == .recovery(.corrupt(backupKept: true)))
+        model.startFresh()
+        #expect(model.startFreshFailed)
+        #expect(model.phase == .recovery(.corrupt(backupKept: true)))
+        #expect(try Data(contentsOf: stateFile) == Data("{oops".utf8))
+        model.retryStorage()
+        #expect(!model.startFreshFailed)
     }
 
     @Test func uiTestResetRunsBeforeMigrationAndLeavesTheOldStore() throws {

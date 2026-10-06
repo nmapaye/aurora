@@ -56,6 +56,8 @@ final class AppModel {
     /// The last save failed; the change is still on screen but not on disk.
     private(set) var saveFailed = false
     private(set) var deletionResult: DeletionResult?
+    /// Start Fresh was chosen but its save failed; recovery stays up.
+    private(set) var startFreshFailed = false
     private(set) var reminderStatus: ReminderService.Status = .off
     var pendingLink: DeepLink?
 
@@ -155,6 +157,7 @@ final class AppModel {
     }
 
     func retryStorage() {
+        startFreshFailed = false
         phase = .loading
         load()
     }
@@ -167,9 +170,10 @@ final class AppModel {
             try store.save(AppState())
             state = AppState()
             saveFailed = false
+            startFreshFailed = false
             phase = .ready
         } catch {
-            saveFailed = true
+            startFreshFailed = true
         }
     }
 

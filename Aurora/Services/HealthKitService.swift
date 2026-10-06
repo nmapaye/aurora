@@ -32,8 +32,10 @@ final class HealthKitService: @unchecked Sendable {
         try await store.requestAuthorization(toShare: Self.shareTypes, read: Self.readTypes)
     }
 
-    /// Asleep samples (unspecified, core, deep, REM) that end inside the
-    /// window, oldest first.
+    /// Asleep samples (unspecified, core, deep, REM) that overlap the window
+    /// at all, oldest first. With no query options HealthKit matches any
+    /// sample whose span intersects the window, so a night that started
+    /// before `start` comes back whole.
     func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] {
         guard isAvailable else { throw Failure.unavailable }
         let predicate = HKQuery.predicateForSamples(

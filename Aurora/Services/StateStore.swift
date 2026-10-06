@@ -13,6 +13,9 @@ struct StateStore {
 
     let directory: URL
     var fileURL: URL { directory.appendingPathComponent("state.json") }
+    /// Runs between writing the temporary file and checking it. Tests use it
+    /// to damage the write; the app leaves it empty.
+    var afterTemporaryWrite: (URL) throws -> Void = { _ in }
 
     static func live() throws -> StateStore {
         let support = try FileManager.default.url(
@@ -84,16 +87,27 @@ struct StateStore {
         }
     }
 
-    /// Writes the state, then reads the file back and checks it decodes to
-    /// the same state, so a save is only reported once it is on disk.
+    /// Writes the state to a temporary file beside `state.json`, reads that
+    /// back and checks it decodes to the same state, and only then swaps it
+    /// in with one atomic rename. A failed or mismatched write leaves the
+    /// previous `state.json` exactly as it was.
     func save(_ state: AppState) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(state)
-        try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        let written = try Data(contentsOf: fileURL)
-        guard (try? JSONDecoder().decode(AppState.self, from: written)) == state else {
+        let manager = FileManager.default
+        let temporary = directory.appendingPathComponent("state.json.saving-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: temporary) }
+        try data.write(to: temporary, options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
+        try afterTemporaryWrite(temporary)
+        let written = try Data(contentsOf: temporary)
+        guard written == data, (try? JSONDecoder().decode(AppState.self, from: written)) == state else {
             throw SaveFailure.verificationFailed
+        }
+        if manager.fileExists(atPath: fileURL.path) {
+            _ = try manager.replaceItemAt(fileURL, withItemAt: temporary)
+        } else {
+            try manager.moveItem(at: temporary, to: fileURL)
         }
     }
 
@@ -141,11 +155,21 @@ struct LegacyImport {
         case unreadable
     }
 
+    static let stateKey = "aurora/state"
+    static let backupKeyPrefix = "aurora/state.corrupt."
+
+    /// `.none` only when the old store holds no state at all: no
+    /// `aurora/state` key (or an empty one) and no kept copies. A key that is
+    /// present but can't be decoded, or only kept copies of a damaged
+    /// state, is `.unreadable`, so nothing is written and the next launch
+    /// tries again.
     func read(now: Millis) -> Outcome {
         guard hasLegacyData else { return .none }
         guard let reader = try? MMKVReader(contentsOf: mmkvFile) else { return .unreadable }
-        // An empty store, or one whose only value was cleared, has nothing to carry over.
-        guard let raw = reader.string(forKey: "aurora/state"), !raw.isEmpty else { return .none }
+        let hasBackups = reader.values.keys.contains { $0.hasPrefix(Self.backupKeyPrefix) }
+        guard reader.values[Self.stateKey] != nil else { return hasBackups ? .unreadable : .none }
+        guard let raw = reader.string(forKey: Self.stateKey) else { return .unreadable }
+        if raw.isEmpty { return hasBackups ? .unreadable : .none }
         guard let state = try? LegacyState.decode(raw, now: now) else { return .unreadable }
         return .imported(state)
     }

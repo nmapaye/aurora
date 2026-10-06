@@ -52,7 +52,8 @@ final class ReminderService {
     private let center: NotificationScheduling
     private let clock: () -> LocalClock
     private let text: () -> DateText
-    private var latestIntent = 0
+    /// How many syncs have been asked for. Tests wait on it.
+    private(set) var latestIntent = 0
     private var promptingSyncs = 0
     private var queue: Task<Void, Never>?
     private(set) var lastStatus: Status = .off
