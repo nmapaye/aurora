@@ -440,7 +440,8 @@ import Testing
     }
 
     @Test func ancientEntriesExportWithoutFillingEveryDay() throws {
-        let now = AppModel.currentMillis()
+        // A fixed instant (2026-09-27 16:41 UTC) keeps this deterministic.
+        let now: Millis = 1_790_527_260_000
         let doses = [Dose(id: "a", timestamp: -8.64e15, mg: 50), Dose(id: "b", timestamp: now - 60_000, mg: 95)]
         let clock = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)
         let file = CSVFile(name: "aurora-daily-test.csv") {
