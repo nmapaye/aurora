@@ -279,6 +279,40 @@ import Testing
         #expect(leftovers.isEmpty)
     }
 
+    @Test func loadingLeavesAnUnfinishedSaveInPlace() throws {
+        let first = makeModel()
+        first.load()
+        first.completeOnboarding()
+        let orphan = storeDirectory.appendingPathComponent("state.json.saving-XYZ")
+        try Data("partial".utf8).write(to: orphan)
+
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.phase == .ready)
+        #expect(try Data(contentsOf: orphan) == Data("partial".utf8))
+        _ = relaunched.quickAdd(CaffeinePreset.all[0])
+        #expect(!relaunched.saveFailed)
+        #expect(FileManager.default.fileExists(atPath: orphan.path))
+    }
+
+    @Test func aFailedSwapLeavesThePreviousState() throws {
+        let first = makeModel()
+        first.load()
+        first.completeOnboarding()
+        let good = try Data(contentsOf: stateFile)
+        // The temporary file is written and checked, then the folder turns
+        // read-only, so the rename that swaps it in fails.
+        let directory = storeDirectory
+        let model = makeModel(afterTemporaryWrite: { _ in
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path)
+        })
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: storeDirectory.path) }
+        model.load()
+        _ = model.quickAdd(CaffeinePreset.all[0])
+        #expect(model.saveFailed)
+        #expect(try Data(contentsOf: stateFile) == good)
+    }
+
     @Test func aFailedImportSaveLeavesNoStateAndIsRetried() throws {
         try writeLegacyStore()
         let other = try JSONEncoder().encode(AppState())
@@ -334,6 +368,9 @@ import Testing
         model.load()
         let store = StateStore(directory: storeDirectory)
         try Data("{old".utf8).write(to: storeDirectory.appendingPathComponent("state.corrupt.1.json"))
+        // As if Aurora had stopped mid-save: a full copy of the records.
+        let orphan = storeDirectory.appendingPathComponent("state.json.saving-ABC")
+        try Data(contentsOf: stateFile).write(to: orphan)
         let export = try CSVFile(name: "aurora-test.csv", text: "a,b\n").write()
         #expect(FileManager.default.fileExists(atPath: export.path))
 
@@ -342,6 +379,7 @@ import Testing
         #expect(model.state.doses.isEmpty)
         #expect(try savedState().doses.isEmpty)
         #expect(store.corruptBackups().isEmpty)
+        #expect(store.orphanedSaves().isEmpty)
         #expect(!FileManager.default.fileExists(atPath: mmkv.path))
         #expect(!FileManager.default.fileExists(atPath: CSVFile.exportDirectory.path))
 

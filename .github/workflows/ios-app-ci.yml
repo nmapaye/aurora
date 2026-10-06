@@ -60,20 +60,49 @@ jobs:
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      - name: Build and test
+      # Boot the simulator and wait until it is fully up before any test
+      # launches the app; a cold iPad simulator booting during the first
+      # launch timed out the launch.
+      - name: Boot simulator
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
+          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      - name: Build for testing
         run: |
           mkdir -p build
           set +e
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-build.log 2>&1
+          status=$?
+          grep -E "error:|\*\* .* \*\*" build/xcodebuild-build.log | head -200
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
+          exit $status
+
+      - name: Test
+        run: |
+          set +e
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -resultBundlePath build/AuroraTests.xcresult \
             > build/xcodebuild-test.log 2>&1
           status=$?
           grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
+          # Launch and runner failures don't use the error: format; surface them
+          # too, within the ten error annotations a step keeps.
+          grep -iE "failed to launch|timed out|launch timeout|crashed|lost connection|failed background assertion|signal [0-9]+" build/xcodebuild-test.log \
+            | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
           exit $status
 
       - name: Release build
@@ -99,4 +128,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: xcodebuild-logs-${{ matrix.device }}
-          path: build/*.log
+          path: |
+            build/*.log
+            build/AuroraTests.xcresult

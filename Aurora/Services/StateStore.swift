@@ -65,6 +65,9 @@ struct StateStore {
     }
 
     var backupPrefix: String { "state.corrupt." }
+    /// Temporary saves. One is left behind only if Aurora stops mid-save, and
+    /// it can hold a full copy of the records.
+    var savingPrefix: String { "state.json.saving-" }
 
     func load(now: Date = .now) -> LoadResult {
         let manager = FileManager.default
@@ -90,13 +93,14 @@ struct StateStore {
     /// Writes the state to a temporary file beside `state.json`, reads that
     /// back and checks it decodes to the same state, and only then swaps it
     /// in with one atomic rename. A failed or mismatched write leaves the
-    /// previous `state.json` exactly as it was.
+    /// previous `state.json` exactly as it was. The read-back checks what the
+    /// file system returns; it does not force the bytes to storage (no fsync).
     func save(_ state: AppState) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(state)
         let manager = FileManager.default
-        let temporary = directory.appendingPathComponent("state.json.saving-\(UUID().uuidString)")
+        let temporary = directory.appendingPathComponent("\(savingPrefix)\(UUID().uuidString)")
         defer { try? manager.removeItem(at: temporary) }
         try data.write(to: temporary, options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
         try afterTemporaryWrite(temporary)
@@ -113,16 +117,27 @@ struct StateStore {
 
     /// Copies kept aside from files that didn't decode.
     func corruptBackups() -> [URL] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-        return names.filter { $0.hasPrefix(backupPrefix) }.sorted().map { directory.appendingPathComponent($0) }
+        files(withPrefix: backupPrefix)
     }
 
-    /// Removes every kept copy, and the saved state too when asked. Used only
+    /// Temporary saves left by a save that never finished. Loading leaves
+    /// them alone; only Delete All Data removes them.
+    func orphanedSaves() -> [URL] {
+        files(withPrefix: savingPrefix)
+    }
+
+    private func files(withPrefix prefix: String) -> [URL] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return names.filter { $0.hasPrefix(prefix) }.sorted().map { directory.appendingPathComponent($0) }
+    }
+
+    /// Removes every kept copy and unfinished save, and the saved state too
+    /// when asked. Used only
     /// by Delete All Data, after the person confirms, and by the DEBUG
     /// UI-test reset.
     func purge(includingState: Bool) throws {
         let manager = FileManager.default
-        for url in corruptBackups() + (includingState ? [fileURL] : []) where manager.fileExists(atPath: url.path) {
+        for url in corruptBackups() + orphanedSaves() + (includingState ? [fileURL] : []) where manager.fileExists(atPath: url.path) {
             try manager.removeItem(at: url)
         }
     }

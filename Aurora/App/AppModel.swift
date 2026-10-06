@@ -53,7 +53,7 @@ final class AppModel {
     private(set) var state = AppState()
     /// Moves every minute and on foreground, so "today" rolls over at midnight.
     private(set) var now: Millis = AppModel.currentMillis()
-    /// The last save failed; the change is still on screen but not on disk.
+    /// The last save failed; the change is on screen but not saved.
     private(set) var saveFailed = false
     private(set) var deletionResult: DeletionResult?
     /// Start Fresh was chosen but its save failed; recovery stays up.
