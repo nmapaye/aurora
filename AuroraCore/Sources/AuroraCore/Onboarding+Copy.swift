@@ -61,7 +61,8 @@ public enum OnboardingCopy {
     }
 
     public static func formatSleepTarget(_ hours: Double) -> (value: String, unit: String, spoken: String) {
-        let value = hours.rounded() == hours ? String(Int(hours)) : String(format: "%.1f", hours)
+        // A stored target can be any finite number; saturate rather than trap.
+        let value = hours.rounded() == hours ? String(saturatingInt(hours)) : String(format: "%.1f", hours)
         return (value, "hours", "\(value) hours")
     }
 

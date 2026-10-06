@@ -254,7 +254,7 @@ public enum Insights {
         }
         let scores = recent.map(\.score).sorted()
         let middle = scores.count / 2
-        let median = scores.count % 2 == 1 ? scores[middle] : jsRoundInt(Double(scores[middle - 1] + scores[middle]) / 2)
+        let median = scores.count % 2 == 1 ? scores[middle] : jsRoundInt((Double(scores[middle - 1]) + Double(scores[middle])) / 2)
         let recentSource = RecordSource.of(ids: recent.map(\.id))
         return ReactionInsight(
             signal: SignalCardModel(

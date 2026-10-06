@@ -55,8 +55,11 @@ public struct DateText: Sendable {
 /// "7h 5m" from milliseconds, rounded to the minute.
 public func formatHoursMinutes(durationMs: Millis) -> String {
     let totalMinutes = jsRoundInt(durationMs / minuteMs)
-    let hours = Int(floor(Double(totalMinutes) / 60))
-    let minutes = totalMinutes - hours * 60
+    // Floor division, as Math.floor(total / 60) gave, without the
+    // `hours * 60` that overflows when totalMinutes saturates at Int.min.
+    let (quotient, remainder) = totalMinutes.quotientAndRemainder(dividingBy: 60)
+    let hours = remainder < 0 ? quotient - 1 : quotient
+    let minutes = remainder < 0 ? remainder + 60 : remainder
     return "\(hours)h \(minutes)m"
 }
 

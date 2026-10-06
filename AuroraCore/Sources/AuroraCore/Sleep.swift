@@ -59,6 +59,12 @@ public enum SleepModel {
     /// and caffeine logged in the 12 hours before it.
     public static let pairedNightsRequired = 14
 
+    /// Time covered by at least one session, overlaps counted once. This
+    /// stays separate from `SleepIntervals.merge`: it adds the last interval
+    /// as `(duration + end) - start`, as the TypeScript did, and summing
+    /// merged lengths would round fractional milliseconds differently. Its
+    /// callers pass only sessions `episodes` has already filtered to finite,
+    /// non-empty spans.
     static func unionDuration(_ sessions: [SleepSession]) -> Millis {
         let ordered = sessions.sorted { $0.start != $1.start ? $0.start < $1.start : $0.end < $1.end }
         guard let first = ordered.first else { return 0 }
@@ -164,7 +170,9 @@ public enum SleepModel {
     }
 
     public static func sourceLabel(id: String) -> String {
-        if id.hasPrefix("demo:sleep:") { return "Sample Data" }
+        // Any sample id, as clearing and editing treat it, not only the
+        // `demo:sleep:` ids Sample Data generates.
+        if RecordID.isSample(id) { return "Sample Data" }
         return RecordID.isHealthSleep(id) ? "Health" : "Manual"
     }
 

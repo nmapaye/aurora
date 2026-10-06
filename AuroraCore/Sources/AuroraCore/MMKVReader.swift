@@ -32,7 +32,11 @@ public struct MMKVReader: Sendable {
         }
         while !cursor.isAtEnd {
             let keyBytes = try cursor.lengthPrefixed()
-            guard !keyBytes.isEmpty else { continue }
+            // MMKV never writes an empty key (setDataForKey refuses one), so
+            // one means damage. Its own decoder skips the key without reading
+            // a value, which shifts every later pair; rejecting the file keeps
+            // that from turning into records that were never written.
+            guard !keyBytes.isEmpty else { throw Failure.malformed }
             guard let key = String(bytes: keyBytes, encoding: .utf8) else { throw Failure.malformed }
             let value = try cursor.lengthPrefixed()
             if value.isEmpty {

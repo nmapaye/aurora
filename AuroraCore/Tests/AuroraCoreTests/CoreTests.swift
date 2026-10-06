@@ -406,3 +406,143 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
     let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
     return date.timeIntervalSince1970 * 1000
 }
+
+/// Regressions for the core review's findings.
+@Suite struct ReviewFindingTests {
+    @Test(arguments: [1e300, -1e300, 9.3e18, -9.3e18, Double(Int.max), -Double(Int.max), Double.greatestFiniteMagnitude, 0x1p63 - 1024])
+    func roundingHugeNumbersSaturates(value: Double) {
+        let rounded = jsRoundInt(value)
+        if value >= 0x1p63 { #expect(rounded == .max) }
+        if value <= -0x1p63 { #expect(rounded == .min) }
+        if abs(value) < 0x1p63 { #expect(Double(rounded) == jsRound(value)) }
+        #expect(saturatingInt(.nan) == 0)
+    }
+
+    /// A store an old build, or a hand edit, could leave: every number finite
+    /// but far outside what the app ever writes.
+    static let hugeBlob = """
+    {"version":6,"state":{
+      "doses":[
+        {"id":"big","timestamp":1790520000000,"mg":1e300,"source":"Drip"},
+        {"id":"big2","timestamp":1790520060000,"mg":1.7976931348623157e308},
+        {"id":"far","timestamp":1e300,"mg":95},
+        {"id":"past","timestamp":-1e300,"mg":95},
+        {"id":"edge","timestamp":8.64e15,"mg":95}
+      ],
+      "sleeps":[
+        {"id":"manual:sleep:1:a","start":-1e300,"end":1e300,"type":"sleep"},
+        {"id":"manual:sleep:2:b","start":1790490000000,"end":1790518800000,"type":"sleep"}
+      ],
+      "vigilanceSessions":[
+        {"id":"v1","startedAt":1790520000000,"completedAt":1790520060000,"score":1e300,"rating":"x","trialCount":1e300,"lapseCount":-1e300,"medianReactionMs":1e300},
+        {"id":"v2","startedAt":1790520000000,"completedAt":1790520070000,"score":-1e300,"rating":"x","falseStartCount":9.3e18},
+        {"id":"v3","startedAt":-1e300,"completedAt":1790520080000,"score":50,"rating":"Steady"}
+      ],
+      "prefs":{"halfLife":1e300,"targetSleep":1e300,"cutoffHour":1e300,"dailyLimitMg":1e300},
+      "healthSync":{"importedCount":1e300,"lastSyncedAt":1e300},
+      "onboarding":{"completed":true,"appWalkthroughStep":1e300,"completedAt":-1e300}
+    }}
+    """
+
+    @Test func hugeLegacyNumbersImportWithoutTrapping() throws {
+        let state = try LegacyState.decode(Self.hugeBlob, now: now)
+        // Amounts keep their finite values, as the TypeScript validators did.
+        // A time outside JavaScript's Date range marks the record malformed;
+        // the edge of that range is kept.
+        #expect(state.doses.map(\.id).sorted() == ["big", "big2", "edge"])
+        #expect(state.sleeps.map(\.id) == ["manual:sleep:2:b"])
+        #expect(state.vigilanceSessions.map(\.id).sorted() == ["v1", "v2"])
+        #expect(state.healthSync.lastSyncedAt == nil)
+        #expect(state.onboarding.completedAt == nil)
+        // Scores and counts are pulled back into range.
+        #expect(state.vigilanceSessions.map(\.score).sorted() == [0, 100])
+        #expect(state.vigilanceSessions.allSatisfy { $0.trialCount >= 0 && $0.lapseCount >= 0 && $0.falseStartCount >= 0 })
+        #expect(state.vigilanceSessions.first { $0.id == "v1" }?.rating == .sharp)
+        #expect(state.vigilanceSessions.first { $0.id == "v2" }?.rating == .sluggish)
+        #expect(state.healthSync.importedCount >= 0)
+        #expect(state.onboarding.appWalkthroughStep == 9)
+        // It also saves and loads.
+        let data = try JSONEncoder().encode(state)
+        #expect(try JSONDecoder().decode(AppState.self, from: data) == state)
+    }
+
+    @Test func hugeNumbersReachEveryScreenWithoutTrapping() throws {
+        let state = try LegacyState.decode(Self.hugeBlob, now: now)
+        let inputs = EstimateInputs(prefs: state.prefs, clock: utc)
+        _ = Summary.estimateAlertness(at: now, doses: state.doses, sleeps: state.sleeps, inputs: inputs)
+        _ = Summary.cutoffAnnotation(now: now, cutoffHour: state.prefs.cutoffHour, doses: state.doses, clock: utc, formatTime: fixtureTime)
+        let today = TodayCaffeineSeries.make(doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, clock: utc)
+        _ = Summary.describeCaffeineDay(series: today.series, doses: state.doses, dayStart: utc.startOfDay(now), dayEnd: utc.startOfDay(now) + dayMs, formatTime: fixtureTime)
+        _ = CaffeineLog.loggedToday(state.doses, now: now, clock: utc, formatTime: fixtureTime)
+        _ = CaffeineLog.todayTotal(state.doses, now: now, clock: utc)
+        _ = SummarySignals.caffeineLogged(doses: state.doses, now: now, clock: utc, formatTime: fixtureTime)
+        _ = SummarySignals.sleep(sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: utc, text: fixtureText)
+        _ = SummarySignals.reactionTest(sessions: state.vigilanceSessions, now: now, clock: utc, text: fixtureText)
+        for range in InsightsRange.allCases {
+            let insights = Insights.presentation(doses: state.doses, vigilanceSessions: state.vigilanceSessions, range: range, now: now, clock: utc, text: fixtureText)
+            #expect(insights.points.allSatisfy { ($0.mg ?? 0) >= 0 })
+        }
+        for range in SleepRange.allCases {
+            _ = SleepModel.presentation(sessions: state.sleeps, targetSleepHours: state.prefs.targetSleep, range: range, now: now, clock: utc, text: fixtureText)
+            _ = SleepModel.caffeineImpact(sessions: state.sleeps, doses: state.doses, range: range, now: now, clock: utc)
+        }
+        _ = SleepModel.caffeineTimingSignal(sleeps: state.sleeps, doses: state.doses, now: now, clock: utc)
+        _ = SleepModel.recentNightSignal(sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: utc, text: fixtureText)
+        let rows = Export.dailyTotalRows(state.doses, now: now, clock: utc)
+        _ = Export.dailyTotalsCSV(rows)
+        _ = Export.doseEntriesCSV(state.doses, clock: utc)
+        _ = Export.vigilanceSessionsCSV(state.vigilanceSessions)
+        #expect(OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).value == String(Int.max))
+        #expect(formatHoursMinutes(durationMs: 1e300).hasSuffix("m"))
+        #expect(formatHoursMinutes(durationMs: -1e300).hasSuffix("m"))
+        #expect(formatSleepHours(-1e300).hasSuffix("m"))
+        // Ordinary values keep the floor-division results.
+        #expect(formatHoursMinutes(durationMs: 7 * hourMs + 5 * minuteMs) == "7h 5m")
+        #expect(formatHoursMinutes(durationMs: -90 * minuteMs) == "-2h 30m")
+        #expect(formatHoursMinutes(durationMs: 0) == "0h 0m")
+        #expect(formatGap(durationMs: -1e300).hasSuffix("m"))
+    }
+
+    @Test func emptyKeyIsMalformedNotSkipped() {
+        // The reviewer's payload: an empty key, then 1:"A" 1:"B". Skipping the
+        // key without its value would read a record A:B that was never written.
+        let payload: [UInt8] = [0xFF, 0xFF, 0xFF, 0x07, 0x00, 0x01, 0x41, 0x01, 0x42]
+        #expect(throws: MMKVReader.Failure.malformed) { try MMKVReader(data: MMKVMalformedTests.file(payload)) }
+        #expect(throws: MMKVReader.Failure.malformed) { try MMKVReader(data: MMKVMalformedTests.file([0xFF, 0xFF, 0xFF, 0x07, 0x00])) }
+        // A real pair followed by an empty key fails too, rather than keeping half.
+        let tail: [UInt8] = [0xFF, 0xFF, 0xFF, 0x07, 0x01, 0x6B, 0x02, 0x01, 0x41, 0x00, 0x01, 0x42]
+        #expect(throws: MMKVReader.Failure.malformed) { try MMKVReader(data: MMKVMalformedTests.file(tail)) }
+    }
+
+    @Test func sleepSourceLabelsFollowTheRecordPrefixes() {
+        #expect(SleepModel.sourceLabel(id: "demo:sleep:1") == "Sample Data")
+        #expect(SleepModel.sourceLabel(id: "demo:other") == "Sample Data")
+        #expect(SleepModel.sourceLabel(id: "healthkit:sleep:1:2") == "Health")
+        #expect(SleepModel.sourceLabel(id: "manual:sleep:1:a") == "Manual")
+        #expect(SleepModel.episodeSourceLabel(ids: ["demo:sleep:1", "manual:sleep:x", "healthkit:sleep:1:2"]) == "Health and Manual and Sample Data")
+    }
+
+    @Test func dayBoundsSpanTheLocalDayAcrossDST() {
+        // Nov 1 2026 in Los Angeles is 25 hours; Mar 8 2026 is 23.
+        let fallBack = localMillis(pacific, 2026, 11, 1, 12)
+        let springForward = localMillis(pacific, 2026, 3, 8, 12)
+        let fall = pacific.dayBounds(fallBack)
+        let spring = pacific.dayBounds(springForward)
+        #expect(fall.end - fall.start == 25 * hourMs)
+        #expect(spring.end - spring.start == 23 * hourMs)
+        #expect(fall.start == pacific.startOfDay(fallBack))
+        #expect(utc.dayBounds(now).end - utc.dayBounds(now).start == dayMs)
+    }
+
+    @Test func unionDurationCountsOverlapsOnce() {
+        let sessions = [
+            SleepSession(id: "a", start: 0, end: 10),
+            SleepSession(id: "b", start: 5, end: 15),
+            SleepSession(id: "c", start: 15, end: 20),
+            SleepSession(id: "d", start: 30, end: 31),
+        ]
+        #expect(SleepModel.unionDuration(sessions) == 21)
+        let merged = SleepIntervals.merge(sessions).reduce(0) { $0 + ($1.end - $1.start) }
+        #expect(SleepModel.unionDuration(sessions) == merged)
+    }
+}

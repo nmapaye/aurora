@@ -52,8 +52,7 @@ public enum CaffeineLog {
     public static let customSources = ["Espresso", "Drip", "Cold Brew", "Tea", "Matcha", "Other"]
 
     public static func todayTotal(_ doses: [Dose], now: Millis, clock: LocalClock) -> Double {
-        let start = clock.startOfDay(now)
-        let end = clock.addingDays(1, to: start)
+        let (start, end) = clock.dayBounds(now)
         return doses.reduce(0) { $0 + (($1.timestamp >= start && $1.timestamp < end) ? $1.mg : 0) }
     }
 
