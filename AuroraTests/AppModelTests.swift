@@ -83,7 +83,7 @@ import Testing
         model.load()
         #expect(model.state.doses.map(\.id) == ["abc"])
         #expect(model.state.onboarding.completed)
-        #expect(!FileManager.default.fileExists(atPath: mmkv.path))
+        #expect(FileManager.default.fileExists(atPath: mmkv.path))
 
         let relaunched = makeModel()
         relaunched.load()
@@ -103,12 +103,13 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: file.path))
     }
 
-    @Test func corruptStateIsMovedAside() throws {
+    @Test func corruptStateIsPreservedAndRecoveryRequired() throws {
         try StateStore(directory: storeDirectory).prepare()
         try Data("{oops".utf8).write(to: storeDirectory.appendingPathComponent("state.json"))
         let model = makeModel()
         model.load()
-        #expect(model.phase == .ready)
+        #expect(model.phase == .storageUnavailable)
+        #expect(FileManager.default.fileExists(atPath: storeDirectory.appendingPathComponent("state.json").path))
         let files = try FileManager.default.contentsOfDirectory(atPath: storeDirectory.path)
         #expect(files.contains { $0.hasPrefix("state.corrupt.") })
     }
@@ -121,5 +122,33 @@ import Testing
         model.deleteAllData()
         #expect(model.state.doses.isEmpty && model.state.sleeps.isEmpty)
         #expect(model.state.prefs.cutoffHour == 12)
+    }
+
+    @Test func failedSaveRestoresPreviousRecords() throws {
+        let model = makeModel(); model.load()
+        let first = model.addCustomDose(.init(mg: "80", source: "Tea", timestamp: AppModel.currentMillis() - 60_000, note: ""))
+        let file = storeDirectory.appendingPathComponent("state.json")
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        _ = model.addCustomDose(.init(mg: "120", source: "Drip", timestamp: AppModel.currentMillis(), note: ""))
+        #expect(model.mutationFailure != nil)
+        #expect(model.state.doses == [first])
+    }
+
+    @Test func nativeSnapshotRetainsPreviousState() throws {
+        let first = makeModel(); first.load()
+        let dose = first.addCustomDose(.init(mg: "80", source: "Tea", timestamp: AppModel.currentMillis() - 60_000, note: ""))
+        let second = makeModel(); second.load()
+        let file = storeDirectory.appendingPathComponent("state.pre-assistant.json")
+        let snapshot = try JSONDecoder().decode(AppState.self, from: Data(contentsOf: file))
+        #expect(snapshot.doses == [dose])
+        second.deleteDose(id: dose.id)
+        #expect(try JSONDecoder().decode(AppState.self, from: Data(contentsOf: file)).doses == [dose])
+    }
+
+    @Test func invalidDraftCannotBypassUIValidation() {
+        let model = makeModel(); model.load()
+        _ = model.addCustomDose(.init(mg: "0", source: "Tea", timestamp: AppModel.currentMillis(), note: ""))
+        #expect(model.state.doses.isEmpty && model.mutationFailure != nil)
     }
 }

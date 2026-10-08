@@ -9,6 +9,8 @@ struct StateStore {
     enum Failure: Error {
         case notDirectory
         case backupExclusionNotConfirmed
+        case invalidState
+        case verificationFailed
     }
 
     let directory: URL
@@ -46,15 +48,22 @@ struct StateStore {
 
     /// `nil` when nothing has been saved yet. A file that no longer decodes is
     /// moved aside, never overwritten, and reported as `nil`.
-    func load(now: Date = .now) -> AppState? {
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+    func load(now: Date = .now) throws -> AppState? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let data = try Data(contentsOf: fileURL)
         do {
-            return try JSONDecoder().decode(AppState.self, from: data)
+            let state = try JSONDecoder().decode(AppState.self, from: data)
+            guard state.schemaVersion <= AppState.schemaVersion else { throw Failure.invalidState }
+            let snapshot = directory.appendingPathComponent("state.pre-assistant.json")
+            if !FileManager.default.fileExists(atPath: snapshot.path) {
+                try data.write(to: snapshot, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            }
+            return state
         } catch {
             let stamp = Int(now.timeIntervalSince1970 * 1000)
             let backup = directory.appendingPathComponent("state.corrupt.\(stamp).json")
-            try? FileManager.default.moveItem(at: fileURL, to: backup)
-            return nil
+            try? FileManager.default.copyItem(at: fileURL, to: backup)
+            throw Failure.invalidState
         }
     }
 

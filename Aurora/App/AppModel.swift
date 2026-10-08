@@ -22,6 +22,7 @@ final class AppModel {
     private(set) var now: Millis = AppModel.currentMillis()
     /// Shown once when the old app's file couldn't be read.
     var legacyImportFailed = false
+    private(set) var mutationFailure: String?
     private(set) var reminderStatus: ReminderService.Status = .off
     var pendingLink: DeepLink?
 
@@ -67,14 +68,15 @@ final class AppModel {
             try store.prepare()
             self.store = store
             tick()
-            if let saved = store.load() {
+            if let saved = try store.load() {
                 state = saved
             } else if let legacy = legacy() {
                 switch legacy.read(now: now) {
                 case .imported(let imported):
                     state = imported
                     try store.save(state)
-                    legacy.removeLegacyStore()
+                    guard try store.load() == state else { throw StateStore.Failure.verificationFailed }
+                    // Keep the MMKV source for rollback and later migration inspection.
                 case .unreadable:
                     legacyImportFailed = true
                 case .none:
@@ -96,13 +98,16 @@ final class AppModel {
     }
 
     private func update(_ change: (inout AppState) -> Void) {
+        let previous = state
+        mutationFailure = nil
         change(&state)
-        persist()
-    }
-
-    private func persist() {
-        guard let store else { return }
-        try? store.save(state)
+        do {
+            guard let store else { throw StateStore.Failure.verificationFailed }
+            try store.save(state)
+        } catch {
+            state = previous
+            mutationFailure = "Couldn't save this change. Your previous records are preserved."
+        }
     }
 
     // MARK: Caffeine
@@ -120,6 +125,10 @@ final class AppModel {
     func addCustomDose(_ draft: CustomDoseDraft) -> Dose {
         tick()
         let dose = CaffeineLog.customDose(draft, id: RecordID.newDoseID(now: now))
+        if let failure = CaffeineLog.validate(draft, now: now).message {
+            mutationFailure = failure
+            return dose
+        }
         update { $0.addDose(dose) }
         return dose
     }
@@ -143,6 +152,10 @@ final class AppModel {
 
     func addManualSleep(_ draft: ManualSleep.Draft) {
         tick()
+        if let failure = ManualSleep.validate(start: draft.start, end: draft.end, now: now).message {
+            mutationFailure = failure
+            return
+        }
         let note = draft.note.trimmingCharacters(in: .whitespacesAndNewlines)
         let session = SleepSession(
             id: RecordID.newManualSleepID(now: now), start: draft.start, end: draft.end, type: .sleep,
@@ -245,7 +258,12 @@ final class AppModel {
 
     func loadSampleData() {
         tick()
-        update { $0.loadSampleData(now: now, clock: clock) }
+        update {
+            $0.loadSampleData(now: now, clock: clock)
+            $0.doses.removeAll { RecordID.isSample($0.id) && $0.timestamp > now }
+            $0.sleeps.removeAll { RecordID.isSample($0.id) && $0.end > now }
+            $0.vigilanceSessions.removeAll { RecordID.isSample($0.id) && $0.completedAt > now }
+        }
     }
 
     func clearSampleData() {
@@ -258,7 +276,8 @@ final class AppModel {
 
     // MARK: Reaction Test
 
-    func saveReactionTest(_ session: VigilanceSession) {
+    func saveReactionTest(_ session: VigilanceSession, hasTimedResponse: Bool? = nil) {
+        guard hasTimedResponse ?? (session.validReactionCount > 0) else { return }
         update { $0.addVigilanceSession(session) }
     }
 

@@ -2,13 +2,19 @@
 
 Another Unwise Refill? O.K, Reconsider Alertness.
 
-Aurora is an iPhone and iPad app for understanding how caffeine timing, sleep,
-and alertness fit together. It supports optional read-only Apple Health sleep
-import, manual caffeine logging, a 60-second reaction test, and private
-on-device insights.
+Aurora is a native conversational assistant for understanding energy and daily
+rhythm on iPhone and iPad. It combines local sleep/caffeine records, modeled
+alertness, reaction tests, interactive native cards, and reviewed calendar proposals.
+Cards capture dated results; Refresh creates a new snapshot. Logging has inline
+review controls, durable receipts, and validated Undo.
+AI stays local: Apple Foundation Models on supported devices, with native quick
+actions everywhere and an optional local Ollama adapter for simulator testing.
+
+See [the native assistant handoff](docs/native-assistant.md) for implementation,
+calendar setup, local evaluation, migration behavior, and remaining release gates.
 
 Aurora does not include cloud sync, an Apple Watch companion app, encrypted
-import/export, or background automation.
+import/export, or cloud AI. Background refresh is opportunistic and opt-in.
 
 ## Requirements
 

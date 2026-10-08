@@ -32,7 +32,10 @@ and an optional Gumroad companion guide.
 - `Aurora/`: the app.
   - `App/AppModel.swift` owns the state and saves after every change.
   - `App/Router.swift` holds tabs, pushed screens and modals.
-  - `App/MainTabs.swift` holds the tab bar and the walkthrough coach.
+  - `Screens/Assistant/AssistantView.swift` is the primary conversation surface.
+  - `App/AssistantModel.swift` owns conversation, snapshots, proposals, receipts, and proactivity.
+  - `AuroraCore/AssistantCard.swift` builds finite typed native responses; models never populate UI data.
+  - `Services/LocalIntelligence.swift` classifies typed intents locally; no cloud AI.
   - `Services/` covers storage, HealthKit, reminders and haptics.
   - `Screens/` has one folder per screen.
 - `AuroraTests/` (Swift Testing) and `AuroraUITests/` (XCTest).
@@ -61,9 +64,10 @@ app's resources in the project file.
   recorded caffeine can be edited or deleted.
 - HealthKit is read-only, Sleep Analysis only. Never describe access as
   granted: HealthKit doesn't reveal read decisions.
-- The walkthrough has exactly ten steps: Summary 1–4, Sleep 5–6, Log 7–8,
-  Insights 9–10. While it is pending, tab selection is locked and deep links
-  go to the current step's tab.
+- The assistant replaces the tab walkthrough and completes its legacy flag.
+  Native history, settings, charts, and reaction tests remain reachable.
+- Never add an AI API-key field, a remote/cloud model, or automatic calendar
+  writes. A calendar preview must be explicitly approved and revalidated.
 - Day math goes through `LocalClock` and number rounding through `jsRound`,
   so DST and halves behave as they did in the old build.
 
@@ -77,8 +81,14 @@ missing keys as defaults, so adding a field needs no migration. Bump
 `AppState.schemaVersion` only for a change that does.
 
 On first launch, `LegacyImport` reads the React Native build's
-`Documents/mmkv/aurora` (key `aurora/state`), saves the records, and removes
-the old folder. An unreadable old store is left alone.
+`Documents/mmkv/aurora` (key `aurora/state`), saves and verifies the records,
+and retains the original folder. Native state also retains a pre-assistant
+snapshot. Unreadable files enter recovery without being overwritten.
+Conversation has separate version-2, protected local storage. Version-1 migration
+retains and verifies the source copy; explicit Clear conversation removes that copy.
+Past cards are snapshots with Refresh. Drafts and calendar reviews expire across
+relaunches; receipts revalidate the exact record before Undo.
+See `docs/native-assistant.md` for full behavior and release gates.
 
 ## Checks
 

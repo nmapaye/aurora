@@ -1,60 +1,142 @@
 import XCTest
 
-/// End-to-end checks on a fresh install: setup, the walkthrough's tab lock,
-/// Quick Add with Undo, and read-only Sample Data.
 final class AuroraUITests: XCTestCase {
     private var app: XCUIApplication!
-
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["-AuroraUITestReset"]
         app.launch()
     }
-
-    private func finishManualSetup() {
+    private func finishSetup() {
         let next = app.buttons["onboarding-continue"]
-        XCTAssertTrue(next.waitForExistence(timeout: 10))
-        next.tap()
-        app.buttons["source-manual"].tap()
-        next.tap()
-        next.tap()
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        next.tap(); app.buttons["source-manual"].tap(); next.tap(); next.tap()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
     }
-
-    func testWalkthroughLocksTabsUntilSkipped() {
-        finishManualSetup()
-        let skip = app.buttons["walkthrough-skip"]
-        XCTAssertTrue(skip.waitForExistence(timeout: 5))
-        app.tabBars.buttons["Log"].tap()
-        XCTAssertFalse(app.buttons["quick-add-drip"].waitForExistence(timeout: 1), "Tabs stay locked during the walkthrough")
-        skip.tap()
-        app.tabBars.buttons["Log"].tap()
-        XCTAssertTrue(app.buttons["quick-add-drip"].waitForExistence(timeout: 5))
+    private func tapQuick(_ label: String) {
+        let button = app.buttons["assistant-quick-" + label]
+        let strip = app.scrollViews["assistant-quick-actions"]
+        for _ in 0..<5 {
+            let frame = strip.frame
+            let center = button.frame.midX
+            if center > frame.minX + 12 && center < frame.maxX - 12 { break }
+            let delta = min(0.65, max(-0.65, (center - frame.midX) / frame.width))
+            let start = delta > 0 ? 0.85 : 0.15
+            strip.coordinate(withNormalizedOffset: CGVector(dx: start, dy: 0.5)).press(forDuration: 0.1,
+                thenDragTo: strip.coordinate(withNormalizedOffset: CGVector(dx: start - delta, dy: 0.5)))
+        }
+        button.tap()
     }
-
-    func testQuickAddThenUndo() {
-        finishManualSetup()
-        app.buttons["walkthrough-skip"].tap()
-        app.tabBars.buttons["Log"].tap()
-        app.buttons["quick-add-drip"].tap()
-        let undo = app.buttons["quick-add-undo"]
-        XCTAssertTrue(undo.waitForExistence(timeout: 5))
-        let loggedToday = app.descendants(matching: .any)["logged-today"]
-        XCTAssertTrue(loggedToday.label.contains("95 mg"), loggedToday.label)
+    func testConversationHomeReplacesTabs() {
+        finishSetup()
+        XCTAssertTrue(app.buttons["assistant-history"].exists)
+        XCTAssertTrue(app.buttons["assistant-settings"].exists)
+        XCTAssertEqual(app.tabBars.count, 0)
+        app.buttons["assistant-quick-How is my energy?"].tap()
+        XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Unavailable"].exists)
+    }
+    func testCaffeineNeedsReviewAndUndoRemovesOnlySavedEntry() {
+        finishSetup()
+        app.buttons["assistant-quick-Log caffeine"].tap()
+        let amount = app.textFields["assistant-dose-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        let save = app.buttons["assistant-dose-save"]
+        save.tap()
+        XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 3))
+        amount.tap(); amount.typeText("120")
+        let source = app.textFields["assistant-dose-source"]
+        source.tap(); source.typeText("Tea")
+        app.swipeUp()
+        save.tap()
+        let undo = app.buttons["assistant-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), app.debugDescription)
         undo.tap()
-        XCTAssertTrue(loggedToday.label.contains("Nothing logged yet today."), loggedToday.label)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch.waitForExistence(timeout: 5))
+    }
+    func testOfflineChartAndNativeToolsAreReachable() {
+        finishSetup()
+        tapQuick("Show this week")
+        XCTAssertTrue(app.staticTexts["Recorded caffeine · this week"].waitForExistence(timeout: 5))
+        app.buttons["assistant-history"].tap()
+        XCTAssertTrue(app.buttons["Caffeine history"].waitForExistence(timeout: 5))
+        app.buttons["Caffeine history"].tap()
+        XCTAssertTrue(app.navigationBars["Caffeine History"].waitForExistence(timeout: 5))
+    }
+    func testCalendarNeverWritesWithoutPreviewApproval() {
+        finishSetup()
+        tapQuick("Review calendar")
+        XCTAssertTrue(app.buttons["Calendar connections"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["calendar-approve"].exists)
+    }
+    func testNoAPIKeyEntryInSettings() {
+        finishSetup()
+        app.buttons["assistant-settings"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No cloud model'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields.containing(NSPredicate(format: "label CONTAINS[c] 'API key'")).firstMatch.exists)
+    }
+    func testInlineSleepSaveCreatesReceipt() {
+        finishSetup()
+        app.buttons["assistant-quick-Log sleep"].tap()
+        let save = app.buttons["assistant-sleep-save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.swipeUp()
+        save.tap()
+        XCTAssertTrue(app.staticTexts["Sleep saved"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["assistant-undo"].exists)
+    }
+    func testTrendsSwitchSignalsAndRange() {
+        finishSetup()
+        tapQuick("Show this week")
+        let signals = app.segmentedControls["assistant-trend-metric"]
+        XCTAssertTrue(signals.waitForExistence(timeout: 5))
+        signals.buttons["Sleep"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded sleep · 7 days"].exists)
+        app.segmentedControls["assistant-trend-range"].buttons["Month"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded sleep · 30 days"].exists)
+        signals.buttons["Reaction"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded reaction · 30 days"].exists)
+    }
+    func testExpiredDraftRequiresNewReviewAfterRelaunch() {
+        finishSetup()
+        app.buttons["assistant-quick-Log caffeine"].tap()
+        XCTAssertTrue(app.textFields["assistant-dose-amount"].waitForExistence(timeout: 5))
+        app.terminate(); app.launchArguments = []; app.launch()
+        XCTAssertTrue(app.buttons["assistant-refresh-caffeineDraft"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["assistant-dose-save"].exists)
+        app.buttons["assistant-refresh-caffeineDraft"].tap()
+        XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    func testSampleEntriesAreReadOnly() {
-        finishManualSetup()
-        app.buttons["walkthrough-skip"].tap()
-        app.buttons["Load Sample Data"].firstMatch.tap()
-        app.tabBars.buttons["Log"].tap()
-        let sampleRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS 'Sample Data, read-only'"))
-            .firstMatch
-        XCTAssertTrue(sampleRow.waitForExistence(timeout: 5))
-        sampleRow.tap()
-        XCTAssertFalse(app.navigationBars["Edit Entry"].waitForExistence(timeout: 1))
+    private func request(_ text: String) {
+        let input = app.textFields["assistant-composer"]
+        input.tap(); input.typeText(text)
+        app.buttons["assistant-send"].tap()
     }
+    func testExportCardOffersNativeCSVSharing() {
+        finishSetup(); request("Export records")
+        XCTAssertTrue(app.buttons["Sleep records CSV"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Caffeine entries CSV"].exists)
+        XCTAssertTrue(app.buttons["Reaction tests CSV"].exists)
+    }
+    func testHistoryCardProvidesSearchAndSourceFilters() {
+        finishSetup(); request("History")
+        XCTAssertTrue(app.textFields["assistant-history-search"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].exists)
+    }
+    func testBriefingAndReminderCards() {
+        finishSetup(); request("Morning briefing")
+        XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
+        request("Reminders")
+        XCTAssertTrue(app.switches["Proactive suggestions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Cutoff reminder"].exists)
+    }
+    func testReactionCardOpensTheExistingTest() {
+        finishSetup(); request("Reaction test")
+        let start = app.buttons["assistant-reaction-start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5)); start.tap()
+        XCTAssertTrue(app.buttons["reaction-start"].waitForExistence(timeout: 5))
+    }
+
 }

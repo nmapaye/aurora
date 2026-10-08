@@ -5,6 +5,7 @@ import SwiftUI
 struct AuroraApp: App {
     @State private var model = AppModel()
     @State private var router = Router()
+    @State private var assistant = AssistantModel()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -12,6 +13,7 @@ struct AuroraApp: App {
             RootView()
                 .environment(model)
                 .environment(router)
+                .environment(assistant)
                 .preferredColorScheme(model.colorScheme)
                 .tint(Palette.tint)
                 .task { model.load() }
@@ -22,6 +24,8 @@ struct AuroraApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task { await model.foregroundSync() }
+                    } else if phase == .background {
+                        BackgroundRefresh.schedule(enabled: assistant.conversation.preferences.proactive)
                     }
                 }
                 .task(id: model.phase) {
@@ -38,6 +42,19 @@ struct AuroraApp: App {
                     }
                 }
         }
+        .backgroundTask(.appRefresh(BackgroundRefresh.identifier)) {
+            await refreshAssistantInBackground()
+        }
+    }
+
+    @MainActor private func refreshAssistantInBackground() async {
+        model.load()
+        guard model.phase == .ready, model.state.onboarding.completed else { return }
+        await assistant.start(app: model)
+        guard !Task.isCancelled else { return }
+        await model.foregroundSync()
+        await assistant.foreground(app: model)
+        BackgroundRefresh.schedule(enabled: assistant.conversation.preferences.proactive)
     }
 
     private func route(_ link: DeepLink) {
@@ -47,7 +64,7 @@ struct AuroraApp: App {
         }
         let state = model.state
         guard state.onboarding.completed else { return }
-        router.open(link.resolved(walkthroughPending: state.isWalkthroughPending, step: state.onboarding.appWalkthroughStep))
+        router.open(link)
     }
 }
 
@@ -64,7 +81,7 @@ struct RootView: View {
             StorageRecoveryView()
         case .ready:
             if model.state.onboarding.completed {
-                MainTabs()
+                AssistantView()
             } else {
                 OnboardingView()
             }
@@ -95,7 +112,7 @@ struct StorageRecoveryView: View {
             Text("Aurora can’t open its records")
                 .font(.title2.bold())
                 .foregroundStyle(Palette.textPrimary)
-            Text("Aurora could not protect local records from device backups, so it hasn’t opened them. Nothing was changed or deleted.")
+            Text("Aurora could not open or verify its protected local records. The original files are preserved. Retry after restoring access or recovering the saved file.")
                 .foregroundStyle(Palette.textSecondary)
             Button("Retry opening AURORA") { model.retryStorage() }
                 .buttonStyle(.auroraPrimary)

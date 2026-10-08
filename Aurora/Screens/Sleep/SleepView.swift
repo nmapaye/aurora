@@ -289,7 +289,7 @@ struct SleepEntrySheet: View {
             guard !loaded else { return }
             loaded = true
             switch mode {
-            case .new: draft = ManualSleep.newDraft(now: AppModel.currentMillis())
+            case .new: draft = AssistantPlanner.usualNight(model.state.sleeps, now: AppModel.currentMillis(), clock: model.clock) ?? ManualSleep.newDraft(now: AppModel.currentMillis())
             case .edit(let session): draft = ManualSleep.Draft(start: session.start, end: session.end, note: session.note ?? "")
             }
         }
