@@ -84,7 +84,11 @@ final class AuroraUITests: XCTestCase {
         amount.tap(); amount.typeText("120")
         let source = app.textFields["assistant-dose-source"]
         source.tap(); source.typeText("Tea")
-        app.swipeUp()
+        // The whole-app swipe can hit the fixed quick-action strip while the
+        // keyboard is open. Finish editing before tapping the reviewed draft.
+        app.keyboards.buttons["Return"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(save.isHittable)
         save.tap()
         let undo = app.buttons["assistant-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5), app.debugDescription)

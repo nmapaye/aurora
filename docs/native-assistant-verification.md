@@ -275,7 +275,17 @@ or energy UI delivery.
   Month heading assertion. Unchanged isolated rerun passed (1/1); rendered
   screenshot showed the Month reaction chart. Root cause remains intermittent.
   Heading assertions now wait for the updated elements; full recheck is pending.
-- Serial iPad native/UI run is in progress; do not count it until completion.
+- Serial iPad: native 43/43 and UI 16/16 passed; result bundle
+  `/private/tmp/aurora-energy-foundation-pad.xcresult`.
+- Morning iPhone retries on the existing isolated device failed during runner
+  startup before tests executed. These runs establish no app regression or pass.
+  A fresh dedicated QA iPhone passed native 43/43 and UI 15/16. The caffeine
+  Save/Undo flow failed again in isolation: the whole-app swipe hit the fixed
+  quick-action strip, leaving Save beneath the keyboard inset. Finishing source
+  editing with Return and checking keyboard dismissal/Save reachability passed
+  the affected flow (1/1). The updated full suite remains pending. Demo devices
+  and data are retained.
+- Website type-check/build and brand-token check passed at the morning checkpoint.
 - New package hardware/Health writes/observer delivery remain unverified.
 
 Review corrections preserve calculation constants, fix older contributing caffeine
