@@ -404,3 +404,36 @@ Evidence: `/private/tmp/aurora-energy-review-core-{utc,la}.log`,
 `/private/tmp/aurora-energy-review-focused-phone.xcresult`, and exported screenshots
 under `/private/tmp/aurora-energy-review-attachments/`. Physical-device and live
 Health acceptance remain release gates. No push/publication or signing changes.
+
+## October 9, 11:46 AM Pacific: corrected Energy acceptance
+
+Reviewed Claude correction `6a3972f` individually: new cards consistently exclude
+unfinished/future records from headline, metrics and curve; unrelated ratings no longer
+route deterministically to check-ins; gallery has a stable test selector.
+
+Codex found a signed-rating bug: “-2/5” became positive 2. A regression against the
+actual planner failed with six expectations before the fix; local candidate commit
+`7d81d7c` preserves the sign and leaves off-scale ratings unspecified. Independent
+core tests now pass 186/186 in UTC and Los Angeles. Scalar compatibility remains intact.
+
+Phone candidate acceptance: 58/58 native tests pass. Full UI run: 19/20 pass; caffeine
+Save/Undo failed tapping an offscreen Return button in a simulator keyboard preview
+(the source field was focused and contained Tea). Test-only correction `2d0183e` sends
+Return to the focused source field; the unchanged Save/Undo assertions then pass in a
+focused 1/1 rerun. This is 19 full-run passes plus one focused rerun, not a single
+combined 20/20 result. The corrected gallery and full erase/relaunch pass.
+
+Unsigned Release and token check pass. Visually inspected the populated phone Energy
+gallery screenshot: solid modeled line, dashed projected line, current marker, sleep
+band and separate caffeine marks are visible. Health largest-text screenshot preserves
+whole words and reachable switches. Dark, broader Energy variants and physical
+accessibility/performance remain unverified.
+
+Full iPad native/UI runner is active, serially after phone stopped. Do not overlap it.
+Energy remains provisional until remaining checks finish; only Health visual polish
+is integrated. Evidence: `/private/tmp/aurora-energy-signed-core-{utc,la}.log`,
+`/private/tmp/aurora-energy-negative-rating-before.log`,
+`/private/tmp/aurora-energy-final-phone.xcresult`,
+`/private/tmp/aurora-energy-keyboard-phone.xcresult`,
+`/private/tmp/aurora-energy-final-pad.log`, and
+`/private/tmp/aurora-energy-final-release.log`.
