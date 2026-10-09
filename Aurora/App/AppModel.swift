@@ -258,6 +258,38 @@ final class AppModel {
         update { $0.removeManualSleep(id: id) }
     }
 
+    // MARK: Energy check-ins
+
+    /// Saves a self-rated check-in. Invalid and already-saved ids are
+    /// refused before anything is written.
+    @discardableResult
+    func addEnergyCheckIn(_ checkIn: EnergyCheckIn) -> Bool {
+        tick()
+        var candidate = state
+        if let message = candidate.addEnergyCheckIn(checkIn, now: now).message { mutationFailure = message; return false }
+        return update { $0.addEnergyCheckIn(checkIn, now: now) }
+    }
+
+    /// Replaces a check-in only while it is still exactly `original`.
+    @discardableResult
+    func replaceEnergyCheckIn(_ updated: EnergyCheckIn, expecting original: EnergyCheckIn) -> Bool {
+        tick()
+        var candidate = state
+        if let message = candidate.replaceEnergyCheckIn(updated, expecting: original, now: now).message { mutationFailure = message; return false }
+        return update { $0.replaceEnergyCheckIn(updated, expecting: original, now: now) }
+    }
+
+    /// Removes a check-in only while it is still exactly `expected`.
+    @discardableResult
+    func removeEnergyCheckIn(_ expected: EnergyCheckIn) -> Bool {
+        var candidate = state
+        guard candidate.removeEnergyCheckIn(expected) else {
+            mutationFailure = "This check-in changed or was removed. Nothing else was changed."
+            return false
+        }
+        return update { $0.removeEnergyCheckIn(expected) }
+    }
+
     // MARK: Health
 
     var healthAvailable: Bool { health.isAvailable }

@@ -5,6 +5,7 @@ import Foundation
 public struct AssistantCard: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, CaseIterable, Sendable {
         case caffeineDraft, sleepDraft, energy, trends, calendar, reaction, history, exports, briefing, reminders, clarification, receipt
+        case energyProjection, energyCheckIn
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -41,6 +42,22 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     public var commitments: [Commitment] = []
     public var recordID: String?
     public var recordKind: String?
+    /// Energy evidence captured with the card. Optional so older saved
+    /// conversations decode unchanged.
+    public var energy: EnergySnapshot?
+    /// A check-in review's recent ratings, or a check-in receipt.
+    public var checkIn: CheckIn?
+    public struct CheckIn: Codable, Equatable, Sendable {
+        /// Receipt: the check-in as saved.
+        public var saved: EnergyCheckIn?
+        /// Receipt of a correction: the check-in before it.
+        public var previous: EnergyCheckIn?
+        /// Ratings from the 7 days before capture, newest first.
+        public var recent: [EnergyCheckIn]
+        public init(saved: EnergyCheckIn? = nil, previous: EnergyCheckIn? = nil, recent: [EnergyCheckIn] = []) {
+            self.saved = saved; self.previous = previous; self.recent = recent
+        }
+    }
     public init(kind: Kind, capturedAt: Millis, title: String, summary: String = "") {
         self.kind = kind; self.capturedAt = capturedAt; self.title = title; self.summary = summary
     }
@@ -49,6 +66,8 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .caffeineDraft: .logCaffeine
         case .sleepDraft: .logSleep
         case .energy: .explainEnergy
+        case .energyProjection: .energyProjection
+        case .energyCheckIn: .energyCheckIn
         case .trends: .weeklyTrends
         case .calendar: .calendar
         case .reaction: .reactionTest
@@ -67,6 +86,8 @@ public enum AssistantCards {
         case .caffeineDraft: "Record caffeine"
         case .sleepDraft: "Record sleep"
         case .energy: "Your energy signals"
+        case .energyProjection: "Modeled alertness · 24 hours"
+        case .energyCheckIn: "Energy check-in"
         case .trends: "Recorded trends"
         case .calendar: "Your commitments"
         case .reaction: "Reaction Test"
@@ -88,9 +109,34 @@ public enum AssistantCards {
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: "Estimated alertness", value: estimate.score.map { "\($0) / 100" } ?? "Unavailable", source: "Estimate", detail: Summary.describe(estimate), missing: estimate.score == nil)
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Model output · 0 to 100 scale, not a percentage", detail: EnergyEstimate.capture(at: now, doses: state.doses, sleeps: state.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
             card.summary = "These records cannot establish why you feel tired. Stress, illness, and other factors aren't measured here."
+            if kind == .energy {
+                let snapshot = EnergySnapshot.capture(state: state, now: now, clock: clock, includeProjection: false)
+                card.energy = snapshot
+                let evidence = snapshot.estimate.evidence
+                card.metrics.insert(.init(
+                    id: "activeCaffeine", label: "Estimated active caffeine",
+                    value: evidence.hasActiveCaffeine ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg" : "No record",
+                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours)) h half-life, not measured",
+                    missing: !evidence.hasActiveCaffeine
+                ), at: 2)
+            }
+        case .energyProjection:
+            let snapshot = EnergySnapshot.capture(state: state, now: now, clock: clock, includeProjection: true)
+            card.energy = snapshot
+            card.summary = EnergyProjection.futureAssumption
+            card.metrics = [.init(
+                id: "alertness", label: EnergyEstimate.title + " · now",
+                value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable",
+                source: "Model output · 0 to 100 scale, not a percentage",
+                detail: snapshot.estimate.summary, missing: snapshot.estimate.modeledScore == nil
+            )]
+        case .energyCheckIn:
+            card.summary = EnergyCheckIn.kindLabel
+            card.checkIn = .init(recent: state.energyCheckIns.filter { $0.recordedAt <= now && $0.recordedAt > now - 7 * dayMs }
+                .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) })
         case .trends:
             for days in [7, 30] {
                 let p = Insights.presentation(doses: state.doses, vigilanceSessions: state.vigilanceSessions, range: days == 7 ? .week : .month, now: now, clock: clock, text: text)

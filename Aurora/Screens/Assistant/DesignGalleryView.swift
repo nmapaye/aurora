@@ -13,9 +13,27 @@ struct DesignGalleryView: View {
     /// The first conversation message belonging to the current experience.
     @State private var firstMessage = 0
     @State private var showHealthChoices = false
+    @State private var energyVariant = EnergyVariant.populated
     @State private var healthAtAccessibilitySize = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
+    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
+    private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
+
+    /// Synthetic energy states. Populated and stale use made-up manual
+    /// records; sample uses Sample Data; nothing reads personal records.
+    enum EnergyVariant: String, CaseIterable {
+        case populated, missing, sample, stale, failure, modelUnavailable
+        var title: String {
+            switch self {
+            case .populated: "Populated"
+            case .missing: "Missing records"
+            case .sample: "Sample Data"
+            case .stale: "Earlier snapshot"
+            case .failure: "Failed request"
+            case .modelUnavailable: "Local model unavailable"
+            }
+        }
+    }
     private let states: [AssistantCard.State] = [.ready, .loading, .saved, .undone, .expired, .failed, .discarded]
     private let tones: [(String, StatusTone)] = [("Neutral", .neutral), ("Info", .info), ("Success", .success), ("Warning", .warning), ("Error", .error)]
 
@@ -36,6 +54,12 @@ struct DesignGalleryView: View {
                     Toggle("Populate sample records", isOn: $populated)
                     Picker("Experience", selection: $kind) {
                         ForEach(kinds, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    if energyKinds.contains(kind) {
+                        Picker("Energy fixture", selection: $energyVariant) {
+                            ForEach(EnergyVariant.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .accessibilityIdentifier("gallery-energy-variant")
                     }
                     Picker("Interaction state", selection: $state) {
                         Text("Live").tag(AssistantCard.State?.none)
@@ -72,6 +96,7 @@ struct DesignGalleryView: View {
             await showExperience()
         }
         .onChange(of: kind) { _, _ in Task { await showExperience() } }
+        .onChange(of: energyVariant) { _, _ in Task { await showExperience() } }
         .onChange(of: populated) { _, value in
             if value { fixtureApp.loadSampleData() } else { fixtureApp.deleteAllData() }
             Task { await showExperience() }
@@ -79,6 +104,7 @@ struct DesignGalleryView: View {
         // Mirrors the conversation, which captures the draft as it is edited.
         .onChange(of: fixtureAssistant.pendingDraft) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }
         .onChange(of: fixtureAssistant.pendingSleep) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }
+        .onChange(of: fixtureAssistant.pendingCheckIn) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }
     }
 
     /// The draft, its receipt, and any follow-up, so Save → receipt → Undo
@@ -133,7 +159,9 @@ struct DesignGalleryView: View {
     @MainActor private func showExperience() async {
         fixtureAssistant.failure = nil
         firstMessage = fixtureAssistant.conversation.messages.count
-        if kind == .receipt {
+        if energyKinds.contains(kind) {
+            await showEnergy()
+        } else if kind == .receipt {
             var card = AssistantCard(kind: .receipt, capturedAt: fixtureApp.now, title: "Sample receipt", summary: "Fixture only · no personal record saved")
             card.state = .saved
             card.records = Array(AssistantCards.make(.history, state: fixtureApp.state, now: fixtureApp.now, clock: fixtureApp.clock, text: fixtureApp.text).records.filter { $0.kind == "caffeine" }.prefix(1))
@@ -146,6 +174,47 @@ struct DesignGalleryView: View {
                 fixtureAssistant.conversation.messages.append(.init(text: card.summary, card: card))
             }
         }
+    }
+}
+
+extension DesignGalleryView {
+    @MainActor private func showEnergy() async {
+        fixtureApp.deleteAllData()
+        switch energyVariant {
+        case .sample: fixtureApp.loadSampleData()
+        case .missing, .modelUnavailable: break
+        case .populated, .stale, .failure: seedSyntheticEnergyRecords()
+        }
+        fixtureApp.tick()
+        let now = fixtureApp.now
+        let current = AssistantCards.make(kind, state: fixtureApp.state, now: now, clock: fixtureApp.clock, text: fixtureApp.text)
+        switch energyVariant {
+        case .stale:
+            // Captured three hours earlier from the records known then.
+            let card = AssistantCards.make(kind, state: fixtureApp.state, now: now - 3 * hourMs, clock: fixtureApp.clock, text: fixtureApp.text)
+            fixtureAssistant.conversation.messages.append(.init(text: card.title, card: card))
+        case .failure:
+            var card = AssistantCard(kind: kind, capturedAt: now, title: current.title, summary: "This request didn't finish. Refresh for a current result.")
+            card.state = .failed; card.timeZone = fixtureApp.clock.timeZone.identifier
+            fixtureAssistant.conversation.messages.append(.init(text: card.summary, card: card))
+        case .modelUnavailable:
+            fixtureAssistant.failure = IntelligenceFailure.unavailable.errorDescription
+            let card = AssistantCards.make(.clarification, state: fixtureApp.state, now: now, clock: fixtureApp.clock, text: fixtureApp.text)
+            fixtureAssistant.conversation.messages.append(.init(text: card.summary, card: card))
+        case .populated, .missing, .sample:
+            if let intent = current.refreshIntent {
+                await fixtureAssistant.handle(intent, input: "Gallery fixture", app: fixtureApp)
+            }
+        }
+    }
+
+    /// Made-up manual records for the populated and stale fixtures.
+    @MainActor private func seedSyntheticEnergyRecords() {
+        let now = AppModel.currentMillis()
+        fixtureApp.addManualSleep(.init(start: now - 11 * hourMs, end: now - 4 * hourMs, note: "Synthetic fixture"))
+        _ = fixtureApp.addCustomDose(.init(mg: "95", source: "Drip", timestamp: now - 3 * hourMs, note: "Synthetic fixture"))
+        _ = fixtureApp.addCustomDose(.init(mg: "60", source: "Tea", timestamp: now - 90 * minuteMs, note: "Synthetic fixture"))
+        fixtureApp.addEnergyCheckIn(.init(id: RecordID.newEnergyCheckInID(now: now - hourMs), recordedAt: now - hourMs, rating: 3, note: "Synthetic fixture"))
     }
 }
 

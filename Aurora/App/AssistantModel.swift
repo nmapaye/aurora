@@ -13,6 +13,8 @@ final class AssistantModel {
     var pendingDraft: CustomDoseDraft?
     var pendingMessageID: UUID?
     var pendingSleep: ManualSleep.Draft?
+    /// An open check-in review. Its id is fixed when the review opens.
+    var pendingCheckIn: EnergyCheckInDraft?
     var activeCards: Set<UUID> = []
     var savedDose: Dose?
     var showSleepEntry = false
@@ -54,7 +56,7 @@ final class AssistantModel {
                     if card.state == .loading {
                         conversation.messages[index].card?.state = .failed
                         conversation.messages[index].card?.summary = "This request didn't finish. Refresh for a current result."
-                    } else if [.caffeineDraft, .sleepDraft, .calendar].contains(card.kind), card.state == .ready {
+                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind), card.state == .ready {
                         conversation.messages[index].card?.state = .expired
                     }
                 }
@@ -86,7 +88,7 @@ final class AssistantModel {
         var cleared = conversation; cleared.messages = []
         do { try store?.save(cleared) }
         catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return }
-        conversation = cleared; pendingDraft = nil; pendingSleep = nil
+        conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         pendingMessageID = nil; activeCards = []; savedDose = nil
         releaseWarmResources()
         do { try store?.removeMigrationSource() }
@@ -95,7 +97,7 @@ final class AssistantModel {
 
     func resetAfterErase() {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
-        conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil
+        conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false
         releaseWarmResources(); calendars.resetAfterErase()
@@ -120,6 +122,16 @@ final class AssistantModel {
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
             pendingDraft = corrected
             updateCard(pendingMessageID) { $0.summary = "Updated proposal · review before saving." }
+            return
+        }
+        if pendingCheckIn != nil, let correction = AssistantPlanner.checkInCorrection(text) {
+            switch correction {
+            case .rating(let rating):
+                pendingCheckIn?.rating = rating
+                updateCard(pendingMessageID) { $0.summary = "Updated rating · review before saving." }
+            case .outOfScale:
+                updateCard(pendingMessageID) { $0.summary = "Ratings run from 1 to 5. Nothing changed." }
+            }
             return
         }
         processing = true; status = "Understanding your request"; failure = nil
@@ -216,6 +228,13 @@ final class AssistantModel {
                 $0.state = calendars.message == nil ? .ready : .failed
                 $0.summary = calendars.message ?? "Nothing changes until you approve a preview."
             }
+        case .energyProjection:
+            appendCard(AssistantCards.make(.energyProjection, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
+        case .energyCheckIn:
+            expireDraft()
+            pendingCheckIn = .new(now: app.now, rating: AssistantPlanner.checkInRating(input))
+            pendingMessageID = appendCard(AssistantCards.make(.energyCheckIn, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
+            captureDraft(app: app)
         case .settings: showAssistantSettings = true
         case .unsupported:
             appendCard(AssistantCards.make(.clarification, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
@@ -235,7 +254,7 @@ final class AssistantModel {
     }
     func expireDraft() {
         updateCard(pendingMessageID) { $0.state = .expired }
-        pendingDraft = nil; pendingSleep = nil; pendingMessageID = nil
+        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
     }
     func captureDraft(app: AppModel) {
         if let draft = pendingDraft {
@@ -249,11 +268,16 @@ final class AssistantModel {
                 .init(id: "start", label: "Start", value: app.text.fullDateTime(draft.start), source: "Manual · local time"),
                 .init(id: "end", label: "End", value: app.text.fullDateTime(draft.end), source: "Manual · local time")
             ] }
+        } else if let draft = pendingCheckIn {
+            updateCard(pendingMessageID) { $0.metrics = [
+                .init(id: "rating", label: "Your rating", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "Not chosen", source: EnergyCheckIn.sourceLabel, missing: draft.rating == nil),
+                .init(id: "time", label: "Time", value: app.text.fullDateTime(draft.recordedAt), source: app.clock.timeZone.identifier)
+            ] }
         }
     }
     func discardDraft() {
         updateCard(pendingMessageID) { $0.state = .discarded }
-        pendingDraft = nil; pendingSleep = nil; pendingMessageID = nil
+        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
     }
     func refresh(_ card: AssistantCard, app: AppModel) {
         guard let intent = card.refreshIntent, !processing else { return }
@@ -267,6 +291,8 @@ final class AssistantModel {
         case .exports: "Export records"
         case .briefing: "Morning briefing"
         case .reminders: "Reminders"
+        case .energyProjection: "Show my energy curve"
+        case .energyCheckIn: "Check in my energy"
         default: "How is my energy?"
         }
         send(prompt, app: app)
@@ -353,6 +379,63 @@ final class AssistantModel {
         if kind == "caffeine" { followHealth(doseID: id, messageID: message.id, app: app) }
         savedDose = nil
     }
+    // MARK: Energy check-ins
+
+    /// Saves the open check-in. A repeated tap finds no open review, and the
+    /// review's fixed id means the record can't be added twice. A failed
+    /// write keeps the review open with the same id, so Save can be retried.
+    func saveCheckIn(app: AppModel) {
+        guard let draft = pendingCheckIn else { return }
+        app.tick()
+        if let message = draft.validate(now: app.now).message { failure = message; return }
+        guard let checkIn = draft.checkIn else { return }
+        let saved = draft.original.map { app.replaceEnergyCheckIn(checkIn, expecting: $0) } ?? app.addEnergyCheckIn(checkIn)
+        guard saved, app.mutationFailure == nil else { failure = app.mutationFailure ?? "The check-in wasn't saved."; return }
+        failure = nil
+        updateCard(pendingMessageID) { $0.state = .saved }
+        pendingCheckIn = nil; pendingMessageID = nil
+        var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: draft.original == nil ? "Check-in saved" : "Check-in updated")
+        card.state = .saved; card.recordID = checkIn.id; card.recordKind = "checkin"
+        card.timeZone = app.clock.timeZone.identifier
+        card.summary = "Your rating, saved on this device. It is not part of the model."
+        card.checkIn = .init(saved: checkIn, previous: draft.original)
+        appendCard(card)
+    }
+
+    /// Undo removes a new check-in, or restores the rating a correction
+    /// replaced, only while the saved record is unchanged.
+    func undoCheckIn(_ message: ConversationMessage, app: AppModel) {
+        guard let card = conversation.messages.first(where: { $0.id == message.id })?.card, card.state == .saved,
+              let saved = card.checkIn?.saved else { return }
+        let previous = card.checkIn?.previous
+        let done = previous.map { app.replaceEnergyCheckIn($0, expecting: saved) } ?? app.removeEnergyCheckIn(saved)
+        guard done, app.mutationFailure == nil else {
+            failure = "This check-in changed or was removed. Nothing else was changed."
+            return
+        }
+        failure = nil
+        updateCard(message.id) {
+            $0.state = .undone
+            $0.title = previous == nil ? "Check-in removed" : "Correction undone"
+            $0.summary = previous == nil ? "Removed that check-in on this device. Other records are unchanged." : "Restored the earlier rating. Other records are unchanged."
+        }
+    }
+
+    /// Opens a correction review for the receipt's check-in, if unchanged.
+    func editCheckIn(_ message: ConversationMessage, app: AppModel) {
+        guard let saved = message.card?.checkIn?.saved, app.state.energyCheckIns.contains(saved) else {
+            failure = "This check-in changed or was removed. Nothing else was changed."
+            return
+        }
+        app.tick()
+        expireDraft()
+        pendingCheckIn = .editing(saved)
+        var card = AssistantCards.make(.energyCheckIn, state: app.state, now: app.now, clock: app.clock, text: app.text)
+        card.title = "Edit check-in"
+        pendingMessageID = appendCard(card, intent: .energyCheckIn)
+        captureDraft(app: app)
+    }
+
     func reactionCompleted(app: AppModel) {
         guard started, !app.state.vigilanceSessions.isEmpty else { return }
         var card = AssistantCards.make(.reaction, state: app.state, now: app.now, clock: app.clock, text: app.text)

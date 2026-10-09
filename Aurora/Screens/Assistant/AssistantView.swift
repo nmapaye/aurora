@@ -161,6 +161,8 @@ struct AssistantView: View {
                         showHealthConnection = true
                     }
                     quickAction("How is my energy?", symbol: "sparkle")
+                    quickAction("Show my energy curve", symbol: "chart.xyaxis.line")
+                    quickAction("Check in my energy", symbol: "hand.raised")
                     quickAction("Show this week", symbol: "chart.bar")
                     quickAction("Review calendar", symbol: "calendar")
                     quickAction("Morning briefing", symbol: "sun.horizon")

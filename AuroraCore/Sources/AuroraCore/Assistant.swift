@@ -2,6 +2,8 @@ import Foundation
 
 public enum AssistantIntent: String, Codable, CaseIterable, Identifiable, Sendable {
     case logCaffeine, logSleep, explainEnergy, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported
+    /// Added after the first release; older conversations never contain them.
+    case energyProjection, energyCheckIn
     public var id: String { rawValue }
 }
 
@@ -43,7 +45,8 @@ public struct ConversationState: Codable, Equatable, Sendable {
 public enum AssistantPlanner {
     public static let modelInstructions = """
     Classify the user's request into exactly one label:
-    logCaffeine, logSleep, explainEnergy, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported.
+    logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported.
+    energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means rating how energetic the user feels right now.
     logCaffeine means recording a drink already consumed. Questions about amounts to drink are unsupported.
     reactionTest means taking the 60-second reaction speed test, including requests to measure reaction speed.
     history means viewing previous recorded entries; settings means opening app preferences.
@@ -65,6 +68,15 @@ public enum AssistantPlanner {
         if text.contains("briefing") || text == "how is my day?" { return .briefing }
         if text.contains("history") { return .history }
         if text.contains("this week") || text.contains("trends") { return .weeklyTrends }
+        let energyContext = text.contains("energy") || text.contains("alertness")
+        let checkIn = text.contains("rate my energy") || checkInRating(text) != nil
+            || ((text.contains("check in") || text.contains("check-in") || text.contains("checkin"))
+                && (energyContext || text.contains("feel") || text == "check in" || text == "check-in"))
+        let projection = text.contains("energy curve") || text.contains("energy projection")
+            || (energyContext && ["24 hour", "24-hour", "later today", "rest of the day", "tonight", "next few hours", "curve", "projection"].contains { text.contains($0) })
+        if checkIn && projection { return .unsupported }
+        if checkIn { return .energyCheckIn }
+        if projection { return .energyProjection }
         if text.contains("tired") || text.contains("my energy") { return .explainEnergy }
         if text.contains("calendar") || text.contains("afternoon") || text.contains("schedule") || text.contains("commitments") { return .calendar }
         let drink = text.range(of: #"\b(coffee|caffeine|espresso|tea|matcha|cold brew|energy drink)\b"#, options: .regularExpression) != nil
@@ -73,6 +85,34 @@ public enum AssistantPlanner {
         if sleep { return .logSleep }
         if text == "log caffeine" || text.contains("had my usual") || (drink && (text.contains("i had") || text.contains("i drank") || text.contains("log "))) { return .logCaffeine }
         return nil
+    }
+
+    /// A rating the person stated on the 1–5 scale: "3 out of 5", "4/5".
+    /// Anything else, including out-of-scale numbers, is nil.
+    public static func checkInRating(_ input: String) -> Int? {
+        let text = input.lowercased()
+        guard let regex = try? NSRegularExpression(pattern: #"(?<![\d.])(\d+)\s*(?:out of|/)\s*5\b"#),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text), let value = Int(text[range]),
+              EnergyCheckIn.scale.contains(value) else { return nil }
+        return value
+    }
+
+    public enum CheckInCorrection: Equatable, Sendable {
+        case rating(Int)
+        /// A correction was meant, but the number is off the 1–5 scale.
+        case outOfScale
+    }
+
+    /// A short correction to an open check-in review: "actually 4",
+    /// "make it 2", "3/5". Longer sentences are left to the classifier,
+    /// so other requests are never read as a rating.
+    public static func checkInCorrection(_ input: String) -> CheckInCorrection? {
+        let text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let regex = try? NSRegularExpression(pattern: #"^(?:actually|make it|change it to|it was|it's|its|rating|no,?)?\s*(-?\d+)\s*(?:(?:out of|/)\s*5)?\s*[.!]?$"#),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text), let value = Int(text[range]) else { return nil }
+        return EnergyCheckIn.scale.contains(value) ? .rating(value) : .outOfScale
     }
 
     public static func modelIntent(_ output: String) -> AssistantIntent {

@@ -28,7 +28,7 @@ struct AssistantCardView: View {
             } else {
                 Card {
                     header
-                    if !card.summary.isEmpty && card.kind != .energy && card.kind != .briefing {
+                    if !card.summary.isEmpty && ![.energy, .briefing, .energyProjection].contains(card.kind) {
                         Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
                     }
                     content
@@ -92,7 +92,12 @@ struct AssistantCardView: View {
     }
     /// Drafts say where they stand; receipts already do through their title.
     @ViewBuilder private var draftBadge: some View {
-        if card.kind == .caffeineDraft || card.kind == .sleepDraft {
+        if (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
+            && app.now - card.capturedAt > EnergyCardTiming.staleAfterMs {
+            // Old snapshots keep their results; this only says they are old.
+            StatusBadge(text: "Earlier snapshot · Refresh for current", tone: .warning)
+        }
+        if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
             case .ready: draftActive ? StatusBadge(text: "Review before saving", tone: .info) : StatusBadge(text: "Closed")
             case .saved: StatusBadge(text: "Saved", tone: .success)
@@ -110,7 +115,7 @@ struct AssistantCardView: View {
     }
     @ViewBuilder private var refreshButton: some View {
         if card.refreshIntent != nil {
-            Button(card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .calendar ? "New review" : "Refresh") {
+            Button([.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind) ? "New review" : "Refresh") {
                 assistant.refresh(card, app: app)
             }.font(.caption.weight(.medium)).frame(minHeight: Metrics.minimumTouchTarget)
                 .disabled(assistant.processing).accessibilityIdentifier("assistant-refresh-\(card.kind.rawValue)")
@@ -129,6 +134,8 @@ struct AssistantCardView: View {
         case .briefing: "sun.horizon"
         case .reminders: "bell"
         case .clarification: "sparkle"
+        case .energyProjection: "chart.xyaxis.line"
+        case .energyCheckIn: "hand.raised"
         case .receipt: card.state == .undone ? "arrow.uturn.backward" : "checkmark.circle"
         }
     }
@@ -155,6 +162,8 @@ struct AssistantCardView: View {
                 .buttonStyle(.auroraPrimary).accessibilityIdentifier("assistant-reaction-start")
         case .history: history
         case .exports: exports
+        case .energyProjection: projection
+        case .energyCheckIn: checkInEditor
         case .reminders:
             metricRows
             Text("Current device controls").font(.caption.weight(.medium)).foregroundStyle(Palette.textSecondary)
@@ -173,10 +182,12 @@ struct AssistantCardView: View {
             Button("Manage reminders") { assistant.showAssistantSettings = true }.buttonStyle(.auroraPrimary)
             Button("Cutoff reminder settings") { assistant.historySheet = .settings }.buttonStyle(.auroraSecondary)
         case .clarification:
-            ForEach([("Record caffeine", "Log caffeine"), ("Record sleep", "Log sleep"), ("Understand my energy", "How is my energy?"), ("Explore trends", "Show this week"), ("Review my day", "Review calendar")], id: \.0) { label, prompt in
+            ForEach([("Record caffeine", "Log caffeine"), ("Record sleep", "Log sleep"), ("Understand my energy", "How is my energy?"), ("See my modeled day", "Show my energy curve"), ("Check in my energy", "Check in my energy"), ("Explore trends", "Show this week"), ("Review my day", "Review calendar")], id: \.0) { label, prompt in
                 Button { assistant.send(prompt, app: app) } label: { HStack { Text(label); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: Metrics.minimumTouchTarget) }
                     .buttonStyle(.plain).foregroundStyle(Palette.tint).disabled(assistant.processing)
             }
+        case .receipt where card.recordKind == "checkin":
+            checkInReceipt
         case .receipt:
             ForEach(card.records, id: \.identity) { row in
                 let removed = card.state == .undone
@@ -221,23 +232,122 @@ struct AssistantCardView: View {
     }
     private var evidence: some View {
         VStack(alignment: .leading, spacing: Metrics.md) {
+            if card.kind == .energy && card.state == .failed {
+                Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive)
+            }
             ForEach(card.metrics) { item in
                 VStack(alignment: .leading, spacing: Metrics.xxs) {
                     Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
                     Text(item.value).font(Typography.heroValue).monospacedDigit()
                     if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
-                    if item.missing && item.id != "alertness" {
+                    if item.missing && (item.id == "sleep" || item.id == "caffeine") {
                         Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }.font(.subheadline).frame(minHeight: Metrics.minimumTouchTarget)
                     }
                 }.accessibilityElement(children: .contain)
             }
+            if card.kind == .energy, let energy = card.energy {
+                EnergyEvidenceSections(snapshot: energy, text: snapshotText)
+            }
             DisclosureGroup("What this means") {
                 if let estimate = card.metrics.first(where: { $0.id == "alertness" }) { Text(estimate.detail).font(.footnote) }
+                if let energy = card.energy { limitations(energy) }
                 Text(card.summary).font(.footnote).padding(.top, Metrics.xxs)
             }
             DisclosureGroup("What’s missing") {
                 if card.metrics.contains(where: \.missing) { Text("Missing records stay ‘No record’. You can add an entry above; Aurora will not fill in a cause or a measurement.").font(.footnote) }
                 else { Text("Stress, illness, and other factors aren't measured here. Recorded signals cannot establish a cause.").font(.footnote) }
+            }
+        }
+    }
+    private func limitations(_ energy: EnergySnapshot) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.xxs) {
+            Text(EnergySnapshot.scaleNote)
+            ForEach(energy.estimate.limitations, id: \.self) { Text($0.text) }
+            Text("Model \(energy.estimate.modelVersion) · captured in \(energy.estimate.timeZoneIdentifier)")
+                .foregroundStyle(Palette.textSecondary)
+        }
+        .font(.footnote).padding(.top, Metrics.xxs)
+    }
+    @ViewBuilder private var projection: some View {
+        if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
+            if card.state == .failed { Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive) }
+            EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
+            EnergyEvidenceSections(snapshot: energy, text: snapshotText)
+            DisclosureGroup("What this means") { limitations(energy) }
+        } else {
+            Text(card.summary.isEmpty ? "This snapshot has no curve. Refresh for a current one." : card.summary)
+                .font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)
+        }
+    }
+    @ViewBuilder private var checkInEditor: some View {
+        if draftActive, let draft = assistant.pendingCheckIn {
+            VStack(alignment: .leading, spacing: Metrics.md) {
+                Text(EnergyCheckIn.kindLabel).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
+                VStack(alignment: .leading, spacing: Metrics.xs) {
+                    Text(EnergyCheckIn.scaleLabel).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                    Picker("Your rating", selection: Binding(get: { assistant.pendingCheckIn?.rating }, set: { assistant.pendingCheckIn?.rating = $0 })) {
+                        ForEach(Array(EnergyCheckIn.scale), id: \.self) { value in
+                            Text("\(value)").tag(Optional(value)).accessibilityLabel("\(value), \(EnergyCheckIn.label(forRating: value) ?? "")")
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    .accessibilityIdentifier("assistant-checkin-rating")
+                    Text(draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "No rating chosen")
+                        .font(Typography.value).monospacedDigit()
+                        .accessibilityIdentifier("assistant-checkin-rating-value")
+                }
+                DatePicker(selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingCheckIn?.recordedAt ?? app.now) / 1000) }, set: { assistant.pendingCheckIn?.recordedAt = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now) {
+                    Text("Time").font(Typography.label).foregroundStyle(Palette.textSecondary)
+                }
+                .frame(minHeight: Metrics.minimumTouchTarget)
+                if draft.rating != nil, let problem = draft.validate(now: AppModel.currentMillis()).message { fieldProblem(problem) }
+                Text(EnergyCheckIn.sourceLabel + " · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
+                LabeledField(label: "Note") {
+                    TextField("Optional note", text: Binding(get: { assistant.pendingCheckIn?.note ?? "" }, set: { assistant.pendingCheckIn?.note = $0 }))
+                        .font(Typography.evidence).accessibilityIdentifier("assistant-checkin-note")
+                }
+                draftActions(save: draft.original == nil ? "Save check-in" : "Save correction", saveID: "assistant-checkin-save", disabled: false) { assistant.saveCheckIn(app: app) }
+                recentCheckIns
+            }
+            .transition(Motion.stateTransition(reduceMotion: reduceMotion))
+        } else {
+            closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This check-in is closed. Start a new review to record a rating.")
+            recentCheckIns
+        }
+    }
+    @ViewBuilder private var recentCheckIns: some View {
+        if let recent = card.checkIn?.recent {
+            VStack(alignment: .leading, spacing: Metrics.xs) {
+                SectionLabel(text: "Your check-ins · last 7 days")
+                if recent.isEmpty { Text("No check-ins in the last 7 days.").font(.footnote).foregroundStyle(Palette.textSecondary) }
+                ForEach(recent.prefix(5)) { CheckInRow(checkIn: $0, text: snapshotText) }
+            }
+        }
+    }
+    @ViewBuilder private var checkInReceipt: some View {
+        if let info = card.checkIn, let saved = info.saved {
+            let undone = card.state == .undone
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                valueRow("Energy check-in", saved.ratingText, labelFont: Typography.evidence, labelColor: undone ? Palette.textSecondary : Palette.textPrimary)
+                    .strikethrough(undone)
+                Text(EnergyCheckIn.sourceLabel + " · " + snapshotText.fullDateTime(saved.recordedAt)).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                if let note = saved.note { Text(note).font(.footnote).foregroundStyle(Palette.textSecondary) }
+                if let previous = info.previous {
+                    Text("Before the correction: \(previous.ratingText)").font(.footnote).foregroundStyle(Palette.textSecondary)
+                }
+            }
+            .foregroundStyle(undone ? Palette.textSecondary : Palette.textPrimary)
+            .accessibilityElement(children: .combine)
+            if card.state == .saved {
+                VStack(spacing: Metrics.xxs) {
+                    Button(info.previous == nil ? "Undo check-in" : "Undo correction") { assistant.undoCheckIn(message, app: app) }
+                        .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-checkin-undo")
+                    Button("Edit check-in") { assistant.editCheckIn(message, app: app) }
+                        .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                        .disabled(assistant.processing).accessibilityIdentifier("assistant-checkin-edit")
+                }
+                .transition(Motion.stateTransition(reduceMotion: reduceMotion))
             }
         }
     }
@@ -361,6 +471,7 @@ struct AssistantCardView: View {
             ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv", text: Export.doseEntriesCSV(app.state.doses, clock: app.clock)), preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
             ShareLink(item: CSVFile(name: "aurora-sleep.csv", text: Export.sleepSessionsCSV(app.state.sleeps, clock: app.clock)), preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
             ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv", text: Export.vigilanceSessionsCSV(app.state.vigilanceSessions)), preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
+            ShareLink(item: CSVFile(name: "aurora-energy-check-ins.csv", text: Export.energyCheckInsCSV(app.state.energyCheckIns, clock: app.clock)), preview: SharePreview("Energy check-ins")) { Label("Energy check-ins CSV", systemImage: "hand.raised") }
             ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv", text: Export.dailyTotalsCSV(Export.dailyTotalRows(app.state.doses, now: app.now, clock: app.clock))), preview: SharePreview("Daily caffeine totals")) { Label("Daily caffeine totals CSV", systemImage: "chart.bar") }
         }.buttonStyle(.auroraSecondary)
     }
@@ -376,4 +487,10 @@ struct AssistantCardView: View {
             }) { assistant.showCalendarSettings = true }
         }
     }
+}
+
+enum EnergyCardTiming {
+    /// An energy snapshot older than this is labeled as earlier. Its
+    /// results never change; Refresh captures a new one.
+    static let staleAfterMs: Millis = hourMs
 }

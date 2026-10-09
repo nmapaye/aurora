@@ -108,6 +108,49 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Unavailable"].exists)
     }
+    func testEnergyCurveShowsModeledLabelsWithoutRecords() {
+        finishSetup()
+        tapQuick("Show my energy curve")
+        XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
+        let curve = app.otherElements["assistant-energy-curve"]
+        XCTAssertTrue(curve.waitForExistence(timeout: 5))
+        XCTAssertTrue(curve.label.contains("Modeled, not measured"))
+        XCTAssertTrue(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
+    }
+
+    func testCheckInNeedsARatingSaveAndUndo() {
+        finishSetup()
+        tapQuick("Check in my energy")
+        let save = app.buttons["assistant-checkin-save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        for _ in 0..<6 where !save.isHittable { app.swipeUp() }
+        save.tap()
+        XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 3))
+        let rating = app.segmentedControls["assistant-checkin-rating"]
+        for _ in 0..<6 where !rating.isHittable { app.swipeDown() }
+        rating.buttons.element(boundBy: 3).tap()
+        XCTAssertTrue(app.staticTexts["4 · High"].waitForExistence(timeout: 3))
+        for _ in 0..<6 where !save.isHittable { app.swipeUp() }
+        save.tap()
+        let undo = app.buttons["assistant-checkin-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        for _ in 0..<6 where !undo.isHittable { app.swipeUp() }
+        undo.tap()
+        XCTAssertTrue(app.staticTexts["Check-in removed"].waitForExistence(timeout: 5))
+    }
+
+    func testEnergyGalleryOffersSyntheticVariants() {
+        app.terminate(); app.launchArguments = ["-AuroraDesignGallery"]; app.launch()
+        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
+        app.buttons["Experience"].firstMatch.tap()
+        app.buttons["energyProjection"].firstMatch.tap()
+        XCTAssertTrue(app.otherElements["assistant-energy-curve"].waitForExistence(timeout: 10))
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Energy curve gallery fixture"
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
     func testCaffeineNeedsReviewAndUndoRemovesOnlySavedEntry() {
         finishSetup()
         app.buttons["assistant-quick-Log caffeine"].tap()
