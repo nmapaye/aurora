@@ -112,7 +112,13 @@ final class AuroraUITests: XCTestCase {
     private func request(_ text: String) {
         let input = app.textFields["assistant-composer"]
         input.tap(); input.typeText(text)
-        app.buttons["assistant-send"].tap()
+        // The keyboard can still be moving the composer when the tap lands.
+        // Sending clears the field, so a retry can never send twice.
+        let cleared = NSPredicate(format: "value != %@", text)
+        for _ in 0..<3 {
+            app.buttons["assistant-send"].tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
+        }
     }
     func testExportCardOffersNativeCSVSharing() {
         finishSetup(); request("Export records")
@@ -123,7 +129,7 @@ final class AuroraUITests: XCTestCase {
     func testHistoryCardProvidesSearchAndSourceFilters() {
         finishSetup(); request("History")
         XCTAssertTrue(app.textFields["assistant-history-search"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].exists)
+        XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].waitForExistence(timeout: 5))
     }
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
@@ -137,6 +143,20 @@ final class AuroraUITests: XCTestCase {
         let start = app.buttons["assistant-reaction-start"]
         XCTAssertTrue(start.waitForExistence(timeout: 5)); start.tap()
         XCTAssertTrue(app.buttons["reaction-start"].waitForExistence(timeout: 5))
+    }
+    func testLargestAccessibilityTextKeepsCardsAndComposerReachable() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        finishSetup(); request("Morning briefing")
+        XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
+        XCTAssertTrue(app.buttons["assistant-send"].exists)
+        request("Reminders")
+        let reminder = app.switches["Cutoff reminder"]
+        XCTAssertTrue(reminder.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !reminder.isHittable { app.swipeUp() }
+        XCTAssertTrue(reminder.isHittable)
     }
 
 }

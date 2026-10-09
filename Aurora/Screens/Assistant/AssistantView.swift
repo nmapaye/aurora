@@ -7,6 +7,7 @@ struct AssistantView: View {
     @Environment(Router.self) private var router
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(AssistantModel.self) private var assistant
     @State private var dictation = OnDeviceDictation()
     @State private var input = ""
@@ -137,7 +138,7 @@ struct AssistantView: View {
 
     private var composer: some View {
         VStack(spacing: 10) {
-            if assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
+            if !typeSize.isAccessibilitySize, assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
                 Text("Start with a quick action, or ask in your own words.")
                     .font(.caption).foregroundStyle(Palette.textSecondary)
                     .padding(.horizontal, 16)
@@ -180,6 +181,9 @@ struct AssistantView: View {
             .padding(.horizontal, 12)
         }
         .padding(.vertical, 10).background(.regularMaterial)
+        // The inset never scrolls, so uncapped accessibility sizes left the
+        // conversation a sliver of the screen. Messages and cards still scale fully.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
     private func quickAction(_ text: String, symbol: String) -> some View {
         Button { assistant.send(text, app: app) } label: { Label(text, systemImage: symbol).font(.caption.weight(.medium)).padding(12).frame(minHeight: 44).background(Palette.card, in: Capsule()) }

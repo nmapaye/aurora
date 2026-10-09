@@ -132,9 +132,18 @@ struct StatusText: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PrimaryButtonBody(configuration: configuration)
+    }
+}
+
+/// Reads `isEnabled` inside a view so it stays correct when the style is
+/// wrapped by `AnyButtonStyle`, which calls `makeBody` directly.
+private struct PrimaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)

@@ -12,6 +12,7 @@ final class OnDeviceDictation {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var hasTap = false
+    private var sessionActive = false
     private var generation = UUID()
 
     func start() async {
@@ -27,7 +28,7 @@ final class OnDeviceDictation {
         guard speech, microphone else { error = "Microphone or speech access is off. You can type instead."; return }
         do {
             try AVAudioSession.sharedInstance().setCategory(.record, mode: .measurement, options: .duckOthers)
-            try AVAudioSession.sharedInstance().setActive(true)
+            try AVAudioSession.sharedInstance().setActive(true); sessionActive = true
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.requiresOnDeviceRecognition = true; request.shouldReportPartialResults = true
             self.request = request; transcript = ""
@@ -49,6 +50,10 @@ final class OnDeviceDictation {
         generation = UUID(); engine.stop()
         if hasTap { engine.inputNode.removeTap(onBus: 0); hasTap = false }
         request?.endAudio(); task?.cancel(); task = nil; request = nil; recording = false
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Sending and backgrounding call stop() too; only release a session this object activated.
+        if sessionActive {
+            sessionActive = false
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }
