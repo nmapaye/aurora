@@ -77,8 +77,10 @@ public struct AppState: Codable, Equatable, Sendable {
     }
 
     /// Applies an anchored Health caffeine read. Samples are matched only by
-    /// their Health UUID, never by time and amount, and Aurora's own exports
-    /// are skipped. The anchor is saved with the records it produced.
+    /// their Health UUID, never by time and amount. Aurora's own exports are
+    /// skipped only while their dose is still recorded here; without one they
+    /// are kept read-only like any Health record. The anchor is saved with
+    /// the records it produced.
     @discardableResult
     public mutating func applyHealthCaffeine(_ changes: HealthCaffeineChanges, now: Millis) -> HealthCaffeineImport.Result {
         var result = HealthCaffeineImport.Result()
@@ -87,9 +89,16 @@ public struct AppState: Codable, Equatable, Sendable {
         doses.removeAll { deleted.contains($0.id) }
         result.removed = before - doses.count
         for sample in changes.added {
-            guard HealthCaffeineImport.isEligible(sample) else {
-                if HealthOrigin.isOwnExport(sample.provenance) { result.skippedOwn += 1 } else { result.rejected += 1 }
+            guard HealthCaffeineImport.isValid(sample) else {
+                result.rejected += 1
                 continue
+            }
+            switch HealthOrigin.ownership(of: sample.provenance, ledger: healthLedger, doses: doses) {
+            case .thirdParty: break
+            case .ownWithLocalDose:
+                result.skippedOwn += 1
+                continue
+            case .ownWithoutLocalDose: result.keptOwnWithoutLocalDose += 1
             }
             let dose = HealthCaffeineImport.dose(from: sample)
             if let index = doses.firstIndex(where: { $0.id == dose.id }) {

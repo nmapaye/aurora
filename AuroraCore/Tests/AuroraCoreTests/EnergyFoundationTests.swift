@@ -22,6 +22,8 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
                 let energy = EnergyEstimate.capture(at: t, doses: context.doses, sleeps: context.sleeps, inputs: context.inputs)
                 #expect(energy.modeledScore == existing.score)
                 #expect(energy.timeZoneIdentifier == context.clock.timeZone.identifier)
+                #expect(energy.evidence.activeCaffeineMg == Caffeine.activeMg(at: t, doses: context.doses, halfLifeHours: 5))
+                #expect(energy.includesSample == energy.evidence.includesSample)
                 switch existing {
                 case .needsSleep:
                     #expect(energy.contributions.isEmpty && energy.unroundedScore == nil)
@@ -32,7 +34,9 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
                     #expect(jsRoundInt(try #require(energy.unroundedScore)) == score)
                     #expect(energy.contributions.map(\.kind) == EnergyContribution.Kind.allCases)
                     #expect(energy.sleepHoursLast24 == hours)
-                    #expect(energy.includesSample == sample)
+                    // Older sample caffeine can flag the snapshot where the
+                    // 24-hour summary flag does not; never the reverse.
+                    #expect(!sample || energy.includesSample)
                     #expect(!energy.missingInputs.contains(.recentSleep))
                 }
                 probes += 1
@@ -60,8 +64,9 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(energy.modelVersion == "alertness-1")
         #expect(energy.capturedAt == now && energy.timeZoneIdentifier == "America/Los_Angeles")
         #expect(energy.includesSample)
-        #expect(energy.missingInputs == [.recentCaffeine])
+        #expect(energy.missingInputs == [.caffeine])
         #expect(energy.limitations == EnergyLimitation.allCases)
+        #expect(energy.evidence.sleep.map(\.source) == [.sample])
         let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: JSONEncoder().encode(energy))
         #expect(decoded == energy)
     }
@@ -87,6 +92,107 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
             #expect(!text.contains("%"))
         }
         #expect(EnergyEstimate.title == "Modeled alertness")
+        #expect(EnergyLimitation.unmeasuredFactors.text.contains("Illness, stress"))
+        #expect(!EnergyLimitation.unmeasuredFactors.text.contains("because"))
+    }
+
+    let recentSleep = [SleepSession(id: "manual:sleep:1:a", start: now - 9 * hourMs, end: now - 2 * hourMs)]
+
+    @Test func caffeineOlderThanADayStillCountsAndIsListed() throws {
+        for clock in [utc, pacific] {
+            for id in ["lx1-old", "demo:dose:old"] {
+                let doses = [Dose(id: id, timestamp: now - 30 * hourMs, mg: 200, source: "Drip")]
+                let energy = EnergyEstimate.capture(at: now, doses: doses, sleeps: recentSleep, inputs: inputs(clock))
+                let existing = Summary.estimateAlertness(at: now, doses: doses, sleeps: recentSleep, inputs: inputs(clock))
+                #expect(energy.modeledScore == existing.score)
+                #expect(energy.missingInputs == [.recentCaffeine])
+                #expect(!energy.missingInputs.contains(.caffeine))
+                let input = try #require(energy.evidence.caffeine.first)
+                #expect(energy.evidence.caffeine.count == 1 && energy.evidence.fadedCaffeine == nil)
+                #expect(input.recordID == id && input.timestamp == now - 30 * hourMs && input.mg == 200)
+                #expect(input.activeMg == 200 * pow(0.5, 6) && energy.evidence.activeCaffeineMg == input.activeMg)
+                #expect(try #require(energy.contributions.first { $0.kind == .caffeine }).term > 0)
+                // The 24-hour summary flag misses this dose; the snapshot doesn't.
+                if case .estimated(_, _, let summarySample) = existing { #expect(!summarySample) }
+                #expect(energy.includesSample == (id == "demo:dose:old"))
+                #expect(input.source == (id == "demo:dose:old" ? .sample : .manual))
+            }
+        }
+    }
+
+    @Test func olderHealthCaffeineKeepsItsProvenance() throws {
+        let provenance = HealthSampleProvenance(sampleUUID: "ABCD-1", sourceBundleIdentifier: "com.example.tracker", sourceName: "Tracker")
+        let dose = HealthCaffeineImport.dose(from: HealthCaffeineSample(provenance: provenance, timestamp: now - 28 * hourMs, mg: 120))
+        let energy = EnergyEstimate.capture(at: now, doses: [dose], sleeps: recentSleep, inputs: inputs(utc))
+        let input = try #require(energy.evidence.caffeine.first)
+        #expect(input.source == .health && input.recordID == "healthkit:caffeine:abcd-1")
+        #expect(input.healthSampleUUID == "abcd-1" && input.healthSourceBundleIdentifier == "com.example.tracker")
+        #expect(energy.missingInputs == [.recentCaffeine])
+    }
+
+    @Test func fadedAndVanishedCaffeineAreToldApart() throws {
+        let faded = [Dose(id: "demo:dose:month", timestamp: now - 30 * dayMs, mg: 100)]
+        let energy = EnergyEstimate.capture(at: now, doses: faded, sleeps: recentSleep, inputs: inputs(utc))
+        let summary = try #require(energy.evidence.fadedCaffeine)
+        #expect(energy.evidence.caffeine.isEmpty)
+        #expect(summary.count == 1 && summary.activeMg > 0 && summary.activeMg < EnergyEvidence.itemizedMinimumMg)
+        #expect(summary.includesSample && energy.includesSample)
+        #expect(energy.missingInputs == [.recentCaffeine])
+
+        // 1,920 half-lives: the model's own arithmetic adds exactly zero.
+        let vanished = [Dose(id: "demo:dose:old", timestamp: now - 400 * dayMs, mg: 100)]
+        let none = EnergyEstimate.capture(at: now, doses: vanished, sleeps: recentSleep, inputs: inputs(utc))
+        #expect(Caffeine.activeMg(at: now, doses: vanished, halfLifeHours: 5) == 0)
+        #expect(none.missingInputs == [.caffeine] && !none.evidence.hasActiveCaffeine && !none.includesSample)
+    }
+
+    @Test func sleepEvidenceNamesTheWindowAndTheLatestEpisode() throws {
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:1:2", start: now - 3 * hourMs, end: now - 2 * hourMs),
+            SleepSession(id: "manual:sleep:2:b", start: now - 2 * hourMs + 10 * minuteMs, end: now - 30 * minuteMs),
+            SleepSession(id: "demo:sleep:old", start: now - 30 * hourMs, end: now - 23 * hourMs),
+            SleepSession(id: "demo:sleep:older", start: now - 50 * hourMs, end: now - 45 * hourMs),
+        ]
+        let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        #expect(energy.evidence.sleep.map(\.recordID) == ["demo:sleep:old", "healthkit:sleep:1:2", "manual:sleep:2:b"])
+        #expect(energy.evidence.sleep.map(\.source) == [.sample, .health, .manual])
+        #expect(energy.evidence.sleep.map(\.hoursInWindow) == [1, 1, 80.0 / 60])
+        #expect(energy.evidence.sleep.map(\.inLatestEpisode) == [false, true, true])
+        #expect(energy.evidence.lastWakeAt == now - 30 * minuteMs)
+        #expect(try #require(energy.contributions.last).term > 0)
+        #expect(energy.includesSample)
+    }
+
+    @Test func snapshotsFreezeTheirInputsAndEncodeDeterministically() throws {
+        var state = AppState()
+        state.sleeps = recentSleep
+        state.addDose(Dose(id: "lx1-a", timestamp: now - 26 * hourMs, mg: 95, source: "Drip"))
+        state.addDose(Dose(id: "lx1-b", timestamp: now - hourMs, mg: 60, source: "Espresso"))
+        let snapshot = EnergyEstimate.capture(at: now, doses: state.doses, sleeps: state.sleeps, inputs: inputs(pacific))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let stored = try encoder.encode(snapshot)
+
+        // Input order doesn't change the snapshot.
+        let reversed = EnergyEstimate.capture(at: now, doses: state.doses.reversed(), sleeps: state.sleeps, inputs: inputs(pacific))
+        #expect(try encoder.encode(reversed) == stored)
+
+        state.updateDose(id: "lx1-b", timestamp: now - hourMs, mg: 200, source: "Energy", note: nil)
+        state.removeDose(id: "lx1-a")
+        state.sleeps = []
+        let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: stored)
+        #expect(decoded == snapshot)
+        #expect(decoded.evidence.caffeine.map(\.recordID) == ["lx1-a", "lx1-b"])
+        #expect(decoded.evidence.caffeine.map(\.mg) == [95, 60])
+        #expect(decoded.evidence.sleep.map(\.recordID) == ["manual:sleep:1:a"])
+        #expect(EnergyEstimate.capture(at: now, doses: state.doses, sleeps: state.sleeps, inputs: inputs(pacific)) != decoded)
+
+        // Only plain values are stored: no Health objects or other context.
+        let object = try #require(JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        let evidence = try #require(object["evidence"] as? [String: Any])
+        #expect(Set(evidence.keys) == ["windowStart", "activeCaffeineMg", "caffeine", "sleep"])
+        let input = try #require((evidence["caffeine"] as? [[String: Any]])?.first)
+        #expect(Set(input.keys) == ["recordID", "source", "timestamp", "mg", "activeMg"])
     }
 }
 
@@ -216,16 +322,51 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(state.healthLedger.anchors.count == 1 && state.healthLedger.anchor(for: .caffeine)?.data == Data([2]))
     }
 
-    @Test func ownExportsAndInvalidSamplesAreNotImported() {
+    @Test func ownExportsWithALocalDoseAndInvalidSamplesAreNotImported() {
         var state = AppState()
+        state.addDose(Dose(id: "m1", timestamp: now - hourMs, mg: 80))
+        state.addDose(Dose(id: "m2", timestamp: now - hourMs, mg: 60))
+        state.healthLedger.ownExports = [HealthOwnExport(doseID: "m2", syncIdentifier: HealthOrigin.syncIdentifier(forDoseID: "m2"), syncVersion: 1, sampleUUID: "uuid-2")]
         let result = state.applyHealthCaffeine(HealthCaffeineChanges(added: [
-            sample("1", bundle: HealthOrigin.appBundleIdentifier),
-            sample("2", sync: HealthOrigin.syncIdentifier(forDoseID: "x")),
+            sample("1", bundle: HealthOrigin.appBundleIdentifier, sync: HealthOrigin.syncIdentifier(forDoseID: "m1")),
+            // Known by the UUID Health returned for Aurora's save.
+            sample("UUID-2", bundle: "com.apple.health"),
             sample("3", mg: 0),
             sample("4", at: .nan),
         ], deletedSampleUUIDs: [], anchor: Data()), now: now)
-        #expect(state.doses.isEmpty)
-        #expect(result.skippedOwn == 2 && result.rejected == 2)
+        #expect(state.doses.map(\.id) == ["m1", "m2"])
+        #expect(result.skippedOwn == 2 && result.rejected == 2 && result.upserted == 0)
+    }
+
+    @Test func thirdPartyMetadataNeverMakesASampleAurorasOwn() {
+        var state = AppState()
+        state.addDose(Dose(id: "m1", timestamp: now - hourMs, mg: 80))
+        let colliding = [
+            sample("t1", sync: HealthOrigin.syncIdentifier(forDoseID: "m1")),
+            sample("t2", bundle: HealthOrigin.appBundleIdentifier + ".lookalike", sync: HealthOrigin.syncIdentifier(forDoseID: "m1")),
+            sample("t3", bundle: "com.nmapaye.aurorafan", sync: HealthOrigin.syncIdentifierPrefix + "other"),
+        ]
+        for item in colliding {
+            #expect(!HealthOrigin.isOwnExport(item.provenance, ledger: state.healthLedger))
+            #expect(HealthOrigin.ownership(of: item.provenance, ledger: state.healthLedger, doses: state.doses) == .thirdParty)
+        }
+        let result = state.applyHealthCaffeine(HealthCaffeineChanges(added: colliding, deletedSampleUUIDs: [], anchor: Data()), now: now)
+        #expect(result.upserted == 3 && result.skippedOwn == 0 && result.keptOwnWithoutLocalDose == 0)
+        #expect(state.doses.map(\.id) == ["m1", "healthkit:caffeine:t1", "healthkit:caffeine:t2", "healthkit:caffeine:t3"])
+        #expect(state.doses.dropFirst().allSatisfy { !CaffeineLog.isEditable($0) })
+    }
+
+    @Test func ownSamplesWithoutALocalDoseAreKeptReadOnlyAfterErase() {
+        var state = AppState()
+        state.addDose(Dose(id: "m1", timestamp: now - hourMs, mg: 80))
+        state.deleteAllData()
+        let own = sample("own-1", bundle: HealthOrigin.appBundleIdentifier, sync: HealthOrigin.syncIdentifier(forDoseID: "m1"))
+        #expect(HealthOrigin.ownership(of: own.provenance, ledger: state.healthLedger, doses: state.doses) == .ownWithoutLocalDose)
+        let result = state.applyHealthCaffeine(HealthCaffeineChanges(added: [own], deletedSampleUUIDs: [], anchor: Data()), now: now)
+        #expect(result.upserted == 1 && result.keptOwnWithoutLocalDose == 1 && result.skippedOwn == 0)
+        #expect(state.doses.map(\.id) == ["healthkit:caffeine:own-1"])
+        #expect(state.doses[0].health?.sourceBundleIdentifier == HealthOrigin.appBundleIdentifier)
+        #expect(!CaffeineLog.isEditable(state.doses[0]))
     }
 
     @Test func healthCaffeineIsReadOnlyAtEveryMutation() {
@@ -320,16 +461,37 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 
-    func files(failingWritesTo name: String) -> StateMigration.Files {
+    /// Counts writes to one file across the closures `Files` copies.
+    final class WriteCount: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func next() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            count += 1
+            return count
+        }
+    }
+
+    /// Fails writes to `name`; with `firstOnly`, only the first one, so a
+    /// restore of the original succeeds.
+    func files(failingWritesTo name: String, firstOnly: Bool = false) -> StateMigration.Files {
         let standard = StateMigration.Files.standard
+        let count = WriteCount()
         return StateMigration.Files(
             read: standard.read,
             write: { data, url in
-                if url.lastPathComponent == name { throw WriteFailure() }
+                if url.lastPathComponent == name, !firstOnly || count.next() == 1 { throw WriteFailure() }
                 try standard.write(data, url)
             },
             exists: standard.exists
         )
+    }
+
+    func isRestoreFailure(_ error: Error) -> Bool {
+        if case StateMigration.Failure.restoreFailed = error { return true }
+        return false
     }
 
     func doses(in data: Data) throws -> NSArray {
@@ -384,7 +546,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(try Data(contentsOf: stateURL) == original)
         #expect(!FileManager.default.fileExists(atPath: sourceURL.path))
 
-        #expect(throws: WriteFailure.self) { try StateMigration.load(directory: directory, files: files(failingWritesTo: "state.json")) }
+        #expect(throws: WriteFailure.self) { try StateMigration.load(directory: directory, files: files(failingWritesTo: "state.json", firstOnly: true)) }
         #expect(try Data(contentsOf: stateURL) == original)
         #expect(try Data(contentsOf: sourceURL) == original)
 
@@ -404,6 +566,46 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         )
         #expect(throws: StateMigration.Failure.undecodable) { try StateMigration.load(directory: directory, files: garbling) }
         #expect(try Data(contentsOf: stateURL) == original)
+    }
+
+    @Test func aFailedRestoreIsExplicitAndKeepsTheRetainedSource() throws {
+        let original = try v1Data()
+        try original.write(to: stateURL)
+        // Every write to state.json fails, so the restore can't be confirmed.
+        let error = try #require(throws: StateMigration.Failure.self) {
+            try StateMigration.load(directory: directory, files: files(failingWritesTo: "state.json"))
+        }
+        #expect(isRestoreFailure(error))
+        #expect(try Data(contentsOf: sourceURL) == original)
+        #expect(try Data(contentsOf: stateURL) == original) // Atomic writes never replaced it.
+    }
+
+    @Test func aGarbledSaveWithAFailedRestoreLeavesTheSourceForRecovery() throws {
+        let original = try v1Data()
+        try original.write(to: stateURL)
+        let standard = StateMigration.Files.standard
+        let garbleThenFail = StateMigration.Files(
+            read: standard.read,
+            write: { data, url in
+                guard url.lastPathComponent == "state.json" else { return try standard.write(data, url) }
+                if data == original { throw WriteFailure() }
+                try standard.write(Data("{".utf8), url)
+            },
+            exists: standard.exists
+        )
+        let error = try #require(throws: StateMigration.Failure.self) {
+            try StateMigration.load(directory: directory, files: garbleThenFail)
+        }
+        #expect(isRestoreFailure(error))
+        guard case .restoreFailed(let detail) = error else { return }
+        #expect(detail.contains("retained source verified"))
+        #expect(try Data(contentsOf: sourceURL) == original)
+
+        // The next launch sees an undecodable state.json and goes to recovery;
+        // the retained source is still byte-equal and decodes to every record.
+        #expect(throws: StateMigration.Failure.undecodable) { try StateMigration.load(directory: directory) }
+        #expect(try Data(contentsOf: sourceURL) == original)
+        #expect(try StateMigration.decode(Data(contentsOf: sourceURL)) == JSONDecoder().decode(AppState.self, from: original))
     }
 
     @Test func aDifferentRetainedSourceIsNeverReplaced() throws {

@@ -5,8 +5,9 @@ import Foundation
 /// `state.v1-source.json` and read back, the migrated value is checked
 /// against the source, and only then is the new file written and read back.
 /// Any failure leaves the original `state.json` as it was, so a retry starts
-/// over safely. Files from a newer build, or that don't decode, are never
-/// rewritten.
+/// over safely; if putting it back can't be confirmed, the failure is
+/// `restoreFailed` and the retained source stays. Files from a newer build,
+/// or that don't decode, are never rewritten.
 public enum StateMigration {
     public static let stateFileName = "state.json"
     public static let v1SourceFileName = "state.v1-source.json"
@@ -19,6 +20,10 @@ public enum StateMigration {
         /// changed, so nothing that might be the only copy is replaced.
         case retainedSourceMismatch
         case verificationFailed(String)
+        /// Saving the migrated file failed and `state.json` couldn't be put
+        /// back byte for byte. The verified `state.v1-source.json` is left in
+        /// place as the copy to recover from.
+        case restoreFailed(String)
     }
 
     /// File access, injected so the app can add file protection and tests
@@ -130,9 +135,24 @@ public enum StateMigration {
             try files.write(encoded, stateURL)
             guard try decode(files.read(stateURL)) == migrated else { throw Failure.verificationFailed("saved state") }
         } catch {
-            try? files.write(original, stateURL)
+            try restoreOriginal(original, at: stateURL, sourceURL: sourceURL, files: files, after: error)
             throw error
         }
         return Loaded(state: migrated, original: original, migratedFrom: version)
+    }
+
+    /// Puts the original bytes back after a failed save and reads them back.
+    /// Never touches the retained source; if the restore can't be confirmed,
+    /// says so instead of reporting only the save failure.
+    private static func restoreOriginal(_ original: Data, at stateURL: URL, sourceURL: URL, files: Files, after error: Error) throws {
+        do {
+            try files.write(original, stateURL)
+            guard try files.read(stateURL) == original else { throw Failure.verificationFailed("restored state") }
+        } catch let restoreError {
+            let sourceKept = (try? files.read(sourceURL)) == original
+            throw Failure.restoreFailed(
+                "save: \(error); restore: \(restoreError); retained source \(sourceKept ? "verified" : "unverified")"
+            )
+        }
     }
 }
