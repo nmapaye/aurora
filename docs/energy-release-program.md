@@ -1,0 +1,95 @@
+# Expanded Aurora release program
+
+User-approved 2026-10-09. All packages below gate the first App Store release.
+Starting checkpoint: 85a3ddb on codex/native-assistant, clean before work.
+Legacy PR #19 is unmerged; remote Actions-analysis and gitleaks jobs were cancelled
+with no executed steps (2026-10-05), not reported code/security findings. JS analysis passed.
+Keep the legacy PR separate; no push, merge, account enrollment, or publication
+occurs during local implementation.
+
+## Ownership and isolation
+
+Claude implements each bounded package in an isolated branch from the latest accepted
+integration checkpoint. This user assignment overrides older UI-only ownership text
+for the package's expressly assigned files. Codex orchestrates, reviews diffs, runs
+independent checks and visual inspection, and integrates only accepted local commits.
+No simultaneous UI runners or same-file edits; preserve original checkouts.
+Claude subscription only, no API keys or alternate billed provider on exhaustion.
+
+## Locked contracts
+
+- Local deterministic calculations/actions; models classify a finite intent catalog.
+- Energy is modeled, not measured or clinically validated. Preserve score baseline.
+- Capture time/model version/time zone/input provenance/missing assumptions accompany
+  snapshots; Refresh makes a new snapshot. Never invent future sleep or caffeine.
+- Health: separate sleep-read, caffeine-read and caffeine-write choices; imported
+  records read-only, optional export only of user-saved Aurora caffeine. Empty reads
+  do not prove permission. Never identity-deduplicate on timestamp and amount.
+- Local save and Health export report separate outcomes. Pending write retries use
+  durable identity; edit/Undo deletes/replaces only own samples. Full local erase
+  cancels reads/observers/outbox and leaves Health exports unless separately approved.
+- Cutoff scenarios use a user-entered bedtime/threshold and chosen half-life; no
+  recommended threshold/dose/sleep schedule. Reminder changes require Save.
+- Refresh coalesces bounded foreground/observer/background work, invalidates stale
+  results, honors quiet hours/daily limits/dismissal, never continuous reasoning.
+- Widgets open review drafts; neutral Lock Screen defaults, metrics opt-in. Minimal
+  protected App Group snapshots, stale labels, no calendar mutation or silent logs.
+- Shared design.md/tokens; no fabricated speed, battery or accuracy claims.
+
+## Packages and evidence ledger
+
+| Package | Status | Required evidence |
+|---|---|---|
+| Foundation | Claude dispatched, isolated claude/aurora-energy-foundation | Codable evidence/provenance, v2 migration retain/read-back, race-safe interfaces; core UTC/LA, native build |
+| Health | Pending foundation review | Anchored import/export/observer ledger; denial/revoke/duplicate/deletion/partial failure/erase fixtures + physical Health gate |
+| Energy | Pending | Contribution/24h scenario/check-in cards; baseline parity, snapshots, missing/sample data, accessible charts |
+| Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
+| Widgets/performance | Pending | Extension/App Group protection, routing/redaction/erase; local signposts and physical profiling |
+| Release polish | Pending | Gallery all states, serial phone/pad flows, screenshot critique, policies/metadata/website consistency |
+
+## Release acceptance
+
+Core UTC/Los_Angeles; native services; phone/pad serial UI; model-unavailable/offline
+requests; migration/corrupt/future-schema recovery; notification/observer cancellation;
+calendar authority/stale approval/partial outcomes; website/token checks/remote CI.
+Visual matrix: light/dark, largest text, VoiceOver, Reduce Motion, keyboard,
+orientation, Stop/failure/background; use dedicated fixtures, not personal records.
+
+Hardware gates: Health allow/deny/revoke/import/export, Google production OAuth,
+signed archive/privacy audit, real previous-version upgrade, dictation/background,
+control feedback <100 ms, scrolling/animation/thermal/battery, verified support URLs
+and contact, TestFlight feedback. No App Store submission without final authorization.
+
+## Resume instructions
+
+Check clean status and latest accepted commit. Inspect Claude's handoff and commits
+before cherry-picking. Do not count self-reported/partial/interrupted checks as passes.
+Temporary Claude foundation output: /private/tmp/aurora-foundation-claude.json.
+Worktree: /Users/nmapaye/Developer/aurora-energy-foundation.
+
+## Overnight usage control (2026-10-09)
+
+User confirmed the pause threshold is **15% remaining**, meaning the primary
+five-hour meter reaches 85% used. Check the live account meter before expensive
+stages; do not consume a banked reset. The attached `aurora-overnight-usage-guard`
+checks every 15 minutes and resumes this task if the supervisor's queue fails.
+
+Durable controller files live in `/Users/nmapaye/Developer/aurora-overnight/`:
+`handoff.md`, `packages.json`, `supervisor.py`, `status.json` and per-package logs.
+The Python supervisor was dry-run verified and started under process-scoped
+`caffeinate -i`. It waits for `HANDOFF_READY` before dispatching Claude, also waits
+for the active-writer marker/current foundation result, and never merges its
+provisional package commits. The local queue is scheduled for **05:50 PDT**, after
+the live meter's reported **05:46:04 PDT** reset. Actual queue delivery remains
+unverified until it occurs; the heartbeat is the fallback.
+
+Keep the Mac powered on with Codex running. `STOP` in the controller directory
+cancels future dispatch/resumption, without discarding a running package's work.
+At morning resumption pause the overnight guard, inspect the supervisor status,
+and independently review each provisional commit before integration. A Claude
+quota/authentication failure is a durable stop, never an API fallback.
+
+Foundation `4b899bf` independently passed 94 core tests in UTC and Los Angeles.
+Review found older caffeine evidence/sample-label and third-party Health identity
+issues; Claude is correcting them in isolation. This foundation is **not yet
+accepted or integrated**, and native simulator tests for it remain pending.
