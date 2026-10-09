@@ -74,6 +74,8 @@ Responds to Codex's provisional review (`aurora-overnight/health-review-findings
      (`HealthChoices.backgroundUpdates`, off by default, asks for no Health
      permission, disabled until a read is chosen). It calls
      `enableBackgroundDelivery(for:frequency: .hourly)` only for kinds being read.
+     `.hourly` is the requested frequency; iOS controls actual timing and
+     opportunities, so no wake schedule is promised.
    - Turning a read off disables delivery for that kind. Erase, Delete All and each
      launch reconcile delivery to the stored choices, since Health keeps the setting
      across launches.
@@ -278,7 +280,7 @@ Signed build on a real iPhone:
   one sample in Health.
 - Upgrading a device that holds legacy start:end sleep records.
 - With "Update in the background" on: whether a signed build carries the
-  background-delivery entitlement, whether Health wakes the app at most hourly while
+  background-delivery entitlement, when and whether Health wakes the app after the hourly request while
   it's suspended or terminated, observer registration at background launch, and
   battery impact.
 - Kill the app mid-write, relaunch, and Retry.

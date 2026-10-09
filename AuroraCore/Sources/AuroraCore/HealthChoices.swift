@@ -61,7 +61,7 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
         case .writeCaffeine:
             "Requested. If Health doesn’t accept an entry, it stays saved here and is listed as not exported."
         case .backgroundUpdates:
-            "On. Apple Health decides when to wake Aurora, at most about once an hour, and may delay or skip updates."
+            "On. Aurora asks for hourly updates, but iOS and Apple Health decide when, or whether, to wake Aurora."
         }
     }
 }

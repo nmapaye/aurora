@@ -80,7 +80,7 @@ struct SettingsView: View {
 
                 Section("About") {
                     Button { openURL(Self.privacyPolicyURL) } label: {
-                        row("Privacy Policy", detail: "Read-only Health sleep access, local storage, exports, and deletion.")
+                        row("Privacy Policy", detail: "Separate Health sleep and caffeine reads, optional caffeine writes, local storage, exports, and deletion.")
                     }
                     Button { openURL(Self.supportURL) } label: {
                         row("Support", detail: "Get help, report issues, and avoid sharing private Health data.")

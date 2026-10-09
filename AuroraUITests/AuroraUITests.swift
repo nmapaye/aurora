@@ -44,9 +44,12 @@ final class AuroraUITests: XCTestCase {
         finishSetup()
         tapQuick("Connect Apple Health")
         XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
+        let titles = ["readSleep": "Read sleep", "readCaffeine": "Read caffeine", "writeCaffeine": "Add my caffeine to Health", "backgroundUpdates": "Update in the background"]
         for choice in ["readSleep", "readCaffeine", "writeCaffeine", "backgroundUpdates"] {
             let control = app.switches["assistant-health-" + choice]
             XCTAssertTrue(control.exists)
+            // The stacked layout hides the visual title; the switch still announces it.
+            XCTAssertEqual(control.label, titles[choice])
             func reachable() -> Bool {
                 if control.isEnabled { return control.isHittable }
                 return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
@@ -88,6 +91,12 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["assistant-dose-amount"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["Populate sample records"].exists)
+        let health = app.buttons["gallery-health-choices"]
+        for _ in 0..<12 where !health.isHittable { app.swipeUp() }
+        health.tap()
+        XCTAssertTrue(app.switches["assistant-health-backgroundUpdates"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.switches["assistant-health-backgroundUpdates"].label, "Update in the background")
+        app.buttons["assistant-health-done"].tap()
     }
 
     func testConversationHomeReplacesTabs() {

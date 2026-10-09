@@ -117,8 +117,9 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
         added + deleted >= pageSize
     }
 
-    /// Health wakes Aurora at most hourly for these kinds while enabled, and
-    /// keeps the setting across launches until it's turned off.
+    /// Requests `.hourly` delivery for these kinds while enabled. That is the
+    /// requested frequency only; iOS controls actual timing and opportunities.
+    /// Health keeps the setting across launches until it's turned off.
     func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {
         guard isAvailable else { throw Failure.unavailable }
         for kind in kinds {

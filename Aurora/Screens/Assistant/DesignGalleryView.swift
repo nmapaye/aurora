@@ -12,6 +12,8 @@ struct DesignGalleryView: View {
     @State private var populated = true
     /// The first conversation message belonging to the current experience.
     @State private var firstMessage = 0
+    @State private var showHealthChoices = false
+    @State private var healthAtAccessibilitySize = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
     private let states: [AssistantCard.State] = [.ready, .loading, .saved, .undone, .expired, .failed, .discarded]
@@ -19,7 +21,7 @@ struct DesignGalleryView: View {
 
     init() {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AuroraGallery-\(UUID().uuidString)")
-        let app = AppModel(makeStore: { StateStore(directory: directory) }, legacy: { nil })
+        let app = AppModel(health: GalleryHealth(), makeStore: { StateStore(directory: directory) }, legacy: { nil })
         let assistant = AssistantModel(calendars: CalendarService(providers: []), makeStore: { ConversationStore(directory: directory) })
         _fixtureApp = State(initialValue: app)
         _fixtureAssistant = State(initialValue: assistant)
@@ -46,6 +48,7 @@ struct DesignGalleryView: View {
                     if let failure = fixtureAssistant.failure {
                         Text(failure).font(.footnote).foregroundStyle(Palette.destructive)
                     }
+                    healthChoices
                     tokens
                     Text(reduceMotion ? "Reduce Motion: static treatment" : "Motion follows device accessibility settings")
                         .font(Typography.source)
@@ -58,6 +61,11 @@ struct DesignGalleryView: View {
             .accessibilityIdentifier("aurora-design-gallery")
         }
         .environment(fixtureApp).environment(fixtureAssistant).environment(Router())
+        .sheet(isPresented: $showHealthChoices) {
+            HealthConnectionView()
+                .environment(fixtureApp)
+                .dynamicTypeSize(healthAtAccessibilitySize ? .accessibility5 : .large)
+        }
         .task {
             fixtureApp.load(); fixtureApp.loadSampleData()
             await fixtureAssistant.start(app: fixtureApp)
@@ -78,6 +86,18 @@ struct DesignGalleryView: View {
     private var experience: [ConversationMessage] {
         let messages = fixtureAssistant.conversation.messages
         return Array(messages[min(firstMessage, messages.count)...]).filter { $0.card != nil && !$0.isUser }
+    }
+
+    /// The Apple Health choices sheet against a fixture provider that never
+    /// reaches HealthKit: switches are live, and turning one on is refused.
+    private var healthChoices: some View {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
+            Text("Apple Health choices").font(.title2)
+            Toggle("Largest accessibility text", isOn: $healthAtAccessibilitySize)
+            Button("Show Health choices") { showHealthChoices = true }
+                .buttonStyle(.auroraSecondary)
+                .accessibilityIdentifier("gallery-health-choices")
+        }
     }
 
     private var tokens: some View {
@@ -127,6 +147,13 @@ struct DesignGalleryView: View {
             }
         }
     }
+}
+
+/// Available, but declares no Health capability, so every choice is refused
+/// before HealthKit is asked anything.
+private struct GalleryHealth: HealthDataProvider {
+    var capabilities: HealthCapabilities { [] }
+    var isAvailable: Bool { true }
 }
 
 /// Status badges wrap onto new lines at large text sizes.
