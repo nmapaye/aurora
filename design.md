@@ -32,11 +32,25 @@ Update this specification and affected tokens together; screenshots confirm inte
 | Aurora indigo | #4A5590 | #A3ADE6 |
 
 Semantic status, field, selection, chart, and disabled roles remain in Palette.
-Do not invent per-screen colors. Do not use tint alone to communicate state.
+Do not invent per-screen colors. Do not use tint alone to communicate state:
+every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 
 - SF system typography, semantic Dynamic Type styles. Titles `.title2`, card
   headings `.headline`, readable evidence `.body`/`.subheadline`, sources `.caption`.
+  `Typography.label` (`.subheadline`) names a field or metric; `Typography.value`
+  (`.title3` semibold) is a recorded quantity; `Typography.heroValue` (`.title2`
+  semibold) is the lead quantity of an evidence card.
 - Use monospaced digits for changing quantities, units, and time comparisons.
+- Fields: `LabeledField` puts the label above one field surface (`fieldBackground`,
+  control radius, 44 pt) with the unit trailing inside it, so labels, values and
+  units align down a card. Metric rows put label leading and value trailing on one
+  baseline and stack when large text no longer fits both.
+- Drafts show a `StatusBadge` beside the title (Review before saving, Saved,
+  Removed, Expired, Discarded, Not saved). Receipts state outcome in the title and
+  symbol; a removed entry stays listed, struck through, in secondary text.
+- Draft actions: one full-width primary Save, then a quiet full-width Discard,
+  stacked at every text size. Inline field problems mirror existing validation and
+  never replace Save's own check.
 - Spacing scale: 4, 8, 12, 16, 20, 24, 32 points. System layout may supply its own
   spacing; document necessary optical exceptions instead of blindly rounding.
 - Radii: controls 12, cards 16, hero 24; capsules for quick actions/composer.
@@ -56,6 +70,12 @@ Do not invent per-screen colors. Do not use tint alone to communicate state.
 - Reduce Motion uses static identity/glow and disables decorative transitions.
   Inactive scenes do not run decoration timelines. Effects ignore touches and are
   hidden from VoiceOver; status and Stop remain independently accessible.
+- `Motion.press` (0.18 s opacity) is the only feedback on custom buttons.
+  `Motion.stateChange` (0.25 s, zero-bounce spring, interruptible) animates a card
+  changing state in place: editor to saved summary, Undo leaving, the receipt
+  symbol replacing. `Motion.stateTransition` is a fade with a 2% scale from the top;
+  under Reduce Motion both become an instant change or plain crossfade. Cards do
+  not get entrance animations; evidence text and charts do not move on their own.
 - Save/Undo use compact receipts, not celebration effects. Chart selection moves
   its focus without moving the page. Animation must not affect reaction-test timing.
 - No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual

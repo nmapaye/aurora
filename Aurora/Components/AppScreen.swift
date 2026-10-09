@@ -154,19 +154,77 @@ private struct PrimaryButtonBody: View {
                     .fill(isEnabled ? Palette.primaryButton : Palette.primaryButtonDisabled)
             )
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        SecondaryButtonBody(configuration: configuration)
+    }
+}
+
+private struct SecondaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
             .padding(.horizontal, Metrics.md)
-            .foregroundStyle(Palette.secondaryButtonText)
-            .background(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).fill(Palette.secondaryButton))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).strokeBorder(Palette.secondaryButtonBorder))
+            .foregroundStyle(isEnabled ? Palette.secondaryButtonText : Palette.primaryButtonDisabledText)
+            .background(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .fill(isEnabled ? Palette.secondaryButton : Palette.primaryButtonDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .strokeBorder(isEnabled ? Palette.secondaryButtonBorder : Palette.neutralButtonBorder)
+            )
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// A compact state label: symbol plus text on a tone capsule, so state is
+/// never carried by color alone.
+struct StatusBadge: View {
+    let text: String
+    var tone: StatusTone = .neutral
+
+    var body: some View {
+        Label(text, systemImage: tone.symbol)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, Metrics.sm)
+            .padding(.vertical, Metrics.xxs)
+            .background(Capsule().fill(tone.background))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A form field with its label above and an optional trailing unit, sharing
+/// one field surface so labels, values and units align down a card.
+struct LabeledField<Field: View>: View {
+    let label: String
+    var unit: String?
+    @ViewBuilder var field: () -> Field
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+            HStack(spacing: Metrics.xs) {
+                field()
+                if let unit {
+                    Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, Metrics.sm)
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+        }
     }
 }
 

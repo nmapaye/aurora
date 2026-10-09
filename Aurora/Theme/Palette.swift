@@ -125,6 +125,17 @@ enum StatusTone {
         case .error: Palette.statusErrorText
         }
     }
+
+    /// Paired with every tone so state never depends on color alone.
+    var symbol: String {
+        switch self {
+        case .neutral: "circle.dashed"
+        case .info: "pencil.circle"
+        case .success: "checkmark.circle"
+        case .warning: "clock.badge.exclamationmark"
+        case .error: "exclamationmark.triangle"
+        }
+    }
 }
 
 extension Font {

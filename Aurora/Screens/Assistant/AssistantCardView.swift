@@ -14,6 +14,7 @@ struct AssistantCardView: View {
     @State private var historyLimit = 30
     @State private var editingDose: DoseSheet?
     @State private var editingSleep: SleepSheet?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var snapshotClock: LocalClock { LocalClock(timeZone: TimeZone(identifier: card.timeZone) ?? .current) }
     private var snapshotText: DateText { .localized(timeZone: snapshotClock.timeZone) }
@@ -21,22 +22,26 @@ struct AssistantCardView: View {
     private var draftActive: Bool { active && assistant.pendingMessageID == message.id }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
             if card.kind == .calendar {
                 calendar
             } else {
                 Card {
-                    Label(card.title, systemImage: symbol).font(Typography.cardTitle).accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
+                    header
                     if !card.summary.isEmpty && card.kind != .energy && card.kind != .briefing {
-                        Text(card.summary).font(.subheadline).foregroundStyle(Palette.textSecondary)
+                        Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
                     }
                     content
                 }
+                // Draft → saved and saved → removed change the card in place;
+                // the conversation never re-animates a card's entrance.
+                .animation(Motion.stateChange(reduceMotion: reduceMotion), value: card.state)
+                .animation(Motion.stateChange(reduceMotion: reduceMotion), value: draftActive)
             }
             if card.kind != .clarification {
                 ViewThatFits(in: .horizontal) {
                     HStack { captureLabel; Spacer(); refreshButton }
-                    VStack(alignment: .leading, spacing: 8) { captureLabel; refreshButton }
+                    VStack(alignment: .leading, spacing: Metrics.xs) { captureLabel; refreshButton }
                 }
             }
         }
@@ -74,6 +79,31 @@ struct AssistantCardView: View {
             }
         }
     }
+    private var header: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) { title; Spacer(minLength: 0); draftBadge }
+            VStack(alignment: .leading, spacing: Metrics.xs) { title; draftBadge }
+        }
+    }
+    private var title: some View {
+        Label(card.title, systemImage: symbol).font(Typography.cardTitle)
+            .contentTransition(.symbolEffect(.replace))
+            .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
+    }
+    /// Drafts say where they stand; receipts already do through their title.
+    @ViewBuilder private var draftBadge: some View {
+        if card.kind == .caffeineDraft || card.kind == .sleepDraft {
+            switch card.state {
+            case .ready: draftActive ? StatusBadge(text: "Review before saving", tone: .info) : StatusBadge(text: "Closed")
+            case .saved: StatusBadge(text: "Saved", tone: .success)
+            case .undone: StatusBadge(text: "Removed")
+            case .expired: StatusBadge(text: "Expired", tone: .warning)
+            case .discarded: StatusBadge(text: "Discarded")
+            case .failed: StatusBadge(text: "Not saved", tone: .error)
+            case .loading: EmptyView()
+            }
+        }
+    }
     private var captureLabel: some View {
         Text("Captured \(snapshotText.fullDateTime(card.capturedAt)) · \(card.timeZone)")
             .font(.caption2).foregroundStyle(Palette.textSecondary)
@@ -82,7 +112,7 @@ struct AssistantCardView: View {
         if card.refreshIntent != nil {
             Button(card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .calendar ? "New review" : "Refresh") {
                 assistant.refresh(card, app: app)
-            }.font(.caption.weight(.medium)).frame(minHeight: 44)
+            }.font(.caption.weight(.medium)).frame(minHeight: Metrics.minimumTouchTarget)
                 .disabled(assistant.processing).accessibilityIdentifier("assistant-refresh-\(card.kind.rawValue)")
         }
     }
@@ -144,45 +174,66 @@ struct AssistantCardView: View {
             Button("Cutoff reminder settings") { assistant.historySheet = .settings }.buttonStyle(.auroraSecondary)
         case .clarification:
             ForEach([("Record caffeine", "Log caffeine"), ("Record sleep", "Log sleep"), ("Understand my energy", "How is my energy?"), ("Explore trends", "Show this week"), ("Review my day", "Review calendar")], id: \.0) { label, prompt in
-                Button { assistant.send(prompt, app: app) } label: { HStack { Text(label); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: 44) }
+                Button { assistant.send(prompt, app: app) } label: { HStack { Text(label); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: Metrics.minimumTouchTarget) }
                     .buttonStyle(.plain).foregroundStyle(Palette.tint).disabled(assistant.processing)
             }
         case .receipt:
             ForEach(card.records, id: \.identity) { row in
-                Text(row.title + " · " + row.detail).font(.subheadline)
-                Text(row.source + " · " + Date(timeIntervalSince1970: row.date / 1000).formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Palette.textSecondary)
+                let removed = card.state == .undone
+                VStack(alignment: .leading, spacing: Metrics.xxs) {
+                    valueRow(row.title, row.detail, labelFont: Typography.evidence, labelColor: removed ? Palette.textSecondary : Palette.textPrimary)
+                        .strikethrough(removed)
+                    Text(row.source + " · " + Date(timeIntervalSince1970: row.date / 1000).formatted(date: .abbreviated, time: .shortened)).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                }
+                .foregroundStyle(removed ? Palette.textSecondary : Palette.textPrimary)
+                .accessibilityElement(children: .combine)
             }
             metricRows
             if card.state == .saved && card.recordID != nil && !card.title.lowercased().contains("updated") {
                 Button("Undo entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
+                    .transition(Motion.stateTransition(reduceMotion: reduceMotion))
+            }
+        }
+    }
+    /// Label leading, quantity trailing on one baseline; stacks when the text
+    /// size no longer fits both on a line.
+    private func valueRow(_ label: String, _ value: String, labelFont: Font = Typography.label, labelColor: Color = Palette.textSecondary, valueFont: Font = Typography.value) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) {
+                Text(label).font(labelFont).foregroundStyle(labelColor)
+                Spacer(minLength: 0)
+                Text(value).font(valueFont).monospacedDigit().multilineTextAlignment(.trailing)
+            }
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(label).font(labelFont).foregroundStyle(labelColor)
+                Text(value).font(valueFont).monospacedDigit()
             }
         }
     }
     private var metricRows: some View {
         ForEach(card.metrics) { item in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.label).font(.subheadline).foregroundStyle(Palette.textSecondary)
-                Text(item.value).font(.title3.weight(.semibold)).monospacedDigit()
-                Text(item.source).font(.caption).foregroundStyle(Palette.textSecondary)
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                valueRow(item.label, item.value)
+                Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary)
                 if !item.detail.isEmpty { Text(item.detail).font(.footnote).foregroundStyle(Palette.textSecondary) }
-            }.padding(.vertical, 4).accessibilityElement(children: .combine)
+            }.padding(.vertical, Metrics.xxs).accessibilityElement(children: .combine)
         }
     }
     private var evidence: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Metrics.md) {
             ForEach(card.metrics) { item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.label).font(.subheadline).foregroundStyle(Palette.textSecondary)
-                    Text(item.value).font(.title2.weight(.semibold)).monospacedDigit()
-                    if !item.source.isEmpty { Text(item.source).font(.caption).foregroundStyle(Palette.textSecondary) }
+                VStack(alignment: .leading, spacing: Metrics.xxs) {
+                    Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                    Text(item.value).font(Typography.heroValue).monospacedDigit()
+                    if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
                     if item.missing && item.id != "alertness" {
-                        Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }.font(.subheadline).frame(minHeight: 44)
+                        Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }.font(.subheadline).frame(minHeight: Metrics.minimumTouchTarget)
                     }
                 }.accessibilityElement(children: .contain)
             }
             DisclosureGroup("What this means") {
                 if let estimate = card.metrics.first(where: { $0.id == "alertness" }) { Text(estimate.detail).font(.footnote) }
-                Text(card.summary).font(.footnote).padding(.top, 4)
+                Text(card.summary).font(.footnote).padding(.top, Metrics.xxs)
             }
             DisclosureGroup("What’s missing") {
                 if card.metrics.contains(where: \.missing) { Text("Missing records stay ‘No record’. You can add an entry above; Aurora will not fill in a cause or a measurement.").font(.footnote) }
@@ -191,28 +242,73 @@ struct AssistantCardView: View {
         }
     }
     @ViewBuilder private var caffeineEditor: some View {
-        if draftActive, assistant.pendingDraft != nil {
-            TextField("Amount in mg", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
-                .keyboardType(.numberPad).padding(12).frame(minHeight: 44).background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: 12)).accessibilityIdentifier("assistant-dose-amount")
-            TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
-                .padding(12).frame(minHeight: 44).background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: 12)).accessibilityIdentifier("assistant-dose-source")
-            DatePicker("Recorded time", selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now)
-            Button("Save entry") { assistant.saveDose(app: app) }.buttonStyle(.auroraPrimary).accessibilityIdentifier("assistant-dose-save")
-            Button("Discard") { assistant.discardDraft() }.frame(minHeight: 44)
-        } else { metricRows; Text(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record an entry.").font(.footnote).foregroundStyle(Palette.textSecondary) }
+        if draftActive, let draft = assistant.pendingDraft {
+            VStack(alignment: .leading, spacing: Metrics.md) {
+                LabeledField(label: "Amount", unit: "mg") {
+                    TextField("Amount in mg", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
+                        .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().accessibilityIdentifier("assistant-dose-amount")
+                }
+                // Mirrors Save's own validation once something is typed; Save
+                // stays enabled and still reports an empty amount itself.
+                if !draft.mg.isEmpty, let problem = CaffeineLog.validate(draft, now: AppModel.currentMillis()).message {
+                    fieldProblem(problem)
+                }
+                LabeledField(label: "Drink or source") {
+                    TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
+                        .font(Typography.evidence).accessibilityIdentifier("assistant-dose-source")
+                }
+                DatePicker(selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now) {
+                    Text("Recorded time").font(Typography.label).foregroundStyle(Palette.textSecondary)
+                }
+                .frame(minHeight: Metrics.minimumTouchTarget)
+                Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
+                draftActions(save: "Save entry", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
+            }
+            .transition(Motion.stateTransition(reduceMotion: reduceMotion))
+        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record an entry.") }
+    }
+    private func fieldProblem(_ text: String) -> some View {
+        Label(text, systemImage: StatusTone.error.symbol).font(.footnote).foregroundStyle(Palette.destructive)
+    }
+    /// Save leads; Discard is the quiet way out. Stacked so both keep a full
+    /// touch target at every text size.
+    private func draftActions(save: String, saveID: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        VStack(spacing: Metrics.xxs) {
+            Button(save, action: action).buttonStyle(.auroraPrimary).accessibilityIdentifier(saveID).disabled(disabled)
+            Button("Discard") { assistant.discardDraft() }
+                .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+        }
+        .padding(.top, Metrics.xxs)
+    }
+    private func closedDraft(_ note: String) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            metricRows
+            Text(note).font(.footnote).foregroundStyle(Palette.textSecondary)
+        }
+        .transition(Motion.stateTransition(reduceMotion: reduceMotion))
     }
     @ViewBuilder private var sleepEditor: some View {
         if draftActive, let draft = assistant.pendingSleep {
-            DatePicker("Start", selection: sleepDate(\.start), in: ...Date.now).accessibilityIdentifier("assistant-sleep-start")
-            DatePicker("End", selection: sleepDate(\.end), in: ...Date.now).accessibilityIdentifier("assistant-sleep-end")
-            Text("Duration · \(formatHoursMinutes(durationMs: max(0, draft.end - draft.start)))").font(.subheadline).monospacedDigit()
-            Text("Manual · local time").font(.caption).foregroundStyle(Palette.textSecondary)
-            TextField("Optional note", text: Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 }))
-            if let problem = ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()).message { Text(problem).font(.footnote).foregroundStyle(Palette.destructive) }
-            Button("Save sleep") { assistant.saveSleep(app: app) }.buttonStyle(.auroraPrimary).accessibilityIdentifier("assistant-sleep-save")
-                .disabled(ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()) != .valid)
-            Button("Discard") { assistant.discardDraft() }.frame(minHeight: 44)
-        } else { metricRows; Text(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record sleep.").font(.footnote).foregroundStyle(Palette.textSecondary) }
+            VStack(alignment: .leading, spacing: Metrics.md) {
+                DatePicker(selection: sleepDate(\.start), in: ...Date.now) { Text("Start").font(Typography.label).foregroundStyle(Palette.textSecondary) }
+                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("assistant-sleep-start")
+                DatePicker(selection: sleepDate(\.end), in: ...Date.now) { Text("End").font(Typography.label).foregroundStyle(Palette.textSecondary) }
+                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("assistant-sleep-end")
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Duration").font(Typography.label).foregroundStyle(Palette.textSecondary)
+                    Spacer(minLength: Metrics.sm)
+                    Text(formatHoursMinutes(durationMs: max(0, draft.end - draft.start))).font(Typography.value).monospacedDigit()
+                }
+                .accessibilityElement(children: .combine)
+                if let problem = ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()).message { fieldProblem(problem) }
+                Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
+                LabeledField(label: "Note") {
+                    TextField("Optional note", text: Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 })).font(Typography.evidence)
+                }
+                draftActions(save: "Save sleep", saveID: "assistant-sleep-save", disabled: ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()) != .valid) { assistant.saveSleep(app: app) }
+            }
+            .transition(Motion.stateTransition(reduceMotion: reduceMotion))
+        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record sleep.") }
     }
     private func sleepDate(_ key: WritableKeyPath<ManualSleep.Draft, Millis>) -> Binding<Date> {
         Binding(get: { Date(timeIntervalSince1970: (assistant.pendingSleep?[keyPath: key] ?? app.now) / 1000) }, set: { assistant.pendingSleep?[keyPath: key] = $0.timeIntervalSince1970 * 1000 })
@@ -228,20 +324,24 @@ struct AssistantCardView: View {
         }
     }
     private var history: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
             TextField("Search records", text: $query).textFieldStyle(.roundedBorder).accessibilityIdentifier("assistant-history-search")
             Picker("Date range", selection: $historyDays) { Text("7d").tag(7); Text("30d").tag(30); Text("All").tag(0) }.pickerStyle(.segmented)
             Picker("Source", selection: $source) { ForEach(["All sources", "Manual", "Health", "Sample Data", "Recorded"], id: \.self) { Text($0).tag($0) } }
             if filteredRecords.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }
             ForEach(Array(filteredRecords.prefix(historyLimit)), id: \.identity) { row in
                 Button { edit(row) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(row.title + " · " + row.detail).font(.subheadline.weight(.medium))
-                        Text(snapshotText.weekdayDate(row.date) + " · " + row.source + (row.editable ? " · Edit" : " · Read-only")).font(.caption).foregroundStyle(Palette.textSecondary)
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
+                    HStack(spacing: Metrics.sm) {
+                        VStack(alignment: .leading, spacing: Metrics.xxs) {
+                            Text(row.title + " · " + row.detail).font(.subheadline.weight(.medium)).monospacedDigit()
+                            Text(snapshotText.weekdayDate(row.date) + " · " + row.source + (row.editable ? " · Edit" : " · Read-only")).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        if row.editable { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary).accessibilityHidden(true) }
+                    }.frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(!row.editable)
             }
-            if filteredRecords.count > historyLimit { Button("Show more records (\(filteredRecords.count) total)") { historyLimit += 30 }.frame(minHeight: 44) }
+            if filteredRecords.count > historyLimit { Button("Show more records (\(filteredRecords.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
         }
     }
     private var filteredRecords: [AssistantCard.Record] {
@@ -257,7 +357,7 @@ struct AssistantCardView: View {
         if row.kind == "sleep", let sleep = app.state.sleeps.first(where: { $0.id == row.id }), RecordID.isManualSleep(sleep.id) { editingSleep = .edit(sleep) }
     }
     private var exports: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
             ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv", text: Export.doseEntriesCSV(app.state.doses, clock: app.clock)), preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
             ShareLink(item: CSVFile(name: "aurora-sleep.csv", text: Export.sleepSessionsCSV(app.state.sleeps, clock: app.clock)), preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
             ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv", text: Export.vigilanceSessionsCSV(app.state.vigilanceSessions)), preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
