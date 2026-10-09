@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'scripts/check-design-tokens.py'
       - 'Aurora/**'
       - 'AuroraCore/**'
       - 'AuroraTests/**'
@@ -13,6 +14,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/check-design-tokens.py'
       - 'Aurora/**'
       - 'AuroraCore/**'
       - 'AuroraTests/**'
@@ -41,6 +43,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Check native brand tokens
+        run: python3 scripts/check-design-tokens.py
+
       - name: Pick a simulator
         id: sim
         run: |
@@ -67,8 +72,10 @@ jobs:
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath build/Acceptance.xcresult \
             -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             > build/xcodebuild-test.log 2>&1
           status=$?
           grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
@@ -92,8 +99,10 @@ jobs:
           exit $status
 
       - name: Upload logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: xcodebuild-logs-${{ matrix.device }}
-          path: build/*.log
+          path: |
+            build/*.log
+            build/Acceptance.xcresult

@@ -183,3 +183,80 @@ remain open.
   `/private/tmp/aurora-health-shortcut-release.log`.
 - Physical-device entitlements, authorization, and live sleep import remain
   release gates. Record storage and inference behavior are unchanged.
+
+
+## Release integration and erase recovery — 2026-10-08
+
+Checkpoint: Claude's card polish is preserved at `26396c2`. Its isolated website
+pass (`d715e66`) was reviewed and integrated as `f715b54`. This subsequent local
+integration commit adds recovery, verification and release drafts; nothing is pushed.
+
+### Erase diagnosis and protection
+
+The full-erase failure was reproduced in the isolated simulator: account cleanup
+returned Keychain status **-34018** (missing entitlement). Unsigned simulator tests
+cannot validate Keychain deletion. Ad-hoc simulator signing (`CODE_SIGNING_ALLOWED=YES
+CODE_SIGN_IDENTITY=-`) fixes that setup without a Developer account, production
+bypass, or swallowed credential error. CI uses this configuration for tests and
+retains a separate unsigned Release build check. Earlier failures are not passes.
+
+Deletion now records durable intent before cleanup, resumes before loading records
+or importing retained originals, reports the failing stage/status, verifies empty
+record read-back, and removes the pending marker last. Retries are idempotent. Only
+Aurora-owned files/credentials/reminders are removed. Record-only deletion remains
+separate and accurately described. Generation guards discard late Health, calendar,
+OAuth exchange and reminder results after full erase. Isolated dependency injection
+permits deterministic failure tests while production failures remain explicit.
+
+### Completed combined checks
+
+| Check | Actual result |
+|---|---|
+| Core, UTC | 64/64 passed |
+| Core, America/Los_Angeles | 64/64 passed |
+| Native services/cards, iPhone | 39/39 passed |
+| Native services/cards, iPad | 39/39 passed |
+| iPhone UI, serial | 16/16 passed |
+| iPad UI, serial | 16/16 passed |
+| Focused erase → onboarding → relaunch | Passed using actual signed-simulator cleanup |
+| Unsigned Release | Build succeeded |
+| Ad-hoc signed Release demo | Built, installed and visibly running on isolated phone/pad |
+| Website | Production build and synthetic-preview interactions passed |
+| Compatible website lockfile updates | npm audit: 0 known vulnerabilities at verification time |
+| Design-token check, workflow YAML, privacy plist, diff whitespace | Passed |
+
+Seven deletion tests cover owned/unrelated files, interrupted relaunch, retry,
+credential failures, real empty Keychain/notification cleanup and delayed calendar
+results. UI coverage includes largest accessibility text and the retained Debug-only
+synthetic Design Gallery. Receipt times now use snapshot time zones; conversation
+width uses the shared token, and decorative symbol transitions respect Reduce Motion.
+
+Evidence (temporary local files): `/private/tmp/aurora-final-core-utc.log`,
+`/private/tmp/aurora-final-core-la.log`, `/private/tmp/aurora-final-iphone.log`,
+`/private/tmp/aurora-final-ipad.log`, `/private/tmp/aurora-final-release.log`,
+`/private/tmp/aurora-final-demo-build.log`,
+`/private/tmp/aurora-website-final-audit.json`. Phone xcresult:
+`/private/tmp/aurora-signed-simulator/Logs/Test/Test-Aurora-2026.10.08_19-32-11--0700.xcresult`;
+pad xcresult:
+`/private/tmp/aurora-signed-ipad/Logs/Test/Test-Aurora-2026.10.08_19-37-43--0700.xcresult`.
+
+### Visual and publication limits
+
+Manually inspected the combined Release's phone caffeine card in light/dark and
+iPad centered clarification/trends column in light appearance. Restored phone
+appearance to System. Device Hub's embedded app accessibility tree was incomplete
+after testing; coordinate inspection confirmed rendering separately. Largest text
+is covered by the passing automated flows. Full current-checkpoint manual Reduce
+Motion, keyboard and appearance matrix remains open, along with physical VoiceOver,
+animation smoothness, control latency, thermal and battery measurements. Source
+review and earlier motion checks are not substitutes for those acceptance results.
+
+Privacy/support and store/beta drafts now describe the native assistant, local AI,
+optional Google network access, explicit calendar approval and full erase. Claude's
+website removes the obsolete tab demo, dose recommendations and purchase claims;
+its interactive preview is explicitly synthetic and does not create real records.
+A verified private support contact and deployed policy/support URLs remain required.
+No website was deployed. Remote CI has not run. Apple enrollment, signed hardware
+archive, production Google OAuth, live Health/calendar/dictation/background tests,
+real prior-version upgrade, TestFlight and App Review remain separate release gates.
+Other checkouts and personal records remain untouched.

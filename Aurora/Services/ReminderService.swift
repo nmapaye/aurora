@@ -5,7 +5,8 @@ import UserNotifications
 /// The one local notification: a daily reminder at the user's own cutoff
 /// hour. Every sync cancels it first and schedules it again only when it is
 /// switched on and allowed.
-final class ReminderService: @unchecked Sendable {
+@MainActor
+final class ReminderService {
     enum Status: Equatable {
         case off
         case scheduled(hour: Int)
@@ -13,10 +14,18 @@ final class ReminderService: @unchecked Sendable {
     }
 
     private let center = UNUserNotificationCenter.current()
+    private var generation = 0
+
+    func cancelForErase() {
+        generation += 1
+        center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [CutoffReminder.identifier])
+    }
 
     /// `prompt` asks for permission when it hasn't been decided yet. Only
     /// Settings passes `true`; foreground syncs never prompt.
     func sync(enabled: Bool, cutoffHour: Double, prompt: Bool) async -> Status {
+        let currentGeneration = generation
         center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
         guard enabled else { return .off }
 
@@ -25,6 +34,7 @@ final class ReminderService: @unchecked Sendable {
             _ = try? await center.requestAuthorization(options: [.alert, .sound])
             settings = await center.notificationSettings()
         }
+        guard generation == currentGeneration else { return .off }
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             break
@@ -44,6 +54,10 @@ final class ReminderService: @unchecked Sendable {
         let request = UNNotificationRequest(identifier: CutoffReminder.identifier, content: notification, trigger: trigger)
         do {
             try await center.add(request)
+            guard generation == currentGeneration else {
+                center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+                return .off
+            }
             return .scheduled(hour: content.hour)
         } catch {
             return .denied

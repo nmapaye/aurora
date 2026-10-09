@@ -13,6 +13,7 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     private let account = "aurora.google.calendar.oauth"
     private var authSession: ASWebAuthenticationSession?
     private var token: Token?
+    private var sessionGeneration = 0
     private struct Token: Codable { var accessToken: String; var refreshToken: String?; var expiresAt: Date }
     var configured: Bool {
         guard let clientID, let callbackScheme, !clientID.isEmpty, !callbackScheme.isEmpty else { return false }
@@ -64,13 +65,24 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         token = nil
         SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account] as CFDictionary)
     }
+    struct CredentialDeletionFailure: LocalizedError {
+        let status: OSStatus
+        var errorDescription: String? { "Google credential deletion failed (Keychain status \(status))." }
+    }
+    static func deleteLocalCredentials() throws {
+        let status = SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrAccount: "aurora.google.calendar.oauth"] as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw CredentialDeletionFailure(status: status) }
+    }
+    func forgetLocalSession() { sessionGeneration += 1; authSession?.cancel(); authSession = nil; token = nil }
     private func exchange(_ fields: [String: String]) async throws {
+        let generation = sessionGeneration
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"; request.timeoutInterval = 20
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var body = URLComponents(); body.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
         request.httpBody = body.percentEncodedQuery?.data(using: .utf8)
         let (data, response) = try await URLSession.shared.data(for: request)
+        guard generation == sessionGeneration else { throw CalendarActionError.unavailable }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CalendarActionError.unavailable }
         struct Result: Decodable { let access_token: String; let refresh_token: String?; let expires_in: Double }
         let result = try JSONDecoder().decode(Result.self, from: data)

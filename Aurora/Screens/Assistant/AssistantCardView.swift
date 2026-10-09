@@ -87,7 +87,7 @@ struct AssistantCardView: View {
     }
     private var title: some View {
         Label(card.title, systemImage: symbol).font(Typography.cardTitle)
-            .contentTransition(.symbolEffect(.replace))
+            .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
     }
     /// Drafts say where they stand; receipts already do through their title.
@@ -183,7 +183,7 @@ struct AssistantCardView: View {
                 VStack(alignment: .leading, spacing: Metrics.xxs) {
                     valueRow(row.title, row.detail, labelFont: Typography.evidence, labelColor: removed ? Palette.textSecondary : Palette.textPrimary)
                         .strikethrough(removed)
-                    Text(row.source + " · " + Date(timeIntervalSince1970: row.date / 1000).formatted(date: .abbreviated, time: .shortened)).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                    Text(row.source + " · " + snapshotText.fullDateTime(row.date)).font(Typography.source).foregroundStyle(Palette.textSecondary)
                 }
                 .foregroundStyle(removed ? Palette.textSecondary : Palette.textPrimary)
                 .accessibilityElement(children: .combine)

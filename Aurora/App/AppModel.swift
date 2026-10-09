@@ -32,23 +32,27 @@ final class AppModel {
     let reminders: ReminderService
     private let makeStore: () throws -> StateStore
     private let legacy: () -> LegacyImport?
+    private let makeDeletion: (StateStore, LegacyImport?) -> LocalDataDeletion
     private var store: StateStore?
     private var lastQuickAddAt: Millis?
+    private var dataGeneration = 0
 
     init(
         clock: LocalClock = .current,
         text: DateText = .current,
         health: HealthKitService = HealthKitService(),
-        reminders: ReminderService = ReminderService(),
+        reminders: ReminderService? = nil,
         makeStore: @escaping () throws -> StateStore = StateStore.live,
-        legacy: @escaping () -> LegacyImport? = LegacyImport.live
+        legacy: @escaping () -> LegacyImport? = LegacyImport.live,
+        makeDeletion: ((StateStore, LegacyImport?) -> LocalDataDeletion)? = nil
     ) {
         self.clock = clock
         self.text = text
         self.health = health
-        self.reminders = reminders
+        self.reminders = reminders ?? ReminderService()
         self.makeStore = makeStore
         self.legacy = legacy
+        self.makeDeletion = makeDeletion ?? { LocalDataDeletion(store: $0, legacy: $1) }
     }
 
     static func currentMillis() -> Millis {
@@ -67,6 +71,14 @@ final class AppModel {
             let store = try makeStore()
             try store.prepare()
             self.store = store
+            let deletion = makeDeletion(store, legacy())
+            if deletion.pending {
+                do { try deletion.finish(); mutationFailure = nil }
+                catch {
+                    mutationFailure = "Local data erase is incomplete. Retry to finish erasing; records will not be restored. " + error.localizedDescription
+                    throw error
+                }
+            }
             tick()
             if let saved = try store.load() {
                 state = saved
@@ -98,6 +110,7 @@ final class AppModel {
     }
 
     private func update(_ change: (inout AppState) -> Void) {
+        guard phase == .ready else { return }
         let previous = state
         mutationFailure = nil
         change(&state)
@@ -179,6 +192,7 @@ final class AppModel {
 
     /// Asks for read access, then imports. Used by onboarding and Sleep.
     func connectHealth(importDays: Double = HealthImport.refreshDays, failurePrefix: String = "Health refresh failed.") async {
+        let generation = dataGeneration
         tick()
         guard health.isAvailable else {
             update {
@@ -191,6 +205,7 @@ final class AppModel {
         do {
             try await health.requestReadAccess()
         } catch {
+            guard generation == dataGeneration else { return }
             tick()
             update {
                 $0.onboarding.source = .manual
@@ -199,6 +214,7 @@ final class AppModel {
             }
             return
         }
+        guard generation == dataGeneration else { return }
         update {
             $0.onboarding.source = .healthkit
             $0.onboarding.permissionStatus = .granted
@@ -207,6 +223,7 @@ final class AppModel {
     }
 
     func importHealth(days: Double = HealthImport.refreshDays, failurePrefix: String = "Health refresh failed.") async {
+        let generation = dataGeneration
         tick()
         let end = now
         update {
@@ -215,9 +232,11 @@ final class AppModel {
         }
         do {
             let samples = try await health.sleepSamples(from: end - days * dayMs, to: end)
+            guard generation == dataGeneration else { return }
             tick()
             update { _ = HealthImport.apply(samples, days: days, now: end, to: &$0) }
         } catch {
+            guard generation == dataGeneration else { return }
             tick()
             let message = (error as? LocalizedError)?.errorDescription ?? "Unable to read sleep data."
             update { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }
@@ -272,6 +291,29 @@ final class AppModel {
 
     func deleteAllData() {
         update { $0.deleteAllData() }
+    }
+
+    /// Explicitly confirmed full erase, separate from record-only deletion.
+    func eraseAllLocalData(assistant: AssistantModel) -> Bool {
+        guard let store else { return false }
+        let deletion = makeDeletion(store, legacy())
+        do { try deletion.begin() }
+        catch { mutationFailure = "Couldn't start deletion. Your local data is preserved."; return false }
+        dataGeneration += 1
+        reminders.cancelForErase()
+        phase = .loading
+        assistant.resetAfterErase()
+        state = AppState(); lastQuickAddAt = nil; pendingLink = nil
+        reminderStatus = .off; legacyImportFailed = false
+        do {
+            try deletion.finish()
+            mutationFailure = nil; phase = .ready
+            return true
+        } catch {
+            mutationFailure = "Deletion is incomplete. Retry before reopening data. " + error.localizedDescription
+            phase = .storageUnavailable
+            return false
+        }
     }
 
     // MARK: Reaction Test

@@ -37,12 +37,39 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
 
+    func testFullEraseReturnsToSetupAcrossRelaunch() {
+        finishSetup()
+        tapQuick("Log caffeine")
+        app.buttons["assistant-settings"].tap()
+        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
+        let records = app.buttons["assistant-record-settings"]
+        for _ in 0..<8 where !records.isHittable { app.swipeUp() }
+        XCTAssertTrue(records.isHittable)
+        records.tap()
+        let erase = app.buttons["erase-all-local-data"]
+        for _ in 0..<8 where !erase.isHittable { app.swipeUp() }
+        XCTAssertTrue(erase.isHittable)
+        erase.tap()
+        XCTAssertTrue(app.alerts["Erase all local Aurora data?"].waitForExistence(timeout: 3))
+        app.alerts.buttons["Erase all local data"].tap()
+        XCTAssertTrue(app.buttons["onboarding-continue"].waitForExistence(timeout: 5))
+        app.terminate(); app.launchArguments = []; app.launch()
+        XCTAssertTrue(app.buttons["onboarding-continue"].waitForExistence(timeout: 10))
+    }
+
+    func testDebugDesignGalleryUsesNativeSyntheticFixtures() {
+        app.terminate(); app.launchArguments = ["-AuroraDesignGallery"]; app.launch()
+        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["assistant-dose-amount"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Populate sample records"].exists)
+    }
+
     func testConversationHomeReplacesTabs() {
         finishSetup()
         XCTAssertTrue(app.buttons["assistant-history"].exists)
         XCTAssertTrue(app.buttons["assistant-settings"].exists)
         XCTAssertEqual(app.tabBars.count, 0)
-        app.buttons["assistant-quick-How is my energy?"].tap()
+        tapQuick("How is my energy?")
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Unavailable"].exists)
     }

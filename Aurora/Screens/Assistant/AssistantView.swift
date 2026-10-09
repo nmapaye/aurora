@@ -40,7 +40,7 @@ struct AssistantView: View {
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .frame(maxWidth: 720).frame(maxWidth: .infinity)
+                    .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(20)
                 }
                 .scrollDismissesKeyboard(.interactively)

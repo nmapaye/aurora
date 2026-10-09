@@ -38,6 +38,7 @@ struct AssistantSettingsView: View {
                 Section("Connections and records") {
                     NavigationLink("Calendar connections", destination: CalendarConnectionsView(service: assistant.calendars))
                     NavigationLink("Records, exports, Health, and privacy", destination: SettingsView())
+                        .accessibilityIdentifier("assistant-record-settings")
                     Button("Clear conversation", role: .destructive) { clearConversation = true }
                     Text("Clearing conversation does not delete caffeine, sleep, or reaction-test records.").font(.footnote)
                 }

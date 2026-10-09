@@ -206,6 +206,7 @@ function ToggleRow({
       </span>
       <input
         type="checkbox"
+        aria-label={label}
         role="switch"
         className="toggle"
         checked={checked}

@@ -93,6 +93,15 @@ final class AssistantModel {
         catch { failure = "The conversation was cleared, but its migration source couldn't be removed. Please retry." }
     }
 
+    func resetAfterErase() {
+        task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
+        conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil
+        pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
+        showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false
+        releaseWarmResources(); calendars.resetAfterErase()
+        failure = nil
+    }
+
     func save() {
         guard storageReady else { return }
         do { try store?.save(conversation) }
@@ -156,6 +165,7 @@ final class AssistantModel {
         append("Stopped. No proposed action was saved.")
     }
     func handle(_ intent: AssistantIntent, input: String, app: AppModel) async {
+        let generation = cacheGeneration
         app.tick()
         switch intent {
         case .logCaffeine:
@@ -186,6 +196,7 @@ final class AssistantModel {
             card.state = .loading
             let messageID = appendCard(card, intent: intent)
             await calendars.refreshCalendars(); await calendars.refresh()
+            guard generation == cacheGeneration else { return }
             guard !Task.isCancelled else { updateCard(messageID) { $0.state = .failed; $0.summary = "Stopped. Refresh to review current commitments." }; return }
             updateCard(messageID) {
                 $0.commitments = calendars.commitments.filter { app.clock.dayKey($0.start.timeIntervalSince1970 * 1000) == app.clock.dayKey(app.now) }
@@ -198,6 +209,7 @@ final class AssistantModel {
             card.state = .loading
             let messageID = appendCard(card, intent: intent)
             await calendars.refreshCalendars(); await calendars.refresh()
+            guard generation == cacheGeneration else { return }
             guard !Task.isCancelled else { updateCard(messageID) { $0.state = .failed; $0.summary = "Stopped. No calendar changes were made." }; return }
             updateCard(messageID) {
                 $0.commitments = calendars.commitments
@@ -330,7 +342,9 @@ final class AssistantModel {
     }
     func foreground(app: AppModel) async {
         guard started, conversation.preferences.proactive else { return }
+        let generation = cacheGeneration
         await calendars.refresh()
+        guard generation == cacheGeneration, app.phase == .ready, conversation.preferences.proactive else { return }
         guard !Task.isCancelled else { return }
         app.tick()
         let day = app.clock.dayKey(app.now)
@@ -355,11 +369,13 @@ final class AssistantModel {
     }
 
     func syncBriefingNotification(prompt: Bool) async {
+        let generation = cacheGeneration
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"])
         guard conversation.preferences.proactive, conversation.preferences.morningBriefing else { return }
         if prompt { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
         let settings = await center.notificationSettings()
+        guard generation == cacheGeneration else { return }
         guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { failure = "Notifications are off. Your briefing will appear when you open Aurora."; return }
         let p = conversation.preferences
         let hour = p.briefingHour
@@ -367,7 +383,10 @@ final class AssistantModel {
         guard !quiet else { failure = "Choose a briefing time outside quiet hours."; return }
         let content = UNMutableNotificationContent(); content.title = "Your Aurora briefing"; content.body = "Open Aurora to review today’s recorded energy and commitments."
         var date = DateComponents(); date.hour = hour; date.minute = 0
-        do { try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true))) }
+        do {
+            try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true)))
+            if generation != cacheGeneration { center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"]) }
+        }
         catch { failure = "Couldn't schedule the briefing notification." }
     }
 }

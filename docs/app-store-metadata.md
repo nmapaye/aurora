@@ -1,60 +1,47 @@
-# Aurora App Store Metadata Draft
+# Aurora App Store metadata draft
 
-Use this copy when preparing the paid App Store release. Replace bracketed values only after the real App Store Connect record, support URL, privacy URL, screenshots, and pricing exist.
+This is unpublished copy. Submit only after the release checklist passes.
 
-## Name
+## Name and subtitle
 
-Aurora
-
-## Subtitle
-
-Sleep-aware caffeine guidance
+Aurora — Energy and daily rhythm
 
 ## Description
 
-Aurora helps you understand how caffeine timing, sleep, and alertness fit together. Log caffeine quickly, optionally import recent sleep from Apple Health, run a 60-second vigilance reaction test, and review private on-device insights.
+A little clarity for your day. Aurora helps you explore recorded sleep, caffeine, commitments, and reaction speed through interactive native cards on iPhone and iPad.
 
-Aurora is built for people who want a clearer caffeine routine without a cloud account. Health access is optional, manual logging works on its own, and sample data lets you explore the app before using personal Health data.
+- Review and save caffeine or manual sleep entries, with editable times and Undo.
+- Connect Apple Health for optional read-only sleep access.
+- Explore recorded trends and missing information without invented measurements.
+- Run a 60-second reaction test and compare against your recorded baseline when enough evidence exists.
+- Review selected Apple and Google calendars. Changes require a specific preview and your approval.
+- Export records through the native share sheet.
+- Opt into morning briefings and cutoff reminders.
 
-Core features:
+Your health records and calculations stay on your device. Supported devices can classify requests using local intelligence; explicit quick actions remain available when local models are unavailable. Google Calendar uses Google authentication and network requests. Aurora has no cloud AI inference, API keys, subscription, or Aurora account.
 
-- Quick caffeine logging and custom entries.
-- Optional read-only Apple Health sleep import.
-- Manual-only setup for users who skip Health access.
-- 60-second vigilance reaction test.
-- Sleep-aware daily guidance and insights.
-- Shareable summary text and daily totals CSV through the iOS share sheet.
-- Local sample data that can be removed without deleting personal records.
+Alertness values are estimates, not measurements. Aurora does not diagnose fatigue, prescribe caffeine doses, or prescribe sleep schedules. It is not a medical device.
 
-Aurora is informational only. It is not a medical device and does not diagnose, treat, cure, or prevent any disease or condition.
+## Commercial defaults
 
-## Promotional Text
-
-Track caffeine, protect sleep, and check alertness privately on iPhone and iPad.
+Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases.
 
 ## Keywords
 
-caffeine,sleep,alertness,health,focus,coffee,energy,reaction,time,wellness
+caffeine,sleep,energy,coffee,calendar,reaction,alertness,wellness
 
-## Support URL
+## URLs and support
 
-https://nmapaye.github.io/aurora/support.html
+Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
+Proposed support: https://nmapaye.github.io/aurora/support.html
+Verify deployed pages and configure a real private support contact before submission. These drafts have not been published.
 
-## Privacy Policy URL
+## Reviewer notes
 
-https://nmapaye.github.io/aurora/privacy.html
+Complete manual setup to use Aurora without Health or Calendar access. Optional HealthKit access is read-only; missing sleep remains missing. Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
 
-## Review Notes
+Debug Design Gallery is excluded from Release. No Mac app or cross-device health/conversation sync is included. Notifications use permitted foreground/background opportunities, not continuous reasoning.
 
-Aurora uses HealthKit only to read recent sleep data for caffeine and sleep guidance. Health access is optional. If HealthKit is unavailable, denied, or empty, users can continue with manual logging or load sample data from onboarding or the Sleep screen.
+## Remaining metadata gates
 
-No cloud account is required. Demo records and user logs are stored on device unless the user explicitly shares or exports a summary.
-
-Aurora is a paid App Store app for v0.1.0. There are no in-app license keys, Gumroad unlock codes, account gates, or hidden premium features. Gumroad may provide a companion guide/support package only; it does not unlock app access.
-
-## Known Release Limits
-
-- Available for iPhone and iPad.
-- Cloud sync is not included in v0.1.0.
-- Apple Watch support is not included in v0.1.0.
-- Background automation is not included in v0.1.0.
+Verify signed build, age rating, privacy answers, encryption/export compliance, accessibility, real screenshots, support contact, and final storefront pricing. Do not claim measured speed, battery savings, or medical outcomes without evidence.

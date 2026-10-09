@@ -36,7 +36,9 @@ jobs:
 
       - name: Test
         working-directory: AuroraCore
-        run: swift test
+        run: |
+          TZ=UTC swift test
+          TZ=America/Los_Angeles swift test
 
   macos:
     name: swift-core (macOS)
@@ -48,4 +50,6 @@ jobs:
 
       - name: Test
         working-directory: AuroraCore
-        run: swift test
+        run: |
+          TZ=UTC swift test
+          TZ=America/Los_Angeles swift test

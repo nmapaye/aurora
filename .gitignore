@@ -30,3 +30,6 @@ xcuserdata/
 DerivedData/
 .build/
 .swiftpm/
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo

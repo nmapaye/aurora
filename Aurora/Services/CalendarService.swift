@@ -76,6 +76,16 @@ final class CalendarService {
         didSet { defaults.set(mirrorAuthority, forKey: "assistant.calendarMirrorAuthority") }
     }
     private var consumedApprovals: Set<UUID> = []
+    private var generation = 0
+    func resetAfterErase() {
+        generation += 1
+        google.forgetLocalSession()
+        selected = []; mirrorAuthority = [:]
+        defaults.removeObject(forKey: "assistant.selectedCalendars")
+        defaults.removeObject(forKey: "assistant.calendarMirrorAuthority")
+        calendars = []; commitments = []; consumedApprovals = []
+        message = nil; loading = false
+    }
     init(providers: [any CommitmentProvider]? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selected = Set(defaults.stringArray(forKey: "assistant.selectedCalendars") ?? [])
@@ -98,15 +108,21 @@ final class CalendarService {
         commitments = []
     }
     func refreshCalendars() async {
+        let currentGeneration = generation
         calendars = []; var failures: [String] = []
         for provider in providers {
-            do { calendars += try await provider.calendars() }
-            catch { failures.append(provider.providerID.rawValue.capitalized) }
+            do {
+                let result = try await provider.calendars()
+                guard generation == currentGeneration else { return }
+                calendars += result
+            }
+            catch { guard generation == currentGeneration else { return }; failures.append(provider.providerID.rawValue.capitalized) }
         }
         message = failures.isEmpty ? nil : "Calendar access needs attention: \(failures.joined(separator: ", "))."
     }
     func refresh(from: Date = .now) async {
-        loading = true; defer { loading = false }
+        let currentGeneration = generation
+        loading = true; defer { if generation == currentGeneration { loading = false } }
         commitments = []
         let start = Calendar.current.startOfDay(for: from)
         let end = Calendar.current.date(byAdding: .day, value: 7, to: start)!
@@ -114,19 +130,25 @@ final class CalendarService {
         for provider in providers {
             let ids = calendars.filter { $0.provider == provider.providerID && selected.contains(key($0)) }.map(\.id)
             guard !ids.isEmpty else { continue }
-            do { commitments += try await provider.events(calendarIDs: ids, from: start, to: end) }
-            catch { failures.append(provider.providerID.rawValue.capitalized) }
+            do {
+                let result = try await provider.events(calendarIDs: ids, from: start, to: end)
+                guard generation == currentGeneration else { return }
+                commitments += result
+            }
+            catch { guard generation == currentGeneration else { return }; failures.append(provider.providerID.rawValue.capitalized) }
         }
         commitments.sort { $0.start < $1.start }
         message = failures.isEmpty ? nil : "Couldn't refresh \(failures.joined(separator: ", ")). Changes are blocked until all selected calendars refresh."
     }
     func approve(_ change: CalendarChange) async throws -> Commitment {
+        let currentGeneration = generation
         guard !consumedApprovals.contains(change.id), selected.contains("\(change.original.provider.rawValue):\(change.original.calendarID)") else { throw CalendarActionError.approvalRequired }
         consumedApprovals.insert(change.id)
         await refresh(from: change.newStart)
         guard message == nil else { throw CalendarActionError.unavailable }
         guard let provider = providers.first(where: { $0.providerID == change.original.provider }) else { throw CalendarActionError.unavailable }
         let current = try await provider.current(change.original)
+        guard generation == currentGeneration else { throw CalendarActionError.approvalRequired }
         try CalendarActionValidator.validate(change, current: current, approvedID: change.id, now: .now, others: commitments)
         let result = try await provider.move(change)
         await refresh()
