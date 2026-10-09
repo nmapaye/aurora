@@ -296,3 +296,35 @@ failed migration restoration explicit with retained source intact.
 Logs/results live under `/private/tmp/aurora-energy-foundation-*` and
 `/private/tmp/aurora-energy-trends-repro.xcresult`; trend screenshot is
 `/private/tmp/aurora-energy-trends.png`. One simulator runner at a time.
+
+# Health integration — 2026-10-09 morning
+
+Reviewed Claude commits `4731aaa`, `ca93efc`, `595a525` individually and
+cherry-picked as `6ae7647`, `7eff4d8`, `e589df6`. The Health worktree is clean
+and stopped. Source/provenance, local-first receipts, separate choices, bounded
+anchored reads, explicit corrupt-anchor recovery and sleep-change policy are
+implemented; physical Health behavior remains unverified.
+
+Independent checks on the integrated branch:
+
+- Core: 164/164 in UTC and America/Los_Angeles.
+- iPhone: native 51/51 and UI 16/16, serial, including erase/relaunch and
+  Save/Undo after the keyboard interaction correction.
+- Website type-check/build and brand-token check passed.
+- Unsigned Release simulator build passed and opened on the demo phone.
+- iPad combined native/UI run is pending; never count startup or interrupted runs.
+- Health connection sheet inspected in light/dark: separate read sleep, read
+  caffeine, own-caffeine export and background choices; no permission requested.
+  Screenshots: `/private/tmp/aurora-health-release-choices-{light,dark}.png`.
+
+Evidence: `/private/tmp/aurora-health-integrated-{utc,la}.log`,
+`/private/tmp/aurora-health-integration-phone.xcresult`,
+`/private/tmp/aurora-health-integration-pad.xcresult` (pending), and
+`/private/tmp/aurora-health-integration-release.log`.
+
+Remaining Health release gates: signed physical-device allow/deny/revoke and
+write-only lookup, sample ownership/version reconciliation, background delivery,
+permission/failure/pending UI variants at largest text and VoiceOver. Simulator
+fixtures do not establish those outcomes. Settings privacy-row copy still needs
+the optional writes described; `.hourly` is a requested opportunity, not a
+promised wake schedule. Energy UI, planning/history and widgets are not delivered.
