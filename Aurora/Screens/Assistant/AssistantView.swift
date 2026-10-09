@@ -166,7 +166,7 @@ struct AssistantView: View {
                 .padding(.horizontal, 16)
             }
             .accessibilityIdentifier("assistant-quick-actions")
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 TextField("", text: $input, axis: .vertical)
                     .lineLimit(1...5).focused($composerFocused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
                     .submitLabel(.send).onSubmit { send() }
