@@ -172,7 +172,10 @@ final class AuroraUITests: XCTestCase {
         source.tap(); source.typeText("Tea")
         // The whole-app swipe can hit the fixed quick-action strip while the
         // keyboard is open. Finish editing before tapping the reviewed draft.
-        app.keyboards.buttons["Return"].tap()
+        // A simulator with a connected hardware keyboard can expose an
+        // offscreen keyboard preview. Send Return to the focused field
+        // instead of tapping that preview's inaccessible button.
+        source.typeText("\n")
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertTrue(save.isHittable)
         save.tap()
