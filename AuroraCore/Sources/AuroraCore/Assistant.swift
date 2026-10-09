@@ -79,8 +79,16 @@ public enum AssistantPlanner {
         AssistantIntent(rawValue: output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .unsupported
     }
 
-    public static func usual(_ doses: [Dose], now: Millis) -> Dose? {
-        let real = doses.filter { !RecordID.isSample($0.id) && $0.timestamp <= now && $0.timestamp >= now - 30 * dayMs }
+    public static func usual(_ doses: [Dose], now: Millis, source: String? = nil) -> Dose? {
+        let coffeeSources = ["coffee", "espresso", "drip", "cold brew"]
+        let real = doses.filter {
+            let recorded = ($0.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let matches = source.map { requested in
+                let normalized = requested.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return normalized == "coffee" ? coffeeSources.contains(recorded) : recorded == normalized
+            } ?? true
+            return matches && !RecordID.isSample($0.id) && $0.timestamp <= now && $0.timestamp >= now - 30 * dayMs
+        }
         let groups = Dictionary(grouping: real) { "\($0.source ?? "")|\($0.mg)" }
         return groups.values.filter { $0.count >= 2 }.sorted {
             if $0.count != $1.count { return $0.count > $1.count }
@@ -88,18 +96,24 @@ public enum AssistantPlanner {
         }.first?.max { $0.timestamp < $1.timestamp }
     }
 
+    private static func requestedSource(_ input: String) -> String? {
+        let text = input.lowercased()
+        return (CaffeineLog.customSources + ["Coffee"]).first {
+            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: $0.lowercased()) + "\\b", options: .regularExpression) != nil
+        }
+    }
+
     public static func caffeineDraft(_ input: String, doses: [Dose], now: Millis, clock: LocalClock = .current) -> CustomDoseDraft {
         let text = input.lowercased()
-        let prior = text.contains("usual") ? usual(doses, now: now) : nil
+        let requested = requestedSource(input)
+        let prior = text.contains("usual") ? usual(doses, now: now, source: requested) : nil
         var amount = prior.map { numberText($0.mg) } ?? ""
         if let expression = try? NSRegularExpression(pattern: #"(?<![\d.])(-?\d+(?:\.\d+)?)\s*mg\b"#, options: .caseInsensitive) {
             let matches = expression.matches(in: input, range: NSRange(input.startIndex..., in: input))
             if matches.count == 1, let range = Range(matches[0].range(at: 1), in: input) { amount = String(input[range]) }
             else if matches.count > 1 { amount = "" }
         }
-        let source = prior?.source ?? CaffeineLog.customSources.first {
-            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: $0.lowercased()) + "\\b", options: .regularExpression) != nil
-        } ?? (text.contains("coffee") ? "Coffee" : "")
+        let source = prior?.source ?? requested ?? ""
         // Never silently replace a time mentioned by the user with "now".
         // The editable sheet always requires them to review the local timestamp.
         return CustomDoseDraft(mg: amount, source: source, timestamp: mentionedTime(input, now: now, clock: clock) ?? now, note: "")
@@ -119,10 +133,13 @@ public enum AssistantPlanner {
     public static func correctedDraft(_ previous: CustomDoseDraft, input: String, now: Millis, clock: LocalClock) -> CustomDoseDraft? {
         let candidate = caffeineDraft(input, doses: [], now: now, clock: clock)
         let timestamp = mentionedTime(input, now: now, clock: clock)
-        guard !candidate.mg.isEmpty || timestamp != nil || input.lowercased().contains("yesterday") else { return nil }
+        let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceCorrection = !candidate.source.isEmpty &&
+            (text.hasPrefix("actually ") || text.hasPrefix("correction ") || text.hasPrefix("it was ") || text == candidate.source.lowercased())
+        guard !candidate.mg.isEmpty || timestamp != nil || text.contains("yesterday") || sourceCorrection else { return nil }
         var result = previous
         if !candidate.mg.isEmpty { result.mg = candidate.mg }
-        if !candidate.source.isEmpty && candidate.source != "Coffee" { result.source = candidate.source }
+        if !candidate.source.isEmpty { result.source = candidate.source }
         if let timestamp { result.timestamp = timestamp }
         else if input.lowercased().contains("yesterday") { result.timestamp = clock.addingDays(-1, to: previous.timestamp) }
         return result

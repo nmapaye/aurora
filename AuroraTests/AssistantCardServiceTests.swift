@@ -60,6 +60,19 @@ import Testing
         #expect(app.state.doses.isEmpty)
         #expect(assistant.conversation.messages.last?.card?.state == .undone)
     }
+    @Test func sourceCorrectionRequiresSaveAndKeepsOtherDraftFields() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        await assistant.handle(.logCaffeine, input: "I had 80 mg coffee", app: app)
+        let previous = try #require(assistant.pendingDraft)
+        assistant.send("Actually tea", app: app)
+        #expect(assistant.pendingDraft?.source == "Tea")
+        #expect(assistant.pendingDraft?.mg == previous.mg && assistant.pendingDraft?.timestamp == previous.timestamp)
+        #expect(app.state.doses.isEmpty && !assistant.processing)
+        assistant.saveDose(app: app)
+        #expect(app.state.doses.count == 1 && app.state.doses.first?.source == "Tea")
+    }
     @Test func changedRecordCannotBeUndoneFromAnOldReceipt() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)

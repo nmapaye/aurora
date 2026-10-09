@@ -38,6 +38,35 @@ import Testing
         #expect(draft.mg == "2000")
         #expect(CaffeineLog.validate(draft, now: now) != .valid)
     }
+    @Test func usualMatchesRequestedDrinkDespiteMoreFrequentTea() {
+        let coffee = (0..<2).map { Dose(id: "coffee:\($0)", timestamp: now - Double($0 + 1) * hourMs, mg: 120, source: "Cold Brew") }
+        let tea = (0..<4).map { Dose(id: "tea:\($0)", timestamp: now - Double($0 + 1) * hourMs, mg: 40, source: "Tea") }
+        let coffeeDraft = AssistantPlanner.caffeineDraft("Had my usual coffee", doses: coffee + tea, now: now)
+        #expect(coffeeDraft.mg == "120" && coffeeDraft.source == "Cold Brew")
+        let teaDraft = AssistantPlanner.caffeineDraft("Had my usual tea", doses: coffee + tea, now: now)
+        #expect(teaDraft.mg == "40" && teaDraft.source == "Tea")
+        let explicit = AssistantPlanner.caffeineDraft("Had my usual coffee, 90 mg", doses: coffee + tea, now: now)
+        #expect(explicit.mg == "90" && explicit.source == "Cold Brew")
+    }
+    @Test func usualNeedsRepeatedMatchingRecordsAndExcludesProtectedDates() {
+        let entries = [Dose(id: "coffee", timestamp: now - hourMs, mg: 120, source: "Espresso")]
+            + (0..<4).map { Dose(id: "tea:\($0)", timestamp: now - hourMs, mg: 40, source: "Tea") }
+            + [Dose(id: "demo:coffee", timestamp: now - hourMs, mg: 120, source: "Espresso"),
+               Dose(id: "future", timestamp: now + hourMs, mg: 120, source: "Espresso"),
+               Dose(id: "old", timestamp: now - 31 * dayMs, mg: 120, source: "Espresso")]
+        let draft = AssistantPlanner.caffeineDraft("Had my usual coffee", doses: entries, now: now)
+        #expect(draft.mg.isEmpty && draft.source == "Coffee")
+        let specific = AssistantPlanner.caffeineDraft("Had my usual cold brew", doses: entries, now: now)
+        #expect(specific.mg.isEmpty && specific.source == "Cold Brew")
+    }
+    @Test func sourceOnlyCorrectionsPreserveAmountTimeAndNote() throws {
+        let previous = CustomDoseDraft(mg: "80", source: "Coffee", timestamp: now - hourMs, note: "Keep note")
+        let tea = try #require(AssistantPlanner.correctedDraft(previous, input: "Actually tea", now: now, clock: clock))
+        #expect(tea.source == "Tea" && tea.mg == previous.mg && tea.timestamp == previous.timestamp && tea.note == previous.note)
+        let coffee = try #require(AssistantPlanner.correctedDraft(tea, input: "Actually coffee", now: now, clock: clock))
+        #expect(coffee == previous)
+        #expect(AssistantPlanner.correctedDraft(previous, input: "Show tea history", now: now, clock: clock) == nil)
+    }
     @Test func missingRecordsAreNotMeasurements() {
         let text = AssistantPlanner.energyExplanation(state: AppState(), now: now, clock: clock)
         #expect(text.contains("No record") && text.contains("unavailable"))
