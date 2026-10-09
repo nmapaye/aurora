@@ -270,10 +270,19 @@ or energy UI delivery.
 - Independent core: 103 tests pass in UTC and America/Los_Angeles.
 - Independent native services/migration/erase: 43 tests pass on isolated iPhone,
   ad hoc simulator signing; `/private/tmp/aurora-energy-foundation-native.xcresult`.
-- Serial iPhone UI and unsigned Release checks running; no result claimed yet.
+- Unsigned Release simulator build passed.
+- Serial iPhone UI: 15/16 pass; `testTrendsSwitchSignalsAndRange` failed at the
+  Month heading assertion. Unchanged isolated rerun passed (1/1); rendered
+  screenshot showed the Month reaction chart. Root cause remains intermittent.
+  Heading assertions now wait for the updated elements; full recheck is pending.
+- Serial iPad native/UI run is in progress; do not count it until completion.
 - New package hardware/Health writes/observer delivery remain unverified.
 
 Review corrections preserve calculation constants, fix older contributing caffeine
 evidence/sample status, retain snapshot inputs, exclude metadata-only ownership
 claims, preserve unmatched Aurora exports as read-only Health data, and make
 failed migration restoration explicit with retained source intact.
+
+Logs/results live under `/private/tmp/aurora-energy-foundation-*` and
+`/private/tmp/aurora-energy-trends-repro.xcresult`; trend screenshot is
+`/private/tmp/aurora-energy-trends.png`. One simulator runner at a time.

@@ -128,11 +128,11 @@ final class AuroraUITests: XCTestCase {
         let signals = app.segmentedControls["assistant-trend-metric"]
         XCTAssertTrue(signals.waitForExistence(timeout: 5))
         signals.buttons["Sleep"].tap()
-        XCTAssertTrue(app.staticTexts["Recorded sleep · 7 days"].exists)
+        XCTAssertTrue(app.staticTexts["Recorded sleep · 7 days"].waitForExistence(timeout: 5))
         app.segmentedControls["assistant-trend-range"].buttons["Month"].tap()
-        XCTAssertTrue(app.staticTexts["Recorded sleep · 30 days"].exists)
+        XCTAssertTrue(app.staticTexts["Recorded sleep · 30 days"].waitForExistence(timeout: 5))
         signals.buttons["Reaction"].tap()
-        XCTAssertTrue(app.staticTexts["Recorded reaction · 30 days"].exists)
+        XCTAssertTrue(app.staticTexts["Recorded reaction · 30 days"].waitForExistence(timeout: 5))
     }
     func testExpiredDraftRequiresNewReviewAfterRelaunch() {
         finishSetup()

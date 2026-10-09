@@ -40,7 +40,7 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 
 | Package | Status | Required evidence |
 |---|---|---|
-| Foundation | Reviewed and integrated at 3952667 | 103 core tests independently pass UTC/LA; 43 native tests pass on isolated phone; Release and UI checks running |
+| Foundation | Reviewed and integrated at 3952667; UI acceptance open | 103 core UTC/LA; 43 native phone; unsigned Release pass; phone UI 15/16, isolated trend retry 1/1; pad run pending |
 | Health | Claude dispatched in claude/aurora-health-native, base 3952667 | Anchored import/export/observer ledger; denial/revoke/duplicate/deletion/partial failure/erase fixtures + physical Health gate |
 | Energy | Pending | Contribution/24h scenario/check-in cards; baseline parity, snapshots, missing/sample data, accessible charts |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
@@ -92,6 +92,8 @@ quota/authentication failure is a durable stop, never an API fallback.
 Foundation `4b899bf` plus review correction `7abc32e` are integrated as `9a6c9c5`
 and `3952667`. Older caffeine evidence/sample labeling, third-party Health identity
 and migration restore failures now have regressions. Independent results: 103 core
-tests in UTC/Los Angeles, 43 native phone tests. Full UI/Release checks are running.
+tests in UTC/Los Angeles, 43 native phone tests and unsigned Release pass. Full
+phone UI has an intermittent trend assertion failure; isolated rerun passed,
+but full acceptance is still open. Pad native/UI run is in progress.
 Claude's Health task is now isolated at `/Users/nmapaye/Developer/aurora-health-native`;
 the controller's `workspace.json` is authoritative. Its commits require review.
