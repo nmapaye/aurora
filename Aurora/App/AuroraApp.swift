@@ -10,13 +10,24 @@ struct AuroraApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { DesignGalleryView() } else { RootView() }
+                    #else
+                    RootView()
+                    #endif
+                }
                 .environment(model)
                 .environment(router)
                 .environment(assistant)
                 .preferredColorScheme(model.colorScheme)
                 .tint(Palette.tint)
-                .task { model.load() }
+                .task {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return }
+                    #endif
+                    model.load()
+                }
                 .onOpenURL { url in
                     guard let link = DeepLink(url: url) else { return }
                     route(link)
@@ -112,7 +123,7 @@ struct StorageRecoveryView: View {
             Text("Aurora can’t open its records")
                 .font(.title2.bold())
                 .foregroundStyle(Palette.textPrimary)
-            Text("Aurora could not open or verify its protected local records. The original files are preserved. Retry after restoring access or recovering the saved file.")
+            Text(model.mutationFailure ?? "Aurora could not open or verify its protected local records. The original files are preserved. Retry after restoring access or recovering the saved file.")
                 .foregroundStyle(Palette.textSecondary)
             Button("Retry opening AURORA") { model.retryStorage() }
                 .buttonStyle(.auroraPrimary)

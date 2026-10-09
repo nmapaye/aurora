@@ -26,7 +26,7 @@ struct AssistantCardView: View {
                 calendar
             } else {
                 Card {
-                    Label(card.title, systemImage: symbol).font(.headline).accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
+                    Label(card.title, systemImage: symbol).font(Typography.cardTitle).accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
                     if !card.summary.isEmpty && card.kind != .energy && card.kind != .briefing {
                         Text(card.summary).font(.subheadline).foregroundStyle(Palette.textSecondary)
                     }

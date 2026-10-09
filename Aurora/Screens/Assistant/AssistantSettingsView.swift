@@ -30,6 +30,11 @@ struct AssistantSettingsView: View {
                     Text("At most two unsolicited suggestions per day, during active refreshes. Known reminders use local notifications. Aurora does not continuously reason in the background.").font(.footnote)
                     Button("Update briefing notification") { Task { await assistant.syncBriefingNotification(prompt: true) } }
                 }
+                #if DEBUG
+                Section("Design development") {
+                    NavigationLink("Design Gallery", destination: DesignGalleryView())
+                }
+                #endif
                 Section("Connections and records") {
                     NavigationLink("Calendar connections", destination: CalendarConnectionsView(service: assistant.calendars))
                     NavigationLink("Records, exports, Health, and privacy", destination: SettingsView())

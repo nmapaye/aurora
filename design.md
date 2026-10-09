@@ -1,0 +1,75 @@
+# Aurora design system
+
+Status: release design foundation; native implementation is the source of rendered truth.
+Audience: people recording sleep and caffeine and reviewing their daily rhythm.
+Mood: calm, precise, warm, and quietly responsive. Never imply medical certainty.
+
+## Product and hierarchy
+
+- Conversation is the entry point. Finite native cards show evidence and controls;
+  explanatory prose is optional, short, and grounded in records.
+- One primary action per card. Put evidence before actions, and expose missing
+  information beside the relevant logging control. Samples are always labeled.
+- Secondary sheets hold history, settings, and connections. Match native keyboard,
+  date-picker, navigation, and share-sheet behavior.
+- Do not imply general-purpose agent capability, automatic calendar approval,
+  remote inference, or continuous background reasoning.
+
+## Tokens
+
+Code: `Aurora/Theme/Palette.swift` and `Aurora/Theme/DesignTokens.swift`.
+Update this specification and affected tokens together; screenshots confirm intent.
+
+| Role | Light | Dark |
+|---|---|---|
+| Screen | #F6F2EA | #0F1317 |
+| Card | #FFFDF8 | #151A1F |
+| Primary text | #1A1F24 | #F3EFE7 |
+| Secondary text | #5B6168 | #AEB3B8 |
+| Tint / primary action | #1E6B64 | #7CC4B8 |
+| Aurora teal | #2A7C73 | #7CC4B8 |
+| Aurora mint | #7CC4B8 | #A7DBD1 |
+| Aurora indigo | #4A5590 | #A3ADE6 |
+
+Semantic status, field, selection, chart, and disabled roles remain in Palette.
+Do not invent per-screen colors. Do not use tint alone to communicate state.
+
+- SF system typography, semantic Dynamic Type styles. Titles `.title2`, card
+  headings `.headline`, readable evidence `.body`/`.subheadline`, sources `.caption`.
+- Use monospaced digits for changing quantities, units, and time comparisons.
+- Spacing scale: 4, 8, 12, 16, 20, 24, 32 points. System layout may supply its own
+  spacing; document necessary optical exceptions instead of blindly rounding.
+- Radii: controls 12, cards 16, hero 24; capsules for quick actions/composer.
+- Minimum touch target 44 points. iPhone cards use available width; primary iPad
+  conversation column max 600 points. Larger text stacks controls without clipping.
+- Decorative light is reserved for Aurora identity/processing. Cards use clean
+  surfaces and subtle borders, with no decorative linear gradients or muddy shadows.
+
+## Motion and feedback
+
+- Tokens live in Motion. Ordinary state transitions are short and interruptible;
+  processing starts immediately and never waits for a decorative animation.
+- Rim fades in over 0.45 s and out over 0.70 s, freezing its last frame after work.
+  Actual processing owns its visibility; cancellation/failure ends the processing
+  timeline immediately. Do not add fake delays or animated mock reasoning.
+- Idle motion stays subtle beside the title. Full edge movement is processing-only.
+- Reduce Motion uses static identity/glow and disables decorative transitions.
+  Inactive scenes do not run decoration timelines. Effects ignore touches and are
+  hidden from VoiceOver; status and Stop remain independently accessible.
+- Save/Undo use compact receipts, not celebration effects. Chart selection moves
+  its focus without moving the page. Animation must not affect reaction-test timing.
+- No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual
+  movement around readable evidence.
+
+## Review and references
+
+Use the Debug Design Gallery with synthetic records, plus actual simulator captures
+and device recordings. Reference the existing Aurora palette and user-approved
+flowing identity; study native Apple interaction conventions without copying branding.
+Review light/dark, missing/sample/populated data, large text, keyboard, iPad resizing,
+VoiceOver order, Reduce Motion, disabled/error/expired states, and interrupted work.
+Capture → identify specific defects → fix against tokens → compare → record evidence.
+
+Third-party frontend skills are advisory. Native conventions, accessibility, this
+file, and `agents.md` override web-only advice (including anti-system-font rules).
+No paid design service, cloud inference, or executable model-generated UI is needed.

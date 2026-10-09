@@ -11,7 +11,7 @@ struct AuroraEdgeGlow: View {
     var body: some View {
         ZStack {
             if active && !reduceMotion && scenePhase == .active {
-                TimelineView(.animation(minimumInterval: 1 / 30)) { context in
+                TimelineView(.animation(minimumInterval: Motion.decorationFrameInterval)) { context in
                     edge(phase: context.date.timeIntervalSinceReferenceDate)
                 }
             } else {
@@ -19,7 +19,7 @@ struct AuroraEdgeGlow: View {
             }
         }
         .opacity(active ? 1 : 0)
-        .animation(reduceMotion || scenePhase != .active ? nil : .easeInOut(duration: active ? 0.45 : 0.7), value: active)
+        .animation(reduceMotion || scenePhase != .active ? nil : .easeInOut(duration: active ? Motion.processingFadeIn : Motion.processingFadeOut), value: active)
         .onChange(of: active) { _, isActive in
             if !isActive { frozenPhase = Date().timeIntervalSinceReferenceDate }
         }
