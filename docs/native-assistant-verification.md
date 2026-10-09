@@ -115,6 +115,10 @@ Claude's worktree remains clean at `605d6d7`.
   after the iPhone suite. Includes AX XXXL, history, briefing, exports, reaction
   test access, and proposal expiry across relaunch.
 - Integrated unsigned Release simulator build succeeded.
+- The integrated Release build was installed and launched on the isolated
+  Aurora Assistant iPhone. Device Hub visibly shows the native trends card,
+  Snapshot + Refresh, quick actions, and composer. No global developer-tools
+  switch or sudo command was needed to open that window.
 
 Evidence: `/private/tmp/aurora-integrated-core-{utc,la}.log`,
 `/private/tmp/aurora-integrated-iphone.log`,
