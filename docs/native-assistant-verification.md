@@ -92,3 +92,47 @@ Logs: `/private/tmp/aurora-polish-core-{utc,la}.log`,
 Still pending: physical-device VoiceOver, Dynamic Type and Reduce Motion
 pass; live Google OAuth and EventKit accounts; HealthKit; dictation; background
 refresh; performance and battery; signing, archive and TestFlight.
+
+## Correctness and integration (October 8, 2026)
+
+Code checkpoint: `d35407a` on `codex/native-assistant`. This combines
+`0693f22` (deterministic drink-source fixes) with reviewed Claude commits
+`e972a68` and `605d6d7`, cherry-picked as `4f225b5` and `d35407a`.
+Claude's worktree remains clean at `605d6d7`.
+
+- “Usual coffee” considers repeated Coffee, Espresso, Drip, and Cold Brew
+  records only. Explicit drink types use matching history. Sample, future,
+  and records older than 30 days are excluded. Insufficient matching history
+  leaves the proposed amount empty; explicit amounts still override history.
+- Source-only corrections such as “Actually tea” and “Actually coffee”
+  preserve the draft's amount, timestamp, and note. An unrelated history
+  request is not treated as a correction. Corrections never save a record;
+  explicit Save is still required.
+- Integrated core: 64 tests passed in UTC and America/Los_Angeles.
+- Integrated iPhone: all 32 native tests and 13 UI tests passed, including
+  the source-correction Save guard and AX XXXL card/composer reachability.
+- Integrated iPad: all 32 native tests and 13 UI tests passed, run serially
+  after the iPhone suite. Includes AX XXXL, history, briefing, exports, reaction
+  test access, and proposal expiry across relaunch.
+- Integrated unsigned Release simulator build succeeded.
+
+Evidence: `/private/tmp/aurora-integrated-core-{utc,la}.log`,
+`/private/tmp/aurora-integrated-iphone.log`,
+`/private/tmp/aurora-integrated-ipad.log`, and
+`/private/tmp/aurora-integrated-release.log`. These are temporary local test
+artifacts; no conversation, health, or calendar telemetry was uploaded.
+
+Earlier interrupted runs reported UI-runner SIGKILL/SIGTERM and failed
+bootstrapping while other Xcode jobs used the same simulator. A later serial
+run also exposed a history empty-state timing assertion, addressed by Claude's
+wait-for-existence change. Interrupted and failing runs are not counted as
+passes. Use one UI-test job at a time and separate build directories when
+collaborating on this Mac. Global `xcode-select` was not changed; CLI checks
+set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` per command.
+
+No changes to the record or conversation schemas, model providers, or calendar
+approval rules were needed. No credentials were entered, live calendars mutated,
+pushes performed, or releases published. The other original worktrees remain
+at `b0d1419` (`aurora`), `fed770d` (`aurora-premium`), and `a04b3dc`
+(`aurora-design`). The physical-device and live-account release gates above
+remain open.
