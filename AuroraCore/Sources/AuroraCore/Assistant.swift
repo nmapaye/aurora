@@ -69,12 +69,16 @@ public enum AssistantPlanner {
         if text.contains("history") { return .history }
         if text.contains("this week") || text.contains("trends") { return .weeklyTrends }
         let energyContext = text.contains("energy") || text.contains("alertness")
-        let checkIn = text.contains("rate my energy") || checkInRating(text) != nil
+        let checkIn = text.contains("rate my energy") || isSelfRating(text)
             || ((text.contains("check in") || text.contains("check-in") || text.contains("checkin"))
                 && (energyContext || text.contains("feel") || text == "check in" || text == "check-in"))
         let projection = text.contains("energy curve") || text.contains("energy projection")
             || (energyContext && ["24 hour", "24-hour", "later today", "rest of the day", "tonight", "next few hours", "curve", "projection"].contains { text.contains($0) })
-        if checkIn && projection { return .unsupported }
+        let mentionsDrink = text.range(of: #"\b(coffee|caffeine|espresso|tea|matcha|cold brew|energy drink)\b"#, options: .regularExpression) != nil
+        let logsSomething = (mentionsDrink && (text.contains("i had") || text.contains("i drank") || text.contains("log ")))
+            || text.contains("i slept") || text.contains("log sleep") || text.contains("add sleep")
+        // A rating mixed with another request is never split or guessed.
+        if checkIn && (projection || logsSomething) { return .unsupported }
         if checkIn { return .energyCheckIn }
         if projection { return .energyProjection }
         if text.contains("tired") || text.contains("my energy") { return .explainEnergy }
@@ -85,6 +89,24 @@ public enum AssistantPlanner {
         if sleep { return .logSleep }
         if text == "log caffeine" || text.contains("had my usual") || (drink && (text.contains("i had") || text.contains("i drank") || text.contains("log "))) { return .logCaffeine }
         return nil
+    }
+
+    /// A rating phrase about the person's own energy: one with energy or
+    /// feeling context ("I feel 3 out of 5", "energy 4/5"), or a standalone
+    /// self-rating ("4/5", "I'm a 2 out of 5"). Off-scale numbers still count,
+    /// so the review opens with no rating; "I rated that movie 4/5" doesn't.
+    public static func isSelfRating(_ input: String) -> Bool {
+        let text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.range(of: #"(?<![\d.])-?\d+\s*(?:out of|/)\s*5\b"#, options: .regularExpression) != nil else { return false }
+        let context = ["energy", "alertness", "feel", "feeling", "tired", "awake", "energetic"].contains { text.contains($0) }
+        let standalone = text.range(of: #"^(?:i'm|i am|im)?\s*(?:a\s+)?-?\d+\s*(?:out of|/)\s*5\s*[.!]?$"#, options: .regularExpression) != nil
+        return context || standalone
+    }
+
+    /// The on-scale rating of a self-rating, for prefilling a review. Nil for
+    /// unrelated ratings and off-scale numbers.
+    public static func statedSelfRating(_ input: String) -> Int? {
+        isSelfRating(input) ? checkInRating(input) : nil
     }
 
     /// A rating the person stated on the 1–5 scale: "3 out of 5", "4/5".

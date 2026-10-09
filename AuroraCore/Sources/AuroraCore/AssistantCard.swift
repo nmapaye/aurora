@@ -102,14 +102,17 @@ public enum AssistantCards {
         card.timeZone = clock.timeZone.identifier
         switch kind {
         case .energy, .briefing:
-            let estimate = Summary.estimateAlertness(at: now, doses: state.doses, sleeps: state.sleeps, inputs: .init(prefs: state.prefs, clock: clock))
-            let today = state.doses.filter { $0.timestamp >= clock.startOfDay(now) && $0.timestamp <= now }
-            let hours = SleepDebt.totalHoursLast24(at: now, sleeps: state.sleeps)
-            let sleepIDs = state.sleeps.filter { $0.end > now - dayMs && $0.start <= now }.map(\.id)
+            // One known-at-capture input set for every metric, the snapshot
+            // and the curve: nothing dated after capture, no unfinished sleep.
+            let known = EnergyProjection.knownRecords(doses: state.doses, sleeps: state.sleeps, at: now)
+            let estimate = Summary.estimateAlertness(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock))
+            let today = known.doses.filter { $0.timestamp >= clock.startOfDay(now) }
+            let hours = SleepDebt.totalHoursLast24(at: now, sleeps: known.sleeps)
+            let sleepIDs = known.sleeps.filter { $0.end > now - dayMs }.map(\.id)
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Model output · 0 to 100 scale, not a percentage", detail: EnergyEstimate.capture(at: now, doses: state.doses, sleeps: state.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Model output · 0 to 100 scale, not a percentage", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
             card.summary = "These records cannot establish why you feel tired. Stress, illness, and other factors aren't measured here."
             if kind == .energy {

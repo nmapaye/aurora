@@ -25,7 +25,10 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
                 let t = try #require(probe.double("t"))
                 var s = state(doses: context.doses, sleeps: context.sleeps)
                 s.prefs.halfLife = 5; s.prefs.targetSleep = 8
-                let existing = Summary.estimateAlertness(at: t, doses: context.doses, sleeps: context.sleeps, inputs: context.inputs)
+                // Parity on the same eligible inputs: records known at capture.
+                // The scalar suite (EnergyEstimateTests) still covers every record.
+                let known = EnergyProjection.knownRecords(doses: context.doses, sleeps: context.sleeps, at: t)
+                let existing = Summary.estimateAlertness(at: t, doses: known.doses, sleeps: known.sleeps, inputs: context.inputs)
                 let snapshot = EnergySnapshot.capture(state: s, now: t, clock: context.clock, includeProjection: false)
                 #expect(snapshot.estimate.modeledScore == existing.score)
                 #expect(snapshot.estimate.timeZoneIdentifier == context.clock.timeZone.identifier)
@@ -93,6 +96,41 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
         let snapshot = try #require(with.energy)
         #expect(snapshot.observations.allSatisfy { $0.end <= now })
         #expect(snapshot.projection?.points.filter { $0.t > now }.allSatisfy { $0.kind == .projected } == true)
+    }
+
+    /// Headline, metrics, evidence, observations, sample status and the
+    /// current curve point all come from records known at capture.
+    @Test(arguments: [
+        ("ongoing only", [SleepSession(id: "manual:sleep:9:o", start: now - 2 * hourMs, end: now + hourMs)], [Dose]()),
+        ("completed plus ongoing", [night, SleepSession(id: "healthkit:sleep:sample:o", start: now - hourMs, end: now + 2 * hourMs)], [Dose]()),
+        ("entirely future", [SleepSession(id: "manual:sleep:9:f", start: now + hourMs, end: now + 8 * hourMs)], [Dose(id: "lx-f", timestamp: now + 30 * minuteMs, mg: 150)]),
+        ("sample future", [night, SleepSession(id: "demo:sleep:f", start: now - hourMs, end: now + 5 * hourMs)], [Dose(id: "demo:dose:f", timestamp: now + hourMs, mg: 80)]),
+    ]) func oneKnownInputSetAcrossTheCard(name: String, sleeps: [SleepSession], doses: [Dose]) throws {
+        for clock in [utc, pacific] {
+            let s = state(doses: doses, sleeps: sleeps)
+            let known = EnergyProjection.knownRecords(doses: doses, sleeps: sleeps, at: now)
+            let eligible = state(doses: known.doses, sleeps: known.sleeps)
+            let projectionCard = AssistantCards.make(.energyProjection, state: s, now: now, clock: clock, text: text(clock))
+            let energyCard = AssistantCards.make(.energy, state: s, now: now, clock: clock, text: text(clock))
+            let eligibleCard = AssistantCards.make(.energy, state: eligible, now: now, clock: clock, text: text(clock))
+            let snapshot = try #require(projectionCard.energy)
+            let projection = try #require(snapshot.projection)
+            #expect(projection.current.modeledScore == snapshot.estimate.modeledScore, "\(name)")
+            #expect(projection.current.includesSample == snapshot.estimate.includesSample, "\(name)")
+            #expect(projectionCard.metrics.first?.value == snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable", "\(name)")
+            // Parity with the baseline on the same eligible inputs.
+            let baseline = Summary.estimateAlertness(at: now, doses: known.doses, sleeps: known.sleeps, inputs: EstimateInputs(prefs: s.prefs, clock: clock))
+            #expect(snapshot.estimate.modeledScore == baseline.score, "\(name)")
+            // Future and unfinished records change nothing on the card.
+            #expect(energyCard.metrics == eligibleCard.metrics, "\(name)")
+            #expect(energyCard.energy == eligibleCard.energy, "\(name)")
+            #expect(snapshot.estimate.missingInputs.contains(.recentSleep) == (snapshot.estimate.modeledScore == nil), "\(name)")
+            #expect(snapshot.observations.allSatisfy { $0.end <= now }, "\(name)")
+            #expect(Set(snapshot.observations.map(\.id)).isSubset(of: Set(known.sleeps.map(\.id) + known.doses.map(\.id))), "\(name)")
+            #expect(!snapshot.observations.contains { $0.id.hasSuffix(":f") || $0.id.hasSuffix(":o") || $0.id == "lx-f" }, "\(name)")
+            #expect(!snapshot.includesSample, "\(name)")
+            #expect(energyCard.metrics.first { $0.id == "sleep" }?.source.contains("Sample") == false, "\(name)")
+        }
     }
 
     @Test func overlappingSleepCountsOnceAndDrawsOnce() throws {
@@ -232,8 +270,26 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
         ("How is my energy?", .explainEnergy), ("Why am I tired?", .explainEnergy),
         ("check in my energy curve", .unsupported), ("don't check in my energy", .unsupported),
         ("check in for my flight", nil),
+        // Ratings of something else are not energy check-ins.
+        ("I rated that movie 4/5", nil), ("The hotel was 5 out of 5", nil), ("rated the book 3/5", nil),
+        // Standalone self-ratings, including off-scale ones, open a review.
+        ("4/5", .energyCheckIn), ("I'm a 2 out of 5", .energyCheckIn), ("energy 7/5", .energyCheckIn),
+        ("I feel 2 out of 5 after coffee", .energyCheckIn),
+        // Mixed with another request: never split or guessed.
+        ("I feel 3/5 and I had 80 mg coffee", .unsupported), ("I slept badly, feel 2 out of 5", .unsupported),
+        ("energy 4/5, show my energy curve", .unsupported),
     ]) func routesWithoutAModel(input: String, expected: AssistantIntent?) {
         #expect(AssistantPlanner.explicitIntent(input) == expected)
+    }
+
+    @Test func onlySelfRatingsPrefillAReview() {
+        #expect(AssistantPlanner.statedSelfRating("I feel 3 out of 5") == 3)
+        #expect(AssistantPlanner.statedSelfRating("energy 4/5") == 4)
+        #expect(AssistantPlanner.statedSelfRating("I rated that movie 4/5") == nil)
+        #expect(AssistantPlanner.isSelfRating("I feel 7 out of 5") && AssistantPlanner.statedSelfRating("I feel 7 out of 5") == nil)
+        #expect(AssistantPlanner.isSelfRating("I feel 0/5") && AssistantPlanner.statedSelfRating("I feel 0/5") == nil)
+        // The scalar parser itself is unchanged.
+        #expect(AssistantPlanner.checkInRating("I rated that movie 4/5") == 4)
     }
 
     @Test func modelLabelsAreFiniteAndListed() {

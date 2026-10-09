@@ -39,6 +39,9 @@ import Testing
         assistant.send("make it 9", app: app)
         #expect(assistant.pendingCheckIn?.rating == 4)
         #expect(app.state.energyCheckIns.isEmpty)
+        // If a classifier ever routes an unrelated rating here, nothing is prefilled.
+        await assistant.handle(.energyCheckIn, input: "I rated that movie 4/5", app: app)
+        #expect(assistant.pendingCheckIn?.rating == nil && app.state.energyCheckIns.isEmpty)
     }
 
     @Test func failedWriteKeepsTheReviewOpenForRetry() async throws {

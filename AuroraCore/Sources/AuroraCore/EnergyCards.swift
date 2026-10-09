@@ -47,9 +47,10 @@ public struct EnergySnapshot: Codable, Equatable, Sendable {
     public static func capture(state: AppState, now: Millis, clock: LocalClock, includeProjection: Bool) -> EnergySnapshot {
         let inputs = EstimateInputs(prefs: state.prefs, clock: clock)
         let known = EnergyProjection.knownRecords(doses: state.doses, sleeps: state.sleeps, at: now)
-        // The same inputs as `Summary.estimateAlertness`, so the score keeps
-        // baseline parity. The curve uses only records known at capture.
-        let estimate = EnergyEstimate.capture(at: now, doses: state.doses, sleeps: state.sleeps, inputs: inputs)
+        // One input set for the headline, evidence, observations and the
+        // curve: records known at capture. The scalar model is unchanged; it
+        // is only given these records.
+        let estimate = EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: inputs)
         let projection = includeProjection ? EnergyProjection.build(now: now, doses: state.doses, sleeps: state.sleeps, inputs: inputs) : nil
         let windowStart = projection?.points.first?.t ?? now - dayMs
         let caffeine = known.doses.filter { $0.timestamp >= windowStart }.map {

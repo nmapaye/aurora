@@ -142,8 +142,16 @@ final class AuroraUITests: XCTestCase {
     func testEnergyGalleryOffersSyntheticVariants() {
         app.terminate(); app.launchArguments = ["-AuroraDesignGallery"]; app.launch()
         XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
-        app.buttons["Experience"].firstMatch.tap()
-        app.buttons["energyProjection"].firstMatch.tap()
+        // The menu picker's label includes its value ("Experience, caffeineDraft"),
+        // so select it by identifier.
+        let experience = app.buttons["gallery-experience"]
+        XCTAssertTrue(experience.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !experience.isHittable { app.swipeDown() }
+        XCTAssertTrue(experience.isHittable)
+        experience.tap()
+        let option = app.buttons["energyProjection"].firstMatch
+        XCTAssertTrue(option.waitForExistence(timeout: 5))
+        option.tap()
         XCTAssertTrue(app.otherElements["assistant-energy-curve"].waitForExistence(timeout: 10))
         let capture = XCTAttachment(screenshot: app.screenshot())
         capture.name = "Energy curve gallery fixture"

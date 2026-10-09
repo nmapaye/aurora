@@ -232,7 +232,7 @@ final class AssistantModel {
             appendCard(AssistantCards.make(.energyProjection, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
         case .energyCheckIn:
             expireDraft()
-            pendingCheckIn = .new(now: app.now, rating: AssistantPlanner.checkInRating(input))
+            pendingCheckIn = .new(now: app.now, rating: AssistantPlanner.statedSelfRating(input))
             pendingMessageID = appendCard(AssistantCards.make(.energyCheckIn, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
             captureDraft(app: app)
         case .settings: showAssistantSettings = true

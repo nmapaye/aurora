@@ -55,6 +55,7 @@ struct DesignGalleryView: View {
                     Picker("Experience", selection: $kind) {
                         ForEach(kinds, id: \.self) { Text($0.rawValue).tag($0) }
                     }
+                    .accessibilityIdentifier("gallery-experience")
                     if energyKinds.contains(kind) {
                         Picker("Energy fixture", selection: $energyVariant) {
                             ForEach(EnergyVariant.allCases, id: \.self) { Text($0.title).tag($0) }

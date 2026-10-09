@@ -59,8 +59,8 @@ captured: that needs a simulator run. Website checks not run (no website change)
   `EnergyProjection`, the window start, observations (sleep and caffeine records known
   at capture, with source), check-ins and Reaction Tests in the window. The estimate uses
   the same records as `Summary.estimateAlertness`, so the score keeps baseline parity
-  (tested for every fixture probe in both zones). The projection and observations use
-  only records known at capture. No constant, weight or validation changed.
+  (tested for every fixture probe in both zones). Superseded by review correction 1:
+  every part of a new card now uses only records known at capture. No constant, weight or validation changed.
 - `AssistantCard` gains `energyProjection` and `energyCheckIn` kinds and optional
   `energy` and `checkIn` fields, so older saved conversations decode unchanged (tested).
   The energy card's alertness metric is labeled "Modeled alertness", its value is the
@@ -113,13 +113,61 @@ captured: that needs a simulator run. Website checks not run (no website change)
   accuracy.
 - The history card and Settings export section don't include check-ins yet; the
   assistant export card does. Delete All and full erase clear them (existing core).
-- If a record is dated after capture (e.g. a sleep still in progress), the headline
-  score counts it as the baseline estimate does, while the curve and observations
-  don't. That keeps parity, but the two can differ in that edge case.
 - The projection grid stays epoch-aligned (foundation contract), so :45 zones aren't on
   local half-hours.
 - `Summary.describe` and the Summary screen still say "Estimated alertness"; they're
   baseline copy and weren't changed.
+
+## Review corrections (2026-10-09, separate commit)
+
+Responds to `aurora-overnight/energy-review-findings.md`. `DEVELOPER_DIR` as above.
+
+| Command | Result | Log |
+|---|---|---|
+| `TZ=UTC swift test --package-path AuroraCore` | 185 tests in 27 suites passed | `review-core-utc.log` |
+| `TZ=America/Los_Angeles swift test --package-path AuroraCore` | 185 tests in 27 suites passed | `review-core-la.log` |
+| `swift test … --filter "EnergySnapshotTests\|EnergyIntentTests\|EnergyEstimateTests\|AssistantTests" --maximum-repetitions 50 --repeat-until fail` | 46 tests in 5 suites, 50 repetitions, no failure | `review-core-repeat.log` |
+| `python3 scripts/check-design-tokens.py` | passed | console |
+| generic unsigned `xcodebuild build` / `build-for-testing` (flags as above) | BUILD SUCCEEDED / TEST BUILD SUCCEEDED, no new warnings | `review-build.log`, `review-build-for-testing.log` |
+
+Native and UI tests compiled only (Codex runs them).
+
+1. **One known-at-capture input set.**
+   - `EnergySnapshot.capture` and the `.energy`/`.briefing` builder use
+     `EnergyProjection.knownRecords`: doses at or before capture, and sleep that has ended.
+   - That set drives the headline score, the sleep and caffeine metrics, the alertness
+     detail, the evidence, the observations, the sample status and the current curve
+     point.
+   - Scalar algorithms, `Summary` APIs, constants and stored records are unchanged.
+     `EnergyEstimateTests` scalar parity is untouched.
+   - The snapshot parity test now compares with `Summary` on the same eligible inputs.
+   - New `oneKnownInputSetAcrossTheCard` covers four cases in both zones: an ongoing
+     sleep only, completed plus ongoing sleep, entirely future sleep and caffeine, and
+     sample future sleep and caffeine.
+   - Each case checks that the current point equals the headline, the card equals one
+     built from the eligible records only, missing status agrees with the score, no
+     future or unfinished record is an observation, and nothing is flagged as Sample
+     Data.
+   - The earlier "headline vs curve can differ" limitation is removed.
+2. **Rating classification.**
+   - `explicitIntent` routes an N/5 phrase to `energyCheckIn` only through the new
+     `AssistantPlanner.isSelfRating`. That needs energy or feeling context ("energy",
+     "alertness", "feel", "tired", "awake", "energetic") or a standalone self-rating
+     ("4/5", "I'm a 2 out of 5").
+   - "I rated that movie 4/5" no longer routes; it goes to the classifier as before.
+   - Off-scale self-ratings ("energy 7/5") still open a review with no rating.
+   - A rating mixed with a projection request, a caffeine-log request or a sleep entry is
+     `unsupported`.
+   - The review prefills only through `statedSelfRating`, so an unrelated rating that a
+     classifier routes here prefills nothing.
+   - `checkInRating` and `checkInCorrection` are unchanged. Short corrections still
+     apply only while a check-in review is open. Nothing saves without Save.
+   - Tests: new routing cases (unrelated, standalone, off-scale, mixed),
+     `onlySelfRatingsPrefillAReview`, and a native prefill assertion.
+3. **Gallery selector.** The Experience picker has the identifier `gallery-experience`.
+   `testEnergyGalleryOffersSyntheticVariants` selects it by identifier, waits for it to
+   exist and be hittable, then waits for the `energyProjection` option. Its assertions are
+   unchanged.
 
 ## Unverified gates (Codex)
 
