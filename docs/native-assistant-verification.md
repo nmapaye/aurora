@@ -328,3 +328,14 @@ permission/failure/pending UI variants at largest text and VoiceOver. Simulator
 fixtures do not establish those outcomes. Settings privacy-row copy still needs
 the optional writes described; `.hourly` is a requested opportunity, not a
 promised wake schedule. Energy UI, planning/history and widgets are not delivered.
+
+## Health cancellation correction
+
+An independently added held-page test failed before the fix: cancelling its
+refresh task still applied the held page and fetched more data. Read paging now
+checks task cancellation/current read state before each fetch and after the await,
+retaining only already-committed pages and anchors. Core 165/165 passes in UTC
+and America/Los_Angeles; the same fixture subsequently resumes to all six records.
+Logs: `/private/tmp/aurora-health-cancellation-red.log` and
+`/private/tmp/aurora-health-cancel-{utc,la}.log`. Native checks below must be rerun
+for this final code checkpoint; earlier 51/16 results remain earlier evidence.

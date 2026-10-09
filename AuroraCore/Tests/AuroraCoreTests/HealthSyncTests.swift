@@ -1220,6 +1220,25 @@ private func reading(_ state: inout AppState) {
         #expect(off.state.doses.count == 2 && off.state.healthLedger.anchor(for: .caffeine) != nil)
     }
 
+    @Test func cancellationBetweenPagesRetainsOnlyCommittedData() async {
+        let health = FakeHealth()
+        health.pageSize = 2
+        caffeine(health, count: 6)
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 3)
+        let gate = health.hold("read", onCall: 2)
+        let read = Task { await engine.readCaffeineChanges() }
+        await gate.arrival()
+        let checkpoint = harness.saved
+        read.cancel()
+        gate.open()
+        #expect(await read.value == .discarded)
+        #expect(harness.saved == checkpoint)
+        #expect(harness.state.doses.count == 2 && health.count("read") == 2)
+        _ = await engine.readCaffeineChanges()
+        #expect(harness.state.doses.count == 6)
+    }
+
     @Test func aLaterPageFailureKeepsEarlierPagesAndResumes() async throws {
         let health = FakeHealth()
         health.pageSize = 2

@@ -301,6 +301,7 @@ public final class HealthSyncEngine {
         var pages = 0
         while pages < maxPagesPerRead {
             let anchor = host.state().healthLedger.anchor(for: kind)?.data
+            guard isCurrentRead(kind, generation, anchor: anchor) else { return .discarded }
             let changes: Changes
             do {
                 changes = try await fetch(anchor)
@@ -331,7 +332,7 @@ public final class HealthSyncEngine {
 
     private func isCurrentRead(_ kind: HealthDataKind, _ generation: Int, anchor: Data?) -> Bool {
         let state = host.state()
-        return generation == readGeneration(kind) && state.healthChoices.observedKinds.contains(kind) && !state.demoMode
+        return !Task.isCancelled && generation == readGeneration(kind) && state.healthChoices.observedKinds.contains(kind) && !state.demoMode
             && state.healthLedger.anchor(for: kind)?.data == anchor
     }
 
