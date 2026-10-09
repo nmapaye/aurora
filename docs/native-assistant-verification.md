@@ -167,3 +167,19 @@ remain open.
   Device Hub stopped exposing embedded app accessibility controls after UI tests,
   limiting further manual interaction. Physical-device smoothness, VoiceOver,
   and battery measurements remain release gates. No speed or battery claim is made.
+
+## Conversation Apple Health connection — 2026-10-08
+
+- Added a Connect Apple Health quick action and exact typed connection shortcuts.
+  They open a focused review sheet using the existing sleep status and connection
+  service. Opening the sheet does not request authorization; Connect to Health
+  remains an explicit user action. Access remains sleep-only and read-only.
+- The focused reachability UI test passed serially on iPhone and iPad (1/1 each).
+  Release simulator build passed and was installed on the isolated iPhone.
+  Device Hub inspection confirmed the disclosure and Connect control; no Health
+  permission was granted during inspection.
+- Evidence: `/private/tmp/aurora-health-shortcut-test.log`,
+  `/private/tmp/aurora-health-shortcut-ipad.log`, and
+  `/private/tmp/aurora-health-shortcut-release.log`.
+- Physical-device entitlements, authorization, and live sleep import remain
+  release gates. Record storage and inference behavior are unchanged.

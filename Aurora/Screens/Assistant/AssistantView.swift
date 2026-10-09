@@ -11,6 +11,7 @@ struct AssistantView: View {
     @Environment(AssistantModel.self) private var assistant
     @State private var dictation = OnDeviceDictation()
     @State private var input = ""
+    @State private var showHealthConnection = false
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -100,6 +101,7 @@ struct AssistantView: View {
             } onDelete: {}
         }
         .sheet(isPresented: $assistant.showAssistantSettings) { AssistantSettingsView(assistant: assistant) }
+        .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
         .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
         .sheet(item: $assistant.historySheet) { intent in
             if intent == .reactionTest { ReactionTestView() }
@@ -154,6 +156,10 @@ struct AssistantView: View {
                 HStack(spacing: 8) {
                     quickAction("Log caffeine", symbol: "cup.and.saucer")
                     quickAction("Log sleep", symbol: "moon")
+                    quickAction("Connect Apple Health", symbol: "heart.text.square") {
+                        composerFocused = false
+                        showHealthConnection = true
+                    }
                     quickAction("How is my energy?", symbol: "sparkle")
                     quickAction("Show this week", symbol: "chart.bar")
                     quickAction("Review calendar", symbol: "calendar")
@@ -192,14 +198,18 @@ struct AssistantView: View {
         // conversation a sliver of the screen. Messages and cards still scale fully.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
-    private func quickAction(_ text: String, symbol: String) -> some View {
-        Button { assistant.send(text, app: app) } label: { Label(text, systemImage: symbol).font(.caption.weight(.medium)).padding(12).frame(minHeight: 44).background(Palette.card, in: Capsule()) }
+    private func quickAction(_ text: String, symbol: String, action: (() -> Void)? = nil) -> some View {
+        Button { if let action { action() } else { assistant.send(text, app: app) } } label: { Label(text, systemImage: symbol).font(.caption.weight(.medium)).padding(12).frame(minHeight: 44).background(Palette.card, in: Capsule()) }
             .buttonStyle(.plain).disabled(assistant.processing).accessibilityIdentifier("assistant-quick-\(text)")
     }
     private func send() {
         guard !assistant.processing else { return }
         let text = input; input = ""; dictation.stop(); composerFocused = false
-        assistant.send(text, app: app)
+        if ["connect apple health", "connect health", "connect healthkit"].contains(text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            showHealthConnection = true
+        } else {
+            assistant.send(text, app: app)
+        }
     }
 }
 

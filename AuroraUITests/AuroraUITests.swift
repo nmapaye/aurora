@@ -28,6 +28,15 @@ final class AuroraUITests: XCTestCase {
         }
         button.tap()
     }
+    func testAppleHealthConnectionIsReachableWithoutRequestingAccess() {
+        finishSetup()
+        tapQuick("Connect Apple Health")
+        XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["assistant-health-connect"].exists)
+        app.buttons["assistant-health-done"].tap()
+        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
+    }
+
     func testConversationHomeReplacesTabs() {
         finishSetup()
         XCTAssertTrue(app.buttons["assistant-history"].exists)
