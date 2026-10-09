@@ -41,7 +41,9 @@ import Testing
         health.failSaves = true
         let dose = model.addCustomDose(draft("95"))
         #expect(model.mutationFailure == nil && model.state.doses.map(\.id) == [dose.id])
-        await model.healthSync.runPendingActions()
+        // A real process exit cannot leave the first AppModel's automatic
+        // dispatch running. Settle it before constructing the relaunched host.
+        await model.waitForHealthExports()
         #expect(model.healthStatus(forDoseID: dose.id).needsAttention)
 
         let relaunched = makeModel(health: health)
@@ -57,6 +59,20 @@ import Testing
         await relaunched.healthSync.runPendingActions()
         #expect(relaunched.healthStatus(forDoseID: dose.id) == .removed)
         #expect(health.deletedSyncIdentifiers == [HealthOrigin.syncIdentifier(forDoseID: dose.id)])
+    }
+
+    @Test func deletionBeforeAutomaticExportDispatchWritesNothing() async {
+        let health = ScriptedHealth()
+        let model = makeModel(health: health)
+        model.completeOnboarding()
+        #expect(await model.setHealthChoice(.writeCaffeine, enabled: true) == .requested)
+        _ = model.addCustomDose(draft("75"))
+        // Delete synchronously before the queued MainActor dispatch can start.
+        model.deleteAllData()
+        await model.waitForHealthExports()
+        #expect(model.state.doses.isEmpty)
+        #expect(model.state.healthLedger.pendingActions.isEmpty)
+        #expect(health.savedSyncIdentifiers.isEmpty)
     }
 
     @Test func deleteAllDuringAReadDiscardsTheLateResult() async throws {

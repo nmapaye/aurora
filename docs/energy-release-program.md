@@ -40,9 +40,9 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 
 | Package | Status | Required evidence |
 |---|---|---|
-| Foundation | Reviewed and integrated at 3952667; UI acceptance open | 103 core UTC/LA; 43 native phone; unsigned Release pass; phone UI 15/16, isolated trend retry 1/1; pad run pending |
-| Health | Claude dispatched in claude/aurora-health-native, base 3952667 | Anchored import/export/observer ledger; denial/revoke/duplicate/deletion/partial failure/erase fixtures + physical Health gate |
-| Energy | Pending | Contribution/24h scenario/check-in cards; baseline parity, snapshots, missing/sample data, accessible charts |
+| Foundation | Reviewed/integrated; original UI flows verified in combined Health checkpoint | 103 core UTC/LA baseline; 43 foundation native; combined 16/16 phone/pad UI pass |
+| Health | Integrated; correctness follow-up at 8f87ab7 plus tracked dispatch being checkpointed; largest-text polish and physical gates open | 165 core UTC/LA; final native 52/52 phone/pad; original 16/16 UI phone/pad plus new Health reachability 1/1 each; unsigned Release/site/tokens pass |
+| Energy | Claude session quota-paused with no Energy changes; one-time resume 10:55 AM Oct 9 PDT | Separate Health large-text visual correction before contribution/24h/check-in cards; baseline/snapshot/accessibility acceptance |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
 | Widgets/performance | Pending | Extension/App Group protection, routing/redaction/erase; local signposts and physical profiling |
 | Release polish | Pending | Gallery all states, serial phone/pad flows, screenshot critique, policies/metadata/website consistency |

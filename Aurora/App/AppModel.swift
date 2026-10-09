@@ -41,6 +41,7 @@ final class AppModel {
     /// The one refresh path for foreground, background and Health changes.
     @ObservationIgnored private(set) var refresher: RefreshScheduler!
     @ObservationIgnored private var lastRefresh: [RefreshPolicy.Step: Millis] = [:]
+    @ObservationIgnored private var healthExportDispatch: Task<Void, Never>?
     /// Calendars and suggestions, run by the assistant inside a refresh.
     @ObservationIgnored var assistantRefresh: (@MainActor (Set<RefreshPolicy.Step>) async -> Void)?
     /// Recorded sleep changed during a refresh; receives the sleep before.
@@ -207,7 +208,19 @@ final class AppModel {
     /// when Health answers.
     private func exportToHealth(_ doseID: String) {
         guard state.healthLedger.pendingAction(forDoseID: doseID) != nil else { return }
-        Task { await healthSync.runPendingActions(for: [doseID]) }
+        let previous = healthExportDispatch
+        let generation = dataGeneration
+        healthExportDispatch = Task {
+            await previous?.value
+            guard !Task.isCancelled, generation == dataGeneration else { return }
+            await healthSync.runPendingActions(for: [doseID])
+        }
+    }
+
+    /// Await automatic dispatches already queued by local record changes.
+    /// This does not retry failed exports or wait for future record changes.
+    func waitForHealthExports() async {
+        await healthExportDispatch?.value
     }
 
     func healthStatus(forDoseID id: String) -> HealthExportStatus {
@@ -403,6 +416,7 @@ final class AppModel {
     /// already added to Health stay there.
     private func cancelHealthWork() {
         dataGeneration += 1
+        healthExportDispatch?.cancel()
         healthSync.invalidateAll()
         refresher.invalidate()
         lastRefresh = [:]

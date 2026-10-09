@@ -312,7 +312,9 @@ Independent checks on the integrated branch:
   Save/Undo after the keyboard interaction correction.
 - Website type-check/build and brand-token check passed.
 - Unsigned Release simulator build passed and opened on the demo phone.
-- iPad combined native/UI run is pending; never count startup or interrupted runs.
+- iPad combined native 51/51 and UI 16/16 passed. The original largest-text
+  flow passed after 445 seconds with runner animation-idle waits; this is not
+  evidence of physical-device speed.
 - Health connection sheet inspected in light/dark: separate read sleep, read
   caffeine, own-caffeine export and background choices; no permission requested.
   Screenshots: `/private/tmp/aurora-health-release-choices-{light,dark}.png`.
@@ -339,3 +341,35 @@ and America/Los_Angeles; the same fixture subsequently resumes to all six record
 Logs: `/private/tmp/aurora-health-cancellation-red.log` and
 `/private/tmp/aurora-health-cancel-{utc,la}.log`. Native checks below must be rerun
 for this final code checkpoint; earlier 51/16 results remain earlier evidence.
+
+## Final morning Health service and accessibility follow-up
+
+A native rerun exposed a fixture race: its old AppModel still had an automatic
+export dispatch while a second model simulated relaunch. The tracked MainActor
+dispatch now chains queued record exports, can be awaited, and is cancelled by
+data deletion with generation checks before external work. The relaunch fixture
+awaits its original dispatch; its duplicate-write assertion remains unchanged.
+A new native test confirms deletion before a dispatch starts writes nothing.
+
+- Final native: 52/52 on phone and iPad;
+  `/private/tmp/aurora-health-final-native-phone.xcresult` and
+  `/private/tmp/aurora-health-final-pad.xcresult`.
+- New largest-text Health UI: 1/1 phone and iPad. Scrolls to each separate
+  control, verifies unchanged off values, and closes the sheet. These focused
+  runs add coverage to earlier 16/16 suites; a combined 17-flow suite was not run.
+- Final unsigned Release passed: `/private/tmp/aurora-health-dispatch-release.log`.
+- Visual finding remains open: the horizontal switch row splits “background”
+  as “back-ground” at accessibility XXXL. Claude must stack label and control
+  using full available width, preserving permission and accessibility semantics.
+  Screenshot: `/private/tmp/aurora-health-large-phone-attachments/` (manifest).
+- Claude reached its subscription quota before changing Energy; session
+  `4b25b22a-bd2d-4e29-8100-8ea37b6377d8` is preserved. One-time follow-up
+  `aurora-energy-reset-resume` runs at 10:55 AM after the reported 10:50 reset.
+  Overnight usage guard is paused. No billed fallback or banked reset used.
+
+No pushes, publication, signing identity/profile changes or live account setup.
+All real Health/account/device/performance/signing/TestFlight gates remain open.
+
+The five native HealthSyncAppTests passed ten repetitions each, including the
+previously flaky relaunch and new pre-dispatch deletion case. Evidence:
+`/private/tmp/aurora-health-relaunch-repeat.xcresult` / `.log`.

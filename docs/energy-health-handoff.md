@@ -1,8 +1,9 @@
 # Energy Health handoff (Package 2)
 
-Branch `claude/aurora-health-native`, base `3952667` (accepted foundation). One local
-commit; nothing pushed. No signing, team, entitlement, account or global configuration
-changes, no new keys, no personal records. Claude implemented core, services and the
+Branch `claude/aurora-health-native`, base `3952667` (accepted foundation).
+Three local Claude commits; nothing pushed. The background-delivery entitlement
+is declared in source as documented below; signing identities, teams and provisioning
+profiles were not changed. No account/global configuration changes, new keys or personal records. Claude implemented core, services and the
 Health UI for this package by explicit user assignment. Provisional until Codex review.
 
 ## Verification (2026-10-09)

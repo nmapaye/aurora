@@ -37,6 +37,32 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
 
+    func testHealthChoicesRemainReachableAtLargestTextWithoutRequestingAccess() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        finishSetup()
+        tapQuick("Connect Apple Health")
+        XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
+        for choice in ["readSleep", "readCaffeine", "writeCaffeine", "backgroundUpdates"] {
+            let control = app.switches["assistant-health-" + choice]
+            XCTAssertTrue(control.exists)
+            func reachable() -> Bool {
+                if control.isEnabled { return control.isHittable }
+                return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
+            }
+            for _ in 0..<12 where !reachable() { app.swipeUp() }
+            XCTAssertTrue(reachable(), choice + " must be reachable by scrolling")
+            XCTAssertEqual(control.value as? String, "0", "Inspection must not enable Health access")
+        }
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Health choices at largest text"
+        capture.lifetime = .keepAlways
+        add(capture)
+        app.buttons["assistant-health-done"].tap()
+        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
+    }
+
     func testFullEraseReturnsToSetupAcrossRelaunch() {
         finishSetup()
         tapQuick("Log caffeine")
