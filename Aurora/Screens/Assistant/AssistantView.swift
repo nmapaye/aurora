@@ -167,8 +167,8 @@ struct AssistantView: View {
             }
             .accessibilityIdentifier("assistant-quick-actions")
             HStack(alignment: .bottom, spacing: 12) {
-                TextField("Tell Aurora…", text: $input, axis: .vertical)
-                    .lineLimit(1...5).focused($composerFocused).accessibilityIdentifier("assistant-composer")
+                TextField("", text: $input, axis: .vertical)
+                    .lineLimit(1...5).focused($composerFocused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
                     .submitLabel(.send).onSubmit { send() }
                 Button {
                     if dictation.recording { dictation.stop() } else { Task { await dictation.start() } }
