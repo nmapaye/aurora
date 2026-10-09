@@ -36,6 +36,14 @@ final class AppModel {
     private var store: StateStore?
     private var lastQuickAddAt: Millis?
     private var dataGeneration = 0
+    /// Caffeine reads, observers and the outbox of Aurora's own Health writes.
+    @ObservationIgnored private(set) var healthSync: HealthSyncEngine!
+    /// The one refresh path for foreground, background and Health changes.
+    @ObservationIgnored private(set) var refresher: RefreshScheduler!
+    @ObservationIgnored private var lastRefresh: [RefreshPolicy.Step: Millis] = [:]
+    /// Calendars and suggestions, run by the assistant inside a refresh.
+    @ObservationIgnored var assistantRefresh: (@MainActor (Set<RefreshPolicy.Step>) async -> Void)?
+    private var nextActionID: () -> String = { UUID().uuidString.lowercased() }
 
     init(
         clock: LocalClock = .current,
@@ -53,6 +61,17 @@ final class AppModel {
         self.makeStore = makeStore
         self.legacy = legacy
         self.makeDeletion = makeDeletion ?? { LocalDataDeletion(store: $0, legacy: $1) }
+        healthSync = HealthSyncEngine(provider: health, host: HealthSyncEngine.Host(
+            state: { [unowned self] in self.state },
+            commit: { [unowned self] change in self.update(change) },
+            now: { [unowned self] in self.tick(); return self.now }
+        ))
+        refresher = RefreshScheduler { [weak self] triggers, isCurrent in
+            await self?.performRefresh(triggers, isCurrent: isCurrent)
+        }
+        healthSync.onChange = { [weak self] kind in
+            await self?.refresher.request(.healthChange(kind))
+        }
     }
 
     static func currentMillis() -> Millis {
@@ -109,17 +128,21 @@ final class AppModel {
         load()
     }
 
-    private func update(_ change: (inout AppState) -> Void) {
-        guard phase == .ready else { return }
+    /// Applies and saves a change; on failure the previous state stays.
+    @discardableResult
+    private func update(_ change: (inout AppState) -> Void) -> Bool {
+        guard phase == .ready else { return false }
         let previous = state
         mutationFailure = nil
         change(&state)
         do {
             guard let store else { throw StateStore.Failure.verificationFailed }
             try store.save(state)
+            return true
         } catch {
             state = previous
             mutationFailure = "Couldn't save this change. Your previous records are preserved."
+            return false
         }
     }
 
@@ -131,7 +154,8 @@ final class AppModel {
         guard CaffeineLog.acceptsQuickAdd(lastAcceptedAt: lastQuickAddAt, at: now) else { return nil }
         lastQuickAddAt = now
         let dose = CaffeineLog.quickAddDose(preset, now: now, id: RecordID.newDoseID(now: now))
-        update { $0.addDose(dose) }
+        let action = nextActionID()
+        if update({ $0.addDose(dose); $0.queueHealthSave(doseID: dose.id, now: now, id: action) }) { exportToHealth(dose.id) }
         return dose
     }
 
@@ -142,24 +166,56 @@ final class AppModel {
             mutationFailure = failure
             return dose
         }
-        update { $0.addDose(dose) }
+        let action = nextActionID()
+        if update({ $0.addDose(dose); $0.queueHealthSave(doseID: dose.id, now: now, id: action) }) { exportToHealth(dose.id) }
         return dose
     }
 
     func correctDose(id: String, with draft: CustomDoseDraft) {
         guard let dose = state.doses.first(where: { $0.id == id }), CaffeineLog.isEditable(dose) else { return }
-        update { $0.updateDose(id: id, with: CaffeineLog.patch(from: draft)) }
+        tick()
+        let action = nextActionID()
+        if update({ $0.updateDose(id: id, with: CaffeineLog.patch(from: draft)); $0.queueHealthCorrection(doseID: id, now: now, id: action) }) {
+            exportToHealth(id)
+        }
     }
 
     func deleteDose(id: String) {
         guard let dose = state.doses.first(where: { $0.id == id }), CaffeineLog.isEditable(dose) else { return }
-        update { $0.removeDose(id: id) }
+        removeDose(id)
     }
 
     /// Undo for the dose Quick Add just logged. `AppState` refuses to remove
     /// Health caffeine, so a stale receipt can't delete it.
     func undo(_ dose: Dose) {
-        update { $0.removeDose(id: dose.id) }
+        guard state.doses.contains(where: { $0.id == dose.id }), CaffeineLog.isEditable(dose) else { return }
+        removeDose(dose.id)
+    }
+
+    /// Removes the dose here first; only Aurora's own copy in Health is then
+    /// queued for removal.
+    private func removeDose(_ id: String) {
+        tick()
+        let action = nextActionID()
+        if update({ $0.removeDose(id: id); $0.queueHealthRemoval(doseID: id, now: now, id: action) }) { exportToHealth(id) }
+    }
+
+    /// Runs the dose's queued Health action, if any, after the local change
+    /// is stored. Receipts read `healthStatus(forDoseID:)`, which updates
+    /// when Health answers.
+    private func exportToHealth(_ doseID: String) {
+        guard state.healthLedger.pendingAction(forDoseID: doseID) != nil else { return }
+        Task { await healthSync.runPendingActions(for: [doseID]) }
+    }
+
+    func healthStatus(forDoseID id: String) -> HealthExportStatus {
+        HealthExportStatus.of(doseID: id, state: state)
+    }
+
+    /// Explicit Retry: runs every queued Health action, checking for an
+    /// interrupted write before writing again.
+    func retryHealthExports() async {
+        await healthSync.runPendingActions()
     }
 
     // MARK: Sleep
@@ -219,12 +275,16 @@ final class AppModel {
         update {
             $0.onboarding.source = .healthkit
             $0.onboarding.permissionStatus = .granted
+            $0.healthChoices.readSleep = true
         }
         await importHealth(days: importDays, failurePrefix: failurePrefix)
+        await healthSync.startObservers()
     }
 
     func importHealth(days: Double = HealthImport.refreshDays, failurePrefix: String = "Health refresh failed.") async {
         let generation = dataGeneration
+        let sleepGeneration = healthSync.readGeneration(.sleepAnalysis)
+        var current: Bool { generation == dataGeneration && sleepGeneration == healthSync.readGeneration(.sleepAnalysis) }
         tick()
         let end = now
         update {
@@ -233,26 +293,82 @@ final class AppModel {
         }
         do {
             let samples = try await health.sleepSamples(from: end - days * dayMs, to: end)
-            guard generation == dataGeneration else { return }
+            guard current else { return }
             tick()
             update { _ = HealthImport.apply(samples, days: days, now: end, to: &$0) }
         } catch {
-            guard generation == dataGeneration else { return }
+            guard current else { return }
             tick()
             let message = (error as? LocalizedError)?.errorDescription ?? "Unable to read sleep data."
             update { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }
         }
     }
 
-    /// Runs whenever Aurora becomes active: keeps the reminder current and
-    /// refreshes Health quietly when a refresh is due. Never prompts.
+    /// Runs whenever Aurora becomes active: keeps the reminder current, then
+    /// refreshes through the shared scheduler. Never prompts.
     func foregroundSync() async {
         tick()
         guard phase == .ready, state.onboarding.completed else { return }
         reminderStatus = await reminders.sync(enabled: state.prefs.notifyCutoff, cutoffHour: state.prefs.cutoffHour, prompt: false)
-        if HealthImport.shouldRefresh(state: state, now: now) {
+        await healthSync.startObservers()
+        await refresher.request(.foreground)
+    }
+
+    /// For a granted background opportunity or an explicit Refresh.
+    func refresh(_ trigger: RefreshTrigger) async {
+        tick()
+        guard phase == .ready, state.onboarding.completed else { return }
+        await healthSync.startObservers()
+        await refresher.request(trigger)
+    }
+
+    /// One coalesced refresh: Health sleep and caffeine when chosen and due,
+    /// then calendars and suggestions through the assistant. Every step stops
+    /// once an erase or disconnect has made the run stale.
+    private func performRefresh(_ triggers: Set<RefreshTrigger>, isCurrent: @escaping @MainActor () -> Bool) async {
+        tick()
+        guard phase == .ready, state.onboarding.completed else { return }
+        let steps = RefreshPolicy.steps(for: triggers, lastRun: lastRefresh, now: now)
+        let started = now
+        let forced = triggers.contains(.explicit) || triggers.contains(.healthChange(.sleepAnalysis))
+        if steps.contains(.healthSleep), state.healthChoices.readSleep, !state.demoMode,
+           state.healthSync.importStatus != .importing, forced || HealthImport.shouldRefresh(state: state, now: now) {
             await importHealth()
+            lastRefresh[.healthSleep] = started
         }
+        guard isCurrent() else { return }
+        if steps.contains(.healthCaffeine) {
+            _ = await healthSync.readCaffeineChanges()
+            lastRefresh[.healthCaffeine] = started
+        }
+        guard isCurrent() else { return }
+        let assistantSteps = Set(steps).intersection([.calendars, .suggestions])
+        if !assistantSteps.isEmpty, let assistantRefresh {
+            await assistantRefresh(assistantSteps)
+            if assistantSteps.contains(.calendars) { lastRefresh[.calendars] = started }
+        }
+    }
+
+    /// Turns one Health permission on or off. Turning on shows Health's
+    /// sheet for that permission alone; reads then refresh right away.
+    @discardableResult
+    func setHealthChoice(_ choice: HealthChoice, enabled: Bool) async -> HealthSyncEngine.ChoiceResult {
+        if choice == .readSleep && enabled {
+            await connectHealth()
+            return state.healthChoices.readSleep ? .requested : .failed(state.healthSync.lastMessage ?? "Health access wasn’t set up.")
+        }
+        let result = await healthSync.setChoice(choice, enabled: enabled)
+        if result == .requested, choice == .readCaffeine { await refresher.request(.explicit) }
+        return result
+    }
+
+    /// Stops Health work for Delete All Records or full erase. Copies Aurora
+    /// already added to Health stay there.
+    private func cancelHealthWork() {
+        dataGeneration += 1
+        healthSync.invalidateAll()
+        refresher.invalidate()
+        lastRefresh = [:]
     }
 
     // MARK: Settings
@@ -290,8 +406,12 @@ final class AppModel {
         update { $0.clearSampleData() }
     }
 
+    /// Health choices stay, so observers restart and the next read imports
+    /// Health records again, Aurora's earlier copies as read-only entries.
     func deleteAllData() {
+        cancelHealthWork()
         update { $0.deleteAllData() }
+        Task { await healthSync.startObservers() }
     }
 
     /// Explicitly confirmed full erase, separate from record-only deletion.
@@ -300,7 +420,7 @@ final class AppModel {
         let deletion = makeDeletion(store, legacy())
         do { try deletion.begin() }
         catch { mutationFailure = "Couldn't start deletion. Your local data is preserved."; return false }
-        dataGeneration += 1
+        cancelHealthWork()
         reminders.cancelForErase()
         phase = .loading
         assistant.resetAfterErase()
@@ -334,6 +454,7 @@ final class AppModel {
         update {
             $0.onboarding.source = source
             $0.onboarding.permissionStatus = source == .manual ? .unsupported : .idle
+            if source == .manual { $0.healthChoices.readSleep = false }
         }
     }
 
@@ -350,7 +471,10 @@ final class AppModel {
             update { $0.onboarding.permissionStatus = .denied }
             return
         }
-        update { $0.onboarding.permissionStatus = .granted }
+        update {
+            $0.onboarding.permissionStatus = .granted
+            $0.healthChoices.readSleep = true
+        }
         await importHealth(days: HealthImport.onboardingImportDays, failurePrefix: "Health import failed.")
     }
 

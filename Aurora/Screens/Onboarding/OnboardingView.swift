@@ -92,7 +92,7 @@ struct OnboardingView: View {
 
     private func sources(_ selected: OnboardingSource) -> some View {
         VStack(spacing: Metrics.sm) {
-            sourceOption(.healthkit, symbol: "heart", body: "Read recent sleep from the Health app. Aurora never writes to Health.", selected: selected)
+            sourceOption(.healthkit, symbol: "heart", body: "Read recent sleep from the Health app. Aurora writes to Health only if you turn that on later.", selected: selected)
             sourceOption(.manual, symbol: "square.and.pencil", body: "Log nights yourself. You can connect Health later from Sleep.", selected: selected)
         }
     }
@@ -129,7 +129,7 @@ struct OnboardingView: View {
                 fact("Log as you go", "Add caffeine from Log and nights from Sleep. Aurora reads nothing from Health.")
             } else {
                 fact("Sleep only", "Aurora requests read access to sleep analysis and nothing else.")
-                fact("Read-only", "Aurora reads sleep only. It does not write anything back into the Health app.")
+                fact("Read-only", "Here Aurora only asks to read sleep. Reading caffeine and adding your caffeine to Health are separate choices in Apple Health settings, off until you turn them on.")
                 fact("Your choice", "Pick what to share in the Health sheet, and change it anytime in the Health app.")
                 StatusText(
                     text: "Status: \(OnboardingCopy.describeHealthAccess(source: onboarding.source, permission: onboarding.permissionStatus))",

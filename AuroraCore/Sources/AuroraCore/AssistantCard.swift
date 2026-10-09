@@ -96,7 +96,7 @@ public enum AssistantCards {
                 let p = Insights.presentation(doses: state.doses, vigilanceSessions: state.vigilanceSessions, range: days == 7 ? .week : .month, now: now, clock: clock, text: text)
                 card.series.append(.init(metric: "Caffeine", days: days, unit: "mg", summary: p.accessibilitySummary, comparison: p.trend.text, points: p.points.map { point in
                     let r = Insights.describeChartDay(point, text: text)
-                    return .init(date: point.date, value: point.mg.map(Double.init), detail: r.value, sample: point.source == .sample || point.source == .mixed)
+                    return .init(date: point.date, value: point.mg.map(Double.init), detail: r.value, sample: point.source?.includesSample ?? false)
                 }))
                 let sleep = SleepModel.presentation(sessions: state.sleeps, targetSleepHours: state.prefs.targetSleep, range: days == 7 ? .week : .month, now: now, clock: clock, text: text)
                 card.series.append(.init(metric: "Sleep", days: days, unit: "h", summary: sleep.accessibilitySummary, comparison: "Averages include recorded days only.", points: sleep.points.map { point in

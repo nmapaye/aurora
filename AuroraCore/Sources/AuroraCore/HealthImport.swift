@@ -67,7 +67,7 @@ public enum HealthImport {
     /// Whether a quiet foreground Health refresh is due.
     public static func shouldRefresh(state: AppState, now: Millis) -> Bool {
         guard state.onboarding.completed, !state.demoMode,
-              state.onboarding.permissionStatus == .granted,
+              state.healthChoices.readSleep,
               state.healthSync.importStatus != .importing else { return false }
         guard let last = state.healthSync.lastSyncedAt else { return true }
         return now - last >= refreshIntervalMs

@@ -64,7 +64,10 @@ be read, it is left in place untouched.
 
 ## App permissions
 
-- Apple Health access is optional and read-only (Sleep Analysis only).
+- Apple Health has three separate opt-ins: read Sleep Analysis, read dietary
+  caffeine, and add caffeine saved in Aurora. Imported records are read-only;
+  Aurora edits or deletes only samples it wrote. Erase leaves those samples in
+  Health.
 - The daily cutoff reminder is a local notification. It needs no push
   entitlement.
 - If Health access is unavailable, denied, or empty, manual logging and

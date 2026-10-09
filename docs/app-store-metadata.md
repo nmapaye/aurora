@@ -11,7 +11,7 @@ Aurora — Energy and daily rhythm
 A little clarity for your day. Aurora helps you explore recorded sleep, caffeine, commitments, and reaction speed through interactive native cards on iPhone and iPad.
 
 - Review and save caffeine or manual sleep entries, with editable times and Undo.
-- Connect Apple Health for optional read-only sleep access.
+- Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice.
 - Explore recorded trends and missing information without invented measurements.
 - Run a 60-second reaction test and compare against your recorded baseline when enough evidence exists.
 - Review selected Apple and Google calendars. Changes require a specific preview and your approval.
@@ -38,7 +38,7 @@ Verify deployed pages and configure a real private support contact before submis
 
 ## Reviewer notes
 
-Complete manual setup to use Aurora without Health or Calendar access. Optional HealthKit access is read-only; missing sleep remains missing. Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
+Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy must declare Health and Fitness data read and written (dietary caffeine written), not linked to tracking. Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
 
 Debug Design Gallery is excluded from Release. No Mac app or cross-device health/conversation sync is included. Notifications use permitted foreground/background opportunities, not continuous reasoning.
 

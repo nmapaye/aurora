@@ -73,16 +73,16 @@ struct AssistantView: View {
         }
         .overlay { AuroraEdgeGlow(active: assistant.processing).allowsHitTesting(false).accessibilityHidden(true).ignoresSafeArea() }
         .task { await assistant.start(app: app) }
+        // Becoming active refreshes through AppModel's shared scheduler.
         .onChange(of: phase) { _, value in
-            if value == .active { Task { await assistant.foreground(app: app) } }
-            else { dictation.stop(); assistant.releaseWarmResources() }
+            if value != .active { dictation.stop(); assistant.releaseWarmResources() }
         }
         .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
         .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }
         .onChange(of: app.state.vigilanceSessions) { old, new in
             if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
         }
-        .onChange(of: app.state.sleeps) { _, _ in Task { await assistant.foreground(app: app) } }
+        .onChange(of: app.state.sleeps) { _, _ in Task { await assistant.foreground(app: app, steps: [.suggestions]) } }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             Task { await assistant.calendars.refreshCalendars(); await assistant.foreground(app: app) }
         }

@@ -67,8 +67,9 @@
 
       <h2>Data Aurora Stores</h2>
       <ul>
-        <li>Caffeine entries that you log manually.</li>
+        <li>Caffeine entries that you log manually, and caffeine imported read-only from Apple Health if you turn that on.</li>
         <li>Sleep sessions imported read-only from Apple Health or entered manually, plus explicitly labeled sample data.</li>
+        <li>Apple Health sync bookkeeping: read positions, the identifiers of caffeine samples Aurora added, and queued or failed Health changes.</li>
         <li>Vigilance reaction-test results.</li>
         <li>Local preferences such as caffeine half-life, sleep target, appearance, and notification settings.</li>
         <li>Local conversation messages, dated response snapshots, and suggestion delivery/dismissal state.</li>
@@ -77,7 +78,7 @@
 
       <h2>Apple Health</h2>
       <p>
-        Aurora requests read-only access to recent sleep data from Apple Health. Health access is optional. Aurora does not write data to Apple Health and does not use Health data for advertising, marketing, or resale.
+        Apple Health is optional and has three separate choices, each off until you turn it on: reading Sleep Analysis, reading dietary caffeine, and adding caffeine you save in Aurora to Apple Health. Records Aurora reads stay read-only in Aurora. When adding caffeine is on, Aurora saves each entry on your device first, then adds it to Apple Health, and updates or removes only samples Aurora itself wrote; it never changes data from other apps or devices. Turning it off stops further changes. Erasing Aurora's local data does not delete the samples Aurora already added to Apple Health; you can delete them in the Health app. Aurora does not use Health data for advertising, marketing, or resale.
       </p>
 
       <h2>Local Intelligence and Dictation</h2>

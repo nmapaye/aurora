@@ -1,47 +1,87 @@
 import AuroraCore
 import SwiftUI
 
-/// Connection review only. The user must tap before any Health permission request.
+/// Apple Health choices. Each permission is its own opt-in, and nothing asks
+/// Health for anything until the person turns that choice on.
 struct HealthConnectionView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @State private var connecting = false
+    @State private var working: HealthChoice?
+    @State private var messages: [HealthChoice: String] = [:]
+    @State private var refreshing = false
+    @State private var retrying = false
 
     var body: some View {
+        let state = app.state
         let status = SleepDataStatus.describe(
-            onboarding: app.state.onboarding, healthSync: app.state.healthSync,
-            demoMode: app.state.demoMode, healthAvailable: app.healthAvailable
+            onboarding: state.onboarding, healthSync: state.healthSync,
+            demoMode: state.demoMode, healthAvailable: app.healthAvailable
         )
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Label("Sleep from Apple Health", systemImage: "heart.text.square")
+                VStack(alignment: .leading, spacing: Metrics.lg) {
+                    Label("Apple Health", systemImage: "heart.text.square")
                         .font(.title2.weight(.semibold))
-                    Text("Aurora requests read-only access to sleep records. It never writes to Apple Health or reads other health metrics.")
+                    Text("Choose each permission separately. Aurora reads only sleep and caffeine, and adds only caffeine you save in Aurora. Imported records stay read-only here.")
                         .accessibilityIdentifier("assistant-health-disclosure")
-                    Text(status.state).font(.headline)
-                    Text(status.detail).foregroundStyle(Palette.textSecondary)
-                    if let message = app.state.healthSync.lastMessage {
-                        Text(message).font(.footnote).foregroundStyle(Palette.textSecondary)
-                    }
-                    Button {
-                        Task {
-                            connecting = true
-                            await app.connectHealth()
-                            connecting = false
+                    Card {
+                        ForEach(Array(HealthChoice.allCases.enumerated()), id: \.element) { index, choice in
+                            if index > 0 { Divider().overlay(Palette.separator) }
+                            choiceRow(choice, on: state.healthChoices[choice])
                         }
-                    } label: {
-                        HStack {
-                            if connecting { ProgressView() }
-                            Text(connecting ? "Connecting…" : app.state.onboarding.permissionStatus == .granted ? "Refresh Sleep" : "Connect to Health")
-                        }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.auroraPrimary)
-                    .disabled(connecting || !app.healthAvailable)
-                    .accessibilityIdentifier("assistant-health-connect")
+                    Card {
+                        SectionLabel(text: "Status")
+                        Text(status.state).font(Typography.cardTitle)
+                        Text(status.detail).font(.footnote).foregroundStyle(Palette.textSecondary)
+                        if let message = state.healthSync.lastMessage {
+                            Text(message).font(.footnote).foregroundStyle(Palette.textSecondary)
+                        }
+                        if let read = state.healthLedger.caffeineReadSummary {
+                            Text(read).font(.footnote).foregroundStyle(Palette.textSecondary)
+                        }
+                        Button {
+                            Task {
+                                refreshing = true
+                                await app.refresh(.explicit)
+                                refreshing = false
+                            }
+                        } label: {
+                            HStack {
+                                if refreshing { ProgressView() }
+                                Text(refreshing ? "Refreshing…" : "Refresh from Health")
+                            }
+                        }
+                        .buttonStyle(.auroraSecondary)
+                        .disabled(refreshing || state.healthChoices.observedKinds.isEmpty || !app.healthAvailable)
+                        .accessibilityIdentifier("assistant-health-connect")
+                    }
+                    if let outbox = state.healthLedger.outboxSummary {
+                        Card {
+                            SectionLabel(text: "Aurora’s entries in Health")
+                            StatusBadge(text: "Not all changes are in Apple Health", tone: .warning)
+                            Text(outbox).font(.footnote).foregroundStyle(Palette.textSecondary)
+                            Button {
+                                Task {
+                                    retrying = true
+                                    await app.retryHealthExports()
+                                    retrying = false
+                                }
+                            } label: {
+                                HStack {
+                                    if retrying { ProgressView() }
+                                    Text(retrying ? "Retrying…" : "Retry Apple Health")
+                                }
+                            }
+                            .buttonStyle(.auroraPrimary)
+                            .disabled(retrying || !state.healthExportActive)
+                            .accessibilityIdentifier("assistant-health-retry")
+                        }
+                    }
+                    Text("Delete All Records and Erase all local data leave Aurora’s earlier entries in Apple Health. Delete them in the Health app.")
+                        .font(.footnote).foregroundStyle(Palette.textSecondary)
                 }
-                .padding(20).frame(maxWidth: Metrics.contentMaxWidth)
+                .padding(Metrics.lg).frame(maxWidth: Metrics.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
             .background(Palette.screen)
@@ -52,6 +92,35 @@ struct HealthConnectionView: View {
                     Button("Done") { dismiss() }.accessibilityIdentifier("assistant-health-done")
                 }
             }
+        }
+    }
+
+    private func choiceRow(_ choice: HealthChoice, on: Bool) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Toggle(isOn: Binding(get: { on }, set: { set(choice, $0) })) {
+                HStack(spacing: Metrics.xs) {
+                    Text(choice.title).font(Typography.cardTitle)
+                    if working == choice { ProgressView() }
+                }
+            }
+            .disabled(working != nil || !app.healthAvailable)
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .accessibilityIdentifier("assistant-health-\(choice.rawValue)")
+            Text(choice.detail).font(.footnote).foregroundStyle(Palette.textSecondary)
+            if on { Text(choice.requestedNote).font(.footnote).foregroundStyle(Palette.textSecondary) }
+            if let message = messages[choice] {
+                Text(message).font(.footnote).foregroundStyle(StatusTone.warning.foreground)
+            }
+        }
+    }
+
+    private func set(_ choice: HealthChoice, _ enabled: Bool) {
+        Task {
+            working = choice
+            messages[choice] = nil
+            let result = await app.setHealthChoice(choice, enabled: enabled)
+            messages[choice] = result.message
+            working = nil
         }
     }
 }

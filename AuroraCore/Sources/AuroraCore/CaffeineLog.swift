@@ -113,6 +113,15 @@ public enum CaffeineLog {
         return RecordID.isHealthCaffeine(dose.id) ? "Health" : "Manual"
     }
 
+    /// A Health record Aurora itself added earlier, kept after Delete All
+    /// Records, erase or reconnecting. It is read-only here like any Health
+    /// record; it can be deleted in the Health app.
+    public static func isEarlierAuroraCopy(_ dose: Dose) -> Bool {
+        RecordID.isHealthCaffeine(dose.id) && dose.health?.sourceBundleIdentifier == HealthOrigin.appBundleIdentifier
+    }
+
+    public static let earlierAuroraCopyNote = "Added to Health by Aurora earlier. Delete it in the Health app."
+
     /// Sample Data and Health caffeine are labeled and read-only. Only
     /// entries the user recorded in Aurora can be corrected or deleted.
     public static func isEditable(_ dose: Dose) -> Bool {
@@ -141,6 +150,7 @@ public enum CaffeineLog {
             dose.source,
             formatDateTime(dose.timestamp),
             isEditable(dose) ? "Manual" : "\(sourceLabel(dose)), read-only",
+            isEarlierAuroraCopy(dose) ? earlierAuroraCopyNote : nil,
             note.map { "Note: \($0)" },
         ]
         .compactMap { $0 }
@@ -180,7 +190,7 @@ public enum CaffeineLog {
             label: label,
             value: value,
             source: signal.source,
-            sample: signal.source != "Manual",
+            sample: signal.source.flatMap(RecordSource.init(rawValue:))?.includesSample ?? false,
             detail: signal.context,
             accessibilityLabel: [label, value, signal.source ?? "", signal.context].joined(separator: ", ")
         )
@@ -209,14 +219,13 @@ public enum SummarySignals {
             )
         }
         let total = jsRoundInt(today.reduce(0) { $0 + $1.mg })
-        let sampleCount = today.filter { RecordID.isSample($0.id) }.count
-        let allSample = sampleCount == today.count
+        let source = RecordSource.of(ids: today.map(\.id)) ?? .manual
         return SignalCardModel(
             id: "caffeine",
             label: "Caffeine Logged",
             period: "Today",
-            source: allSample ? "Sample Data" : (sampleCount > 0 ? "Manual and Sample Data" : "Manual"),
-            status: allSample ? .sample : .observed,
+            source: source.rawValue,
+            status: source == .sample ? .sample : .observed,
             value: "\(total) mg",
             context: "\(today.count) \(today.count == 1 ? "entry" : "entries") · last at \(formatTime(last.timestamp))",
             destination: "Open Log"

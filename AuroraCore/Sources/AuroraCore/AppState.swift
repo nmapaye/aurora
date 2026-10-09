@@ -23,6 +23,9 @@ public struct AppState: Codable, Equatable, Sendable {
     public var appearanceMode: AppearanceMode = .system
     public var energyCheckIns: [EnergyCheckIn] = []
     public var healthLedger: HealthSyncLedger = .empty
+    /// What the person turned on, one choice per Health permission. A choice
+    /// records the request, never what Health allowed.
+    public var healthChoices: HealthChoices = .off
 
     public init() {}
 
@@ -113,15 +116,53 @@ public struct AppState: Codable, Equatable, Sendable {
     }
 
     /// Queues a Health write for an entry Aurora recorded. Sample Data and
-    /// Health caffeine are never exported; a delete needs an earlier export.
+    /// Health caffeine are never exported. A delete needs an earlier export
+    /// or a save that started and may have reached Health.
     @discardableResult
     public mutating func enqueueHealthExport(_ kind: HealthPendingAction.Kind, doseID: String, now: Millis, id: String) -> HealthPendingAction? {
         guard !RecordID.isSample(doseID), !RecordID.isHealthCaffeine(doseID) else { return nil }
         switch kind {
         case .saveCaffeine: guard doses.contains(where: { $0.id == doseID }) else { return nil }
-        case .deleteCaffeine: guard healthLedger.ownExport(forDoseID: doseID) != nil else { return nil }
+        case .deleteCaffeine:
+            let startedSave = healthLedger.pendingAction(forDoseID: doseID).map { $0.kind == .saveCaffeine && $0.startedAt != nil } ?? false
+            guard healthLedger.ownExport(forDoseID: doseID) != nil || startedSave else { return nil }
         }
         return healthLedger.enqueue(kind, doseID: doseID, now: now, id: id)
+    }
+
+    /// Whether Aurora may write to Health now: the person turned export on,
+    /// Sample Data is off, and the ledger is one this build understands.
+    public var healthExportActive: Bool {
+        healthChoices.writeCaffeine && !demoMode && healthLedger.isSupported
+    }
+
+    /// Call in the same change that saved or corrected a dose, so the local
+    /// record and its queued export are stored together. Nothing is queued
+    /// while export is off.
+    @discardableResult
+    public mutating func queueHealthSave(doseID: String, now: Millis, id: String) -> HealthPendingAction? {
+        guard healthExportActive else { return nil }
+        return enqueueHealthExport(.saveCaffeine, doseID: doseID, now: now, id: id)
+    }
+
+    /// Call in the same change that corrected a dose. Only a dose already
+    /// exported or queued is sent again; a correction never exports an
+    /// entry for the first time.
+    @discardableResult
+    public mutating func queueHealthCorrection(doseID: String, now: Millis, id: String) -> HealthPendingAction? {
+        guard healthLedger.ownExport(forDoseID: doseID) != nil || healthLedger.pendingAction(forDoseID: doseID) != nil else { return nil }
+        return queueHealthSave(doseID: doseID, now: now, id: id)
+    }
+
+    /// Call in the same change that removed a dose. A save that never
+    /// started is simply dropped; otherwise only Aurora's own sample is
+    /// queued for deletion. Nothing is queued while export is off, so an
+    /// earlier copy stays in Health.
+    @discardableResult
+    public mutating func queueHealthRemoval(doseID: String, now: Millis, id: String) -> HealthPendingAction? {
+        guard healthExportActive else { return nil }
+        if healthLedger.dropUnstartedSave(forDoseID: doseID), healthLedger.ownExport(forDoseID: doseID) == nil { return nil }
+        return enqueueHealthExport(.deleteCaffeine, doseID: doseID, now: now, id: id)
     }
 
     // MARK: Sleep
@@ -208,7 +249,9 @@ public struct AppState: Codable, Equatable, Sendable {
         demoMode = false
     }
 
-    /// Deletes every record. Settings, onboarding and appearance stay.
+    /// Deletes every record. Settings, onboarding, appearance and Health
+    /// choices stay. The ledger is cleared, so queued Health actions are
+    /// dropped and copies already in Health remain there.
     public mutating func deleteAllData() {
         doses = []
         sleeps = []
@@ -244,7 +287,7 @@ public struct AppState: Codable, Equatable, Sendable {
 extension AppState {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, doses, sleeps, vigilanceSessions, prefs, onboarding, healthSync, demoMode, appearanceMode
-        case energyCheckIns, healthLedger
+        case energyCheckIns, healthLedger, healthChoices
     }
 
     /// Missing keys fall back to defaults, so a file written by an older
@@ -263,5 +306,9 @@ extension AppState {
         appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
         energyCheckIns = try container.decodeIfPresent([EnergyCheckIn].self, forKey: .energyCheckIns) ?? []
         healthLedger = try container.decodeIfPresent(HealthSyncLedger.self, forKey: .healthLedger) ?? .empty
+        // Before separate choices, a completed sleep request was the only
+        // Health choice, so it carries over as reading sleep.
+        healthChoices = try container.decodeIfPresent(HealthChoices.self, forKey: .healthChoices)
+            ?? HealthChoices(readSleep: onboarding.permissionStatus == .granted)
     }
 }

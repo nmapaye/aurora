@@ -63,7 +63,13 @@ public protocol HealthDataProvider: Sendable {
     func saveOwnCaffeine(_ write: HealthCaffeineWrite) async throws -> String
     /// Deletes only samples Aurora wrote with this sync identifier.
     func deleteOwnCaffeine(syncIdentifier: String) async throws
-    func startObserving(_ kinds: Set<HealthDataKind>, onChange: @escaping @Sendable (HealthDataKind) -> Void) async throws -> HealthObservation
+    /// Aurora's own sample with this sync identifier, if Health has one.
+    /// Used before retrying an interrupted save so it isn't written twice.
+    /// Part of `writeOwnCaffeine`.
+    func ownCaffeineSample(syncIdentifier: String) async throws -> HealthSampleProvenance?
+    /// `onChange` runs once per Health notification; the provider tells
+    /// Health the notification was handled only after it returns.
+    func startObserving(_ kinds: Set<HealthDataKind>, onChange: @escaping @Sendable (HealthDataKind) async -> Void) async throws -> HealthObservation
     func stopObserving(_ observation: HealthObservation)
 }
 
@@ -88,7 +94,11 @@ extension HealthDataProvider {
         throw HealthProviderError.unsupported("deleteOwnCaffeine")
     }
 
-    public func startObserving(_ kinds: Set<HealthDataKind>, onChange: @escaping @Sendable (HealthDataKind) -> Void) async throws -> HealthObservation {
+    public func ownCaffeineSample(syncIdentifier: String) async throws -> HealthSampleProvenance? {
+        throw HealthProviderError.unsupported("writeOwnCaffeine")
+    }
+
+    public func startObserving(_ kinds: Set<HealthDataKind>, onChange: @escaping @Sendable (HealthDataKind) async -> Void) async throws -> HealthObservation {
         throw HealthProviderError.unsupported("observeChanges")
     }
 

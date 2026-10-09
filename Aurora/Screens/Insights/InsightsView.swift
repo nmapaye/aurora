@@ -118,7 +118,7 @@ struct InsightsView: View {
                     ForEach(p.drinkMix, id: \.label) { item in
                         row(item.label, value: "\(numberText(jsRound(item.mg))) mg · \(item.pct)%")
                     }
-                    if let source = p.source, source != .manual {
+                    if let source = p.source, source.includesSample {
                         Text("Includes \(source == .sample ? "only " : "")Sample Data.")
                             .font(.caption)
                             .foregroundStyle(StatusTone.warning.foreground)

@@ -56,7 +56,7 @@ struct AssistantCardView: View {
                         else { assistant.failure = app.mutationFailure }
                     case .deleted:
                         app.deleteDose(id: original.id)
-                        if app.mutationFailure == nil { assistant.append("Caffeine entry deleted.") }
+                        if app.mutationFailure == nil { assistant.appendRemoval("Caffeine entry deleted on this device.", doseID: original.id, app: app) }
                         else { assistant.failure = app.mutationFailure }
                     case .cancelled: break
                     }

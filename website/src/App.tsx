@@ -12,8 +12,8 @@ const features = [
     body: 'Cards separate missing records from estimates. No record is never shown as zero, and estimates say they are estimates.',
   },
   {
-    title: 'Apple Health, read-only',
-    body: 'Optionally read sleep from Apple Health. Aurora never writes to Health, and imported records stay read-only.',
+    title: 'Apple Health, your choice',
+    body: 'Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice. Imported records stay read-only.',
   },
   {
     title: 'Calendar edits you approve',

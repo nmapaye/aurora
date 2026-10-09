@@ -26,6 +26,9 @@ struct AuroraApp: App {
                     #if DEBUG
                     if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return }
                     #endif
+                    model.assistantRefresh = { [assistant, model] steps in
+                        await assistant.foreground(app: model, steps: steps)
+                    }
                     model.load()
                 }
                 .onOpenURL { url in
@@ -36,7 +39,7 @@ struct AuroraApp: App {
                     if phase == .active {
                         Task { await model.foregroundSync() }
                     } else if phase == .background {
-                        BackgroundRefresh.schedule(enabled: assistant.conversation.preferences.proactive)
+                        BackgroundRefresh.schedule(enabled: backgroundRefreshWanted)
                     }
                 }
                 .task(id: model.phase) {
@@ -58,14 +61,24 @@ struct AuroraApp: App {
         }
     }
 
+    /// A granted opportunity runs the same coalesced refresh as foreground:
+    /// Health reads that were chosen, then calendars and suggestions under
+    /// the existing opt-in limits.
     @MainActor private func refreshAssistantInBackground() async {
+        model.assistantRefresh = { [assistant, model] steps in
+            await assistant.foreground(app: model, steps: steps)
+        }
         model.load()
         guard model.phase == .ready, model.state.onboarding.completed else { return }
         await assistant.start(app: model)
         guard !Task.isCancelled else { return }
-        await model.foregroundSync()
-        await assistant.foreground(app: model)
-        BackgroundRefresh.schedule(enabled: assistant.conversation.preferences.proactive)
+        await model.refresh(.background)
+        BackgroundRefresh.schedule(enabled: backgroundRefreshWanted)
+    }
+
+    /// Only opted-in suggestions or a chosen Health read ask iOS for time.
+    @MainActor private var backgroundRefreshWanted: Bool {
+        assistant.conversation.preferences.proactive || !model.state.healthChoices.observedKinds.isEmpty
     }
 
     private func route(_ link: DeepLink) {

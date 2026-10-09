@@ -11,8 +11,9 @@ commit you tested. You should get a reply within a week.
 
 ## Scope
 
-Aurora keeps all records on the device. It reads sleep data from Apple Health
-and never writes to it. Reports about local data exposure, backup handling, the
+Aurora keeps all records on the device. If the person turns each one on, it
+reads sleep and caffeine from Apple Health and adds caffeine they saved in
+Aurora, changing or deleting only samples Aurora wrote. Reports about local data exposure, backup handling, the
 HealthKit integration, exported CSV files, and the repository's CI and release
 workflows are all in scope.
 

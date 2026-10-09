@@ -3,8 +3,8 @@
 ## What this is
 
 Aurora is a native SwiftUI app for iPhone and iPad (iOS 17+). It tracks
-caffeine against sleep and alertness through optional read-only HealthKit
-sleep import, manual logging, a 60-second Reaction Test, and an alertness
+caffeine against sleep and alertness through optional HealthKit sleep and
+caffeine import, optional export of caffeine saved in Aurora, manual logging, a 60-second Reaction Test, and an alertness
 estimate. A standalone Vite showcase site lives in `website/`.
 
 The app was rewritten from React Native and Expo in October 2026. The rules,
@@ -60,10 +60,25 @@ app's resources in the project file.
   days. A period comparison appears only when both periods have enough
   recorded days.
 - Sample Data (ids starting `demo:`) is labeled and read-only everywhere.
-  Health sleep is read-only. Only manual sleep (`manual:sleep:`) and
+  Health sleep and Health caffeine are read-only. Only manual sleep (`manual:sleep:`) and
   recorded caffeine can be edited or deleted.
-- HealthKit is read-only, Sleep Analysis only. Never describe access as
-  granted: HealthKit doesn't reveal read decisions.
+- HealthKit has three separate opt-ins in `HealthChoices`: read Sleep
+  Analysis, read dietary caffeine, and write caffeine saved in Aurora. Each
+  asks Health for that permission alone. Imported Health records are
+  read-only and match by sample UUID only, never time and amount. Aurora
+  writes, edits and deletes only its own samples (exact bundle source, sync
+  identifier `com.nmapaye.aurora.dose.<id>`). Never describe access as
+  granted: HealthKit doesn't reveal read decisions, and empty reads prove
+  nothing.
+- Local first: a dose and its queued Health action are saved in one change
+  before Health is asked. Receipts report Health's outcome on its own
+  "Apple Health" row (`HealthExportStatus`), never as "saved to Health"
+  until Health confirmed it. Retry is explicit and checks for an
+  interrupted write first. Erase and Delete All cancel Health work and
+  leave Aurora's exported samples in Health.
+- Foreground, background and Health observer refreshes go through
+  `RefreshScheduler` and `RefreshPolicy`; Health changes never start
+  calendar refreshes or suggestions by themselves.
 - The assistant replaces the tab walkthrough and completes its legacy flag.
   Native history, settings, charts, and reaction tests remain reachable.
 - Never add an AI API-key field, a remote/cloud model, or automatic calendar

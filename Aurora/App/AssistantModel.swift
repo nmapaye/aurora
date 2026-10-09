@@ -285,7 +285,44 @@ final class AssistantModel {
         card.timeZone = app.clock.timeZone.identifier
         card.summary = title.contains("updated") ? "Correction recorded. Open history to review it." : "Entry recorded on this device."
         card.records = AssistantCards.make(.history, state: app.state, now: app.now, clock: app.clock, text: app.text).records.filter { $0.id == recordID && $0.kind == kind }
-        appendCard(card)
+        if kind == "caffeine", let health = healthMetric(doseID: recordID, app: app) { card.metrics = [health] }
+        let id = appendCard(card)
+        if kind == "caffeine" { followHealth(doseID: recordID, messageID: id, app: app) }
+    }
+
+    /// The receipt's Apple Health row, apart from the local outcome in the
+    /// title. Nil when Health has nothing to do with this entry.
+    func healthMetric(doseID: String, app: AppModel) -> AssistantCard.Metric? {
+        let status = app.healthStatus(forDoseID: doseID)
+        guard let value = status.value else { return nil }
+        return .init(id: "health", label: "Apple Health", value: value, source: "Aurora’s own entry", detail: status.detail, missing: status.needsAttention)
+    }
+
+    /// Waits for the entry's queued Health action, then updates the
+    /// receipt's Apple Health row with what Health answered.
+    func followHealth(doseID: String, messageID: UUID?, app: AppModel) {
+        guard app.state.healthLedger.pendingAction(forDoseID: doseID) != nil else { return }
+        Task {
+            await app.healthSync.runPendingActions(for: [doseID])
+            updateCard(messageID) { card in
+                card.metrics.removeAll { $0.id == "health" }
+                if let health = healthMetric(doseID: doseID, app: app) { card.metrics.append(health) }
+            }
+        }
+    }
+
+    /// A plain message for a removal outside a receipt, with Health's
+    /// part reported on its own line.
+    func appendRemoval(_ text: String, doseID: String, app: AppModel) {
+        func line() -> String { healthMetric(doseID: doseID, app: app).map { "Apple Health: \($0.value). \($0.detail)" } ?? "" }
+        let before = line()
+        append(before.isEmpty ? text : text + "\n" + before)
+        guard app.state.healthLedger.pendingAction(forDoseID: doseID) != nil else { return }
+        Task {
+            await app.healthSync.runPendingActions(for: [doseID])
+            let after = line()
+            if !after.isEmpty && after != before { append(after) }
+        }
     }
     func saveSleep(app: AppModel) {
         guard let draft = pendingSleep else { return }
@@ -308,7 +345,12 @@ final class AssistantModel {
         else if kind == "sleep" { app.deleteManualSleep(id: id) }
         else { return }
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
-        updateCard(message.id) { $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry. Other records are unchanged." }
+        updateCard(message.id) {
+            $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry on this device. Other records are unchanged."
+            $0.metrics.removeAll { $0.id == "health" }
+            if kind == "caffeine", let health = healthMetric(doseID: id, app: app) { $0.metrics.append(health) }
+        }
+        if kind == "caffeine" { followHealth(doseID: id, messageID: message.id, app: app) }
         savedDose = nil
     }
     func reactionCompleted(app: AppModel) {
@@ -333,17 +375,21 @@ final class AssistantModel {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }
         app.undo(dose)
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
-        savedDose = nil; append("Removed that caffeine entry. Other records are unchanged.")
+        savedDose = nil; appendRemoval("Removed that caffeine entry on this device. Other records are unchanged.", doseID: dose.id, app: app)
     }
     func dismissSuggestion(_ message: ConversationMessage) {
         if let key = message.suggestionKey { conversation.dismissedSuggestions.insert(key) }
         conversation.messages.removeAll { $0.id == message.id }
         save()
     }
-    func foreground(app: AppModel) async {
+    /// Refreshes calendars and offers suggestions, as the shared refresh
+    /// decides. Suggestions keep their opt-in, quiet hours, daily limits and
+    /// dismissals.
+    func foreground(app: AppModel, steps: Set<RefreshPolicy.Step> = [.calendars, .suggestions]) async {
         guard started, conversation.preferences.proactive else { return }
         let generation = cacheGeneration
-        await calendars.refresh()
+        if steps.contains(.calendars) { await calendars.refresh() }
+        guard steps.contains(.suggestions) else { return }
         guard generation == cacheGeneration, app.phase == .ready, conversation.preferences.proactive else { return }
         guard !Task.isCancelled else { return }
         app.tick()

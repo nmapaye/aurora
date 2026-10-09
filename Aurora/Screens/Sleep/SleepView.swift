@@ -39,7 +39,7 @@ struct SleepView: View {
             sleepData(state)
         }
         .refreshable {
-            guard state.onboarding.permissionStatus == .granted, !state.demoMode else { return }
+            guard state.healthChoices.readSleep, !state.demoMode else { return }
             await model.importHealth()
         }
         .sensoryFeedback(.success, trigger: savedCount)
