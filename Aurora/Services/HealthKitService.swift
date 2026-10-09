@@ -5,7 +5,12 @@ import HealthKit
 /// Read-only access to Sleep Analysis. Aurora never writes to Health.
 /// HealthKit doesn't reveal whether read access was allowed, so a completed
 /// request is all the app ever knows.
-final class HealthKitService: @unchecked Sendable {
+///
+/// This is the compatibility adapter for `HealthDataProvider`: it offers
+/// authorization and sleep reads only. Caffeine reads, own writes, deletes
+/// and observers keep the protocol's `unsupported` defaults until the Health
+/// package implements them.
+final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     enum Failure: LocalizedError {
         case unavailable
 
@@ -20,10 +25,15 @@ final class HealthKitService: @unchecked Sendable {
     private let sleepType = HKCategoryType(.sleepAnalysis)
 
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
+    var capabilities: HealthCapabilities { [.authorization, .readSleep] }
 
-    /// Shows the Health sheet. Returns once the request completes, whatever
-    /// the person chose.
-    func requestReadAccess() async throws {
+    /// Shows the Health sheet for Sleep Analysis read access. Returns once the
+    /// request completes, whatever the person chose. Anything beyond reading
+    /// sleep is refused before Health is asked.
+    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {
+        guard read == [.sleepAnalysis], write.isEmpty else {
+            throw HealthProviderError.unsupported("authorization beyond Sleep Analysis read")
+        }
         guard isAvailable else { throw Failure.unavailable }
         try await store.requestAuthorization(toShare: [], read: [sleepType])
     }

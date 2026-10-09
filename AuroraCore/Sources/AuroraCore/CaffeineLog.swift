@@ -109,13 +109,14 @@ public enum CaffeineLog {
     }
 
     public static func sourceLabel(_ dose: Dose) -> String {
-        RecordID.isSample(dose.id) ? "Sample Data" : "Manual"
+        if RecordID.isSample(dose.id) { return "Sample Data" }
+        return RecordID.isHealthCaffeine(dose.id) ? "Health" : "Manual"
     }
 
-    /// Sample Data is labeled and read-only. Only entries the user recorded
-    /// can be corrected or deleted.
+    /// Sample Data and Health caffeine are labeled and read-only. Only
+    /// entries the user recorded in Aurora can be corrected or deleted.
     public static func isEditable(_ dose: Dose) -> Bool {
-        !RecordID.isSample(dose.id)
+        !RecordID.isSample(dose.id) && !RecordID.isHealthCaffeine(dose.id)
     }
 
     /// Sample entries all carry the note "Sample data", which only repeats
@@ -139,7 +140,7 @@ public enum CaffeineLog {
             "\(numberText(dose.mg)) mg",
             dose.source,
             formatDateTime(dose.timestamp),
-            isEditable(dose) ? "Manual" : "Sample Data, read-only",
+            isEditable(dose) ? "Manual" : "\(sourceLabel(dose)), read-only",
             note.map { "Note: \($0)" },
         ]
         .compactMap { $0 }

@@ -115,7 +115,7 @@ public enum AssistantCards {
             card.metrics = [.init(id: "reaction", label: "Latest recorded test", value: r.signal.value ?? "No record", source: r.signal.metaLine, detail: r.signal.context, missing: r.signal.status == .empty)]
         case .history:
             card.records = state.doses.filter { $0.timestamp <= now }.map {
-                .init(id: $0.id, kind: "caffeine", title: $0.source ?? "Caffeine", date: $0.timestamp, source: RecordID.isSample($0.id) ? "Sample Data" : "Manual", detail: "\(numberText($0.mg)) mg", editable: CaffeineLog.isEditable($0), revision: "\($0.timestamp)|\($0.mg)|\($0.source ?? "")|\($0.note ?? "")")
+                .init(id: $0.id, kind: "caffeine", title: $0.source ?? "Caffeine", date: $0.timestamp, source: CaffeineLog.sourceLabel($0), detail: "\(numberText($0.mg)) mg", editable: CaffeineLog.isEditable($0), revision: "\($0.timestamp)|\($0.mg)|\($0.source ?? "")|\($0.note ?? "")")
             } + state.sleeps.filter { $0.end <= now }.map {
                 .init(id: $0.id, kind: "sleep", title: $0.type == .nap ? "Nap" : "Sleep", date: $0.end, source: SleepModel.sourceLabel(id: $0.id), detail: "\(text.clockTime($0.start)) – \(text.clockTime($0.end)) · \(formatHoursMinutes(durationMs: $0.end - $0.start))", editable: RecordID.isManualSleep($0.id), revision: "\($0.start)|\($0.end)|\($0.type.rawValue)|\($0.note ?? "")")
             } + state.vigilanceSessions.filter { $0.completedAt <= now }.map {

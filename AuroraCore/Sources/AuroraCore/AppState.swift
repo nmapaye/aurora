@@ -4,7 +4,9 @@ import Foundation
 /// whole; every change goes through the mutating functions below, which
 /// match the React Native store's actions.
 public struct AppState: Codable, Equatable, Sendable {
-    public static let schemaVersion = 1
+    /// 2 added energy check-ins and the Health sync ledger. A version-1 file
+    /// is migrated by `StateMigration`, which keeps the original beside it.
+    public static let schemaVersion = 2
     /// Health-imported sleep is a cache of data that stays in Health, so it is
     /// trimmed to this many days. Manual and sample sleep is never trimmed.
     public static let healthSleepRetentionDays: Double = 180
@@ -19,6 +21,8 @@ public struct AppState: Codable, Equatable, Sendable {
     /// The Sample Data flag.
     public var demoMode: Bool = false
     public var appearanceMode: AppearanceMode = .system
+    public var energyCheckIns: [EnergyCheckIn] = []
+    public var healthLedger: HealthSyncLedger = .empty
 
     public init() {}
 
@@ -52,9 +56,10 @@ public struct AppState: Codable, Equatable, Sendable {
         doses.append(dose)
     }
 
-    /// Replaces an entry's recorded fields. The entry keeps its id.
+    /// Replaces an entry's recorded fields. The entry keeps its id. Health
+    /// caffeine belongs to Health and is never changed here.
     public mutating func updateDose(id: String, timestamp: Millis, mg: Double, source: String?, note: String?) {
-        guard let index = doses.firstIndex(where: { $0.id == id }) else { return }
+        guard !RecordID.isHealthCaffeine(id), let index = doses.firstIndex(where: { $0.id == id }) else { return }
         doses[index].timestamp = timestamp
         doses[index].mg = mg
         doses[index].source = source
@@ -65,8 +70,49 @@ public struct AppState: Codable, Equatable, Sendable {
         updateDose(id: id, timestamp: patch.timestamp, mg: patch.mg, source: patch.source, note: patch.note)
     }
 
+    /// Health caffeine leaves only when Health reports it deleted.
     public mutating func removeDose(id: String) {
+        guard !RecordID.isHealthCaffeine(id) else { return }
         doses.removeAll { $0.id == id }
+    }
+
+    /// Applies an anchored Health caffeine read. Samples are matched only by
+    /// their Health UUID, never by time and amount, and Aurora's own exports
+    /// are skipped. The anchor is saved with the records it produced.
+    @discardableResult
+    public mutating func applyHealthCaffeine(_ changes: HealthCaffeineChanges, now: Millis) -> HealthCaffeineImport.Result {
+        var result = HealthCaffeineImport.Result()
+        let deleted = Set(changes.deletedSampleUUIDs.map { RecordID.healthCaffeineID(sampleUUID: $0) })
+        let before = doses.count
+        doses.removeAll { deleted.contains($0.id) }
+        result.removed = before - doses.count
+        for sample in changes.added {
+            guard HealthCaffeineImport.isEligible(sample) else {
+                if HealthOrigin.isOwnExport(sample.provenance) { result.skippedOwn += 1 } else { result.rejected += 1 }
+                continue
+            }
+            let dose = HealthCaffeineImport.dose(from: sample)
+            if let index = doses.firstIndex(where: { $0.id == dose.id }) {
+                doses[index] = dose
+            } else {
+                doses.append(dose)
+            }
+            result.upserted += 1
+        }
+        healthLedger.setAnchor(changes.anchor, for: .caffeine, at: now)
+        return result
+    }
+
+    /// Queues a Health write for an entry Aurora recorded. Sample Data and
+    /// Health caffeine are never exported; a delete needs an earlier export.
+    @discardableResult
+    public mutating func enqueueHealthExport(_ kind: HealthPendingAction.Kind, doseID: String, now: Millis, id: String) -> HealthPendingAction? {
+        guard !RecordID.isSample(doseID), !RecordID.isHealthCaffeine(doseID) else { return nil }
+        switch kind {
+        case .saveCaffeine: guard doses.contains(where: { $0.id == doseID }) else { return nil }
+        case .deleteCaffeine: guard healthLedger.ownExport(forDoseID: doseID) != nil else { return nil }
+        }
+        return healthLedger.enqueue(kind, doseID: doseID, now: now, id: id)
     }
 
     // MARK: Sleep
@@ -102,6 +148,23 @@ public struct AppState: Codable, Equatable, Sendable {
     public mutating func removeManualSleep(id: String) {
         guard RecordID.isManualSleep(id) else { return }
         sleeps.removeAll { $0.id == id }
+    }
+
+    // MARK: Energy check-ins
+
+    /// Adds a self-rated check-in, newest first. Invalid entries are refused.
+    @discardableResult
+    public mutating func addEnergyCheckIn(_ checkIn: EnergyCheckIn, now: Millis) -> DraftValidation {
+        let validation = checkIn.validate(now: now)
+        guard validation == .valid, !energyCheckIns.contains(where: { $0.id == checkIn.id }) else {
+            return validation == .valid ? .invalid("This check-in is already saved.") : validation
+        }
+        energyCheckIns = Self.stableSorted([checkIn] + energyCheckIns) { $0.recordedAt > $1.recordedAt }
+        return .valid
+    }
+
+    public mutating func removeEnergyCheckIn(id: String) {
+        energyCheckIns.removeAll { $0.id == id }
     }
 
     // MARK: Reaction Test
@@ -141,8 +204,10 @@ public struct AppState: Codable, Equatable, Sendable {
         doses = []
         sleeps = []
         vigilanceSessions = []
+        energyCheckIns = []
         demoMode = false
         healthSync = .defaults
+        healthLedger = .empty
     }
 
     // MARK: Onboarding and walkthrough
@@ -170,10 +235,12 @@ public struct AppState: Codable, Equatable, Sendable {
 extension AppState {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, doses, sleeps, vigilanceSessions, prefs, onboarding, healthSync, demoMode, appearanceMode
+        case energyCheckIns, healthLedger
     }
 
     /// Missing keys fall back to defaults, so a file written by an older
-    /// build still opens.
+    /// build still opens. `StateMigration` reads the stored version itself,
+    /// so a file without one is still migrated as version 1.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? AppState.schemaVersion
@@ -185,5 +252,7 @@ extension AppState {
         healthSync = try container.decodeIfPresent(HealthSync.self, forKey: .healthSync) ?? .defaults
         demoMode = try container.decodeIfPresent(Bool.self, forKey: .demoMode) ?? false
         appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
+        energyCheckIns = try container.decodeIfPresent([EnergyCheckIn].self, forKey: .energyCheckIns) ?? []
+        healthLedger = try container.decodeIfPresent(HealthSyncLedger.self, forKey: .healthLedger) ?? .empty
     }
 }

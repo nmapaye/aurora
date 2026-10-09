@@ -12,7 +12,7 @@ import Testing
         let legacy = LegacyImport(documents: root.appendingPathComponent("Documents"))
         try store.prepare()
         try FileManager.default.createDirectory(at: legacy.mmkvDirectory, withIntermediateDirectories: true)
-        for name in ["state.json", "state.pre-assistant.json", "state.corrupt.1.json", "conversation.json", "conversation.v1-source.json", "unrelated.txt"] {
+        for name in ["state.json", "state.pre-assistant.json", "state.v1-source.json", "state.corrupt.1.json", "conversation.json", "conversation.v1-source.json", "unrelated.txt"] {
             try Data("private fixture".utf8).write(to: store.directory.appendingPathComponent(name))
         }
         for name in ["aurora", "aurora.crc", "other-store"] {

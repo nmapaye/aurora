@@ -78,7 +78,10 @@ excluded from backups, and the exclusion is confirmed before anything is
 read; otherwise the app shows a recovery screen. A file that fails to decode
 is moved to `state.corrupt.<ms>.json`, never overwritten. `AppState` decodes
 missing keys as defaults, so adding a field needs no migration. Bump
-`AppState.schemaVersion` only for a change that does.
+`AppState.schemaVersion` only for a change that does. Schema 2 (energy
+check-ins, Health sync ledger) is opened through `StateMigration`, which keeps
+a verified `state.v1-source.json`, leaves newer or unverifiable files
+untouched, and is removed only by full erase.
 
 On first launch, `LegacyImport` reads the React Native build's
 `Documents/mmkv/aurora` (key `aurora/state`), saves and verifies the records,

@@ -2,19 +2,30 @@ import Foundation
 
 /// One logged caffeine entry. `source` is the drink label ("Drip",
 /// "Espresso"), not where the record came from; that comes from the id.
+/// Health-imported entries also keep the sample's provenance. It is absent
+/// from every other entry, so their stored JSON keeps its original keys.
 public struct Dose: Codable, Equatable, Hashable, Identifiable, Sendable {
     public var id: String
     public var timestamp: Millis
     public var mg: Double
     public var source: String?
     public var note: String?
+    public var health: HealthSampleProvenance?
 
-    public init(id: String, timestamp: Millis, mg: Double, source: String? = nil, note: String? = nil) {
+    public init(
+        id: String,
+        timestamp: Millis,
+        mg: Double,
+        source: String? = nil,
+        note: String? = nil,
+        health: HealthSampleProvenance? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.mg = mg
         self.source = source
         self.note = note
+        self.health = health
     }
 }
 
@@ -175,6 +186,8 @@ public enum RecordID {
     public static let samplePrefix = "demo:"
     public static let healthSleepPrefix = "healthkit:sleep:"
     public static let manualSleepPrefix = "manual:sleep:"
+    public static let healthCaffeinePrefix = "healthkit:caffeine:"
+    public static let energyCheckInPrefix = "checkin:"
 
     public static func isSample(_ id: String) -> Bool {
         id.hasPrefix(samplePrefix)
@@ -182,6 +195,22 @@ public enum RecordID {
 
     public static func isHealthSleep(_ id: String) -> Bool {
         id.hasPrefix(healthSleepPrefix)
+    }
+
+    /// Health caffeine is read-only here; Health owns the record.
+    public static func isHealthCaffeine(_ id: String) -> Bool {
+        id.hasPrefix(healthCaffeinePrefix)
+    }
+
+    /// `healthkit:caffeine:<sample uuid>`. The Health sample UUID is the only
+    /// identity: two samples with the same time and amount stay two entries.
+    public static func healthCaffeineID(sampleUUID: String) -> String {
+        "\(healthCaffeinePrefix)\(sampleUUID.lowercased())"
+    }
+
+    /// Energy check-in ids: `checkin:<ms>:<entropy>`.
+    public static func newEnergyCheckInID(now: Millis, entropy: String = RecordID.entropy()) -> String {
+        "\(energyCheckInPrefix)\(Int64(now)):\(entropy)"
     }
 
     public static func isManualSleep(_ id: String) -> Bool {

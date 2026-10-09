@@ -15,11 +15,12 @@ import Testing
     private var storeDirectory: URL { root.appendingPathComponent("Support/Aurora", isDirectory: true) }
     private var documents: URL { root.appendingPathComponent("Documents", isDirectory: true) }
 
-    private func makeModel() -> AppModel {
+    private func makeModel(health: any HealthDataProvider = HealthKitService()) -> AppModel {
         let directory = storeDirectory
         let docs = documents
         return AppModel(
             clock: LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!),
+            health: health,
             makeStore: { StateStore(directory: directory) },
             legacy: { LegacyImport(documents: docs) }
         )
@@ -151,4 +152,63 @@ import Testing
         _ = model.addCustomDose(.init(mg: "0", source: "Tea", timestamp: AppModel.currentMillis(), note: ""))
         #expect(model.state.doses.isEmpty && model.mutationFailure != nil)
     }
+
+    @Test func versionOneStateMigratesAndKeepsItsSource() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        let original = Data(#"{"doses":[{"id":"abc","mg":95,"source":"Drip","timestamp":1790000000000}],"schemaVersion":1}"#.utf8)
+        try original.write(to: storeDirectory.appendingPathComponent("state.json"))
+        let model = makeModel(); model.load()
+        #expect(model.phase == .ready && model.state.doses.map(\.id) == ["abc"])
+        #expect(model.state.schemaVersion == AppState.schemaVersion)
+        #expect(try Data(contentsOf: storeDirectory.appendingPathComponent("state.v1-source.json")) == original)
+        #expect(try Data(contentsOf: storeDirectory.appendingPathComponent("state.pre-assistant.json")) == original)
+    }
+
+    @Test func stateFromANewerBuildIsLeftUntouched() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        let future = Data(#"{"schemaVersion":99,"doses":[]}"#.utf8)
+        let file = storeDirectory.appendingPathComponent("state.json")
+        try future.write(to: file)
+        let model = makeModel(); model.load()
+        #expect(model.phase == .storageUnavailable)
+        #expect(try Data(contentsOf: file) == future)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: storeDirectory.path) == ["state.json"])
+    }
+
+    @Test func healthCaffeineCannotBeCorrectedDeletedOrUndone() throws {
+        var state = AppState()
+        let sample = HealthCaffeineSample(
+            provenance: HealthSampleProvenance(sampleUUID: "u1", sourceBundleIdentifier: "com.example.tracker"),
+            timestamp: AppModel.currentMillis() - 60_000, mg: 80
+        )
+        state.applyHealthCaffeine(HealthCaffeineChanges(added: [sample], deletedSampleUUIDs: [], anchor: Data()), now: AppModel.currentMillis())
+        let imported = try #require(state.doses.first)
+        try StateStore(directory: storeDirectory).prepare()
+        try StateStore(directory: storeDirectory).save(state)
+        let model = makeModel(); model.load()
+        model.correctDose(id: imported.id, with: CustomDoseDraft(mg: "1", source: "", timestamp: imported.timestamp, note: ""))
+        model.deleteDose(id: imported.id)
+        model.undo(imported)
+        #expect(model.state.doses == [imported])
+    }
+
+    @Test func injectedSleepOnlyProviderImportsSleep() async {
+        let end = AppModel.currentMillis() - 60_000
+        let provider = SleepOnlyHealth(samples: [HealthSleepSample(start: end - 7 * hourMs, end: end)])
+        let model = makeModel(health: provider); model.load()
+        await model.connectHealth()
+        #expect(model.state.onboarding.permissionStatus == .granted)
+        #expect(model.state.sleeps.map(\.id) == [HealthSleepIdentity.id(start: end - 7 * hourMs, end: end)])
+        #expect(model.state.healthSync.importedCount == 1)
+    }
+}
+
+private struct SleepOnlyHealth: HealthDataProvider {
+    let samples: [HealthSleepSample]
+    var capabilities: HealthCapabilities { [.authorization, .readSleep] }
+    var isAvailable: Bool { true }
+    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {
+        guard read == [.sleepAnalysis], write.isEmpty else { throw HealthProviderError.unsupported("authorization") }
+    }
+    func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] { samples }
 }

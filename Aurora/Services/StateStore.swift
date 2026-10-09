@@ -10,6 +10,8 @@ struct StateStore {
         case notDirectory
         case backupExclusionNotConfirmed
         case invalidState
+        /// Written by a newer build. The file is left as it is.
+        case unsupportedVersion
         case verificationFailed
     }
 
@@ -46,32 +48,40 @@ struct StateStore {
         }
     }
 
-    /// `nil` when nothing has been saved yet. A file that no longer decodes is
-    /// moved aside, never overwritten, and reported as `nil`.
+    static let protectedFiles = StateMigration.Files(
+        read: { try Data(contentsOf: $0) },
+        write: { try $0.write(to: $1, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) },
+        exists: { FileManager.default.fileExists(atPath: $0.path) }
+    )
+
+    /// `nil` when nothing has been saved yet. An older schema is migrated with
+    /// its original kept as `state.v1-source.json`. A file that no longer
+    /// decodes is copied aside, never overwritten; a file from a newer build
+    /// and a migration that can't be verified leave the original in place.
     func load(now: Date = .now) throws -> AppState? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
-        let data = try Data(contentsOf: fileURL)
+        let loaded: StateMigration.Loaded?
         do {
-            let state = try JSONDecoder().decode(AppState.self, from: data)
-            guard state.schemaVersion <= AppState.schemaVersion else { throw Failure.invalidState }
-            let snapshot = directory.appendingPathComponent("state.pre-assistant.json")
-            if !FileManager.default.fileExists(atPath: snapshot.path) {
-                try data.write(to: snapshot, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            }
-            return state
-        } catch {
+            loaded = try StateMigration.load(directory: directory, files: Self.protectedFiles)
+        } catch StateMigration.Failure.undecodable {
             let stamp = Int(now.timeIntervalSince1970 * 1000)
             let backup = directory.appendingPathComponent("state.corrupt.\(stamp).json")
             try? FileManager.default.copyItem(at: fileURL, to: backup)
             throw Failure.invalidState
+        } catch StateMigration.Failure.unsupportedVersion {
+            throw Failure.unsupportedVersion
+        } catch {
+            throw Failure.verificationFailed
         }
+        guard let loaded else { return nil }
+        let snapshot = directory.appendingPathComponent("state.pre-assistant.json")
+        if !FileManager.default.fileExists(atPath: snapshot.path) {
+            try loaded.original.write(to: snapshot, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        return loaded.state
     }
 
     func save(_ state: AppState) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(state)
-        try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try StateMigration.encode(state).write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
 

@@ -28,7 +28,7 @@ final class AppModel {
 
     let clock: LocalClock
     let text: DateText
-    let health: HealthKitService
+    let health: any HealthDataProvider
     let reminders: ReminderService
     private let makeStore: () throws -> StateStore
     private let legacy: () -> LegacyImport?
@@ -40,7 +40,7 @@ final class AppModel {
     init(
         clock: LocalClock = .current,
         text: DateText = .current,
-        health: HealthKitService = HealthKitService(),
+        health: any HealthDataProvider = HealthKitService(),
         reminders: ReminderService? = nil,
         makeStore: @escaping () throws -> StateStore = StateStore.live,
         legacy: @escaping () -> LegacyImport? = LegacyImport.live,
@@ -156,7 +156,8 @@ final class AppModel {
         update { $0.removeDose(id: id) }
     }
 
-    /// Undo for the dose Quick Add just logged.
+    /// Undo for the dose Quick Add just logged. `AppState` refuses to remove
+    /// Health caffeine, so a stale receipt can't delete it.
     func undo(_ dose: Dose) {
         update { $0.removeDose(id: dose.id) }
     }
@@ -203,7 +204,7 @@ final class AppModel {
             return
         }
         do {
-            try await health.requestReadAccess()
+            try await health.requestAuthorization(read: [.sleepAnalysis], write: [])
         } catch {
             guard generation == dataGeneration else { return }
             tick()
@@ -344,7 +345,7 @@ final class AppModel {
             return
         }
         do {
-            try await health.requestReadAccess()
+            try await health.requestAuthorization(read: [.sleepAnalysis], write: [])
         } catch {
             update { $0.onboarding.permissionStatus = .denied }
             return

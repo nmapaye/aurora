@@ -62,7 +62,7 @@ struct LocalDataDeletion {
     }
 
     static func owns(_ name: String) -> Bool {
-        ["state.json", "state.pre-assistant.json", "conversation.json", "conversation.v1-source.json"].contains(name)
+        ["state.json", "state.pre-assistant.json", StateMigration.v1SourceFileName, "conversation.json", "conversation.v1-source.json"].contains(name)
             || (name.hasPrefix("state.corrupt.") && name.hasSuffix(".json"))
             || (name.hasPrefix("conversation.corrupt.") && name.hasSuffix(".json"))
     }

@@ -94,6 +94,14 @@ public enum SleepInertia {
 }
 
 public enum Alertness {
+    // The model's weights, named once so contribution breakdowns use the
+    // same numbers as the score.
+    public static let baseline: Double = 30
+    public static let circadianWeight: Double = 50
+    public static let caffeineWeight: Double = 40
+    public static let sleepDebtWeight: Double = 40
+    public static let inertiaWeight: Double = 100
+
     /// `clamp(30 + 50C + 40E − 40S − 100I, 0, 100)`, unrounded.
     public static func score(
         at now: Millis,
@@ -107,6 +115,9 @@ public enum Alertness {
         let circadian = Circadian.value(at: now, clock: clock)
         let debt = SleepDebt.value(at: now, sleeps: sleeps, targetHours: targetSleepHours)
         let inertia = SleepInertia.value(at: now, sleeps: sleeps)
-        return clamp(30 + 50 * circadian + 40 * effect - 40 * debt - 100 * inertia, 0, 100)
+        return clamp(
+            baseline + circadianWeight * circadian + caffeineWeight * effect - sleepDebtWeight * debt - inertiaWeight * inertia,
+            0, 100
+        )
     }
 }
