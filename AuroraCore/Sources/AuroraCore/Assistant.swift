@@ -113,7 +113,7 @@ public enum AssistantPlanner {
     /// Anything else, including out-of-scale numbers, is nil.
     public static func checkInRating(_ input: String) -> Int? {
         let text = input.lowercased()
-        guard let regex = try? NSRegularExpression(pattern: #"(?<![\d.])(\d+)\s*(?:out of|/)\s*5\b"#),
+        guard let regex = try? NSRegularExpression(pattern: #"(?<![\d.])(-?\d+)\s*(?:out of|/)\s*5\b"#),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text), let value = Int(text[range]),
               EnergyCheckIn.scale.contains(value) else { return nil }
