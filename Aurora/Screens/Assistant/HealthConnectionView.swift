@@ -40,6 +40,15 @@ struct HealthConnectionView: View {
                         if let read = state.healthLedger.caffeineReadSummary {
                             Text(read).font(.footnote).foregroundStyle(Palette.textSecondary)
                         }
+                        // Offered only when a stored read position couldn't be
+                        // decoded. Records stay; reading starts over by UUID.
+                        ForEach(state.healthLedger.kindsNeedingRestart, id: \.self) { kind in
+                            Button(kind == .caffeine ? "Restart reading caffeine" : "Restart reading sleep") {
+                                Task { await app.restartHealthReading(kind) }
+                            }
+                            .buttonStyle(.auroraSecondary)
+                            .accessibilityIdentifier("assistant-health-restart-\(kind.rawValue)")
+                        }
                         Button {
                             Task {
                                 refreshing = true

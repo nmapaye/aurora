@@ -43,6 +43,8 @@ final class AppModel {
     @ObservationIgnored private var lastRefresh: [RefreshPolicy.Step: Millis] = [:]
     /// Calendars and suggestions, run by the assistant inside a refresh.
     @ObservationIgnored var assistantRefresh: (@MainActor (Set<RefreshPolicy.Step>) async -> Void)?
+    /// Recorded sleep changed during a refresh; receives the sleep before.
+    @ObservationIgnored var sleepChanged: (@MainActor ([SleepSession]) -> Void)?
     private var nextActionID: () -> String = { UUID().uuidString.lowercased() }
 
     init(
@@ -355,15 +357,20 @@ final class AppModel {
         let steps = RefreshPolicy.steps(for: triggers, lastRun: lastRefresh, now: now)
         let started = now
         let forced = triggers.contains(.explicit) || triggers.contains(.healthChange(.sleepAnalysis))
+        let sleepsBefore = state.sleeps
         if steps.contains(.healthSleep), state.healthChoices.readSleep, !state.demoMode,
            state.healthSync.importStatus != .importing, forced || HealthImport.shouldRefresh(state: state, now: now) {
             await importHealth()
-            lastRefresh[.healthSleep] = started
+            // A partial read stays due, so the next opportunity continues it.
+            if state.healthSync.importStatus != .partial { lastRefresh[.healthSleep] = started }
         }
         guard isCurrent() else { return }
+        // Health-change runs don't evaluate suggestions in general; a real
+        // change to relevant sleep still gets its one policy-checked offer.
+        if !steps.contains(.suggestions), state.sleeps != sleepsBefore { sleepChanged?(sleepsBefore) }
         if steps.contains(.healthCaffeine) {
-            _ = await healthSync.readCaffeineChanges()
-            lastRefresh[.healthCaffeine] = started
+            let read = await healthSync.readCaffeineChanges()
+            if case .applied(let result) = read, result.hasMore { } else { lastRefresh[.healthCaffeine] = started }
         }
         guard isCurrent() else { return }
         let assistantSteps = Set(steps).intersection([.calendars, .suggestions])
@@ -371,6 +378,12 @@ final class AppModel {
             await assistantRefresh(assistantSteps)
             if assistantSteps.contains(.calendars) { lastRefresh[.calendars] = started }
         }
+    }
+
+    /// After a read failed because its stored position couldn't be decoded.
+    func restartHealthReading(_ kind: HealthDataKind) async {
+        guard healthSync.restartReading(kind) else { return }
+        await refresher.request(.explicit)
     }
 
     /// Turns one Health permission on or off. Turning on shows Health's

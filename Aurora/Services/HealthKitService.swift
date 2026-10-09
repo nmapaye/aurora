@@ -88,10 +88,10 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     /// aren't sleep and are left out; their deletions match nothing here.
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         guard isAvailable else { throw Failure.unavailable }
-        let previous = anchor.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
-        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.categorySample(type: sleepType)], anchor: previous)
+        let previous = try HealthAnchorCodec.decode(anchor, kind: .sleepAnalysis)
+        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.categorySample(type: sleepType)], anchor: previous, limit: Self.pageSize)
         let result = try await descriptor.result(for: store)
-        let next = try NSKeyedArchiver.archivedData(withRootObject: result.newAnchor, requiringSecureCoding: true)
+        let next = try HealthAnchorCodec.encode(result.newAnchor)
         return HealthSleepChanges(
             added: result.addedSamples
                 .filter { HealthImport.asleepValues.contains($0.value) }
@@ -103,8 +103,18 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
                     )
                 },
             deletedSampleUUIDs: result.deletedObjects.map { $0.uuid.uuidString.lowercased() },
-            anchor: next
+            anchor: next,
+            hasMore: Self.isFullPage(added: result.addedSamples.count, deleted: result.deletedObjects.count)
         )
+    }
+
+    /// Anchored reads ask for at most this many samples and deletions at a
+    /// time; the engine applies a bounded number of pages per refresh.
+    static let pageSize = 500
+
+    /// A full page may have more behind it; a short page reached the end.
+    static func isFullPage(added: Int, deleted: Int) -> Bool {
+        added + deleted >= pageSize
     }
 
     /// Health wakes Aurora at most hourly for these kinds while enabled, and
@@ -123,22 +133,24 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
 
     // MARK: Caffeine
 
-    /// Additions and deletions since `anchor`, from every source. The anchor
-    /// is archived `HKQueryAnchor` data; one that won't unarchive starts
-    /// over, which is safe because records match by sample UUID.
+    /// One bounded page of additions and deletions since `anchor`, from
+    /// every source. An anchor that won't decode fails the read instead of
+    /// starting over, which would lose deletions.
     func caffeineChanges(after anchor: Data?) async throws -> HealthCaffeineChanges {
         guard isAvailable else { throw Failure.unavailable }
-        let previous = anchor.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
+        let previous = try HealthAnchorCodec.decode(anchor, kind: .caffeine)
         let descriptor = HKAnchoredObjectQueryDescriptor(
             predicates: [.quantitySample(type: caffeineType)],
-            anchor: previous
+            anchor: previous,
+            limit: Self.pageSize
         )
         let result = try await descriptor.result(for: store)
-        let next = try NSKeyedArchiver.archivedData(withRootObject: result.newAnchor, requiringSecureCoding: true)
+        let next = try HealthAnchorCodec.encode(result.newAnchor)
         return HealthCaffeineChanges(
             added: result.addedSamples.map(sample),
             deletedSampleUUIDs: result.deletedObjects.map { $0.uuid.uuidString.lowercased() },
-            anchor: next
+            anchor: next,
+            hasMore: Self.isFullPage(added: result.addedSamples.count, deleted: result.deletedObjects.count)
         )
     }
 

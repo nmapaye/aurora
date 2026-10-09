@@ -22,11 +22,14 @@ public struct HealthSleepChanges: Equatable, Sendable {
     public var deletedSampleUUIDs: [String]
     /// The archived `HKQueryAnchor` to resume from.
     public var anchor: Data
+    /// This was one bounded page and more changes follow `anchor`.
+    public var hasMore: Bool
 
-    public init(added: [HealthSleepSample], deletedSampleUUIDs: [String], anchor: Data) {
+    public init(added: [HealthSleepSample], deletedSampleUUIDs: [String], anchor: Data, hasMore: Bool = false) {
         self.added = added
         self.deletedSampleUUIDs = deletedSampleUUIDs
         self.anchor = anchor
+        self.hasMore = hasMore
     }
 }
 
@@ -38,11 +41,21 @@ public enum HealthSleepImport {
         /// Pre-identity `healthkit:sleep:<start>:<end>` records replaced by
         /// the sample records for exactly that interval.
         public var legacyReplaced = 0
-        /// Pre-identity records with no sample at exactly their interval,
-        /// kept read-only until retention trims them.
+        /// Pre-identity records still without a sample at exactly their
+        /// interval, kept read-only until retention trims them.
         public var legacyKept = 0
+        public var pages = 0
+        public var hasMore = false
 
         public init() {}
+
+        mutating func add(_ page: Result) {
+            upserted += page.upserted
+            removed += page.removed
+            rejected += page.rejected
+            legacyReplaced += page.legacyReplaced
+            legacyKept = page.legacyKept
+        }
     }
 
     /// Identity, a finite interval, and an end after the start.
@@ -105,15 +118,18 @@ public enum HealthImport {
 
     /// Status after an anchored sleep read: nights of Health sleep recorded in
     /// the refresh window, merged as calculations merge them.
-    public static func recordAnchoredRead(now: Millis, to state: inout AppState) {
+    public static func recordAnchoredRead(now: Millis, hasMore: Bool = false, to state: inout AppState) {
         let windowStart = now - refreshDays * dayMs
         let recent = state.sleeps.filter { RecordID.isHealthSleep($0.id) && $0.end >= windowStart && $0.start <= now }
         let nights = countNights(recent.map { HealthSleepSample(start: $0.start, end: $0.end) })
         state.healthSync.importedCount = nights
-        state.healthSync.importStatus = .succeeded
+        state.healthSync.importStatus = hasMore ? .partial : .succeeded
         state.healthSync.lastSyncedAt = now
-        state.healthSync.lastMessage = describeImportedNights(nights)
+        state.healthSync.lastMessage = hasMore ? partialMessage : describeImportedNights(nights)
     }
+
+    public static let partialMessage =
+        "Imported part of your Health sleep so far. Aurora reads a limited amount at a time and continues at the next refresh."
 
     public static func recordFailure(_ message: String, prefix: String = "Health refresh failed.", now: Millis, to state: inout AppState) {
         state.healthSync.importStatus = .failed
@@ -126,6 +142,8 @@ public enum HealthImport {
         guard state.onboarding.completed, !state.demoMode,
               state.healthChoices.readSleep,
               state.healthSync.importStatus != .importing else { return false }
+        // A partial read continues at the next permitted opportunity.
+        if state.healthSync.importStatus == .partial { return true }
         guard let last = state.healthSync.lastSyncedAt else { return true }
         return now - last >= refreshIntervalMs
     }

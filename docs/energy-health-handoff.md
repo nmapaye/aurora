@@ -100,6 +100,70 @@ Responds to Codex's provisional review (`aurora-overnight/health-review-findings
    - Residual risk: a sample the person deleted in the Health app after an
      interrupted write would be written again on Retry.
 
+## Final review corrections (2026-10-09, separate commit)
+
+Responds to `aurora-overnight/health-final-review.md`.
+
+| Command | Result |
+|---|---|
+| `TZ=UTC DEVELOPER_DIR=… swift test --package-path AuroraCore` | 164 tests in 24 suites passed (parity fixtures unchanged) |
+| `TZ=America/Los_Angeles DEVELOPER_DIR=… swift test --package-path AuroraCore` | 164 tests in 24 suites passed |
+| `DEVELOPER_DIR=… swift test --package-path AuroraCore --filter "Health\|RefreshCoordinatorTests\|StateMigrationTests\|SleepChangeSuggestionTests" --maximum-repetitions 200 --repeat-until fail` | 87 tests in 17 suites passed, no failures in 200 repetitions |
+| generic unsigned `xcodebuild build` / `build-for-testing` | BUILD SUCCEEDED / TEST BUILD SUCCEEDED |
+| `swift /private/tmp/aurora-anchor-check/check.swift` (macOS HealthKit, no store) | nil anchor reads as a first read; a valid archive round-trips; empty, garbage, truncated and foreign archives all throw |
+
+**Not run:** the new native `AuroraTests/HealthAnchorCodecTests.swift` (4 tests) on a
+simulator. It's Codex's lane and the tests compile only. The macOS script mirrors
+their decode rules but isn't the app target. No device or live Health.
+
+1. **Invalid anchors.**
+   - The new `HealthAnchorCodec` (secure coding) returns nil only for a missing
+     anchor. Empty, corrupt, truncated or non-anchor data throws
+     `HealthProviderError.invalidAnchor(kind)`.
+   - The read fails with: "Aurora couldn't resume where it left off in Apple Health.
+     Your records here are unchanged. Choose Restart reading…". Records and the
+     stored anchor are kept, `lastRead.invalidAnchor` is set, and repeated refreshes
+     keep failing rather than reading from the beginning.
+   - Recovery is a person-initiated "Restart reading caffeine/sleep" button
+     (`restartReading`). It clears only the anchor; the re-read matches by UUID, so
+     nothing duplicates.
+   - **Limitation:** entries deleted in Health while the position was lost may stay
+     listed until Delete All Records. No records are destroyed to recover.
+2. **Bounded pages.**
+   - `HKAnchoredObjectQueryDescriptor(…, limit: 500)` for both kinds.
+     `hasMore = added + deleted >= 500`. A full page ending exactly at the end reads
+     one more empty page, which is harmless.
+   - The engine applies at most `maxPagesPerRead` (4) pages per activation. Each page
+     commits with its anchor before the next fetch, and re-checks the generation, the
+     choice, Sample Data and the anchor after every await.
+   - `HealthCaffeineChanges` and `HealthSleepChanges` gain `hasMore` (default false).
+     Results carry `pages` and `hasMore`. `HealthReadRecord` gains `hasMore`, `pages`
+     and `invalidAnchor`, and older records still decode. There's a new
+     `ledger.lastSleepRead`.
+   - Partial sleep sets `HealthImportStatus.partial` ("Sleep partly imported", never
+     "No sleep found"). It stays due for the next foreground or background
+     opportunity. The caffeine summary says "partly read so far".
+   - Legacy start:end sleep conversion now applies on every page, still by exact
+     interval only.
+   - Tests in `HealthPagingTests` (8): more data than one page, a deletion at a page
+     boundary, a redelivered page after a failed save, erase or turn-off between
+     pages, a failure on a later page that keeps the earlier pages and resumes,
+     corrupt anchor and restart, partial sleep status, and old-record decoding.
+3. **Sleep-change suggestions.**
+   - `SleepChangeSuggestion` (core, deterministic, no model) compares recorded,
+     non-sample sleep from the last 24 h by id and interval. It offers the existing
+     sleep suggestion only when that snapshot changed, and only through
+     `ProactivePolicy`: opt-in, quiet hours, two per day, dismissals, one delivery per
+     key. The key format is unchanged, so earlier deliveries still count.
+   - `AppModel.performRefresh` calls it after a Health-change refresh that changed
+     sleep. `AssistantView`'s sleep `onChange` now uses it instead of the full
+     suggestion pass, so it no longer brings up briefing or calendar suggestions.
+   - **Limitation:** when Health wakes Aurora in the background before the assistant
+     has started, no offer is made then. The unchanged foreground pass offers it at
+     the next opportunity if it's still undelivered.
+   - Tests in `SleepChangeSuggestionTests` (3): unchanged and sample-only sleep,
+     update and once-only delivery, dismissal, quiet hours and the daily cap.
+
 ## What shipped
 
 **Core (AuroraCore):**

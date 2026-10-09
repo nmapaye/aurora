@@ -193,15 +193,15 @@ public struct AppState: Codable, Equatable, Sendable {
     /// Samples with equal intervals stay separate records; calculations merge
     /// intervals on their own.
     ///
-    /// The first anchored read converts pre-identity records conservatively:
-    /// a `healthkit:sleep:<start>:<end>` record is replaced only by samples at
-    /// exactly that interval, which is what its id was derived from. Any
-    /// other one is kept read-only until retention trims it, never matched
-    /// to a nearby sample. The anchor is saved with the records.
+    /// Pre-identity records convert conservatively, page by page as the
+    /// paged initial read arrives: a `healthkit:sleep:<start>:<end>` record
+    /// is replaced only by samples at exactly that interval, which is what
+    /// its id was derived from. Any other one is kept read-only until
+    /// retention trims it, never matched to a nearby sample. The anchor is
+    /// saved with the records.
     @discardableResult
     public mutating func applyHealthSleep(_ changes: HealthSleepChanges, now: Millis) -> HealthSleepImport.Result {
         var result = HealthSleepImport.Result()
-        let firstRead = healthLedger.anchor(for: .sleepAnalysis) == nil
         let deleted = Set(changes.deletedSampleUUIDs.map { RecordID.healthSleepID(sampleUUID: $0) })
         let before = sleeps.count
         sleeps.removeAll { deleted.contains($0.id) }
@@ -215,15 +215,13 @@ public struct AppState: Codable, Equatable, Sendable {
             incoming.removeAll { $0.id == session.id }
             incoming.append(session)
         }
-        if firstRead {
-            let intervals = Set(incoming.map { HealthSleepIdentity.id(start: $0.start, end: $0.end) })
-            let legacy = sleeps.filter { RecordID.isLegacyHealthSleep($0.id) }
-            let replaced = legacy.filter { intervals.contains(HealthSleepIdentity.id(start: $0.start, end: $0.end)) }
-            result.legacyReplaced = replaced.count
-            result.legacyKept = legacy.count - replaced.count
-            let replacedIDs = Set(replaced.map(\.id))
-            sleeps.removeAll { replacedIDs.contains($0.id) }
-        }
+        let intervals = Set(incoming.map { HealthSleepIdentity.id(start: $0.start, end: $0.end) })
+        let legacy = sleeps.filter { RecordID.isLegacyHealthSleep($0.id) }
+        let replaced = legacy.filter { intervals.contains(HealthSleepIdentity.id(start: $0.start, end: $0.end)) }
+        result.legacyReplaced = replaced.count
+        result.legacyKept = legacy.count - replaced.count
+        let replacedIDs = Set(replaced.map(\.id))
+        sleeps.removeAll { replacedIDs.contains($0.id) }
         for session in incoming {
             if let index = sleeps.firstIndex(where: { $0.id == session.id }) {
                 sleeps[index] = session

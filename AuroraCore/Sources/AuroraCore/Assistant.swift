@@ -192,3 +192,38 @@ public enum ProactivePolicy {
         return state.deliveredSuggestions.values.filter { $0 >= start && $0 < end }.count < 2
     }
 }
+
+/// The "recorded sleep has updated" suggestion. Deterministic: no model is
+/// asked anything. Offered only when recorded sleep that matters to the
+/// current estimate actually changed, and only through `ProactivePolicy`
+/// (opt-in, quiet hours, two a day, dismissals, one delivery per key).
+public enum SleepChangeSuggestion {
+    public static let text = "Your recorded sleep has updated. You can ask ‘How is my energy?’ to review the current estimate."
+
+    /// What the suggestion depends on: recorded (non-sample) sleep that
+    /// ended in the last 24 hours, by id and interval. Repeated Health
+    /// deliveries of the same records produce the same snapshot.
+    public static func snapshot(_ sleeps: [SleepSession], now: Millis) -> [String] {
+        sleeps.filter { !RecordID.isSample($0.id) && $0.end <= now && $0.end > now - dayMs }
+            .map { "\($0.id)|\(Int64($0.start))|\(Int64($0.end))" }
+            .sorted()
+    }
+
+    /// The suggestion for the latest recorded sleep, keyed by record and end.
+    public static func latest(_ sleeps: [SleepSession], now: Millis) -> (key: String, text: String)? {
+        guard let sleep = sleeps.filter({ !RecordID.isSample($0.id) && $0.end <= now && $0.end > now - dayMs })
+            .max(by: { $0.end < $1.end }) else { return nil }
+        // Same key format as before, so earlier deliveries still count.
+        return ("sleep:\(sleep.id):\(sleep.end)", text)
+    }
+
+    /// The suggestion to deliver after a sleep change, or nil when the
+    /// relevant sleep is unchanged or the policy declines.
+    public static func afterChange(
+        before: [SleepSession], after: [SleepSession], conversation: ConversationState, now: Millis, clock: LocalClock
+    ) -> (key: String, text: String)? {
+        guard snapshot(before, now: now) != snapshot(after, now: now), let candidate = latest(after, now: now),
+              ProactivePolicy.canDeliver(key: candidate.key, state: conversation, now: now, clock: clock) else { return nil }
+        return candidate
+    }
+}

@@ -23,6 +23,9 @@ public enum HealthProviderError: Error, Equatable, Sendable {
     case unavailable
     /// The provider doesn't offer this operation.
     case unsupported(String)
+    /// The stored read position couldn't be decoded. Reading from nothing
+    /// would lose deletions, so the read fails and nothing changes.
+    case invalidAnchor(HealthDataKind)
 }
 
 /// A caffeine entry Aurora recorded, as it would be written to Health.

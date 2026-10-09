@@ -91,6 +91,9 @@ public enum HealthImportStatus: String, Codable, Sendable {
     case importing
     case succeeded
     case failed
+    /// Some of Health's changes were read; the rest follow at the next
+    /// refresh. Never shown as current or as "no sleep found".
+    case partial
 }
 
 public struct Prefs: Codable, Equatable, Sendable {

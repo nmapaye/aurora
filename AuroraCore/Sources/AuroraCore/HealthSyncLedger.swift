@@ -112,19 +112,46 @@ public struct HealthSyncOutcome: Codable, Equatable, Sendable {
     }
 }
 
-/// The last anchored caffeine read: counts only, no health values.
+/// The last anchored read of one kind: counts only, no health values.
 public struct HealthReadRecord: Codable, Equatable, Sendable {
     public var finishedAt: Millis
     public var added: Int
     public var removed: Int
-    /// Set when the read failed. The anchor didn't move.
+    /// Set when the read failed. Pages applied before it stay applied; the
+    /// anchor is where the last applied page left it.
     public var failure: String?
+    /// Health has more changes after the stored anchor; the next refresh
+    /// continues from there. Never reported as current while set.
+    public var hasMore: Bool
+    public var pages: Int
+    /// The stored anchor couldn't be decoded. Records and anchor are kept
+    /// until the person restarts reading.
+    public var invalidAnchor: Bool
 
-    public init(finishedAt: Millis, added: Int = 0, removed: Int = 0, failure: String? = nil) {
+    public init(
+        finishedAt: Millis, added: Int = 0, removed: Int = 0, failure: String? = nil,
+        hasMore: Bool = false, pages: Int = 0, invalidAnchor: Bool = false
+    ) {
         self.finishedAt = finishedAt
         self.added = added
         self.removed = removed
         self.failure = failure
+        self.hasMore = hasMore
+        self.pages = pages
+        self.invalidAnchor = invalidAnchor
+    }
+
+    private enum CodingKeys: String, CodingKey { case finishedAt, added, removed, failure, hasMore, pages, invalidAnchor }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        finishedAt = try container.decode(Millis.self, forKey: .finishedAt)
+        added = try container.decodeIfPresent(Int.self, forKey: .added) ?? 0
+        removed = try container.decodeIfPresent(Int.self, forKey: .removed) ?? 0
+        failure = try container.decodeIfPresent(String.self, forKey: .failure)
+        hasMore = try container.decodeIfPresent(Bool.self, forKey: .hasMore) ?? false
+        pages = try container.decodeIfPresent(Int.self, forKey: .pages) ?? 0
+        invalidAnchor = try container.decodeIfPresent(Bool.self, forKey: .invalidAnchor) ?? false
     }
 }
 
@@ -142,6 +169,27 @@ public struct HealthSyncLedger: Codable, Equatable, Sendable {
     public var pendingActions: [HealthPendingAction] = []
     public var outcomes: [HealthSyncOutcome] = []
     public var lastCaffeineRead: HealthReadRecord?
+    public var lastSleepRead: HealthReadRecord?
+
+    public func lastRead(_ kind: HealthDataKind) -> HealthReadRecord? {
+        kind == .caffeine ? lastCaffeineRead : lastSleepRead
+    }
+
+    public mutating func setLastRead(_ record: HealthReadRecord, for kind: HealthDataKind) {
+        if kind == .caffeine { lastCaffeineRead = record } else { lastSleepRead = record }
+    }
+
+    /// Forgets the read position for `kind` after the person chose Restart
+    /// reading. Records stay; the next read starts from the beginning and
+    /// matches by sample UUID, so nothing is duplicated.
+    public mutating func restartReading(_ kind: HealthDataKind) {
+        anchors.removeAll { $0.kind == kind }
+        if var record = lastRead(kind) {
+            record.invalidAnchor = false
+            record.failure = nil
+            setLastRead(record, for: kind)
+        }
+    }
 
     public static let empty = HealthSyncLedger()
 
@@ -244,7 +292,7 @@ public struct HealthSyncLedger: Codable, Equatable, Sendable {
 
 extension HealthSyncLedger {
     private enum CodingKeys: String, CodingKey {
-        case version, anchors, ownExports, pendingActions, outcomes, lastCaffeineRead
+        case version, anchors, ownExports, pendingActions, outcomes, lastCaffeineRead, lastSleepRead
     }
 
     public init(from decoder: Decoder) throws {
@@ -255,5 +303,6 @@ extension HealthSyncLedger {
         pendingActions = try container.decodeIfPresent([HealthPendingAction].self, forKey: .pendingActions) ?? []
         outcomes = try container.decodeIfPresent([HealthSyncOutcome].self, forKey: .outcomes) ?? []
         lastCaffeineRead = try container.decodeIfPresent(HealthReadRecord.self, forKey: .lastCaffeineRead)
+        lastSleepRead = try container.decodeIfPresent(HealthReadRecord.self, forKey: .lastSleepRead)
     }
 }

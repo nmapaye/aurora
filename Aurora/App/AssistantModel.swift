@@ -398,20 +398,37 @@ final class AssistantModel {
         if conversation.preferences.morningBriefing && app.clock.hour(app.now) >= conversation.preferences.briefingHour {
             suggestions.append(("brief:\(day)", "Your daily briefing\n\n" + AssistantPlanner.energyExplanation(state: app.state, now: app.now, clock: app.clock)))
         }
-        if let sleep = app.state.sleeps.filter({ !RecordID.isSample($0.id) && $0.end <= app.now && $0.end > app.now - dayMs }).max(by: { $0.end < $1.end }) {
-            suggestions.append(("sleep:\(sleep.id):\(sleep.end)", "Your recorded sleep has updated. You can ask ‘How is my energy?’ to review the current estimate."))
+        if let sleep = SleepChangeSuggestion.latest(app.state.sleeps, now: app.now) {
+            suggestions.append(sleep)
         }
         if let upcoming = calendars.commitments.first(where: { $0.start > .now && $0.start.timeIntervalSinceNow < 3600 }) {
             suggestions.append(("calendar:\(upcoming.identity):\(upcoming.revision)", "You have a commitment coming up: \(upcoming.title). Ask me to review your afternoon if your plans have changed."))
         }
         for (key, text) in suggestions where ProactivePolicy.canDeliver(key: key, state: conversation, now: app.now, clock: app.clock) {
-            conversation.deliveredSuggestions[key] = app.now
-            var card = AssistantCards.make(.briefing, state: app.state, now: app.now, clock: app.clock, text: app.text)
-            card.commitments = calendars.commitments.filter { app.clock.dayKey($0.start.timeIntervalSince1970 * 1000) == app.clock.dayKey(app.now) }
-            card.summary = key.hasPrefix("brief:") ? card.summary : text
-            conversation.messages.append(.init(text: text, intent: .briefing, suggestionKey: key, card: card))
+            deliverSuggestion(key: key, text: text, app: app)
         }
         save()
+    }
+
+    /// After recorded sleep changed (a Health import or a manual entry):
+    /// offers only the sleep suggestion, only if the relevant sleep actually
+    /// changed, under the same opt-in policy. No model is involved.
+    func sleepChanged(app: AppModel, before: [SleepSession]) {
+        guard started, app.phase == .ready else { return }
+        app.tick()
+        guard let (key, text) = SleepChangeSuggestion.afterChange(
+            before: before, after: app.state.sleeps, conversation: conversation, now: app.now, clock: app.clock
+        ) else { return }
+        deliverSuggestion(key: key, text: text, app: app)
+        save()
+    }
+
+    private func deliverSuggestion(key: String, text: String, app: AppModel) {
+        conversation.deliveredSuggestions[key] = app.now
+        var card = AssistantCards.make(.briefing, state: app.state, now: app.now, clock: app.clock, text: app.text)
+        card.commitments = calendars.commitments.filter { app.clock.dayKey($0.start.timeIntervalSince1970 * 1000) == app.clock.dayKey(app.now) }
+        card.summary = key.hasPrefix("brief:") ? card.summary : text
+        conversation.messages.append(.init(text: text, intent: .briefing, suggestionKey: key, card: card))
     }
 
     func syncBriefingNotification(prompt: Bool) async {

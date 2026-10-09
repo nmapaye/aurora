@@ -48,11 +48,14 @@ public struct HealthCaffeineChanges: Equatable, Sendable {
     public var deletedSampleUUIDs: [String]
     /// The archived `HKQueryAnchor` to resume from.
     public var anchor: Data
+    /// This was one bounded page and more changes follow `anchor`.
+    public var hasMore: Bool
 
-    public init(added: [HealthCaffeineSample], deletedSampleUUIDs: [String], anchor: Data) {
+    public init(added: [HealthCaffeineSample], deletedSampleUUIDs: [String], anchor: Data, hasMore: Bool = false) {
         self.added = added
         self.deletedSampleUUIDs = deletedSampleUUIDs
         self.anchor = anchor
+        self.hasMore = hasMore
     }
 }
 
@@ -115,8 +118,19 @@ public enum HealthCaffeineImport {
         /// Health records so they aren't lost. Counted in `upserted` too.
         public var keptOwnWithoutLocalDose = 0
         public var rejected = 0
+        /// Pages applied in this read, and whether Health has more to give.
+        public var pages = 0
+        public var hasMore = false
 
         public init() {}
+
+        mutating func add(_ page: Result) {
+            upserted += page.upserted
+            removed += page.removed
+            skippedOwn += page.skippedOwn
+            keptOwnWithoutLocalDose += page.keptOwnWithoutLocalDose
+            rejected += page.rejected
+        }
     }
 
     /// A sample with an identity, a finite time and a positive finite amount.

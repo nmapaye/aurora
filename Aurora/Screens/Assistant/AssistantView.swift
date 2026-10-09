@@ -82,7 +82,7 @@ struct AssistantView: View {
         .onChange(of: app.state.vigilanceSessions) { old, new in
             if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
         }
-        .onChange(of: app.state.sleeps) { _, _ in Task { await assistant.foreground(app: app, steps: [.suggestions]) } }
+        .onChange(of: app.state.sleeps) { old, _ in assistant.sleepChanged(app: app, before: old) }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             Task { await assistant.calendars.refreshCalendars(); await assistant.foreground(app: app) }
         }

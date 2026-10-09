@@ -5,6 +5,8 @@ extension HealthProviderError: LocalizedError {
         switch self {
         case .unavailable: "Apple Health isn’t available on this device."
         case .unsupported: "This Health action isn’t available."
+        case .invalidAnchor:
+            "Aurora couldn’t resume where it left off in Apple Health. Your records here are unchanged. Choose Restart reading to read again from the beginning."
         }
     }
 }
@@ -85,9 +87,14 @@ public final class HealthSyncEngine {
     /// the notification was handled only after this returns.
     public var onChange: (@MainActor (HealthDataKind) async -> Void)?
 
-    public init(provider: any HealthDataProvider, host: Host) {
+    /// Pages one read may apply before yielding to the next refresh.
+    public let maxPagesPerRead: Int
+    public static let defaultMaxPagesPerRead = 4
+
+    public init(provider: any HealthDataProvider, host: Host, maxPagesPerRead: Int = HealthSyncEngine.defaultMaxPagesPerRead) {
         self.provider = provider
         self.host = host
+        self.maxPagesPerRead = max(1, maxPagesPerRead)
     }
 
     public func readGeneration(_ kind: HealthDataKind) -> Int { readGenerations[kind, default: 0] }
@@ -229,9 +236,8 @@ public final class HealthSyncEngine {
 
     // MARK: Reading caffeine
 
-    /// One anchored read. Additions and deletions apply by sample UUID only,
-    /// and the new anchor is saved with them, so a failed read or save
-    /// leaves the anchor where it was and the next read repeats safely.
+    /// Anchored caffeine reads in bounded pages. Additions and deletions
+    /// apply by sample UUID only.
     public func readCaffeineChanges() async -> ReadResult {
         let state = host.state()
         let generation = readGeneration(.caffeine)
@@ -239,32 +245,24 @@ public final class HealthSyncEngine {
               provider.capabilities.contains(.readCaffeineChanges), caffeineReadGeneration != generation else { return .skipped }
         caffeineReadGeneration = generation
         defer { if caffeineReadGeneration == generation { caffeineReadGeneration = nil } }
-        let anchor = state.healthLedger.anchor(for: .caffeine)?.data
-        let changes: HealthCaffeineChanges
-        do {
-            changes = try await provider.caffeineChanges(after: anchor)
-        } catch {
-            guard isCurrentRead(generation, anchor: anchor) else { return .discarded }
-            let message = Self.message(for: error)
-            let now = host.now()
-            _ = host.commit { $0.healthLedger.lastCaffeineRead = HealthReadRecord(finishedAt: now, failure: message) }
-            return .failed(message)
-        }
-        guard isCurrentRead(generation, anchor: anchor) else { return .discarded }
-        let now = host.now()
         var result = HealthCaffeineImport.Result()
-        let saved = host.commit {
-            result = $0.applyHealthCaffeine(changes, now: now)
-            $0.healthLedger.lastCaffeineRead = HealthReadRecord(finishedAt: now, added: result.upserted, removed: result.removed)
+        let provider = self.provider
+        let outcome = await readPages(.caffeine, generation: generation, fetch: { try await provider.caffeineChanges(after: $0) }, hasMore: \.hasMore) { state, changes, now, pages in
+            result.add(state.applyHealthCaffeine(changes, now: now))
+            result.pages = pages
+            result.hasMore = changes.hasMore
+            state.healthLedger.lastCaffeineRead = HealthReadRecord(
+                finishedAt: now, added: result.upserted, removed: result.removed, hasMore: changes.hasMore, pages: pages
+            )
         }
-        return saved ? .applied(result) : .notSaved
+        return outcome ?? .applied(result)
     }
 
     // MARK: Reading sleep
 
-    /// One anchored sleep read, keyed by sample UUID with provenance. The
-    /// anchor moves only with the records it produced. The caller records
-    /// the sleep status; failures leave records and anchor unchanged.
+    /// Anchored sleep reads in bounded pages, keyed by sample UUID with
+    /// provenance. Each page also records the sleep status, which says
+    /// "partly imported" while Health has more.
     public func readSleepChanges() async -> ReadResult {
         let state = host.state()
         let generation = readGeneration(.sleepAnalysis)
@@ -272,34 +270,79 @@ public final class HealthSyncEngine {
               provider.capabilities.contains(.readSleepChanges), sleepReadGeneration != generation else { return .skipped }
         sleepReadGeneration = generation
         defer { if sleepReadGeneration == generation { sleepReadGeneration = nil } }
-        let anchor = state.healthLedger.anchor(for: .sleepAnalysis)?.data
-        let changes: HealthSleepChanges
-        do {
-            changes = try await provider.sleepChanges(after: anchor)
-        } catch {
-            guard isCurrentSleepRead(generation, anchor: anchor) else { return .discarded }
-            return .failed(Self.message(for: error))
-        }
-        guard isCurrentSleepRead(generation, anchor: anchor) else { return .discarded }
-        let now = host.now()
         var result = HealthSleepImport.Result()
-        let saved = host.commit {
-            result = $0.applyHealthSleep(changes, now: now)
-            HealthImport.recordAnchoredRead(now: now, to: &$0)
+        let provider = self.provider
+        let outcome = await readPages(.sleepAnalysis, generation: generation, fetch: { try await provider.sleepChanges(after: $0) }, hasMore: \.hasMore) { state, changes, now, pages in
+            result.add(state.applyHealthSleep(changes, now: now))
+            result.pages = pages
+            result.hasMore = changes.hasMore
+            HealthImport.recordAnchoredRead(now: now, hasMore: changes.hasMore, to: &state)
+            state.healthLedger.lastSleepRead = HealthReadRecord(
+                finishedAt: now, added: result.upserted, removed: result.removed, hasMore: changes.hasMore, pages: pages
+            )
         }
-        return saved ? .appliedSleep(result) : .notSaved
+        return outcome ?? .appliedSleep(result)
     }
 
-    private func isCurrentSleepRead(_ generation: Int, anchor: Data?) -> Bool {
-        let state = host.state()
-        return generation == readGeneration(.sleepAnalysis) && state.healthChoices.readSleep && !state.demoMode
-            && state.healthLedger.anchor(for: .sleepAnalysis)?.data == anchor
+    /// Bounded pages of one anchored read. Every page is applied and saved
+    /// with its anchor before the next is requested, and each page re-checks
+    /// that nothing turned the read off or erased it. At most
+    /// `maxPagesPerRead` pages run per call; the rest continue at the next
+    /// refresh from the stored anchor. A failure keeps the pages already
+    /// applied and the anchor they reached, records the failure, and never
+    /// falls back to reading from the beginning. Returns nil when every
+    /// requested page applied.
+    private func readPages<Changes>(
+        _ kind: HealthDataKind, generation: Int,
+        fetch: (Data?) async throws -> Changes,
+        hasMore: (Changes) -> Bool,
+        apply: (inout AppState, Changes, Millis, Int) -> Void
+    ) async -> ReadResult? {
+        var pages = 0
+        while pages < maxPagesPerRead {
+            let anchor = host.state().healthLedger.anchor(for: kind)?.data
+            let changes: Changes
+            do {
+                changes = try await fetch(anchor)
+            } catch {
+                guard isCurrentRead(kind, generation, anchor: anchor) else { return .discarded }
+                let message = Self.message(for: error)
+                let now = host.now()
+                let invalid = (error as? HealthProviderError) == .invalidAnchor(kind)
+                _ = host.commit {
+                    var record = $0.healthLedger.lastRead(kind) ?? HealthReadRecord(finishedAt: now)
+                    if pages == 0 { record = HealthReadRecord(finishedAt: now, pages: 0) }
+                    record.finishedAt = now
+                    record.failure = message
+                    record.invalidAnchor = invalid
+                    $0.healthLedger.setLastRead(record, for: kind)
+                }
+                return .failed(message)
+            }
+            guard isCurrentRead(kind, generation, anchor: anchor) else { return .discarded }
+            let now = host.now()
+            let page = pages + 1
+            guard host.commit({ apply(&$0, changes, now, page) }) else { return .notSaved }
+            pages = page
+            if !hasMore(changes) { break }
+        }
+        return nil
     }
 
-    private func isCurrentRead(_ generation: Int, anchor: Data?) -> Bool {
+    private func isCurrentRead(_ kind: HealthDataKind, _ generation: Int, anchor: Data?) -> Bool {
         let state = host.state()
-        return generation == readGeneration(.caffeine) && state.healthChoices.readCaffeine && !state.demoMode
-            && state.healthLedger.anchor(for: .caffeine)?.data == anchor
+        return generation == readGeneration(kind) && state.healthChoices.observedKinds.contains(kind) && !state.demoMode
+            && state.healthLedger.anchor(for: kind)?.data == anchor
+    }
+
+    /// After a failed read reported an undecodable position, the person can
+    /// start reading `kind` again from the beginning. Records stay and match
+    /// by sample UUID; entries deleted in Health while the position was lost
+    /// can remain listed until Delete All Records.
+    @discardableResult
+    public func restartReading(_ kind: HealthDataKind) -> Bool {
+        readGenerations[kind, default: 0] += 1
+        return host.commit { $0.healthLedger.restartReading(kind) }
     }
 
     // MARK: Writing Aurora's caffeine

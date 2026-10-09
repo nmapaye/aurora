@@ -27,9 +27,7 @@ struct AuroraApp: App {
                     #if DEBUG
                     if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return }
                     #endif
-                    model.assistantRefresh = { [assistant, model] steps in
-                        await assistant.foreground(app: model, steps: steps)
-                    }
+                    connectAssistant()
                     model.load()
                 }
                 .onOpenURL { url in
@@ -66,15 +64,24 @@ struct AuroraApp: App {
     /// Health reads that were chosen, then calendars and suggestions under
     /// the existing opt-in limits.
     @MainActor private func refreshAssistantInBackground() async {
-        model.assistantRefresh = { [assistant, model] steps in
-            await assistant.foreground(app: model, steps: steps)
-        }
+        connectAssistant()
         model.load()
         guard model.phase == .ready, model.state.onboarding.completed else { return }
         await assistant.start(app: model)
         guard !Task.isCancelled else { return }
         await model.refresh(.background)
         BackgroundRefresh.schedule(enabled: backgroundRefreshWanted)
+    }
+
+    /// Calendars, suggestions and sleep-change offers run through the
+    /// assistant, which applies its opt-in policy.
+    @MainActor private func connectAssistant() {
+        model.assistantRefresh = { [assistant, model] steps in
+            await assistant.foreground(app: model, steps: steps)
+        }
+        model.sleepChanged = { [assistant, model] before in
+            assistant.sleepChanged(app: model, before: before)
+        }
     }
 
     /// Only opted-in suggestions or a chosen Health read ask iOS for time.

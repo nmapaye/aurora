@@ -135,14 +135,16 @@ final class FakeHealth: HealthDataProvider, @unchecked Sendable {
 
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         try await begin("sleepRead")
-        return lock.withLock {
-            let from = anchor.flatMap { Int(String(decoding: $0, as: UTF8.self)) } ?? 0
+        return try lock.withLock {
+            let from = try position(anchor, kind: .sleepAnalysis)
             let later = sleepEvents.filter { $0.seq > from }
+            let page = Array(later.prefix(_pageSize))
             let present = Set(sleep.compactMap(\.provenance?.sampleUUID))
             return HealthSleepChanges(
-                added: later.compactMap(\.added).filter { present.contains($0.provenance!.sampleUUID) },
-                deletedSampleUUIDs: later.compactMap(\.deleted),
-                anchor: Data(String(sleepSeq).utf8)
+                added: page.compactMap(\.added).filter { present.contains($0.provenance!.sampleUUID) },
+                deletedSampleUUIDs: page.compactMap(\.deleted),
+                anchor: Data(String(page.last?.seq ?? max(from, sleepSeq)).utf8),
+                hasMore: later.count > page.count
             )
         }
     }
@@ -167,12 +169,46 @@ final class FakeHealth: HealthDataProvider, @unchecked Sendable {
         events.append(Event(seq: seq, deleted: uuid))
     }
 
+    private var callGates: [String: (call: Int, gate: Gate)] = [:]
+    private var callFailures: [String: (call: Int, error: Error)] = [:]
+    private var _pageSize = Int.max
+
+    /// Anchored reads return at most this many events per page.
+    var pageSize: Int {
+        get { lock.withLock { _pageSize } }
+        set { lock.withLock { _pageSize = newValue } }
+    }
+
+    /// Holds the `call`-th call (1-based, counted over the fake's lifetime).
+    func hold(_ operation: String, onCall call: Int) -> Gate {
+        lock.withLock { let gate = Gate(); callGates[operation] = (call, gate); return gate }
+    }
+
+    func fail(_ operation: String, onCall call: Int, with error: Error) {
+        lock.withLock { callFailures[operation] = (call, error) }
+    }
+
+    func count(_ operation: String) -> Int { calls.filter { $0 == operation }.count }
+
+    /// Mirrors `HealthAnchorCodec`: nil is a first read; undecodable data fails.
+    private func position(_ anchor: Data?, kind: HealthDataKind) throws -> Int {
+        guard let anchor else { return 0 }
+        guard let value = Int(String(decoding: anchor, as: UTF8.self)) else { throw HealthProviderError.invalidAnchor(kind) }
+        return value
+    }
+
     private func begin(_ operation: String) async throws {
-        let gate = lock.withLock { () -> Gate? in
+        let (gate, failure) = lock.withLock { () -> (Gate?, Error?) in
             _calls.append(operation)
-            return gates.removeValue(forKey: operation)
+            let n = _calls.filter { $0 == operation }.count
+            var gate = gates.removeValue(forKey: operation)
+            if let held = callGates[operation], held.call == n { gate = held.gate; callGates[operation] = nil }
+            var failure: Error?
+            if let failing = callFailures[operation], failing.call == n { failure = failing.error; callFailures[operation] = nil }
+            return (gate, failure)
         }
         await gate?.pass()
+        if let failure { throw failure }
         if let error = lock.withLock({ () -> Error? in
             guard var queue = failures[operation], !queue.isEmpty else { return nil }
             let error = queue.removeFirst()
@@ -188,14 +224,16 @@ final class FakeHealth: HealthDataProvider, @unchecked Sendable {
 
     func caffeineChanges(after anchor: Data?) async throws -> HealthCaffeineChanges {
         try await begin("read")
-        return lock.withLock {
-            let from = anchor.flatMap { Int(String(decoding: $0, as: UTF8.self)) } ?? 0
+        return try lock.withLock {
+            let from = try position(anchor, kind: .caffeine)
             let later = events.filter { $0.seq > from }
+            let page = Array(later.prefix(_pageSize))
             let present = Set(samples.map(\.provenance.sampleUUID))
             return HealthCaffeineChanges(
-                added: later.compactMap(\.added).filter { present.contains($0.provenance.sampleUUID) },
-                deletedSampleUUIDs: later.compactMap(\.deleted),
-                anchor: Data(String(seq).utf8)
+                added: page.compactMap(\.added).filter { present.contains($0.provenance.sampleUUID) },
+                deletedSampleUUIDs: page.compactMap(\.deleted),
+                anchor: Data(String(page.last?.seq ?? max(from, seq)).utf8),
+                hasMore: later.count > page.count
             )
         }
     }
@@ -295,8 +333,8 @@ final class Harness {
         )
     }
 
-    func engine(_ provider: FakeHealth) -> HealthSyncEngine {
-        HealthSyncEngine(provider: provider, host: host)
+    func engine(_ provider: FakeHealth, maxPages: Int = HealthSyncEngine.defaultMaxPagesPerRead) -> HealthSyncEngine {
+        HealthSyncEngine(provider: provider, host: host, maxPagesPerRead: maxPages)
     }
 
     func newID() -> String { ids += 1; return "action-\(ids)" }
@@ -444,7 +482,9 @@ private func reading(_ state: inout AppState) {
         let health = FakeHealth()
         let harness = Harness(reading)
         let engine = harness.engine(health)
-        #expect(await engine.readCaffeineChanges() == .applied(HealthCaffeineImport.Result()))
+        var empty = HealthCaffeineImport.Result()
+        empty.pages = 1
+        #expect(await engine.readCaffeineChanges() == .applied(empty))
         #expect(harness.state.doses.isEmpty)
         let read = try #require(harness.state.healthLedger.lastCaffeineRead)
         #expect(read.added == 0 && read.failure == nil)
@@ -1047,7 +1087,7 @@ private func reading(_ state: inout AppState) {
         // Later reads never revisit the conversion.
         health.addSleep("D", start: night.start - 2 * dayMs, end: night.end - 2 * dayMs)
         guard case .appliedSleep(let later) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
-        #expect(later.legacyReplaced == 0 && later.legacyKept == 0)
+        #expect(later.legacyReplaced == 0 && later.legacyKept == 1)
         #expect(harness.state.sleeps.contains { $0.id == legacyUnmatched.id })
     }
 
@@ -1088,6 +1128,215 @@ private func reading(_ state: inout AppState) {
         gate.open()
         #expect(await late == .discarded)
         #expect(harness.saved == AppState())
+    }
+}
+
+// MARK: Paging and read positions
+
+@MainActor
+@Suite struct HealthPagingTests {
+    private func caffeine(_ health: FakeHealth, count: Int) {
+        for index in 0..<count { health.add("c\(index)", at: base - Double(index + 1) * minuteMs, mg: 10) }
+    }
+
+    @Test func historiesBeyondAPageApplyInBoundedPagesAndContinueLater() async throws {
+        let health = FakeHealth()
+        health.pageSize = 2
+        caffeine(health, count: 5)
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 2)
+        guard case .applied(let first) = await engine.readCaffeineChanges() else { Issue.record("not applied"); return }
+        #expect(first.pages == 2 && first.hasMore && first.upserted == 4)
+        #expect(health.count("read") == 2)
+        let record = try #require(harness.state.healthLedger.lastCaffeineRead)
+        #expect(record.hasMore && record.pages == 2)
+        let summary = try #require(harness.state.healthLedger.caffeineReadSummary)
+        #expect(summary.contains("partly read") && !summary.contains("no changes"))
+        guard case .applied(let second) = await engine.readCaffeineChanges() else { Issue.record("not applied"); return }
+        #expect(second.pages == 1 && !second.hasMore && second.upserted == 1)
+        #expect(harness.state.doses.count == 5 && Set(harness.state.doses.map(\.id)).count == 5)
+        #expect(harness.state.healthLedger.lastCaffeineRead?.hasMore == false)
+    }
+
+    @Test func deletionsAtPageBoundariesRemoveExactlyTheirSamples() async {
+        let health = FakeHealth()
+        health.pageSize = 2
+        health.add("A", at: base - 3 * hourMs, mg: 80)
+        health.add("B", at: base - 2 * hourMs, mg: 80)
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 1)
+        _ = await engine.readCaffeineChanges()
+        // The deletion is the first event of the next page; C follows it.
+        health.delete("A")
+        health.add("C", at: base - hourMs, mg: 80)
+        health.add("D", at: base - 30 * minuteMs, mg: 80)
+        health.delete("C")
+        _ = await engine.readCaffeineChanges()
+        #expect(Set(harness.state.doses.map(\.id)) == ["healthkit:caffeine:b"])
+        _ = await engine.readCaffeineChanges()
+        #expect(Set(harness.state.doses.map(\.id)) == ["healthkit:caffeine:b", "healthkit:caffeine:d"])
+    }
+
+    @Test func aRedeliveredPageAddsNothingTwice() async {
+        let health = FakeHealth()
+        health.pageSize = 2
+        caffeine(health, count: 4)
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 1)
+        _ = await engine.readCaffeineChanges()
+        harness.failCommits = true
+        #expect(await engine.readCaffeineChanges() == .notSaved)
+        harness.failCommits = false
+        _ = await engine.readCaffeineChanges()
+        _ = await engine.readCaffeineChanges()
+        #expect(harness.state.doses.count == 4)
+        #expect(health.count("read") == 4)
+    }
+
+    @Test func eraseOrTurningOffBetweenPagesStopsThere() async {
+        let health = FakeHealth()
+        health.pageSize = 2
+        caffeine(health, count: 6)
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 3)
+        let gate = health.hold("read", onCall: 2)
+        async let erased = engine.readCaffeineChanges()
+        await gate.arrival()
+        #expect(harness.state.doses.count == 2)
+        harness.erase(engine)
+        gate.open()
+        #expect(await erased == .discarded)
+        #expect(harness.saved == AppState() && health.count("read") == 2)
+
+        let off = Harness(reading)
+        let second = off.engine(health, maxPages: 3)
+        let held = health.hold("read", onCall: 4)
+        async let stopped = second.readCaffeineChanges()
+        await held.arrival()
+        #expect(await second.setChoice(.readCaffeine, enabled: false) == .turnedOff)
+        held.open()
+        #expect(await stopped == .discarded)
+        // The page applied before turning off stays, with its anchor.
+        #expect(off.state.doses.count == 2 && off.state.healthLedger.anchor(for: .caffeine) != nil)
+    }
+
+    @Test func aLaterPageFailureKeepsEarlierPagesAndResumes() async throws {
+        let health = FakeHealth()
+        health.pageSize = 2
+        caffeine(health, count: 5)
+        health.fail("read", onCall: 2, with: FakeFailure(text: "Health is locked."))
+        let harness = Harness(reading)
+        let engine = harness.engine(health, maxPages: 4)
+        #expect(await engine.readCaffeineChanges() == .failed("Health is locked."))
+        #expect(harness.state.doses.count == 2)
+        let record = try #require(harness.state.healthLedger.lastCaffeineRead)
+        #expect(record.failure == "Health is locked." && record.added == 2 && !record.invalidAnchor)
+        #expect(harness.state.healthLedger.caffeineReadSummary?.hasPrefix("Last caffeine read failed.") == true)
+        guard case .applied(let resumed) = await engine.readCaffeineChanges() else { Issue.record("not applied"); return }
+        #expect(resumed.upserted == 3 && !resumed.hasMore)
+        #expect(harness.state.doses.count == 5)
+    }
+
+    @Test func anUndecodableAnchorFailsWithoutTouchingRecords() async throws {
+        let health = FakeHealth()
+        health.add("A", at: base - hourMs, mg: 80)
+        let kept = Dose(id: "healthkit:caffeine:old", timestamp: base - dayMs, mg: 50,
+                        health: HealthSampleProvenance(sampleUUID: "old", sourceBundleIdentifier: "com.example.tracker"))
+        let corrupt = Data("not an anchor".utf8)
+        let harness = Harness {
+            $0.healthChoices = HealthChoices(readCaffeine: true)
+            $0.doses = [kept]
+            $0.healthLedger.setAnchor(corrupt, for: .caffeine, at: base - dayMs)
+        }
+        let engine = harness.engine(health)
+        guard case .failed(let message) = await engine.readCaffeineChanges() else { Issue.record("didn't fail"); return }
+        #expect(message.contains("Your records here are unchanged") && message.contains("Restart reading"))
+        #expect(harness.state.doses == [kept])
+        #expect(harness.state.healthLedger.anchor(for: .caffeine)?.data == corrupt)
+        #expect(harness.state.healthLedger.lastCaffeineRead?.invalidAnchor == true)
+        #expect(harness.state.healthLedger.kindsNeedingRestart == [.caffeine])
+        // Nothing reads from the beginning until the person asks.
+        #expect(await engine.readCaffeineChanges() == .failed(message))
+        #expect(harness.state.doses == [kept])
+
+        #expect(engine.restartReading(.caffeine))
+        #expect(harness.state.healthLedger.anchor(for: .caffeine) == nil && harness.state.healthLedger.kindsNeedingRestart.isEmpty)
+        guard case .applied = await engine.readCaffeineChanges() else { Issue.record("not applied"); return }
+        _ = await engine.readCaffeineChanges()
+        #expect(Set(harness.state.doses.map(\.id)) == ["healthkit:caffeine:old", "healthkit:caffeine:a"])
+    }
+
+    @Test func partialSleepImportsNeverReadAsCurrentOrEmpty() async throws {
+        let health = FakeHealth()
+        health.pageSize = 1
+        health.addSleep("old", start: base - 60 * dayMs - 8 * hourMs, end: base - 60 * dayMs)
+        health.addSleep("new", start: base - 9 * hourMs, end: base - hourMs)
+        let harness = Harness { $0.healthChoices = HealthChoices(readSleep: true); $0.onboarding.permissionStatus = .granted; $0.onboarding.completed = true }
+        let engine = harness.engine(health, maxPages: 1)
+        guard case .appliedSleep(let first) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(first.hasMore)
+        let sync = harness.state.healthSync
+        #expect(sync.importStatus == .partial && sync.importedCount == 0)
+        #expect(sync.lastMessage == HealthImport.partialMessage)
+        let status = SleepDataStatus.describe(onboarding: harness.state.onboarding, healthSync: sync, demoMode: false, healthAvailable: true)
+        #expect(status.state == "Sleep partly imported" && status.detail == HealthImport.partialMessage)
+        #expect(HealthImport.shouldRefresh(state: harness.state, now: base))
+        #expect(harness.state.healthLedger.lastSleepRead?.hasMore == true)
+        guard case .appliedSleep(let second) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(!second.hasMore && harness.state.healthSync.importStatus == .succeeded)
+        #expect(harness.state.healthSync.importedCount == 1)
+        #expect(!HealthImport.shouldRefresh(state: harness.state, now: base))
+    }
+
+    @Test func olderReadRecordsDecode() throws {
+        let old = Data(#"{"finishedAt":1,"added":2,"removed":0}"#.utf8)
+        let record = try JSONDecoder().decode(HealthReadRecord.self, from: old)
+        #expect(record.added == 2 && !record.hasMore && record.pages == 0 && !record.invalidAnchor)
+    }
+}
+
+// MARK: Sleep-change suggestions
+
+@Suite struct SleepChangeSuggestionTests {
+    private let utc = LocalClock(timeZone: TimeZone(identifier: "UTC")!)
+    private let night = SleepSession(id: RecordID.healthSleepID(sampleUUID: "n"), start: base - 9 * hourMs, end: base - hourMs)
+
+    private var optedIn: ConversationState {
+        var state = ConversationState()
+        state.preferences.proactive = true
+        return state
+    }
+
+    @Test func unchangedOrSampleOnlySleepOffersNothing() {
+        #expect(SleepChangeSuggestion.afterChange(before: [night], after: [night], conversation: optedIn, now: base, clock: utc) == nil)
+        let sample = SleepSession(id: "demo:sleep:1", start: base - 9 * hourMs, end: base - hourMs)
+        #expect(SleepChangeSuggestion.afterChange(before: [night], after: [night, sample], conversation: optedIn, now: base, clock: utc) == nil)
+        // Older sleep doesn't change what the estimate uses.
+        let old = SleepSession(id: "manual:sleep:2:a", start: base - 3 * dayMs, end: base - 3 * dayMs + 7 * hourMs)
+        #expect(SleepChangeSuggestion.afterChange(before: [night], after: [night, old], conversation: optedIn, now: base, clock: utc) == nil)
+    }
+
+    @Test func aRelevantUpdateIsOfferedOnceUnderTheOptIn() throws {
+        let offered = try #require(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: optedIn, now: base, clock: utc))
+        #expect(offered.key == "sleep:\(night.id):\(night.end)" && offered.text == SleepChangeSuggestion.text)
+        #expect(CopyRules.violations(in: offered.text).isEmpty)
+        var delivered = optedIn
+        delivered.deliveredSuggestions[offered.key] = base
+        #expect(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: delivered, now: base, clock: utc) == nil)
+        #expect(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: ConversationState(), now: base, clock: utc) == nil)
+    }
+
+    @Test func dismissalsQuietHoursAndTheDailyCapHold() {
+        var dismissed = optedIn
+        dismissed.dismissedSuggestions = ["sleep:\(night.id):\(night.end)"]
+        #expect(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: dismissed, now: base, clock: utc) == nil)
+        var quiet = optedIn
+        quiet.preferences.quietStartHour = 16
+        quiet.preferences.quietEndHour = 17
+        #expect(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: quiet, now: base, clock: utc) == nil)
+        var capped = optedIn
+        capped.deliveredSuggestions = ["brief:x": base - hourMs, "calendar:y": base - 2 * hourMs]
+        #expect(SleepChangeSuggestion.afterChange(before: [], after: [night], conversation: capped, now: base, clock: utc) == nil)
     }
 }
 

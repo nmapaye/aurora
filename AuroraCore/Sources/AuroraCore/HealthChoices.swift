@@ -157,8 +157,19 @@ extension HealthSyncLedger {
     public var caffeineReadSummary: String? {
         guard let read = lastCaffeineRead else { return nil }
         if let failure = read.failure { return "Last caffeine read failed. \(failure)" }
+        if read.hasMore {
+            return "Caffeine partly read so far: \(read.added) added, \(read.removed) removed. Aurora continues at the next refresh."
+        }
         if read.added == 0 && read.removed == 0 { return "Last caffeine read found no changes." }
         return "Last caffeine read: \(read.added) added, \(read.removed) removed."
+    }
+}
+
+extension HealthSyncLedger {
+    /// Kinds whose stored read position couldn't be decoded; offer Restart
+    /// reading for them.
+    public var kindsNeedingRestart: [HealthDataKind] {
+        HealthDataKind.allCases.filter { lastRead($0)?.invalidAnchor == true }
     }
 }
 
