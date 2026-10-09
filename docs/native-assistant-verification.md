@@ -260,3 +260,20 @@ No website was deployed. Remote CI has not run. Apple enrollment, signed hardwar
 archive, production Google OAuth, live Health/calendar/dictation/background tests,
 real prior-version upgrade, TestFlight and App Review remain separate release gates.
 Other checkouts and personal records remain untouched.
+# Expanded energy foundation — 2026-10-09
+
+Local integration checkpoint `3952667` includes reviewed Claude foundation
+`4b899bf` and correction `7abc32e`. Cards/layout remain unchanged; this is the
+evidence/provenance/migration/provider-interface foundation, not complete Health
+or energy UI delivery.
+
+- Independent core: 103 tests pass in UTC and America/Los_Angeles.
+- Independent native services/migration/erase: 43 tests pass on isolated iPhone,
+  ad hoc simulator signing; `/private/tmp/aurora-energy-foundation-native.xcresult`.
+- Serial iPhone UI and unsigned Release checks running; no result claimed yet.
+- New package hardware/Health writes/observer delivery remain unverified.
+
+Review corrections preserve calculation constants, fix older contributing caffeine
+evidence/sample status, retain snapshot inputs, exclude metadata-only ownership
+claims, preserve unmatched Aurora exports as read-only Health data, and make
+failed migration restoration explicit with retained source intact.

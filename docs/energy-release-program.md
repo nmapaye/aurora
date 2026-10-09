@@ -40,8 +40,8 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 
 | Package | Status | Required evidence |
 |---|---|---|
-| Foundation | Claude dispatched, isolated claude/aurora-energy-foundation | Codable evidence/provenance, v2 migration retain/read-back, race-safe interfaces; core UTC/LA, native build |
-| Health | Pending foundation review | Anchored import/export/observer ledger; denial/revoke/duplicate/deletion/partial failure/erase fixtures + physical Health gate |
+| Foundation | Reviewed and integrated at 3952667 | 103 core tests independently pass UTC/LA; 43 native tests pass on isolated phone; Release and UI checks running |
+| Health | Claude dispatched in claude/aurora-health-native, base 3952667 | Anchored import/export/observer ledger; denial/revoke/duplicate/deletion/partial failure/erase fixtures + physical Health gate |
 | Energy | Pending | Contribution/24h scenario/check-in cards; baseline parity, snapshots, missing/sample data, accessible charts |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
 | Widgets/performance | Pending | Extension/App Group protection, routing/redaction/erase; local signposts and physical profiling |
@@ -89,7 +89,9 @@ At morning resumption pause the overnight guard, inspect the supervisor status,
 and independently review each provisional commit before integration. A Claude
 quota/authentication failure is a durable stop, never an API fallback.
 
-Foundation `4b899bf` independently passed 94 core tests in UTC and Los Angeles.
-Review found older caffeine evidence/sample-label and third-party Health identity
-issues; Claude is correcting them in isolation. This foundation is **not yet
-accepted or integrated**, and native simulator tests for it remain pending.
+Foundation `4b899bf` plus review correction `7abc32e` are integrated as `9a6c9c5`
+and `3952667`. Older caffeine evidence/sample labeling, third-party Health identity
+and migration restore failures now have regressions. Independent results: 103 core
+tests in UTC/Los Angeles, 43 native phone tests. Full UI/Release checks are running.
+Claude's Health task is now isolated at `/Users/nmapaye/Developer/aurora-health-native`;
+the controller's `workspace.json` is authoritative. Its commits require review.
