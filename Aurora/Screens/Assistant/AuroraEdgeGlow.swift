@@ -1,22 +1,33 @@
 import SwiftUI
 
-/// Only real work lights the perimeter. No animation timer runs at rest,
-/// in the background, or with Reduce Motion enabled.
+/// Real work lights the perimeter; its frozen final frame fades away afterward.
+/// No motion timer runs at rest, in the background, or with Reduce Motion enabled.
 struct AuroraEdgeGlow: View {
     let active: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @State private var frozenPhase = Date().timeIntervalSinceReferenceDate
 
     var body: some View {
-        if active {
-            if reduceMotion || scenePhase != .active {
-                edge(phase: 0)
-            } else {
+        ZStack {
+            if active && !reduceMotion && scenePhase == .active {
                 TimelineView(.animation(minimumInterval: 1 / 30)) { context in
                     edge(phase: context.date.timeIntervalSinceReferenceDate)
                 }
+            } else {
+                edge(phase: reduceMotion ? 0 : frozenPhase)
             }
         }
+        .opacity(active ? 1 : 0)
+        .animation(reduceMotion || scenePhase != .active ? nil : .easeInOut(duration: active ? 0.45 : 0.7), value: active)
+        .onChange(of: active) { _, isActive in
+            if !isActive { frozenPhase = Date().timeIntervalSinceReferenceDate }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { frozenPhase = Date().timeIntervalSinceReferenceDate }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func edge(phase: Double) -> some View {
