@@ -279,25 +279,49 @@ final class AppModel {
         }
         await importHealth(days: importDays, failurePrefix: failurePrefix)
         await healthSync.startObservers()
+        await healthSync.reconcileBackgroundDelivery()
     }
 
+    /// Reads Health sleep. A provider with sample identity uses the anchored
+    /// read (UUIDs, sources, deletions); otherwise the window import, which
+    /// identifies sleep by interval.
     func importHealth(days: Double = HealthImport.refreshDays, failurePrefix: String = "Health refresh failed.") async {
         let generation = dataGeneration
         let sleepGeneration = healthSync.readGeneration(.sleepAnalysis)
         var current: Bool { generation == dataGeneration && sleepGeneration == healthSync.readGeneration(.sleepAnalysis) }
+        let anchored = health.capabilities.contains(.readSleepChanges)
+        if anchored && (!state.healthChoices.readSleep || state.demoMode) { return }
         tick()
         let end = now
         update {
             $0.healthSync.importStatus = .importing
             $0.healthSync.lastMessage = HealthImport.importingMessage
         }
+        // A stale import must not leave "importing" behind, which would
+        // block later refreshes.
+        func settleIfStale() {
+            if state.healthSync.importStatus == .importing { update { $0.healthSync.importStatus = .idle } }
+        }
+        if anchored {
+            switch await healthSync.readSleepChanges() {
+            case .failed(let message):
+                guard current else { return settleIfStale() }
+                tick()
+                update { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }
+            case .appliedSleep, .applied:
+                break
+            case .skipped, .discarded, .notSaved:
+                settleIfStale()
+            }
+            return
+        }
         do {
             let samples = try await health.sleepSamples(from: end - days * dayMs, to: end)
-            guard current else { return }
+            guard current else { return settleIfStale() }
             tick()
             update { _ = HealthImport.apply(samples, days: days, now: end, to: &$0) }
         } catch {
-            guard current else { return }
+            guard current else { return settleIfStale() }
             tick()
             let message = (error as? LocalizedError)?.errorDescription ?? "Unable to read sleep data."
             update { HealthImport.recordFailure(message, prefix: failurePrefix, now: self.now, to: &$0) }

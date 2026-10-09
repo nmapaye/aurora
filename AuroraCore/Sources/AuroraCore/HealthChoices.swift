@@ -1,17 +1,20 @@
 import Foundation
 
-/// One Health permission the person can turn on by itself. Turning one on
+/// One Health choice the person can turn on by itself. A permission choice
 /// asks Health for that permission alone; reading never implies writing.
+/// `backgroundUpdates` asks for no permission: it lets Health wake Aurora
+/// for the kinds it already reads.
 public enum HealthChoice: String, Codable, CaseIterable, Sendable {
     case readSleep
     case readCaffeine
     case writeCaffeine
+    case backgroundUpdates
 
     public var readKinds: Set<HealthDataKind> {
         switch self {
         case .readSleep: [.sleepAnalysis]
         case .readCaffeine: [.caffeine]
-        case .writeCaffeine: []
+        case .writeCaffeine, .backgroundUpdates: []
         }
     }
 
@@ -23,6 +26,7 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
         case .readSleep: [.authorization, .readSleep]
         case .readCaffeine: [.authorization, .readCaffeineChanges]
         case .writeCaffeine: [.authorization, .writeOwnCaffeine, .deleteOwnCaffeine]
+        case .backgroundUpdates: [.observeChanges, .backgroundDelivery]
         }
     }
 
@@ -31,6 +35,7 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
         case .readSleep: "Read sleep"
         case .readCaffeine: "Read caffeine"
         case .writeCaffeine: "Add my caffeine to Health"
+        case .backgroundUpdates: "Update in the background"
         }
     }
 
@@ -42,6 +47,8 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
             "Imports caffeine that other apps and devices saved to Apple Health. Those entries are read-only in Aurora; change them in the Health app."
         case .writeCaffeine:
             "Adds caffeine you save in Aurora to Apple Health, and updates or removes only those entries. Entries from other sources are never changed. Erasing Aurora leaves its copies in Apple Health."
+        case .backgroundUpdates:
+            "Lets Apple Health wake Aurora when sleep or caffeine you chose to read changes, so imports stay current. When it’s off, Aurora reads Health when you open it and during occasional iOS background refreshes."
         }
     }
 
@@ -53,6 +60,8 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
             "Requested. Health doesn’t tell apps what you allowed, so finding nothing can mean no records or no read access."
         case .writeCaffeine:
             "Requested. If Health doesn’t accept an entry, it stays saved here and is listed as not exported."
+        case .backgroundUpdates:
+            "On. Apple Health decides when to wake Aurora, at most about once an hour, and may delay or skip updates."
         }
     }
 }
@@ -61,13 +70,15 @@ public struct HealthChoices: Codable, Equatable, Sendable {
     public var readSleep: Bool
     public var readCaffeine: Bool
     public var writeCaffeine: Bool
+    public var backgroundUpdates: Bool
 
     public static let off = HealthChoices()
 
-    public init(readSleep: Bool = false, readCaffeine: Bool = false, writeCaffeine: Bool = false) {
+    public init(readSleep: Bool = false, readCaffeine: Bool = false, writeCaffeine: Bool = false, backgroundUpdates: Bool = false) {
         self.readSleep = readSleep
         self.readCaffeine = readCaffeine
         self.writeCaffeine = writeCaffeine
+        self.backgroundUpdates = backgroundUpdates
     }
 
     public subscript(choice: HealthChoice) -> Bool {
@@ -76,6 +87,7 @@ public struct HealthChoices: Codable, Equatable, Sendable {
             case .readSleep: readSleep
             case .readCaffeine: readCaffeine
             case .writeCaffeine: writeCaffeine
+            case .backgroundUpdates: backgroundUpdates
             }
         }
         set {
@@ -83,9 +95,13 @@ public struct HealthChoices: Codable, Equatable, Sendable {
             case .readSleep: readSleep = newValue
             case .readCaffeine: readCaffeine = newValue
             case .writeCaffeine: writeCaffeine = newValue
+            case .backgroundUpdates: backgroundUpdates = newValue
             }
         }
     }
+
+    /// Kinds Health may wake Aurora for: read kinds, only while opted in.
+    public var backgroundKinds: Set<HealthDataKind> { backgroundUpdates ? observedKinds : [] }
 
     /// Kinds Aurora watches for changes: only those it reads.
     public var observedKinds: Set<HealthDataKind> {
@@ -97,13 +113,14 @@ public struct HealthChoices: Codable, Equatable, Sendable {
 }
 
 extension HealthChoices {
-    private enum CodingKeys: String, CodingKey { case readSleep, readCaffeine, writeCaffeine }
+    private enum CodingKeys: String, CodingKey { case readSleep, readCaffeine, writeCaffeine, backgroundUpdates }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         readSleep = try container.decodeIfPresent(Bool.self, forKey: .readSleep) ?? false
         readCaffeine = try container.decodeIfPresent(Bool.self, forKey: .readCaffeine) ?? false
         writeCaffeine = try container.decodeIfPresent(Bool.self, forKey: .writeCaffeine) ?? false
+        backgroundUpdates = try container.decodeIfPresent(Bool.self, forKey: .backgroundUpdates) ?? false
     }
 }
 

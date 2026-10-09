@@ -62,7 +62,14 @@ final class FakeHealth: HealthDataProvider, @unchecked Sendable {
     private struct Event { var seq: Int; var added: HealthCaffeineSample?; var deleted: String? }
 
     private let lock = NSLock()
-    private var _capabilities: HealthCapabilities = [.authorization, .readSleep, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine, .observeChanges]
+    private var _capabilities: HealthCapabilities = [
+        .authorization, .readSleep, .readSleepChanges, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine,
+        .observeChanges, .backgroundDelivery,
+    ]
+    private var sleep: [HealthSleepSample] = []
+    private var sleepEvents: [(seq: Int, added: HealthSleepSample?, deleted: String?)] = []
+    private var sleepSeq = 0
+    private var _background: Set<HealthDataKind> = []
     private var _available = true
     private var samples: [HealthCaffeineSample] = []
     private var events: [Event] = []
@@ -105,6 +112,47 @@ final class FakeHealth: HealthDataProvider, @unchecked Sendable {
     }
 
     func delete(_ uuid: String) { lock.withLock { remove(uuid.lowercased()) } }
+
+    var background: Set<HealthDataKind> { lock.withLock { _background } }
+
+    func addSleep(_ uuid: String, source: String = "com.apple.health", start: Millis, end: Millis) {
+        lock.withLock {
+            let sample = HealthSleepSample(start: start, end: end, provenance: HealthSampleProvenance(sampleUUID: uuid, sourceBundleIdentifier: source))
+            sleep.append(sample)
+            sleepSeq += 1
+            sleepEvents.append((sleepSeq, sample, nil))
+        }
+    }
+
+    func deleteSleep(_ uuid: String) {
+        lock.withLock {
+            let id = uuid.lowercased()
+            sleep.removeAll { $0.provenance?.sampleUUID == id }
+            sleepSeq += 1
+            sleepEvents.append((sleepSeq, nil, id))
+        }
+    }
+
+    func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
+        try await begin("sleepRead")
+        return lock.withLock {
+            let from = anchor.flatMap { Int(String(decoding: $0, as: UTF8.self)) } ?? 0
+            let later = sleepEvents.filter { $0.seq > from }
+            let present = Set(sleep.compactMap(\.provenance?.sampleUUID))
+            return HealthSleepChanges(
+                added: later.compactMap(\.added).filter { present.contains($0.provenance!.sampleUUID) },
+                deletedSampleUUIDs: later.compactMap(\.deleted),
+                anchor: Data(String(sleepSeq).utf8)
+            )
+        }
+    }
+
+    func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {
+        try await begin("background")
+        lock.withLock {
+            if enabled { _background.formUnion(kinds) } else { _background.subtract(kinds) }
+        }
+    }
 
     private func insert(_ sample: HealthCaffeineSample) {
         samples.append(sample)
@@ -348,7 +396,9 @@ private func reading(_ state: inout AppState) {
         #expect(await paused.readCaffeineChanges() == .skipped)
         future.saveDose("d1", mg: 95, at: base - hourMs)
         #expect(future.state.healthLedger.pendingActions.isEmpty)
-        #expect(health.calls.isEmpty && health.activeObservers.isEmpty)
+        // Only turning stale background wake-ups off reaches Health.
+        #expect(health.calls.allSatisfy { $0 == "background" })
+        #expect(health.activeObservers.isEmpty && health.background.isEmpty)
     }
 
     @Test func aNewerLedgerVersionSurvivesARoundTrip() throws {
@@ -686,6 +736,78 @@ private func reading(_ state: inout AppState) {
         #expect(health.ownStored.map(\.mg) == [95])
     }
 
+    /// An interrupted save: queued and marked started, but never finished.
+    private func interrupted(_ harness: Harness) {
+        harness.saveDose("d1", mg: 95, at: base - hourMs)
+        let id = harness.state.healthLedger.pendingAction(forDoseID: "d1")!.id
+        _ = harness.host.commit { $0.healthLedger.markStarted(actionID: id, at: base) }
+    }
+
+    @Test func eraseDuringTheInterruptedWriteLookupStartsNoNewWrite() async {
+        let health = FakeHealth()
+        let harness = Harness(exporting)
+        interrupted(harness)
+        let engine = harness.engine(health)
+        let gate = health.hold("lookup")
+        let run = Task { await engine.runPendingActions() }
+        await gate.arrival()
+        harness.erase(engine)
+        gate.open()
+        await run.value
+        #expect(!health.calls.contains("save"))
+        #expect(health.ownStored.isEmpty && harness.saved == AppState())
+    }
+
+    @Test func turningExportOffDuringTheLookupStartsNoNewWrite() async {
+        let health = FakeHealth()
+        let harness = Harness(exporting)
+        interrupted(harness)
+        let engine = harness.engine(health)
+        let gate = health.hold("lookup")
+        let run = Task { await engine.runPendingActions() }
+        await gate.arrival()
+        #expect(await engine.setChoice(.writeCaffeine, enabled: false) == .turnedOff)
+        gate.open()
+        await run.value
+        #expect(!health.calls.contains("save") && health.ownStored.isEmpty)
+        // It may have landed before the interruption, so it isn't called cancelled-clean.
+        #expect(HealthExportStatus.of(doseID: "d1", state: harness.state) == .uncertain)
+    }
+
+    @Test func aCorrectionDuringTheLookupWritesOnlyTheNewVersion() async throws {
+        let health = FakeHealth()
+        let harness = Harness(exporting)
+        interrupted(harness)
+        let engine = harness.engine(health)
+        let gate = health.hold("lookup")
+        let run = Task { await engine.runPendingActions() }
+        await gate.arrival()
+        harness.correctDose("d1", mg: 120)
+        gate.open()
+        await run.value
+        // The stale version-1 write never starts; the current action does.
+        #expect(health.calls.filter { $0 == "save" }.count == 1)
+        #expect(health.ownStored.map(\.mg) == [120])
+        #expect(health.ownStored.first?.provenance.syncVersion == 2)
+        #expect(HealthExportStatus.of(doseID: "d1", state: harness.state) == .exported)
+    }
+
+    @Test func aRemovalDuringTheLookupDeletesInsteadOfWriting() async {
+        let health = FakeHealth()
+        let harness = Harness(exporting)
+        interrupted(harness)
+        let engine = harness.engine(health)
+        let gate = health.hold("lookup")
+        let run = Task { await engine.runPendingActions() }
+        await gate.arrival()
+        harness.removeDose("d1")
+        gate.open()
+        await run.value
+        #expect(!health.calls.contains("save"))
+        #expect(health.calls.contains("delete") && health.ownStored.isEmpty)
+        #expect(HealthExportStatus.of(doseID: "d1", state: harness.state) == .removed)
+    }
+
     @Test func turningExportOffMidWriteNeverClaimsTheOutcome() async {
         let health = FakeHealth()
         let harness = Harness(exporting)
@@ -860,6 +982,162 @@ private func reading(_ state: inout AppState) {
         #expect(RefreshPolicy.steps(for: [.foreground], lastRun: stale, now: now) == RefreshPolicy.Step.allCases)
         // A clock set backwards doesn't freeze refresh.
         #expect(RefreshPolicy.steps(for: [.foreground], lastRun: [.calendars: now + hourMs], now: now).contains(.calendars))
+    }
+}
+
+// MARK: Sleep identity
+
+@MainActor
+@Suite struct HealthSleepIdentityTests {
+    private let night = (start: base - 9 * hourMs, end: base - hourMs)
+
+    private func sleeping(_ state: inout AppState) {
+        state.healthChoices = HealthChoices(readSleep: true)
+    }
+
+    @Test func samplesKeepTheirUUIDAndSourceAndEqualIntervalsStaySeparate() async throws {
+        let health = FakeHealth()
+        health.addSleep("W", source: "com.apple.health.watch", start: night.start, end: night.end)
+        health.addSleep("P", source: "com.example.sleepapp", start: night.start, end: night.end)
+        let harness = Harness(sleeping)
+        guard case .appliedSleep(let result) = await harness.engine(health).readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(result.upserted == 2)
+        let records = harness.state.sleeps
+        #expect(Set(records.map(\.id)) == [RecordID.healthSleepID(sampleUUID: "w"), RecordID.healthSleepID(sampleUUID: "p")])
+        #expect(Set(records.compactMap(\.health?.sourceBundleIdentifier)) == ["com.apple.health.watch", "com.example.sleepapp"])
+        // Raw records stay two; calculations merge them into one interval.
+        let one = [SleepSession(id: "manual:sleep:1:a", start: night.start, end: night.end)]
+        #expect(SleepDebt.totalHoursLast24(at: base, sleeps: records) == SleepDebt.totalHoursLast24(at: base, sleeps: one))
+        #expect(HealthSleepIdentity.normalize(records).count == 2)
+        #expect(harness.state.healthSync.importedCount == 1 && harness.state.healthSync.importStatus == .succeeded)
+    }
+
+    @Test func incrementalReadsDeleteExactlyTheRemovedSample() async {
+        let health = FakeHealth()
+        health.addSleep("W", start: night.start, end: night.end)
+        health.addSleep("P", start: night.start, end: night.end)
+        let harness = Harness(sleeping)
+        let engine = harness.engine(health)
+        _ = await engine.readSleepChanges()
+        health.deleteSleep("W")
+        health.addSleep("N", start: night.start - dayMs, end: night.end - dayMs)
+        guard case .appliedSleep(let result) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(result.removed == 1 && result.upserted == 1)
+        #expect(Set(harness.state.sleeps.map(\.id)) == [RecordID.healthSleepID(sampleUUID: "p"), RecordID.healthSleepID(sampleUUID: "n")])
+    }
+
+    @Test func pairedIDsConvertOnlyAtTheirExactIntervalAndOthersAreKept() async {
+        let legacyMatched = SleepSession(id: HealthSleepIdentity.id(start: night.start, end: night.end), start: night.start, end: night.end)
+        let legacyUnmatched = SleepSession(id: HealthSleepIdentity.id(start: night.start - dayMs, end: night.end - dayMs), start: night.start - dayMs, end: night.end - dayMs)
+        let manual = SleepSession(id: "manual:sleep:1:a", start: night.start - dayMs, end: night.end - dayMs)
+        let health = FakeHealth()
+        health.addSleep("A", start: night.start, end: night.end)
+        health.addSleep("B", start: night.start, end: night.end)
+        // A sample a minute off the unmatched record is never treated as it.
+        health.addSleep("C", start: night.start - dayMs + minuteMs, end: night.end - dayMs)
+        let harness = Harness {
+            $0.healthChoices = HealthChoices(readSleep: true)
+            $0.sleeps = [legacyMatched, legacyUnmatched, manual]
+        }
+        let engine = harness.engine(health)
+        guard case .appliedSleep(let result) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(result.legacyReplaced == 1 && result.legacyKept == 1)
+        let ids = Set(harness.state.sleeps.map(\.id))
+        #expect(ids == [legacyUnmatched.id, manual.id, RecordID.healthSleepID(sampleUUID: "a"), RecordID.healthSleepID(sampleUUID: "b"), RecordID.healthSleepID(sampleUUID: "c")])
+        // Later reads never revisit the conversion.
+        health.addSleep("D", start: night.start - 2 * dayMs, end: night.end - 2 * dayMs)
+        guard case .appliedSleep(let later) = await engine.readSleepChanges() else { Issue.record("not applied"); return }
+        #expect(later.legacyReplaced == 0 && later.legacyKept == 0)
+        #expect(harness.state.sleeps.contains { $0.id == legacyUnmatched.id })
+    }
+
+    @Test func intervalImportsNeverTouchSampleIdentifiedSleep() {
+        var state = AppState()
+        let sample = SleepSession(id: RecordID.healthSleepID(sampleUUID: "a"), start: night.start, end: night.end,
+                                  health: HealthSampleProvenance(sampleUUID: "a", sourceBundleIdentifier: "com.apple.health"))
+        state.sleeps = [sample]
+        state.replaceHealthSleepWindow([], windowStart: base - 30 * dayMs, windowEnd: base, now: base)
+        state.upsertSleepSessions([SleepSession(id: HealthSleepIdentity.id(start: night.start, end: night.end), start: night.start, end: night.end)], now: base)
+        #expect(state.sleeps.contains(sample) && state.sleeps.count == 2)
+        #expect(HealthSleepIdentity.normalize(sample) == sample)
+    }
+
+    @Test func storedSessionsKeepTheirKeysAndProvenanceRoundTrips() throws {
+        let manual = SleepSession(id: "manual:sleep:1:a", start: 1000, end: 2000)
+        let json = String(decoding: try JSONEncoder().encode(manual), as: UTF8.self)
+        #expect(!json.contains("health"))
+        let old = Data(#"{"id":"healthkit:sleep:1000:2000","start":1000,"end":2000,"type":"sleep"}"#.utf8)
+        #expect(try JSONDecoder().decode(SleepSession.self, from: old).health == nil)
+        let sample = SleepSession(id: RecordID.healthSleepID(sampleUUID: "a"), start: 1000, end: 2000,
+                                  health: HealthSampleProvenance(sampleUUID: "A", sourceBundleIdentifier: "com.apple.health", sourceName: "Watch"))
+        #expect(try JSONDecoder().decode(SleepSession.self, from: JSONEncoder().encode(sample)) == sample)
+    }
+
+    @Test func failedOrStaleSleepReadsLeaveRecordsAndAnchor() async {
+        let health = FakeHealth()
+        health.addSleep("A", start: night.start, end: night.end)
+        let harness = Harness(sleeping)
+        let engine = harness.engine(health)
+        health.fail("sleepRead", with: FakeFailure(text: "Health is locked."))
+        #expect(await engine.readSleepChanges() == .failed("Health is locked."))
+        #expect(harness.state.healthLedger.anchor(for: .sleepAnalysis) == nil && harness.state.sleeps.isEmpty)
+        let gate = health.hold("sleepRead")
+        async let late = engine.readSleepChanges()
+        await gate.arrival()
+        harness.erase(engine)
+        gate.open()
+        #expect(await late == .discarded)
+        #expect(harness.saved == AppState())
+    }
+}
+
+// MARK: Background delivery
+
+@MainActor
+@Suite struct HealthBackgroundDeliveryTests {
+    @Test func wakeUpsAreOffUntilChosenAndFollowReadChoices() async {
+        let health = FakeHealth()
+        let harness = Harness { $0.healthChoices = HealthChoices(readSleep: true, readCaffeine: true) }
+        let engine = harness.engine(health)
+        await engine.startObservers()
+        #expect(health.activeObservers == [.sleepAnalysis, .caffeine] && health.background.isEmpty)
+        #expect(await engine.setChoice(.backgroundUpdates, enabled: true) == .requested)
+        #expect(health.background == [.sleepAnalysis, .caffeine])
+        // It asks for no Health permission.
+        #expect(health.authorizations.isEmpty)
+        #expect(await engine.setChoice(.readCaffeine, enabled: false) == .turnedOff)
+        #expect(health.background == [.sleepAnalysis])
+        #expect(await engine.setChoice(.backgroundUpdates, enabled: false) == .turnedOff)
+        #expect(health.background.isEmpty && health.activeObservers == [.sleepAnalysis])
+    }
+
+    @Test func aRefusedOrUnsupportedRequestLeavesTheChoiceOff() async {
+        let health = FakeHealth()
+        health.fail("background", with: FakeFailure(text: "Not entitled."))
+        let harness = Harness { $0.healthChoices = HealthChoices(readCaffeine: true) }
+        let engine = harness.engine(health)
+        #expect(await engine.setChoice(.backgroundUpdates, enabled: true) == .failed("Not entitled."))
+        #expect(!harness.state.healthChoices.backgroundUpdates)
+        health.capabilities.remove(.backgroundDelivery)
+        #expect(await engine.setChoice(.backgroundUpdates, enabled: true) == .unsupported)
+    }
+
+    @Test func eraseAndLaunchTurnStaleWakeUpsOff() async {
+        let health = FakeHealth()
+        let harness = Harness { $0.healthChoices = HealthChoices(readCaffeine: true) }
+        let engine = harness.engine(health)
+        #expect(await engine.setChoice(.backgroundUpdates, enabled: true) == .requested)
+        #expect(health.background == [.caffeine])
+        harness.erase(engine)
+        for _ in 0..<50 where !health.background.isEmpty { await Task.yield() }
+        #expect(health.background.isEmpty)
+
+        // Health remembers wake-ups across launches; a relaunch without the
+        // choice turns a leftover one off.
+        try? await health.setBackgroundDelivery([.sleepAnalysis], enabled: true)
+        let relaunched = Harness { $0.healthChoices = HealthChoices(readSleep: true) }
+        await relaunched.engine(health).startObservers()
+        #expect(health.background.isEmpty && health.activeObservers.contains(.sleepAnalysis))
     }
 }
 

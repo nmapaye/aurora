@@ -84,6 +84,21 @@ import Testing
         #expect(model.state.healthChoices.readCaffeine)
     }
 
+    @Test func anchoredSleepKeepsSampleIdentityThroughConnect() async throws {
+        let end = AppModel.currentMillis() - 60_000
+        let provider = AnchoredSleepHealth(samples: [
+            HealthSleepSample(start: end - 7 * hourMs, end: end, provenance: HealthSampleProvenance(sampleUUID: "W", sourceBundleIdentifier: "com.apple.health")),
+            HealthSleepSample(start: end - 7 * hourMs, end: end, provenance: HealthSampleProvenance(sampleUUID: "P", sourceBundleIdentifier: "com.example.sleep")),
+        ])
+        let directory = root.appendingPathComponent("Support/Aurora", isDirectory: true)
+        let model = AppModel(health: provider, makeStore: { StateStore(directory: directory) }, legacy: { nil })
+        model.load()
+        await model.connectHealth()
+        #expect(Set(model.state.sleeps.map(\.id)) == [RecordID.healthSleepID(sampleUUID: "w"), RecordID.healthSleepID(sampleUUID: "p")])
+        #expect(model.state.healthSync.importStatus == .succeeded && model.state.healthSync.importedCount == 1)
+        #expect(model.state.healthLedger.anchor(for: .sleepAnalysis) != nil)
+    }
+
     @Test func receiptsReportHealthApartFromTheLocalSave() async throws {
         let health = ScriptedHealth()
         let model = makeModel(health: health)
@@ -101,6 +116,16 @@ import Testing
             await Task.yield()
         }
         #expect(assistant.conversation.messages.last?.card?.metrics.first { $0.id == "health" }?.value == "Added")
+    }
+}
+
+private struct AnchoredSleepHealth: HealthDataProvider {
+    let samples: [HealthSleepSample]
+    var capabilities: HealthCapabilities { [.authorization, .readSleep, .readSleepChanges] }
+    var isAvailable: Bool { true }
+    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {}
+    func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
+        HealthSleepChanges(added: anchor == nil ? samples : [], deletedSampleUUIDs: [], anchor: Data("1".utf8))
     }
 }
 

@@ -76,6 +76,14 @@ app's resources in the project file.
   until Health confirmed it. Retry is explicit and checks for an
   interrupted write first. Erase and Delete All cancel Health work and
   leave Aurora's exported samples in Health.
+- Health sleep read anchored is keyed `healthkit:sleep:sample:<uuid>` with
+  provenance; deletions remove exactly that UUID. Older
+  `healthkit:sleep:<start>:<end>` records convert only at their exact
+  interval on the first anchored read; others are kept. Equal intervals stay
+  separate records; calculations merge intervals and never use ids.
+- HealthKit background delivery is its own opt-in (`backgroundUpdates`),
+  reconciled at launch and erase. Observers register at launch in
+  `AppDelegate`.
 - Foreground, background and Health observer refreshes go through
   `RefreshScheduler` and `RefreshPolicy`; Health changes never start
   calendar refreshes or suggestions by themselves.

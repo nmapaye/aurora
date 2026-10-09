@@ -5,10 +5,55 @@ import Foundation
 public struct HealthSleepSample: Equatable, Sendable {
     public var start: Millis
     public var end: Millis
+    /// Present when the provider reads sample identity (anchored reads).
+    public var provenance: HealthSampleProvenance?
 
-    public init(start: Millis, end: Millis) {
+    public init(start: Millis, end: Millis, provenance: HealthSampleProvenance? = nil) {
         self.start = start
         self.end = end
+        self.provenance = provenance
+    }
+}
+
+/// An anchored read of asleep samples: added samples with their identity,
+/// and the UUIDs of samples deleted, since the previous anchor.
+public struct HealthSleepChanges: Equatable, Sendable {
+    public var added: [HealthSleepSample]
+    public var deletedSampleUUIDs: [String]
+    /// The archived `HKQueryAnchor` to resume from.
+    public var anchor: Data
+
+    public init(added: [HealthSleepSample], deletedSampleUUIDs: [String], anchor: Data) {
+        self.added = added
+        self.deletedSampleUUIDs = deletedSampleUUIDs
+        self.anchor = anchor
+    }
+}
+
+public enum HealthSleepImport {
+    public struct Result: Equatable, Sendable {
+        public var upserted = 0
+        public var removed = 0
+        public var rejected = 0
+        /// Pre-identity `healthkit:sleep:<start>:<end>` records replaced by
+        /// the sample records for exactly that interval.
+        public var legacyReplaced = 0
+        /// Pre-identity records with no sample at exactly their interval,
+        /// kept read-only until retention trims them.
+        public var legacyKept = 0
+
+        public init() {}
+    }
+
+    /// Identity, a finite interval, and an end after the start.
+    public static func isValid(_ sample: HealthSleepSample) -> Bool {
+        guard let provenance = sample.provenance, !provenance.sampleUUID.isEmpty else { return false }
+        return sample.start.isFinite && sample.end.isFinite && sample.start < sample.end
+    }
+
+    public static func session(from sample: HealthSleepSample) -> SleepSession? {
+        guard isValid(sample), let provenance = sample.provenance else { return nil }
+        return SleepSession(id: RecordID.healthSleepID(sampleUUID: provenance.sampleUUID), start: sample.start, end: sample.end, type: .sleep, health: provenance)
     }
 }
 
@@ -56,6 +101,18 @@ public enum HealthImport {
         state.healthSync.lastSyncedAt = now
         state.healthSync.lastMessage = describeImportedNights(nights)
         return nights
+    }
+
+    /// Status after an anchored sleep read: nights of Health sleep recorded in
+    /// the refresh window, merged as calculations merge them.
+    public static func recordAnchoredRead(now: Millis, to state: inout AppState) {
+        let windowStart = now - refreshDays * dayMs
+        let recent = state.sleeps.filter { RecordID.isHealthSleep($0.id) && $0.end >= windowStart && $0.start <= now }
+        let nights = countNights(recent.map { HealthSleepSample(start: $0.start, end: $0.end) })
+        state.healthSync.importedCount = nights
+        state.healthSync.importStatus = .succeeded
+        state.healthSync.lastSyncedAt = now
+        state.healthSync.lastMessage = describeImportedNights(nights)
     }
 
     public static func recordFailure(_ message: String, prefix: String = "Health refresh failed.", now: Millis, to state: inout AppState) {

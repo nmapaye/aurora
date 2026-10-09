@@ -3,7 +3,8 @@ import SwiftUI
 
 @main
 struct AuroraApp: App {
-    @State private var model = AppModel()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    private var model: AppModel { delegate.model }
     @State private var router = Router()
     @State private var assistant = AssistantModel()
     @Environment(\.scenePhase) private var scenePhase

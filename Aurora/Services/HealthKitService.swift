@@ -30,8 +30,12 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     private var queries: [String: HKObserverQuery] = [:]
 
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
+    /// Background delivery needs the HealthKit Background Delivery
+    /// entitlement, declared in `Aurora.entitlements`. Without it Health
+    /// refuses `enableBackgroundDelivery`, and the choice stays off.
     var capabilities: HealthCapabilities {
-        [.authorization, .readSleep, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine, .observeChanges]
+        [.authorization, .readSleep, .readSleepChanges, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine,
+         .observeChanges, .backgroundDelivery]
     }
 
     private func objectType(_ kind: HealthDataKind) -> HKSampleType {
@@ -77,6 +81,44 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
                     end: ($0.endDate.timeIntervalSince1970 * 1000).rounded()
                 )
             }
+    }
+
+    /// Asleep samples added since `anchor`, each with its UUID and source,
+    /// and the UUIDs of samples deleted since then. In-bed and awake samples
+    /// aren't sleep and are left out; their deletions match nothing here.
+    func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
+        guard isAvailable else { throw Failure.unavailable }
+        let previous = anchor.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
+        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.categorySample(type: sleepType)], anchor: previous)
+        let result = try await descriptor.result(for: store)
+        let next = try NSKeyedArchiver.archivedData(withRootObject: result.newAnchor, requiringSecureCoding: true)
+        return HealthSleepChanges(
+            added: result.addedSamples
+                .filter { HealthImport.asleepValues.contains($0.value) }
+                .map {
+                    HealthSleepSample(
+                        start: ($0.startDate.timeIntervalSince1970 * 1000).rounded(),
+                        end: ($0.endDate.timeIntervalSince1970 * 1000).rounded(),
+                        provenance: provenance($0)
+                    )
+                },
+            deletedSampleUUIDs: result.deletedObjects.map { $0.uuid.uuidString.lowercased() },
+            anchor: next
+        )
+    }
+
+    /// Health wakes Aurora at most hourly for these kinds while enabled, and
+    /// keeps the setting across launches until it's turned off.
+    func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {
+        guard isAvailable else { throw Failure.unavailable }
+        for kind in kinds {
+            let type = objectType(kind)
+            if enabled {
+                try await store.enableBackgroundDelivery(for: type, frequency: .hourly)
+            } else {
+                try await store.disableBackgroundDelivery(for: type)
+            }
+        }
     }
 
     // MARK: Caffeine

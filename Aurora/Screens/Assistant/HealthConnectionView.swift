@@ -103,7 +103,9 @@ struct HealthConnectionView: View {
                     if working == choice { ProgressView() }
                 }
             }
-            .disabled(working != nil || !app.healthAvailable)
+            // Background updates apply only to kinds Aurora already reads.
+            .disabled(working != nil || !app.healthAvailable
+                      || (choice == .backgroundUpdates && !on && app.state.healthChoices.observedKinds.isEmpty))
             .frame(minHeight: Metrics.minimumTouchTarget)
             .accessibilityIdentifier("assistant-health-\(choice.rawValue)")
             Text(choice.detail).font(.footnote).foregroundStyle(Palette.textSecondary)

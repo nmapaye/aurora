@@ -176,15 +176,65 @@ public struct AppState: Codable, Equatable, Sendable {
         sleeps = Self.sortedByEndDescending(Self.withinHealthRetention(merged, now: now))
     }
 
-    /// Replaces Health-imported sleep inside the window with `items`, so
-    /// samples deleted in Health disappear here too. Manual and sample sleep
-    /// is untouched.
+    /// For providers without sample identity: replaces interval-identified
+    /// Health sleep inside the window with `items`, so samples deleted in
+    /// Health disappear here too. Manual, sample, and sample-identified
+    /// Health sleep is untouched.
     public mutating func replaceHealthSleepWindow(_ items: [SleepSession], windowStart: Millis, windowEnd: Millis, now: Millis) {
         let kept = HealthSleepIdentity.normalize(sleeps).filter {
-            !RecordID.isHealthSleep($0.id) || $0.end < windowStart || $0.start > windowEnd
+            !RecordID.isLegacyHealthSleep($0.id) || $0.end < windowStart || $0.start > windowEnd
         }
         let merged = HealthSleepIdentity.normalize(kept + HealthSleepIdentity.normalize(items))
         sleeps = Self.sortedByEndDescending(Self.withinHealthRetention(merged, now: now))
+    }
+
+    /// Applies an anchored Health sleep read. Records are keyed by sample
+    /// UUID and keep their provenance; deletions remove exactly those UUIDs.
+    /// Samples with equal intervals stay separate records; calculations merge
+    /// intervals on their own.
+    ///
+    /// The first anchored read converts pre-identity records conservatively:
+    /// a `healthkit:sleep:<start>:<end>` record is replaced only by samples at
+    /// exactly that interval, which is what its id was derived from. Any
+    /// other one is kept read-only until retention trims it, never matched
+    /// to a nearby sample. The anchor is saved with the records.
+    @discardableResult
+    public mutating func applyHealthSleep(_ changes: HealthSleepChanges, now: Millis) -> HealthSleepImport.Result {
+        var result = HealthSleepImport.Result()
+        let firstRead = healthLedger.anchor(for: .sleepAnalysis) == nil
+        let deleted = Set(changes.deletedSampleUUIDs.map { RecordID.healthSleepID(sampleUUID: $0) })
+        let before = sleeps.count
+        sleeps.removeAll { deleted.contains($0.id) }
+        result.removed = before - sleeps.count
+        var incoming: [SleepSession] = []
+        for sample in changes.added {
+            guard let session = HealthSleepImport.session(from: sample) else {
+                result.rejected += 1
+                continue
+            }
+            incoming.removeAll { $0.id == session.id }
+            incoming.append(session)
+        }
+        if firstRead {
+            let intervals = Set(incoming.map { HealthSleepIdentity.id(start: $0.start, end: $0.end) })
+            let legacy = sleeps.filter { RecordID.isLegacyHealthSleep($0.id) }
+            let replaced = legacy.filter { intervals.contains(HealthSleepIdentity.id(start: $0.start, end: $0.end)) }
+            result.legacyReplaced = replaced.count
+            result.legacyKept = legacy.count - replaced.count
+            let replacedIDs = Set(replaced.map(\.id))
+            sleeps.removeAll { replacedIDs.contains($0.id) }
+        }
+        for session in incoming {
+            if let index = sleeps.firstIndex(where: { $0.id == session.id }) {
+                sleeps[index] = session
+            } else {
+                sleeps.append(session)
+            }
+            result.upserted += 1
+        }
+        sleeps = Self.sortedByEndDescending(Self.withinHealthRetention(sleeps, now: now))
+        healthLedger.setAnchor(changes.anchor, for: .sleepAnalysis, at: now)
+        return result
     }
 
     /// Only manual entries can be corrected.

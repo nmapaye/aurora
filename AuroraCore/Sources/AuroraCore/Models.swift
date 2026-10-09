@@ -40,13 +40,17 @@ public struct SleepSession: Codable, Equatable, Hashable, Identifiable, Sendable
     public var end: Millis
     public var type: SleepType
     public var note: String?
+    /// Health sleep read with its sample identity keeps the provenance Health
+    /// reported. Absent everywhere else, so stored sessions keep their keys.
+    public var health: HealthSampleProvenance?
 
-    public init(id: String, start: Millis, end: Millis, type: SleepType = .sleep, note: String? = nil) {
+    public init(id: String, start: Millis, end: Millis, type: SleepType = .sleep, note: String? = nil, health: HealthSampleProvenance? = nil) {
         self.id = id
         self.start = start
         self.end = end
         self.type = type
         self.note = note
+        self.health = health
     }
 }
 
@@ -195,6 +199,23 @@ public enum RecordID {
 
     public static func isHealthSleep(_ id: String) -> Bool {
         id.hasPrefix(healthSleepPrefix)
+    }
+
+    /// `healthkit:sleep:sample:<sample uuid>`: Health sleep read with its
+    /// sample identity. Two samples with the same interval stay two records.
+    public static let healthSleepSamplePrefix = "healthkit:sleep:sample:"
+
+    public static func healthSleepID(sampleUUID: String) -> String {
+        "\(healthSleepSamplePrefix)\(sampleUUID.lowercased())"
+    }
+
+    public static func isHealthSleepSample(_ id: String) -> Bool {
+        id.hasPrefix(healthSleepSamplePrefix)
+    }
+
+    /// Health sleep from before sample identity: `healthkit:sleep:<start>:<end>`.
+    public static func isLegacyHealthSleep(_ id: String) -> Bool {
+        isHealthSleep(id) && !isHealthSleepSample(id)
     }
 
     /// Health caffeine is read-only here; Health owns the record.

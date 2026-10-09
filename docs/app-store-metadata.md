@@ -38,7 +38,7 @@ Verify deployed pages and configure a real private support contact before submis
 
 ## Reviewer notes
 
-Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy must declare Health and Fitness data read and written (dietary caffeine written), not linked to tracking. Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
+Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy must declare Health and Fitness data read and written (dietary caffeine written), not linked to tracking. The optional "Update in the background" choice uses HealthKit background delivery (entitlement declared; provisioning profile must include it). Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
 
 Debug Design Gallery is excluded from Release. No Mac app or cross-device health/conversation sync is included. Notifications use permitted foreground/background opportunities, not continuous reasoning.
 

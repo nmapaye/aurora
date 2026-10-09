@@ -22,6 +22,84 @@ Health UI for this package by explicit user assignment. Provisional until Codex 
   worktree; only strings changed in `website/src/App.tsx` and `public/privacy.html`.
 - Any signed build, device, or real HealthKit call.
 
+## Review corrections (2026-10-09, separate commit)
+
+Responds to Codex's provisional review (`aurora-overnight/health-review-findings.md`).
+
+| Command | Result |
+|---|---|
+| `TZ=UTC DEVELOPER_DIR=… swift test --package-path AuroraCore` | 153 tests in 22 suites passed |
+| `TZ=America/Los_Angeles DEVELOPER_DIR=… swift test --package-path AuroraCore` | 153 tests in 22 suites passed |
+| `DEVELOPER_DIR=… swift test --package-path AuroraCore --filter "HealthChoiceTests\|HealthCaffeineReadTests\|HealthExportTests\|HealthEraseAndRefreshTests\|HealthSleepIdentityTests\|HealthBackgroundDeliveryTests\|RefreshCoordinatorTests\|StateMigrationTests" --maximum-repetitions 200 --repeat-until fail` | 60 tests in 8 suites passed, no failures in 200 repetitions |
+| generic unsigned `xcodebuild build` / `build-for-testing` (same flags) | BUILD SUCCEEDED / TEST BUILD SUCCEEDED |
+
+**Not run:**
+- AuroraTests and UI tests on a simulator (Codex lane). `HealthSyncAppTests` now has 4
+  tests, compiled only.
+- The website checks.
+- Any signed build or device test. The unsigned build doesn't validate entitlements
+  against a profile.
+
+1. **Revalidation after the interrupted-write lookup.** `HealthSyncEngine.attempt` now
+   calls `stillCurrent` after the awaited `ownCaffeineSample` and before any new write.
+   It checks that the export generation is unchanged, export is active, the dose's
+   queued action has the same id, kind, sync identifier and version, and the dose is
+   unchanged. A save already sent to Health may finish, but its answer is dropped if
+   stale. No new write starts after an invalidation. Tests hold the lookup and then
+   erase (no save), turn export off (no save; status `.uncertain`), correct the dose
+   (only the version-2 write), or remove the dose (delete, no save).
+2. **Sleep identity.**
+   - `HealthKitService.sleepChanges(after:)` is an anchored read that keeps each
+     sample's UUID, source bundle, name and sync metadata, plus deleted UUIDs.
+   - Records are `healthkit:sleep:sample:<uuid>` with `SleepSession.health`
+     provenance. Deletions remove exactly that UUID.
+   - `HealthSleepIdentity.normalize` never renames or merges sample-identified ids.
+     The window import (fallback for providers without identity) only replaces
+     interval-identified records.
+   - Conservative compatibility: on the first anchored read, a legacy
+     `healthkit:sleep:<start>:<end>` record is replaced only by samples at exactly
+     that interval (what its id was derived from). Every other legacy record is kept
+     read-only until 180-day retention trims it, never matched to a nearby sample.
+     The anchor saves with the records.
+   - Calculations (`SleepDebt`, `unionDuration`, `SleepIntervals.merge`) merge
+     intervals and don't use ids. A test confirms two same-interval samples count
+     once.
+   - **No schema change:** additive optional fields decode with defaults, so
+     `schemaVersion` stays 2 and no retained-source migration is triggered.
+     `state.v1-source.json` and the pre-assistant snapshot rules are unchanged.
+   - Tests: `HealthSleepIdentityTests` (6) and `anchoredSleepKeepsSampleIdentityThroughConnect`.
+3. **Background delivery.**
+   - Implemented as a separate opt-in, "Update in the background"
+     (`HealthChoices.backgroundUpdates`, off by default, asks for no Health
+     permission, disabled until a read is chosen). It calls
+     `enableBackgroundDelivery(for:frequency: .hourly)` only for kinds being read.
+   - Turning a read off disables delivery for that kind. Erase, Delete All and each
+     launch reconcile delivery to the stored choices, since Health keeps the setting
+     across launches.
+   - The entitlement `com.apple.developer.healthkit.background-delivery` is declared
+     in `Aurora.entitlements`. Team, signing and profile settings are untouched.
+   - Observers register at launch in the new `AppDelegate`
+     (`application(_:didFinishLaunchingWithOptions:)`, which now owns `AppModel`), as
+     Apple requires. Observer completion always runs. A failed enable leaves the
+     choice off.
+   - Without the choice, Health is read in the foreground and during iOS-granted
+     BGAppRefresh opportunities only. Neither path is continuous monitoring.
+   - Tests: `HealthBackgroundDeliveryTests` (3).
+4. **Write-only permission and sync versions (documentation; device unverified).**
+   - Apple's `HKHealthStore.authorizationStatus(for:)` docs: "If your app is given
+     share permission but not read permission, you see only the data that your app
+     has written to the store." So the own-sample lookup should work with write-only
+     permission.
+   - `HKMetadataKeySyncIdentifier` docs require `HKMetadataKeySyncVersion` (both are
+     set) and say a save with a *greater* version replaces the old object. Equal and
+     lower versions are undocumented, so Aurora never relies on them: a retry adopts
+     an existing own sample at the same or higher version instead of saving again, and
+     writes only when the lookup finds none.
+   - A failed lookup records a failure and writes nothing. A confirmation is recorded
+     only when Health returns a saved UUID or the lookup finds the sample.
+   - Residual risk: a sample the person deleted in the Health app after an
+     interrupted write would be written again on Retry.
+
 ## What shipped
 
 **Core (AuroraCore):**
@@ -108,10 +186,9 @@ Health UI for this package by explicit user assignment. Provisional until Codex 
 
 - **Retry is explicit.** An action interrupted by app termination shows "Export pending"
   after relaunch until Retry; there's no automatic background retry.
-- **No HealthKit background delivery.** It needs the
-  `com.apple.developer.healthkit.background-delivery` entitlement, which is a signing
-  decision. Observers run while the process is alive; BGAppRefresh is the background
-  path.
+- **Background delivery** (superseded by the corrections above): it's an opt-in
+  backed by a declared entitlement. The provisioning profile must carry the
+  entitlement before it can work on a device.
 - **Turning a read off keeps already-imported records** as a read-only cache. Delete All
   keeps the choices, so Health records, and Aurora's earlier copies, re-import as
   read-only.
@@ -129,9 +206,16 @@ Signed build on a real iPhone:
 - Revoke write in Settings after exporting.
 - Import from a second source with identical time and mg.
 - Export, edit, Undo, then inspect Aurora's samples in Health's Sources.
-- `ownCaffeineSample` lookup when caffeine read is not allowed (relies on apps seeing
-  their own samples).
-- HealthKit's sync-version replacement behavior.
+- `ownCaffeineSample` lookup with write-only permission (documented by Apple, not yet
+  observed on a device).
+- HealthKit's sync-version replacement behavior, including equal versions.
+- Anchored sleep import from Watch plus a second app on the same night, then deleting
+  one sample in Health.
+- Upgrading a device that holds legacy start:end sleep records.
+- With "Update in the background" on: whether a signed build carries the
+  background-delivery entitlement, whether Health wakes the app at most hourly while
+  it's suspended or terminated, observer registration at background launch, and
+  battery impact.
 - Kill the app mid-write, relaunch, and Retry.
 - Erase, and confirm exports remain.
 - Observer delivery after relaunch, and BGAppRefresh with Health choices on.

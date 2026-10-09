@@ -12,6 +12,11 @@ public struct HealthCapabilities: OptionSet, Sendable {
     public static let writeOwnCaffeine = HealthCapabilities(rawValue: 1 << 3)
     public static let deleteOwnCaffeine = HealthCapabilities(rawValue: 1 << 4)
     public static let observeChanges = HealthCapabilities(rawValue: 1 << 5)
+    /// Anchored sleep reads with sample identity and deletions.
+    public static let readSleepChanges = HealthCapabilities(rawValue: 1 << 6)
+    /// Health may wake Aurora for observed changes (iOS: the
+    /// `com.apple.developer.healthkit.background-delivery` entitlement).
+    public static let backgroundDelivery = HealthCapabilities(rawValue: 1 << 7)
 }
 
 public enum HealthProviderError: Error, Equatable, Sendable {
@@ -59,6 +64,11 @@ public protocol HealthDataProvider: Sendable {
     /// Asleep samples that end inside the window, oldest first.
     func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample]
     func caffeineChanges(after anchor: Data?) async throws -> HealthCaffeineChanges
+    /// Asleep samples added, with identity, and samples deleted since `anchor`.
+    func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges
+    /// Turns Health's wake-ups for changes to `kinds` on or off. Health
+    /// decides when and how often it actually delivers.
+    func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws
     /// Saves one of Aurora's own entries; returns the Health sample UUID.
     func saveOwnCaffeine(_ write: HealthCaffeineWrite) async throws -> String
     /// Deletes only samples Aurora wrote with this sync identifier.
@@ -84,6 +94,14 @@ extension HealthDataProvider {
 
     public func caffeineChanges(after anchor: Data?) async throws -> HealthCaffeineChanges {
         throw HealthProviderError.unsupported("readCaffeineChanges")
+    }
+
+    public func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
+        throw HealthProviderError.unsupported("readSleepChanges")
+    }
+
+    public func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {
+        throw HealthProviderError.unsupported("backgroundDelivery")
     }
 
     public func saveOwnCaffeine(_ write: HealthCaffeineWrite) async throws -> String {

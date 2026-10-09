@@ -65,6 +65,7 @@ public final class HealthSyncEngine {
     public enum ReadResult: Equatable, Sendable {
         case skipped
         case applied(HealthCaffeineImport.Result)
+        case appliedSleep(HealthSleepImport.Result)
         case failed(String)
         case discarded
         case notSaved
@@ -77,6 +78,8 @@ public final class HealthSyncEngine {
     private var observations: [HealthDataKind: HealthObservation] = [:]
     private var exportTail: Task<Void, Never>?
     private var caffeineReadGeneration: Int?
+    private var sleepReadGeneration: Int?
+    private var reconciledThisLaunch = false
 
     /// Runs when Health reports a change to an observed kind. Health is told
     /// the notification was handled only after this returns.
@@ -101,12 +104,17 @@ public final class HealthSyncEngine {
     /// observer and makes in-flight work stale; turning export off also
     /// cancels queued actions. Nothing already in Health is removed.
     public func setChoice(_ choice: HealthChoice, enabled: Bool) async -> ChoiceResult {
-        guard enabled else { return turnOff(choice) }
+        guard enabled else {
+            let result = turnOff(choice)
+            await reconcileBackgroundDelivery()
+            return result
+        }
         let state = host.state()
         guard state.healthLedger.isSupported else { return .paused }
         guard !state.demoMode else { return .sampleData }
         guard provider.isAvailable else { return .unavailable }
         guard provider.capabilities.isSuperset(of: choice.requiredCapabilities) else { return .unsupported }
+        if choice == .backgroundUpdates { return await turnOnBackgroundUpdates() }
         let generations = (readGenerations, exportGeneration)
         do {
             try await provider.requestAuthorization(read: choice.readKinds, write: choice.writeKinds)
@@ -116,8 +124,52 @@ public final class HealthSyncEngine {
         }
         guard generations == (readGenerations, exportGeneration) else { return .discarded }
         guard host.commit({ $0.healthChoices[choice] = true }) else { return .notSaved }
-        if !choice.readKinds.isEmpty { await startObservers() }
+        if !choice.readKinds.isEmpty {
+            await startObservers()
+            await reconcileBackgroundDelivery()
+        }
         return .requested
+    }
+
+    /// Asks Health to wake Aurora for the kinds it reads, and stores the
+    /// choice only if Health accepted. Asks for no Health permission.
+    private func turnOnBackgroundUpdates() async -> ChoiceResult {
+        let kinds = host.state().healthChoices.observedKinds
+        let generations = readGenerations
+        do {
+            if !kinds.isEmpty { try await provider.setBackgroundDelivery(kinds, enabled: true) }
+        } catch {
+            guard generations == readGenerations else { return .discarded }
+            return .failed(Self.message(for: error))
+        }
+        guard generations == readGenerations else {
+            await reconcileBackgroundDelivery()
+            return .discarded
+        }
+        guard host.commit({ $0.healthChoices.backgroundUpdates = true }) else {
+            await reconcileBackgroundDelivery()
+            return .notSaved
+        }
+        await startObservers()
+        return .requested
+    }
+
+    /// Makes Health's wake-ups match the stored choices: on for kinds read
+    /// while opted in, off for every other kind. Health keeps this setting
+    /// across launches, so it runs at launch and after any change, and
+    /// re-checks once if choices changed while Health was answering.
+    public func reconcileBackgroundDelivery() async {
+        guard provider.capabilities.contains(.backgroundDelivery) else { return }
+        for _ in 0..<2 {
+            let state = host.state()
+            let wanted = state.healthLedger.isSupported && !state.demoMode ? state.healthChoices.backgroundKinds : []
+            let unwanted = Set(HealthDataKind.allCases).subtracting(wanted)
+            try? await provider.setBackgroundDelivery(unwanted, enabled: false)
+            if !wanted.isEmpty { try? await provider.setBackgroundDelivery(wanted, enabled: true) }
+            let now = host.state()
+            let still = now.healthLedger.isSupported && !now.demoMode ? now.healthChoices.backgroundKinds : []
+            if still == wanted { return }
+        }
     }
 
     private func turnOff(_ choice: HealthChoice) -> ChoiceResult {
@@ -139,6 +191,10 @@ public final class HealthSyncEngine {
 
     /// Starts an observer for each kind Aurora reads and isn't watching yet.
     public func startObservers() async {
+        if !reconciledThisLaunch {
+            reconciledThisLaunch = true
+            await reconcileBackgroundDelivery()
+        }
         let state = host.state()
         guard state.healthLedger.isSupported, !state.demoMode, provider.capabilities.contains(.observeChanges) else { return }
         let wanted = state.healthChoices.observedKinds.subtracting(observations.keys)
@@ -204,6 +260,42 @@ public final class HealthSyncEngine {
         return saved ? .applied(result) : .notSaved
     }
 
+    // MARK: Reading sleep
+
+    /// One anchored sleep read, keyed by sample UUID with provenance. The
+    /// anchor moves only with the records it produced. The caller records
+    /// the sleep status; failures leave records and anchor unchanged.
+    public func readSleepChanges() async -> ReadResult {
+        let state = host.state()
+        let generation = readGeneration(.sleepAnalysis)
+        guard state.healthChoices.readSleep, !state.demoMode, state.healthLedger.isSupported,
+              provider.capabilities.contains(.readSleepChanges), sleepReadGeneration != generation else { return .skipped }
+        sleepReadGeneration = generation
+        defer { if sleepReadGeneration == generation { sleepReadGeneration = nil } }
+        let anchor = state.healthLedger.anchor(for: .sleepAnalysis)?.data
+        let changes: HealthSleepChanges
+        do {
+            changes = try await provider.sleepChanges(after: anchor)
+        } catch {
+            guard isCurrentSleepRead(generation, anchor: anchor) else { return .discarded }
+            return .failed(Self.message(for: error))
+        }
+        guard isCurrentSleepRead(generation, anchor: anchor) else { return .discarded }
+        let now = host.now()
+        var result = HealthSleepImport.Result()
+        let saved = host.commit {
+            result = $0.applyHealthSleep(changes, now: now)
+            HealthImport.recordAnchoredRead(now: now, to: &$0)
+        }
+        return saved ? .appliedSleep(result) : .notSaved
+    }
+
+    private func isCurrentSleepRead(_ generation: Int, anchor: Data?) -> Bool {
+        let state = host.state()
+        return generation == readGeneration(.sleepAnalysis) && state.healthChoices.readSleep && !state.demoMode
+            && state.healthLedger.anchor(for: .sleepAnalysis)?.data == anchor
+    }
+
     private func isCurrentRead(_ generation: Int, anchor: Data?) -> Bool {
         let state = host.state()
         return generation == readGeneration(.caffeine) && state.healthChoices.readCaffeine && !state.demoMode
@@ -254,8 +346,15 @@ public final class HealthSyncEngine {
             switch action.kind {
             case .saveCaffeine:
                 guard let dose else { return }
-                if wasStarted, let existing = try await provider.ownCaffeineSample(syncIdentifier: action.syncIdentifier),
-                   (existing.syncVersion ?? 0) >= action.syncVersion {
+                var existing: HealthSampleProvenance?
+                if wasStarted {
+                    existing = try await provider.ownCaffeineSample(syncIdentifier: action.syncIdentifier)
+                    // The lookup suspended. Before any new write, the action must
+                    // still be this exact one, for this dose as it was, with
+                    // export on and nothing erased or turned off meanwhile.
+                    guard stillCurrent(action, dose: dose, generation: generation) else { return }
+                }
+                if let existing, (existing.syncVersion ?? 0) >= action.syncVersion {
                     // The interrupted write landed; adopt it instead of writing again.
                     sampleUUID = existing.sampleUUID
                 } else {
@@ -281,6 +380,20 @@ public final class HealthSyncEngine {
         }
     }
 
+    /// True while `action` is still the queued action for its dose, unchanged,
+    /// the dose is recorded as it was, export is active, and no invalidation
+    /// happened. Checked after every suspension before starting another
+    /// external operation.
+    private func stillCurrent(_ action: HealthPendingAction, dose: Dose?, generation: Int) -> Bool {
+        let state = host.state()
+        guard generation == exportGeneration, state.healthExportActive,
+              let queued = state.healthLedger.pendingAction(forDoseID: action.doseID),
+              queued.id == action.id, queued.kind == action.kind, queued.syncVersion == action.syncVersion,
+              queued.syncIdentifier == action.syncIdentifier else { return false }
+        guard let dose else { return true }
+        return state.doses.first { $0.id == dose.id } == dose
+    }
+
     // MARK: Erase
 
     /// For Delete All Records and full erase: stops observers, makes every
@@ -291,6 +404,10 @@ public final class HealthSyncEngine {
         exportGeneration += 1
         exportTail = nil
         caffeineReadGeneration = nil
+        sleepReadGeneration = nil
         stopObservers()
+        // Health keeps wake-ups across launches; match them to the choices
+        // that remain (none after full erase).
+        Task { await reconcileBackgroundDelivery() }
     }
 }
