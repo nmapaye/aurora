@@ -52,6 +52,13 @@ struct AssistantView: View {
             .navigationTitle("Aurora")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 7) {
+                        AuroraActivity(active: true, subdued: true).frame(width: 28, height: 20)
+                        Text("Aurora").font(.headline)
+                    }
+                    .accessibilityElement(children: .ignore).accessibilityLabel("Aurora")
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button { assistant.historySheet = .history } label: { Image(systemName: "clock.arrow.circlepath") }
                         .accessibilityLabel("History and native tools").accessibilityIdentifier("assistant-history")
@@ -196,25 +203,41 @@ struct AssistantView: View {
     }
 }
 
+/// A small identity at rest; a brighter ribbon accompanies actual processing.
 struct AuroraActivity: View {
     let active: Bool
+    var subdued = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !active || reduceMotion)) { timeline in
-            let phase = active && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate : 0
-            Canvas { context, size in
-                for band in 0..<3 {
-                    var path = Path()
-                    for step in 0...80 {
-                        let x = size.width * Double(step) / 80
-                        let y = size.height * (0.5 + 0.18 * sin(Double(step) / 13 + phase * 0.8 + Double(band)))
-                        if step == 0 { path.move(to: .init(x: x, y: y)) } else { path.addLine(to: .init(x: x, y: y)) }
-                    }
-                    context.stroke(path, with: .linearGradient(.init(colors: [.clear, Palette.tint.opacity(0.35), Palette.sleepAccent.opacity(0.45), .clear]), startPoint: .zero, endPoint: .init(x: size.width, y: size.height)), style: .init(lineWidth: size.height * 0.18, lineCap: .round))
+        if active && !reduceMotion && scenePhase == .active {
+            TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+                ribbon(phase: timeline.date.timeIntervalSinceReferenceDate)
+            }
+        } else {
+            ribbon(phase: 0)
+        }
+    }
+
+    private func ribbon(phase: Double) -> some View {
+        Canvas { context, size in
+            let speed = subdued ? 0.35 : 0.8
+            for band in 0..<3 {
+                var path = Path()
+                for step in 0...60 {
+                    let x = size.width * Double(step) / 60
+                    let y = size.height * (0.5 + 0.18 * sin(Double(step) / 10 + phase * speed + Double(band)))
+                    if step == 0 { path.move(to: .init(x: x, y: y)) }
+                    else { path.addLine(to: .init(x: x, y: y)) }
                 }
+                let brightness = (subdued ? 0.45 : 0.65) + 0.08 * sin(phase * speed + Double(band))
+                let color = Palette.auroraColors[band]
+                context.stroke(path, with: .linearGradient(.init(colors: [.clear, color.opacity(brightness), .clear]), startPoint: .zero, endPoint: .init(x: size.width, y: 0)), style: .init(lineWidth: size.height * 0.17, lineCap: .round))
             }
         }
-        .blur(radius: active && !reduceMotion ? 4 : 2)
+        .blur(radius: subdued ? 1 : 3)
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }

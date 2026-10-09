@@ -34,6 +34,12 @@ extension Color {
 }
 
 enum Palette {
+    // Shared light for Aurora's identity and processing decoration.
+    static let auroraTeal = Color(light: Brand.sea600, dark: Brand.sea300)
+    static let auroraMint = Color(light: Brand.sea300, dark: Brand.sea200)
+    static let auroraIndigo = Color(light: 0x4A5590, dark: 0xA3ADE6)
+    static let auroraColors = [auroraTeal, auroraMint, auroraIndigo]
+
     static let screen = Color(light: Brand.ivory200, dark: Brand.ink900)
     static let modalBackground = Color(light: Brand.ivory100, dark: Brand.ink850)
     static let card = Color(light: Brand.ivory50, dark: Brand.ink850)

@@ -140,3 +140,30 @@ pushes performed, or releases published. The other original worktrees remain
 at `b0d1419` (`aurora`), `fed770d` (`aurora-premium`), and `a04b3dc`
 (`aurora-design`). The physical-device and live-account release gates above
 remain open.
+
+
+## Aurora flowing motion — 2026-10-08
+
+- Replaced hardcoded rainbow decoration with shared sea-glass teal, mint,
+  and muted indigo tokens. Processing bands travel around the perimeter,
+  varying width, length, and brightness. A subdued ribbon lives beside the title.
+- Animation timelines are created only for active scenes without Reduce Motion.
+  The perimeter remains bound to actual `assistant.processing`; no model,
+  record, calendar, card, or storage behavior changed and no artificial delay was added.
+  Decorations ignore touches and are hidden from accessibility.
+- Release simulator build passed. The conversation-home and AX XXXL
+  card/composer tests passed on both iPhone and iPad (2/2 per device, serial).
+  Evidence: `/private/tmp/aurora-flow-release.log`,
+  `/private/tmp/aurora-flow-iphone.log`, `/private/tmp/aurora-flow-ipad.log`.
+- Inspected Release layouts in light and dark appearances on both devices,
+  including real local-model processing on iPhone and completion clearing
+  the perimeter. Status text and Stop remain readable. Reduce Motion was
+  enabled through simulator Settings; its static title identity was inspected,
+  then the preference was restored to off (confirmed through simulator defaults).
+- Manual verification is incomplete for the static processing perimeter,
+  Stop/failure transitions, software-keyboard-open visuals, and background
+  transitions. Code review confirms timer removal/static rendering branches
+  and the unchanged processing lifecycle, but these are not claimed as visual passes.
+  Device Hub stopped exposing embedded app accessibility controls after UI tests,
+  limiting further manual interaction. Physical-device smoothness, VoiceOver,
+  and battery measurements remain release gates. No speed or battery claim is made.

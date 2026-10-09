@@ -1,25 +1,57 @@
 import SwiftUI
 
-/// Decoration follows real work; warmups and instant quick actions never add
-/// fake delay. TimelineView is only instantiated while processing is active.
+/// Only real work lights the perimeter. No animation timer runs at rest,
+/// in the background, or with Reduce Motion enabled.
 struct AuroraEdgeGlow: View {
     let active: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         if active {
-            if reduceMotion { edge(angle: 0) }
-            else {
+            if reduceMotion || scenePhase != .active {
+                edge(phase: 0)
+            } else {
                 TimelineView(.animation(minimumInterval: 1 / 30)) { context in
-                    edge(angle: context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360)
+                    edge(phase: context.date.timeIntervalSinceReferenceDate)
                 }
             }
         }
     }
-    private func edge(angle: Double) -> some View {
-        let gradient = AngularGradient(colors: [.teal, .cyan, .indigo, .purple, .pink, .orange, .teal], center: .center, angle: .degrees(angle))
-        return RoundedRectangle(cornerRadius: 42)
-            .stroke(gradient, lineWidth: 5)
-            .padding(3)
-            .overlay { RoundedRectangle(cornerRadius: 42).stroke(gradient, lineWidth: 9).blur(radius: 9).padding(3).opacity(0.55) }
+
+    private func edge(phase: Double) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 42)
+                .stroke(Palette.auroraTeal.opacity(0.14), lineWidth: 2)
+            ForEach(0..<3) { band in
+                let offset = Double(band)
+                let start = (phase / 10 + offset / 3).truncatingRemainder(dividingBy: 1)
+                let length = 0.19 + 0.045 * sin(phase * 0.65 + offset * 2)
+                let width = 3.5 + 1.2 * sin(phase * 0.8 + offset * 2)
+                let brightness = 0.55 + 0.16 * sin(phase * 0.7 + offset)
+                let color = Palette.auroraColors[band]
+                bandShape(start: start, length: length, width: width + 10, color: color.opacity(brightness * 0.55))
+                    .blur(radius: 10)
+                bandShape(start: start, length: length, width: width, color: color.opacity(brightness))
+                    .blur(radius: 1.5)
+            }
+        }
+        .padding(5)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// Split at the perimeter seam so each traveling band wraps continuously.
+    private func bandShape(start: Double, length: Double, width: Double, color: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 42)
+                .trim(from: start, to: min(start + length, 1))
+                .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round))
+            if start + length > 1 {
+                RoundedRectangle(cornerRadius: 42)
+                    .trim(from: 0, to: start + length - 1)
+                    .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round))
+            }
+        }
     }
 }
