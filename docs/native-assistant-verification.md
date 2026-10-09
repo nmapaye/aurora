@@ -437,3 +437,47 @@ is integrated. Evidence: `/private/tmp/aurora-energy-signed-core-{utc,la}.log`,
 `/private/tmp/aurora-energy-keyboard-phone.xcresult`,
 `/private/tmp/aurora-energy-final-pad.log`, and
 `/private/tmp/aurora-energy-final-release.log`.
+
+## October 9, noon Pacific: Energy integrated locally
+
+Energy implementation and handoff were reviewed individually, followed by bounded
+corrections and Codex regressions. Original commits 1b2b561, 3efd5e6, 6a3972f,
+7d81d7c and 2d0183e integrate as 2c0d9d9, f2eda0b, 66224bc, 730e923 and
+85ecd49 respectively. Health visual correction was already accepted at 8de9c0f.
+Candidate and integrated source trees are identical except this verification document.
+
+Independent candidate verification: 186 core tests in each UTC/Los Angeles run;
+58 native tests on each phone/pad; iPad full serial UI 20/20. Phone full run 19/20,
+plus corrected remaining Save/Undo flow 1/1 separately. Do not represent that as
+one combined 20/20 phone run. The final pad suite includes the parser/harness fixes.
+Unsigned candidate Release and integrated token checks pass. Ordinary simulator
+ad-hoc test signing was necessary for the real Keychain dependency; no signing
+configuration, identity or profiles were changed.
+
+Visual evidence: populated Energy projection inspected on light phone and iPad;
+centered iPad width, solid modeled/dashed projected line, current marker and separately
+labeled observations are readable. Dark phone projection and check-in inspected.
+Health largest-text correction inspected previously. Largest-text Energy/check-in
+inspection remains incomplete: the QA text size changed, but Device Hub scroll/drag
+did not reliably move through the gallery. Restored QA light appearance/standard size.
+Check-in repeats its descriptive source sentence; nonblocking polish follow-up.
+
+Release gates remain: complete Energy variant/accessibility/motion visual matrix,
+physical VoiceOver/touch/animation/battery, live Health/Google permission and data
+behavior, signed-device upgrade, support/OAuth/signing and TestFlight. Planning/history
+and widgets/performance packages are not implemented. Local integration is not a
+release approval. No push, publication, live accounts, personal-data erase or banked
+reset occurred.
+
+Evidence: /private/tmp/aurora-energy-signed-core-{utc,la}.log;
+/private/tmp/aurora-energy-final-phone.xcresult;
+/private/tmp/aurora-energy-keyboard-phone.xcresult;
+/private/tmp/aurora-energy-final-pad.xcresult;
+/private/tmp/aurora-energy-final-release.log.
+
+Integrated unsigned Release build passed at noon and was installed without erasing
+the demo simulator. Initial cold launch showed only a blank screen; a normal terminate/
+relaunch restored the conversation, and opening the new energy-curve card rendered
+the truthful missing-data state. This startup observation requires follow-up; do not
+claim cold-start acceptance from this demo. Evidence: integrated Release log at
+/private/tmp/aurora-energy-integrated-release.log and Device Hub inspection.

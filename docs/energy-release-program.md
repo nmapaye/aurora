@@ -41,8 +41,8 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 | Package | Status | Required evidence |
 |---|---|---|
 | Foundation | Reviewed/integrated; original UI flows verified in combined Health checkpoint | 103 core UTC/LA baseline; 43 foundation native; combined 16/16 phone/pad UI pass |
-| Health | Integrated; correctness follow-up at 8f87ab7 plus tracked dispatch being checkpointed; largest-text polish and physical gates open | 165 core UTC/LA; final native 52/52 phone/pad; original 16/16 UI phone/pad plus new Health reachability 1/1 each; unsigned Release/site/tokens pass |
-| Energy | Claude session quota-paused with no Energy changes; one-time resume 10:55 AM Oct 9 PDT | Separate Health large-text visual correction before contribution/24h/check-in cards; baseline/snapshot/accessibility acceptance |
+| Health | Integrated including largest-text correction 8de9c0f; physical/live gates open | 165 baseline core UTC/LA; final combined Energy native 58/58 phone/pad; Health reachability flows pass; unsigned Release/site/tokens pass |
+| Energy | Locally integrated at 85ecd49 after independent review; full release acceptance remains open | 186 core UTC/LA; 58 native phone/pad; pad UI 20/20; phone UI 19 full plus corrected 1 focused; light phone/pad and dark phone inspected; expanded accessibility/variant/device matrix pending |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
 | Widgets/performance | Pending | Extension/App Group protection, routing/redaction/erase; local signposts and physical profiling |
 | Release polish | Pending | Gallery all states, serial phone/pad flows, screenshot critique, policies/metadata/website consistency |
