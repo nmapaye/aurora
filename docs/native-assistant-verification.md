@@ -373,3 +373,34 @@ All real Health/account/device/performance/signing/TestFlight gates remain open.
 The five native HealthSyncAppTests passed ten repetitions each, including the
 previously flaky relaunch and new pre-dispatch deletion case. Evidence:
 `/private/tmp/aurora-health-relaunch-repeat.xcresult` / `.log`.
+
+## October 9, 11:23 AM Pacific: Energy provisional review
+
+Health-only Claude commit `458dd4b` was reviewed separately and accepted as
+`8de9c0f`: accessibility labels now use full width with the native switch beneath,
+permission/disabled behavior is preserved, and background delivery/privacy copy is
+accurate. Largest-text Health UI test passed; screenshot visually confirmed whole-word
+“background” and reachable controls with all choices still off.
+
+Energy implementation `1b2b561` and handoff `3efd5e6` remain provisional. Independently
+ran 183 core tests in UTC and America/Los_Angeles (both pass), brand tokens (pass),
+and 58 native tests on the isolated phone with ordinary simulator ad-hoc signing
+(pass). The initial unsigned native run failed real Keychain deletion with -34018;
+ordinary simulator signing resolved it without identity/profile configuration changes.
+
+Focused phone UI: check-in Save/Undo, missing-data Energy curve, and largest-text
+Health passed; Energy gallery failed before card selection because the test expected
+exact “Experience” while the AX label was “Experience, caffeineDraft”. This 3/4 run
+is not a complete acceptance pass. No pad Energy or final Release acceptance yet.
+
+Requested bounded Claude corrections: align the new headline/evidence/current curve
+inputs when sleep records extend beyond capture; avoid routing unrelated N/5 ratings
+to energy check-ins; give the gallery picker a stable test selector. Existing scalar
+algorithms and compatibility fixtures must remain unchanged. Claude is active in its
+isolated tree; no Energy integration until corrections and independent reruns pass.
+
+Evidence: `/private/tmp/aurora-energy-review-core-{utc,la}.log`,
+`/private/tmp/aurora-energy-review-signed-native-phone.xcresult`,
+`/private/tmp/aurora-energy-review-focused-phone.xcresult`, and exported screenshots
+under `/private/tmp/aurora-energy-review-attachments/`. Physical-device and live
+Health acceptance remain release gates. No push/publication or signing changes.
