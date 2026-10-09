@@ -44,3 +44,51 @@ Its actual cold/warm latency, cache hit rate and energy impact are not measured;
 use the Foundation Models instrument on physical hardware before making speed
 claims. Cached classifications always route through fresh action validation
 and deterministic records/time calculations.
+
+## Interactive conversation cards: final pass (October 8, 2026)
+
+Checkpoint `5078901` on `codex/native-assistant` captured the card work; the
+fixes below are on `claude/aurora-ui-polish`, verified on the isolated
+"Aurora Assistant iPhone" and "Aurora Assistant iPad" simulators (iOS 27.0).
+
+- Swift core: 61 tests passed in UTC and America/Los_Angeles.
+- Native storage/service/card tests: 31 passed on each simulator, including
+  `briefingRefreshReadsCalendarsAndKeepsPriorSnapshot` and
+  `interruptedReadBecomesRefreshableFailureAfterRelaunch`.
+- UI flows: 13 passed on each simulator, run serially
+  (`-parallel-testing-enabled NO`); parallel clones intermittently stalled in
+  CoreSimulator creation.
+- Release simulator build succeeded.
+
+Fixes:
+
+- Largest accessibility text: the composer inset (hint, quick actions,
+  composer) did not scroll and covered most of an iPhone screen, so sent
+  requests showed no visible reply. The inset now caps Dynamic Type at
+  `accessibility1` and drops the hint line at accessibility sizes; messages
+  and cards still scale fully. Covered by
+  `testLargestAccessibilityTextKeepsCardsAndComposerReachable` (AX XXXL).
+- `PrimaryButtonStyle` read `isEnabled` from a style wrapped by
+  `AnyButtonStyle`, which always reads the default, so disabled primary
+  buttons in onboarding could render as enabled. It now reads it in a view.
+- `OnDeviceDictation.stop()` deactivated the audio session on every send and
+  scene change, even when dictation never started, blocking the main thread.
+  It now deactivates only a session it activated.
+- UI test stability: history empty-state check waits instead of reading once;
+  the send helper retries if the keyboard moved the button before the tap
+  (sending clears the field, so a retry cannot send twice).
+
+Reduce Motion: the edge glow, activity indicator and auto-scroll all branch
+on `accessibilityReduceMotion`; all 13 UI flows passed with Reduce Motion
+enabled on the iPhone simulator (restored to off afterward). Animation
+smoothness under Reduce Motion was not judged visually.
+
+Logs: `/private/tmp/aurora-polish-core-{utc,la}.log`,
+`/private/tmp/aurora-polish-iphone-final.log`,
+`/private/tmp/aurora-polish-ipad-final.log`,
+`/private/tmp/aurora-polish-iphone-reducemotion.log`,
+`/private/tmp/aurora-polish-release.log`.
+
+Still pending: physical-device VoiceOver, Dynamic Type and Reduce Motion
+pass; live Google OAuth and EventKit accounts; HealthKit; dictation; background
+refresh; performance and battery; signing, archive and TestFlight.
