@@ -21,9 +21,19 @@ final class AssistantModel {
     var showCalendarSettings = false
     var showAssistantSettings = false
     var historySheet: AssistantIntent?
-    /// A text field inside a card has keyboard focus. The composer inset
-    /// then keeps only its field, so the card's Save stays above the keyboard.
-    var editingCardField = false
+    /// Messages whose card has a text field with keyboard focus. Each card
+    /// releases only its own entry, so a card losing focus after another
+    /// gained it can't clear the other's. Interaction state, never saved.
+    private(set) var focusedCards: Set<UUID> = []
+    /// While true the composer inset keeps only its field, so the card's
+    /// Save stays above the keyboard.
+    var editingCardField: Bool { !focusedCards.isEmpty }
+
+    func cardFocus(_ message: UUID, focused: Bool) {
+        if focused { focusedCards.insert(message) } else { focusedCards.remove(message) }
+    }
+
+    func clearCardFocus() { focusedCards = [] }
     let calendars: CalendarService
     private let makeConversationStore: () throws -> ConversationStore
     private var store: ConversationStore?
@@ -113,7 +123,7 @@ final class AssistantModel {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
-        showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; editingCardField = false
+        showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
         releaseWarmResources(); calendars.resetAfterErase()
         failure = nil
     }

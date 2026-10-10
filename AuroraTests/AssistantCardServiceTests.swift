@@ -48,6 +48,25 @@ import Testing
         #expect(assistant.conversation.messages.allSatisfy { $0.card?.capturedAt == 123 })
         #expect(assistant.activeCards.isEmpty && assistant.pendingDraft == nil && assistant.pendingSleep == nil)
     }
+    @Test func cardFocusIsReleasedOnlyByItsOwnCard() {
+        let assistant = AssistantModel(calendars: calendars())
+        let a = UUID(), b = UUID()
+        assistant.cardFocus(a, focused: true)
+        assistant.cardFocus(b, focused: true)
+        // A's late release must not clear B, which now holds focus.
+        assistant.cardFocus(a, focused: false)
+        #expect(assistant.editingCardField && assistant.focusedCards == [b])
+        assistant.cardFocus(b, focused: false)
+        #expect(!assistant.editingCardField && assistant.focusedCards.isEmpty)
+        assistant.cardFocus(a, focused: true)
+        assistant.resetAfterErase()
+        #expect(!assistant.editingCardField && assistant.focusedCards.isEmpty)
+        assistant.cardFocus(b, focused: true)
+        assistant.clearCardFocus()
+        #expect(assistant.focusedCards.isEmpty)
+        // Focus tracking is interaction state, never part of the conversation.
+        #expect(assistant.conversation == ConversationState())
+    }
     @Test func repeatedSaveAndUndoCannotDuplicateOrRemoveAnotherRecord() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)

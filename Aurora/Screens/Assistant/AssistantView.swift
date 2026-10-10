@@ -75,7 +75,7 @@ struct AssistantView: View {
         .task { await assistant.start(app: app) }
         // Becoming active refreshes through AppModel's shared scheduler.
         .onChange(of: phase) { _, value in
-            if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.editingCardField = false }
+            if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.clearCardFocus() }
         }
         .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
         .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }

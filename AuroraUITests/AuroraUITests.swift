@@ -186,20 +186,47 @@ final class AuroraUITests: XCTestCase {
     }
     func testDraftFieldKeepsSaveAboveCollapsedComposer() {
         finishSetup()
+        let quick = app.buttons["assistant-quick-Log sleep"]
         app.buttons["assistant-quick-Log caffeine"].tap()
         let amount = app.textFields["assistant-dose-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
-        amount.tap(); amount.typeText("80")
-        // While a card field is edited the composer keeps only its own field.
-        XCTAssertTrue(app.buttons["assistant-quick-Log sleep"].waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.textFields["assistant-composer"].exists)
         let source = app.textFields["assistant-dose-source"]
-        source.tap(); source.typeText("Tea\n")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["assistant-quick-Log sleep"].waitForExistence(timeout: 5))
-        // Nothing was saved by editing; Save is still the explicit step.
-        XCTAssertTrue(app.buttons["assistant-dose-save"].isHittable)
+        source.tap(); source.typeText("Tea")
+        // End on the numeric pad, which has no Return key to dismiss it.
+        amount.tap(); amount.typeText("80")
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertTrue(keyboard.keys["8"].exists || keyboard.buttons["8"].exists, "Expected the numeric pad")
+        // While a card field is edited the composer keeps only its own field.
+        XCTAssertTrue(quick.waitForNonExistence(timeout: 5))
+        let composer = app.textFields["assistant-composer"]
+        XCTAssertTrue(composer.exists)
+
+        // Scroll the conversation itself, not the composer, until Save sits
+        // fully between the screen top and the composer above the keyboard.
+        let save = app.buttons["assistant-dose-save"]
+        let conversation = app.scrollViews.containing(.textField, identifier: "assistant-dose-amount").firstMatch
+        let window = app.windows.firstMatch.frame
+        func saveReachable() -> Bool {
+            let frame = save.frame
+            return save.isHittable && frame.minY >= window.minY && frame.maxY <= composer.frame.minY && frame.maxY <= keyboard.frame.minY
+        }
+        for _ in 0..<4 where !saveReachable() { conversation.swipeUp(velocity: .slow) }
+        XCTAssertTrue(keyboard.exists, "Save must be reachable while the numeric pad is up")
+        XCTAssertTrue(saveReachable(), "Save \(save.frame) composer \(composer.frame) keyboard \(keyboard.frame)")
+        XCTAssertTrue(quick.waitForNonExistence(timeout: 1))
+
+        // Editing saved nothing; Save is the explicit step and works from here.
         XCTAssertFalse(app.buttons["assistant-undo"].exists)
+        save.tap()
+        XCTAssertTrue(app.buttons["assistant-undo"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
+        XCTAssertFalse(save.exists)
+        // The saved draft no longer has a field, so the keyboard leaves and
+        // the quick actions return.
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(quick.waitForExistence(timeout: 5))
+        XCTAssertTrue(quick.isHittable)
     }
     func testOfflineChartAndNativeToolsAreReachable() {
         finishSetup()

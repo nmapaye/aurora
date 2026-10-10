@@ -105,9 +105,9 @@ Not changed (noted for review): the vertical-axis composer's Return/`onSubmit`
 behavior and prewarm on focus. I had no evidence of a defect in either; the
 signposts now time prewarm.
 
-Known limitation: if focus jumps directly between fields in two different cards,
-the outgoing card's update may arrive after the incoming one's. The strip then
-shows, which matches the old behavior; it never hides permanently.
+Known limitation in `8b85c65`: if focus jumped directly between fields in two
+different cards, the outgoing card's update could arrive after the incoming
+one's and clear the shared Boolean. Corrected below.
 
 ## Files
 
@@ -158,3 +158,58 @@ visual inspection of the collapsed inset; physical-device anything.
 The Python supervisor snippet attached to the task prompt was **not** run. It
 would start a process outside this worktree, conflicting with "no
 parallel/subordinate writers."
+
+## Review correction (after Codex review of `8b85c65`)
+
+1. **Card focus is now tracked per card.** `AssistantModel.focusedCards` is a
+   set of conversation message IDs. It isn't persisted and isn't part of
+   `ConversationState`. `editingCardField` is derived as "set not empty."
+   `cardFocus(_:focused:)` inserts or removes only that card's ID.
+   `AssistantCardView` publishes its own message ID on focus change and
+   releases only that ID when it disappears. `clearCardFocus()` runs when the
+   scene leaves active (`AssistantView`) and in `resetAfterErase()`. Composer
+   focus still wins (`editingCard` requires `!composerFocused`).
+2. **Native regression** `AssistantCardServiceTests.cardFocusIsReleasedOnlyByItsOwnCard`:
+   - A acquires, B acquires, A releases → still editing, set is exactly {B}.
+   - B releases → not editing, set empty.
+   - Erase reset → empty; explicit clear → empty.
+   - The conversation is unchanged throughout.
+3. **UI test strengthened** (`testDraftFieldKeepsSaveAboveCollapsedComposer`).
+   It enters the source, then ends on the numeric amount pad and checks that
+   the keyboard is a number pad, that the quick-action strip is gone and the
+   composer stays. It then scrolls the conversation (up to 4 slow swipes,
+   no sleeps) until Save is hittable, below the window top, above the
+   composer's top and above the keyboard's top. It asserts that while the
+   keyboard is still present. It checks that no Undo exists before Save, then
+   taps Save with the pad up. Finally it expects the receipt's Undo and
+   "Caffeine saved", Save gone, the keyboard gone, and the quick actions back
+   and hittable. The existing Save/Undo test is unchanged.
+
+Files: `Aurora/App/AssistantModel.swift`,
+`Aurora/Screens/Assistant/AssistantCardView.swift`,
+`Aurora/Screens/Assistant/AssistantView.swift`,
+`AuroraTests/AssistantCardServiceTests.swift`,
+`AuroraUITests/AuroraUITests.swift`, this handoff.
+
+Checks run for the correction:
+
+| Check | Result |
+|---|---|
+| Core `swift test` UTC / America/Los_Angeles (AuroraCore untouched) | 186/186 each |
+| `build-for-testing`, ad-hoc simulator signing | App, AuroraTests and AuroraUITests compiled, no warnings/errors (`-quiet`) |
+| Unsigned Release, generic iOS Simulator, `CODE_SIGNING_ALLOWED=NO` | Built, no warnings/errors |
+
+Not run: the native suite (including the new regression) and every UI test.
+Those runners belong to Codex. I make no runtime claim about any focus or
+keyboard case. Runtime-unverified selectors to check:
+- the number-pad key query (`keys["8"]` or `buttons["8"]`);
+- the conversation scroll-view query (`scrollViews` containing the amount field);
+- that Save sits fully above the keyboard on the smallest phone at the
+  default text size. If a phone can't fit it even after scrolling, that is a
+  layout finding, not a test to weaken.
+
+The blank cold launch remains **unresolved** until Codex captures the
+startup signposts on a fresh-install cold launch.
+
+The supervisor snippet attached to the correction prompt was not run, for the
+same reason as before.

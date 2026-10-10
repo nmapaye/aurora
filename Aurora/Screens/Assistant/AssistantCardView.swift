@@ -49,8 +49,8 @@ struct AssistantCardView: View {
             }
         }
         // Save or Discard removes the focused field, which clears focus too.
-        .onChange(of: field) { _, value in assistant.editingCardField = value != nil }
-        .onDisappear { if field != nil { assistant.editingCardField = false } }
+        .onChange(of: field) { _, value in assistant.cardFocus(message.id, focused: value != nil) }
+        .onDisappear { assistant.cardFocus(message.id, focused: false) }
         .sheet(item: $editingDose) { mode in
             if case .edit(let original) = mode {
                 DoseEntrySheet(mode: mode, draft: CaffeineLog.editDraft(for: original)) { result in
