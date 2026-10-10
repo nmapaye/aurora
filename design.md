@@ -53,7 +53,9 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   never replace Save's own check.
 - While a field inside a card has keyboard focus, the composer inset hides its hint
   and quick actions and keeps only the compact composer, so the card's Save stays
-  above the keyboard. Both return when editing ends.
+  above the keyboard. Both return when editing ends. While editing, the
+  conversation can scroll past its end by the keyboard's height so Save is never
+  stranded beneath the composer.
 - Spacing scale: 4, 8, 12, 16, 20, 24, 32 points. System layout may supply its own
   spacing; document necessary optical exceptions instead of blindly rounding.
 - Radii: controls 12, cards 16, hero 24; capsules for quick actions/composer.
