@@ -456,4 +456,153 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(reminder.isHittable)
     }
 
+    // MARK: Polish regressions
+
+    private func cardTitle(_ kind: String) -> XCUIElement {
+        app.descendants(matching: .any)["assistant-card-\(kind)"].firstMatch
+    }
+
+    /// The composer sits in the cards' column: its field starts where card
+    /// content starts (both 16 pt inside the column) and the column is centered,
+    /// on iPhone and on iPad, whose cards are capped at 600 pt.
+    func testComposerSharesTheCardColumn() {
+        finishSetup()
+        tapQuick("How is my energy?")
+        let title = cardTitle("energy")
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let composer = app.textFields["assistant-composer"]
+        let send = app.buttons["assistant-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        let window = app.windows.firstMatch.frame
+        attachScreenshot("Composer in the card column")
+        XCTAssertEqual(composer.frame.minX, title.frame.minX, accuracy: 2, "composer \(composer.frame) title \(title.frame)")
+        let leading = composer.frame.minX - window.minX
+        let trailing = window.maxX - send.frame.maxX
+        XCTAssertEqual(leading, trailing, accuracy: 2, "Column should be centered")
+        // Field to Send spans the column less the composer's own 16 pt sides.
+        XCTAssertLessThanOrEqual(send.frame.maxX - composer.frame.minX, 600 - 32 + 1)
+        XCTAssertGreaterThanOrEqual(send.frame.width, 44)
+    }
+
+    /// A long card shows its title, not its last control, right after it arrives.
+    func testLongCardArrivesShowingItsStart() {
+        finishSetup()
+        tapQuick("Show this week")
+        XCTAssertTrue(cardTitle("trends").waitForExistence(timeout: 5))
+        tapQuick("Show my energy curve")
+        let title = cardTitle("energyProjection")
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        let bar = app.navigationBars.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
+        XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)
+        attachScreenshot("Long card start after insertion")
+    }
+
+    /// Saving an earlier draft while reading it adds a receipt at the end
+    /// without moving the page; "New message below" then shows the receipt.
+    func testReplyWhileReadingEarlierMessagesKeepsThePlace() {
+        finishSetup()
+        app.buttons["assistant-quick-Log caffeine"].tap()
+        let amount = app.textFields["assistant-dose-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        // Longer cards after the draft, which stays open.
+        tapQuick("Show my energy curve")
+        XCTAssertTrue(cardTitle("energyProjection").waitForExistence(timeout: 5))
+        tapQuick("Show this week")
+        XCTAssertTrue(cardTitle("trends").waitForExistence(timeout: 5))
+        tapQuick("How is my energy?")
+        XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
+
+        let save = app.buttons["assistant-dose-save"]
+        for _ in 0..<16 where !amount.isHittable { app.swipeDown() }
+        XCTAssertTrue(amount.isHittable)
+        amount.tap(); amount.typeText("80")
+        // Same fixed-distance drags as the keyboard test, until Save is clear
+        // of the composer and the number pad.
+        let keyboard = app.keyboards.firstMatch
+        let composer = app.textFields["assistant-composer"]
+        func saveReachable() -> Bool {
+            save.isHittable && save.frame.maxY <= composer.frame.minY
+                && (!keyboard.exists || save.frame.maxY <= keyboard.frame.minY)
+        }
+        for _ in 0..<6 where !saveReachable() {
+            window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).press(
+                forDuration: 0.05, thenDragTo: window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)),
+                withVelocity: .slow, thenHoldForDuration: 0.05)
+        }
+        XCTAssertTrue(saveReachable(), "Save \(save.frame)")
+        let before = save.frame
+        save.tap()
+        let below = app.buttons["assistant-new-below"]
+        XCTAssertTrue(below.waitForExistence(timeout: 5), app.debugDescription)
+        attachScreenshot("Reply held while reading earlier messages")
+        // The saved draft stays where it was: its summary replaced Save in place.
+        let savedNote = app.staticTexts["Saved. See the receipt below."]
+        XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
+        XCTAssertEqual(savedNote.frame.minY, before.minY, accuracy: 200, "The page moved")
+        XCTAssertTrue(savedNote.isHittable)
+        below.tap()
+        XCTAssertTrue(below.waitForNonExistence(timeout: 5))
+        let undo = app.buttons["assistant-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        let receipt = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: undo)
+        XCTAssertEqual(XCTWaiter.wait(for: [receipt], timeout: 3), .completed)
+    }
+
+    private func window() -> XCUIElement { app.windows.firstMatch }
+
+    private func openGallery() {
+        app.terminate(); app.launchArguments = ["-AuroraDesignGallery"]; app.launch()
+        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
+    }
+
+    /// Synthetic setup with failing saves shows the error and keeps the
+    /// question; with saves working again the same Continue moves on.
+    func testGallerySetupFixtureShowsSaveErrorThenRetries() {
+        openGallery()
+        let open = app.buttons["gallery-setup"]
+        for _ in 0..<12 where !open.isHittable { app.swipeUp() }
+        open.tap()
+        let saving = app.segmentedControls["gallery-setup-saving"]
+        XCTAssertTrue(saving.waitForExistence(timeout: 5))
+        saving.buttons["Saves fail"].tap()
+        let name = app.textFields["setup-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Sam")
+        tapWhenReady(app.buttons["setup-next"])
+        let failure = app.staticTexts["setup-save-failure"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["setup-question-name"].exists)
+        attachScreenshot("Setup save error")
+        saving.buttons["Saves work"].tap()
+        tapWhenReady(app.buttons["setup-next"])
+        XCTAssertTrue(failure.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup-skip-all"].exists)
+        attachScreenshot("Setup retry succeeded")
+        app.buttons["gallery-setup-done"].tap()
+    }
+
+    /// Working, stopped and failed processing light, moving and static.
+    func testGalleryMotionFixtureEndsAndStaysStatic() {
+        openGallery()
+        let phase = app.segmentedControls["gallery-motion-phase"]
+        for _ in 0..<16 where !phase.isHittable { app.swipeUp() }
+        XCTAssertTrue(phase.isHittable)
+        let preview = app.descendants(matching: .any)["gallery-motion-preview"].firstMatch
+        phase.buttons["Working"].tap()
+        XCTAssertTrue(preview.label.contains("light moves only while work runs"), preview.label)
+        phase.buttons["Stopped"].tap()
+        XCTAssertTrue(preview.label.contains("last frame fades out"), preview.label)
+        phase.buttons["Failed"].tap()
+        XCTAssertTrue(preview.label.contains("Failed"), preview.label)
+        let still = app.switches["Static, as with Reduce Motion"]
+        still.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        phase.buttons["Working"].tap()
+        XCTAssertTrue(preview.label.contains("static light"), preview.label)
+        attachScreenshot("Static processing light")
+    }
+
 }
