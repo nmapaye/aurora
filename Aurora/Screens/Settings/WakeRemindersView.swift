@@ -10,7 +10,7 @@ struct WakeReminderEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 160 : 76), spacing: Metrics.xs)], spacing: Metrics.xs) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 200 : 104), spacing: Metrics.xs)], spacing: Metrics.xs) {
                 ForEach(WakeReminders.presetOffsets, id: \.self) { offset in
                     chip(offset)
                 }
@@ -36,6 +36,8 @@ struct WakeReminderEditor: View {
         } label: {
             Text("+\(WakeReminders.offsetText(offset))")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
                 .foregroundStyle(selected ? Palette.primaryButtonText : Palette.textPrimary)
                 .background(selected ? Palette.tint : Palette.card, in: Capsule())

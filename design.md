@@ -12,6 +12,9 @@ Mood: calm, precise, warm, and quietly responsive. Never imply medical certainty
   information beside the relevant logging control. Samples are always labeled.
 - Secondary sheets hold history, settings, and connections. Match native keyboard,
   date-picker, navigation, and share-sheet behavior.
+- Keep explanations off the main surface: one honesty label per fact (Sample
+  Data, Modeled, read-only, pending/not exported, failure), no repeated
+  reassurance sentences.
 - Do not imply general-purpose agent capability, automatic calendar approval,
   remote inference, or continuous background reasoning.
 
@@ -44,6 +47,10 @@ indigo, blurred, at 0.34 (light) / 0.50 (dark) opacity. Text over a sky always s
 | Afternoon | sea100 · ivory100 · ivory200 | ink850 · sea800 · ink900 |
 | Evening | ivory300 · ivory200 · sea100 | ink900 · ink850 · sea800 |
 | Night | ivory300 · sea100 · ivory200 | ink900 · ink900 · ink800 |
+
+Calendar events borrow their source app's look: Google events are solid blocks in
+the calendar's own color (text black or white by contrast), Apple events a 4 pt
+color bar on a 12% tint. The calendar's color is data, not an Aurora token.
 
 Semantic status, field, selection, chart, and disabled roles remain in Palette.
 Do not invent per-screen colors. Do not use tint alone to communicate state:
@@ -95,7 +102,10 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 - Reduce Motion uses static identity/glow and disables decorative transitions.
   Inactive scenes do not run decoration timelines. Effects ignore touches and are
   hidden from VoiceOver; status and Stop remain independently accessible.
-- `Motion.press` (0.18 s opacity) is the only feedback on custom buttons.
+- Every custom control uses `PressFeedback`: it compresses to 96% with
+  `Motion.pressSpring` and a soft haptic on touch-down, then springs back (dims
+  with `Motion.press` instead under Reduce Motion). Use `.auroraPress` for rows,
+  chips and cards; the primary, secondary and capsule styles already include it.
   `Motion.stateChange` (0.25 s, zero-bounce spring, interruptible) animates a card
   changing state in place: editor to saved summary, Undo leaving, the receipt
   symbol replacing. `Motion.stateTransition` is a fade with a 2% scale from the top;
@@ -108,7 +118,9 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   Scrolling uses `Motion.content`, instant under Reduce Motion.
 - The rim's fade-out starts from the frame on screen when work ended, was stopped
   or failed; no timeline runs while it fades.
-- Save/Undo use compact receipts, not celebration effects. Chart selection moves
+- Save/Undo use compact receipts. The one save moment: a draft that turns Saved
+  on screen draws its check in (0.32 s) with a success haptic; saved cards seen
+  later stay still. Chart selection moves
   its focus without moving the page. Animation must not affect reaction-test timing.
 - No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual
   movement around readable evidence.

@@ -216,6 +216,13 @@ struct DesignGalleryView: View {
         firstMessage = fixtureAssistant.conversation.messages.count
         if energyKinds.contains(kind) {
             await showEnergy()
+        } else if kind == .calendar {
+            // Made-up events from both sources; the shared standup appears once.
+            fixtureApp.tick()
+            var card = AssistantCard(kind: .calendar, capturedAt: fixtureApp.now, title: "Your commitments", summary: "")
+            card.timeZone = fixtureApp.clock.timeZone.identifier
+            card.commitments = CalendarMerge.newestCopies(Self.calendarFixtures(now: Date(timeIntervalSince1970: fixtureApp.now / 1000)))
+            fixtureAssistant.conversation.messages.append(.init(text: card.title, card: card))
         } else if kind == .receipt {
             var card = AssistantCard(kind: .receipt, capturedAt: fixtureApp.now, title: "Sample receipt", summary: "Fixture only · no personal record saved")
             card.state = .saved
@@ -248,14 +255,6 @@ extension DesignGalleryView {
         }
         fixtureApp.tick()
         let now = fixtureApp.now
-        if kind == .calendar && energyVariant == .populated {
-            // Made-up events from both sources; the shared standup appears once.
-            var card = AssistantCard(kind: .calendar, capturedAt: now, title: "Your commitments", summary: "")
-            card.timeZone = fixtureApp.clock.timeZone.identifier
-            card.commitments = CalendarMerge.newestCopies(Self.calendarFixtures(now: Date(timeIntervalSince1970: now / 1000)))
-            fixtureAssistant.conversation.messages.append(.init(text: card.title, card: card))
-            return
-        }
         let current = AssistantCards.make(kind, state: fixtureApp.state, now: now, clock: fixtureApp.clock, text: fixtureApp.text)
         switch energyVariant {
         case .stale:
