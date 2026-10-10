@@ -4,6 +4,7 @@ public enum AssistantIntent: String, Codable, CaseIterable, Identifiable, Sendab
     case logCaffeine, logSleep, explainEnergy, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported
     /// Added after the first release; older conversations never contain them.
     case energyProjection, energyCheckIn
+    case cutoffScenario
     public var id: String { rawValue }
 }
 
@@ -45,8 +46,9 @@ public struct ConversationState: Codable, Equatable, Sendable {
 public enum AssistantPlanner {
     public static let modelInstructions = """
     Classify the user's request into exactly one label:
-    logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported.
+    logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, cutoffScenario, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported.
     energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means rating how energetic the user feels right now.
+    cutoffScenario means exploring a what-if caffeine scenario for a bedtime and threshold the user enters; it never recommends an amount, time or bedtime.
     logCaffeine means recording a drink already consumed. Questions about amounts to drink are unsupported.
     reactionTest means taking the 60-second reaction speed test, including requests to measure reaction speed.
     history means viewing previous recorded entries; settings means opening app preferences.
@@ -65,6 +67,7 @@ public enum AssistantPlanner {
         if text.contains("reaction test") || text.contains("reaction speed") { return .reactionTest }
         if text.contains("export") { return .exports }
         if text.contains("reminder") || text.contains("notification") { return .reminders }
+        if ["cutoff scenario", "caffeine scenario", "bedtime scenario", "caffeine cutoff", "cutoff what-if", "cutoff what if"].contains(where: text.contains) { return .cutoffScenario }
         if text.contains("briefing") || text == "how is my day?" { return .briefing }
         if text.contains("history") { return .history }
         if text.contains("this week") || text.contains("trends") { return .weeklyTrends }

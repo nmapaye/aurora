@@ -6,6 +6,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, CaseIterable, Sendable {
         case caffeineDraft, sleepDraft, energy, trends, calendar, reaction, history, exports, briefing, reminders, clarification, receipt
         case energyProjection, energyCheckIn
+        case cutoffScenario
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -47,6 +48,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     public var energy: EnergySnapshot?
     /// A check-in review's recent ratings, or a check-in receipt.
     public var checkIn: CheckIn?
+    /// A cutoff scenario's latest calculation. Optional so older saved
+    /// conversations decode unchanged.
+    public var cutoff: CutoffScenario.Snapshot?
     public struct CheckIn: Codable, Equatable, Sendable {
         /// Receipt: the check-in as saved.
         public var saved: EnergyCheckIn?
@@ -68,6 +72,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .energy: .explainEnergy
         case .energyProjection: .energyProjection
         case .energyCheckIn: .energyCheckIn
+        case .cutoffScenario: .cutoffScenario
         case .trends: .weeklyTrends
         case .calendar: .calendar
         case .reaction: .reactionTest
@@ -88,6 +93,7 @@ public enum AssistantCards {
         case .energy: "Your energy signals"
         case .energyProjection: "Modeled alertness · 24 hours"
         case .energyCheckIn: "Energy check-in"
+        case .cutoffScenario: "Cutoff scenario"
         case .trends: "Recorded trends"
         case .calendar: "Your commitments"
         case .reaction: "Reaction Test"
@@ -179,8 +185,19 @@ public enum AssistantCards {
         case .sleepDraft: card.summary = "Choose the local start and end. These are editable placeholders, not a sleep recommendation."
         case .calendar: card.summary = "Nothing changes until you approve a preview."
         case .clarification: card.summary = "Choose one task, or tell me a little more. I won’t prescribe doses or sleep schedules."
+        case .cutoffScenario:
+            card.summary = CutoffScenario.disclaimer
+            card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
         case .receipt: break
         }
+        return card
+    }
+
+    /// A new cutoff scenario snapshot. Refresh carries the earlier inputs
+    /// into it and calculates again from current records.
+    public static func cutoffScenario(input: CutoffScenario.Input, state: AppState, now: Millis, clock: LocalClock, text: DateText) -> AssistantCard {
+        var card = make(.cutoffScenario, state: state, now: now, clock: clock, text: text)
+        card.cutoff = CutoffScenario.evaluate(input: input, doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
         return card
     }
 }
