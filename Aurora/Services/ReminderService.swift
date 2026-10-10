@@ -14,14 +14,26 @@ final class ReminderService {
     }
 
     private let center = UNUserNotificationCenter.current()
+
+    /// The remove calls wait synchronously on the system's notification
+    /// service, which can be slow (just after boot, under load). Run them off
+    /// the main thread so the app never freezes behind them.
+    nonisolated static func remove(pending: [String] = [], delivered: [String] = []) async {
+        await Task.detached(priority: .utility) {
+            let center = UNUserNotificationCenter.current()
+            if !pending.isEmpty { center.removePendingNotificationRequests(withIdentifiers: pending) }
+            if !delivered.isEmpty { center.removeDeliveredNotifications(withIdentifiers: delivered) }
+        }.value
+    }
     private var generation = 0
 
     func cancelForErase() {
         generation += 1
         wakeGeneration += 1
-        center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
-        center.removeDeliveredNotifications(withIdentifiers: [CutoffReminder.identifier])
-        Task { await removeWake(delivered: true) }
+        Task {
+            await Self.remove(pending: [CutoffReminder.identifier], delivered: [CutoffReminder.identifier])
+            await removeWake(delivered: true)
+        }
         defaults.removeObject(forKey: Self.wakeScheduleKey)
     }
 
@@ -96,10 +108,10 @@ final class ReminderService {
 
     private func removeWake(delivered: Bool) async {
         let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
-        center.removePendingNotificationRequests(withIdentifiers: pending)
+        await Self.remove(pending: pending)
         if delivered {
             let shown = await center.deliveredNotifications().map(\.request.identifier).filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
-            center.removeDeliveredNotifications(withIdentifiers: shown)
+            await Self.remove(delivered: shown)
         }
     }
 
@@ -107,7 +119,7 @@ final class ReminderService {
     /// Settings passes `true`; foreground syncs never prompt.
     func sync(enabled: Bool, cutoffHour: Double, prompt: Bool) async -> Status {
         let currentGeneration = generation
-        center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+        await Self.remove(pending: [CutoffReminder.identifier])
         guard enabled else { return .off }
 
         var settings = await center.notificationSettings()
@@ -136,7 +148,7 @@ final class ReminderService {
         do {
             try await center.add(request)
             guard generation == currentGeneration else {
-                center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+                await Self.remove(pending: [CutoffReminder.identifier])
                 return .off
             }
             return .scheduled(hour: content.hour)

@@ -54,16 +54,32 @@ final class AssistantModel {
         self.makeConversationStore = makeStore
     }
 
+    /// Whether Apple's on-device model is ready, checked off the main thread.
+    /// Views read this cached value: asking the system from a view body can
+    /// block the main thread while its model service starts.
+    private(set) var modelAvailable = false
+    private var availabilityTask: Task<Void, Never>?
+
+    func refreshModelAvailability() {
+        guard availabilityTask == nil else { return }
+        availabilityTask = Task { [weak self] in
+            let available = await Task.detached(priority: .utility) {
+                Signposts.measure("Assistant.ModelAvailability") { AppleIntentModel.available }
+            }.value
+            self?.modelAvailable = available
+            self?.availabilityTask = nil
+        }
+    }
+
     var intelligenceName: String {
         if conversation.preferences.useMacModel { return "Mac local · \(conversation.preferences.macModel)" }
-        // Read while the conversation's first frame renders.
-        let available = Signposts.measure("Assistant.ModelAvailability") { AppleIntentModel.available }
-        return available ? "On-device intelligence" : "Local quick actions · AI unavailable"
+        return modelAvailable ? "On-device intelligence" : "Local quick actions · AI unavailable"
     }
 
     func start(app: AppModel) async {
         guard !started else { return }
         started = true
+        refreshModelAvailability()
         let interval = Signposts.signposter.beginInterval("Assistant.Start")
         defer { Signposts.signposter.endInterval("Assistant.Start", interval) }
         do {
@@ -98,7 +114,7 @@ final class AssistantModel {
     func prepareForInput() {
         guard !processing, !conversation.preferences.useMacModel else { return }
         // Runs as the keyboard appears; times the synchronous part only.
-        Signposts.measure("Assistant.Prewarm") { appleModel.prewarm() }
+        Signposts.measure("Assistant.Prewarm") { appleModel.prewarm(available: modelAvailable) }
     }
 
     func releaseWarmResources() {
@@ -509,6 +525,7 @@ final class AssistantModel {
     /// decides. Suggestions keep their opt-in, quiet hours, daily limits and
     /// dismissals.
     func foreground(app: AppModel, steps: Set<RefreshPolicy.Step> = [.calendars, .suggestions]) async {
+        refreshModelAvailability()
         guard started, conversation.preferences.proactive else { return }
         let generation = cacheGeneration
         if steps.contains(.calendars) { await calendars.refresh() }
@@ -557,7 +574,8 @@ final class AssistantModel {
     func syncBriefingNotification(prompt: Bool) async {
         let generation = cacheGeneration
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"])
+        // Off the main thread: the system call can wait on a slow service.
+        await ReminderService.remove(pending: ["aurora.assistant.briefing"])
         guard conversation.preferences.proactive, conversation.preferences.morningBriefing else { return }
         if prompt { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
         let settings = await center.notificationSettings()
@@ -571,7 +589,7 @@ final class AssistantModel {
         var date = DateComponents(); date.hour = hour; date.minute = 0
         do {
             try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true)))
-            if generation != cacheGeneration { center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"]) }
+            if generation != cacheGeneration { await ReminderService.remove(pending: ["aurora.assistant.briefing"]) }
         }
         catch { failure = "Couldn't schedule the briefing notification." }
     }

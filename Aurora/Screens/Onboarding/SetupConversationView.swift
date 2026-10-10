@@ -34,7 +34,7 @@ struct SetupConversationView: View {
     private static let healthChoices: [HealthChoice] = [.readSleep, .readCaffeine, .writeCaffeine]
 
     private var step: SetupStep { SetupStep(stored: model.state.onboarding.setupStep) }
-    private var modelAvailable: Bool { AppleIntentModel.available }
+    private var modelAvailable: Bool { assistant.modelAvailable }
 
     var body: some View {
         ZStack {
@@ -101,7 +101,10 @@ struct SetupConversationView: View {
         .sheet(isPresented: $showCalendars) {
             CalendarConnectionsView(service: assistant.calendars)
         }
-        .onAppear { name = model.state.prefs.displayName ?? "" }
+        .onAppear {
+            name = model.state.prefs.displayName ?? ""
+            assistant.refreshModelAvailability()
+        }
     }
 
     /// Shows the current question from its first line. When it fits above
