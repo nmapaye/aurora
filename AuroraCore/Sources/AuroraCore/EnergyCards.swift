@@ -28,8 +28,8 @@ public struct EnergyReaction: Codable, Equatable, Identifiable, Sendable {
 /// exactly; Refresh captures a new one.
 public struct EnergySnapshot: Codable, Equatable, Sendable {
     public static let currentVersion = 1
-    public static let scaleNote = "Modeled on a 0 to 100 scale. It is not a measurement, and not a percentage of how well you function."
-    public static let separateNote = "Your ratings and Reaction Tests are shown as recorded. They are not part of the model, and Aurora does not compare them with it."
+    public static let scaleNote = "Modeled, 0–100."
+    public static let separateNote = "Your ratings and Reaction Tests, as recorded."
 
     public var version: Int
     public var estimate: EnergyEstimate

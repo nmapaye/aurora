@@ -237,7 +237,7 @@ public enum AssistantPlanner {
         let start = clock.startOfDay(now)
         let today = state.doses.filter { $0.timestamp >= start && $0.timestamp <= now }
         let caffeine = today.isEmpty ? "Caffeine today: No record." : "Caffeine today: \(numberText(today.reduce(0) { $0 + $1.mg })) mg recorded."
-        return "\(Summary.describe(estimate))\n\n\(caffeine)\n\nThese records cannot establish why you feel tired. Stress, illness, and other factors aren't measured here."
+        return "\(Summary.describe(estimate))\n\n\(caffeine)"
     }
 }
 
@@ -260,7 +260,7 @@ public enum ProactivePolicy {
 /// current estimate actually changed, and only through `ProactivePolicy`
 /// (opt-in, quiet hours, two a day, dismissals, one delivery per key).
 public enum SleepChangeSuggestion {
-    public static let text = "Your recorded sleep has updated. You can ask ‘How is my energy?’ to review the current estimate."
+    public static let text = "New sleep recorded. Ask ‘How is my energy?’ for a fresh estimate."
 
     /// What the suggestion depends on: recorded (non-sample) sleep that
     /// ended in the last 24 hours, by id and interval. Repeated Health

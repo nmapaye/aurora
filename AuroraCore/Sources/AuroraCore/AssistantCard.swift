@@ -112,9 +112,9 @@ public enum AssistantCards {
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Model output · 0 to 100 scale, not a percentage", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Modeled · 0–100", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
-            card.summary = "These records cannot establish why you feel tired. Stress, illness, and other factors aren't measured here."
+            card.summary = ""
             if kind == .energy {
                 let snapshot = EnergySnapshot.capture(state: state, now: now, clock: clock, includeProjection: false)
                 card.energy = snapshot
@@ -122,7 +122,7 @@ public enum AssistantCards {
                 card.metrics.insert(.init(
                     id: "activeCaffeine", label: "Estimated active caffeine",
                     value: evidence.hasActiveCaffeine ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg" : "No record",
-                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours)) h half-life, not measured",
+                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours)) h half-life",
                     missing: !evidence.hasActiveCaffeine
                 ), at: 2)
             }
@@ -133,7 +133,7 @@ public enum AssistantCards {
             card.metrics = [.init(
                 id: "alertness", label: EnergyEstimate.title + " · now",
                 value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable",
-                source: "Model output · 0 to 100 scale, not a percentage",
+                source: "Modeled · 0–100",
                 detail: snapshot.estimate.summary, missing: snapshot.estimate.modeledScore == nil
             )]
         case .energyCheckIn:
@@ -160,7 +160,7 @@ public enum AssistantCards {
             }
         case .reaction:
             let r = Insights.reactionSignal(sessions: state.vigilanceSessions, now: now, clock: clock, text: text)
-            card.summary = "A 60-second test of reaction speed. Sit somewhere you can focus before starting."
+            card.summary = "A 60-second reaction test."
             card.metrics = [.init(id: "reaction", label: "Latest recorded test", value: r.signal.value ?? "No record", source: r.signal.metaLine, detail: r.signal.context, missing: r.signal.status == .empty)]
         case .history:
             card.records = state.doses.filter { $0.timestamp <= now }.map {
@@ -172,13 +172,13 @@ public enum AssistantCards {
             }
             card.records.sort { $0.date > $1.date }
         case .exports:
-            card.summary = "Share a CSV of the current records. Sources and missing days remain labeled."
+            card.summary = "Share your records as CSV."
         case .reminders:
-            card.summary = "Reminders use times you choose. Proactive suggestions are opt-in; quiet hours and daily limits still apply."
-        case .caffeineDraft: card.summary = "Review the amount, source, and local time before saving."
-        case .sleepDraft: card.summary = "Choose the local start and end. These are editable placeholders, not a sleep recommendation."
-        case .calendar: card.summary = "Nothing changes until you approve a preview."
-        case .clarification: card.summary = "Choose one task, or tell me a little more. I won’t prescribe doses or sleep schedules."
+            card.summary = "Reminders at times you choose."
+        case .caffeineDraft: card.summary = "Check the details, then save."
+        case .sleepDraft: card.summary = "Set when you slept."
+        case .calendar: card.summary = ""
+        case .clarification: card.summary = "Choose one, or tell me a little more."
         case .receipt: break
         }
         return card

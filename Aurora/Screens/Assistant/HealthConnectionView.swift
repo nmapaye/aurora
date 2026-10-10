@@ -23,7 +23,7 @@ struct HealthConnectionView: View {
                 VStack(alignment: .leading, spacing: Metrics.lg) {
                     Label("Apple Health", systemImage: "heart.text.square")
                         .font(.title2.weight(.semibold))
-                    Text("Choose each permission separately. Aurora reads only sleep and caffeine, and adds only caffeine you save in Aurora. Imported records stay read-only here.")
+                    Text("Choose each permission separately.")
                         .accessibilityIdentifier("assistant-health-disclosure")
                     Card {
                         ForEach(Array(HealthChoice.allCases.enumerated()), id: \.element) { index, choice in

@@ -20,7 +20,9 @@ import Testing
         #expect(card.metrics.first { $0.id == "caffeine" }?.value == "No record")
         #expect(card.metrics.first { $0.id == "sleep" }?.value == "No record")
         #expect(card.metrics.first { $0.id == "alertness" }?.value == "Unavailable")
-        #expect(card.summary.contains("cannot establish"))
+        // No cause is offered for how someone feels, in the summary or metrics.
+        let text = ([card.summary] + card.metrics.map { "\($0.value) \($0.detail ?? "")" }).joined(separator: " ").lowercased()
+        #expect(!text.contains("because") && !text.contains("due to") && !text.contains("caused"))
     }
     @Test func snapshotStaysFixedWhenRecordsChange() {
         var state = AppState()

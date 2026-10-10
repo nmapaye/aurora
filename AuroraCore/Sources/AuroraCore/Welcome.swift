@@ -286,18 +286,18 @@ public enum SetupCopy {
               body: "Record how you slept, from Apple Health or by hand."),
         Scene(id: 1, daypart: .afternoon, eyebrow: "Midday light",
               title: "Caffeine rises and fades through the day.",
-              body: "Log a drink in a tap. Aurora models its effect and shows an estimate, never a target."),
+              body: "Log a drink in a tap and see its effect rise and fade."),
         Scene(id: 2, daypart: .evening, eyebrow: "Dusk",
               title: "Your rhythm, in your own sky.",
-              body: "Sleep, caffeine and alertness together. Your records stay on this device, with no Aurora account."),
+              body: "Sleep, caffeine and alertness together, private to this device."),
     ]
 
     public static func question(_ step: SetupStep, modelAvailable: Bool) -> String {
         switch step {
         case .name: "Hi, I’m Aurora. What should I call you?"
-        case .sleepTarget: "How much sleep do you aim for on a typical night? It’s your own reference, not a rule."
+        case .sleepTarget: "How much sleep do you aim for on a typical night?"
         case .health: "Apple Health is optional. Each choice below asks Health for that permission alone."
-        case .calendar: "I can read calendars you choose to mention what’s coming up. Nothing connects unless you choose it, and I change an event only after you approve a preview."
+        case .calendar: "Want me to read your calendars so I can mention what’s coming up?"
         case .wakeReminders: "Want caffeine reminders after you wake? Pick when, and I’ll time them from your recorded wake-up, or your usual wake time."
         case .finish:
             modelAvailable
@@ -327,5 +327,5 @@ public enum SetupCopy {
         return "Nothing is shared until you turn a choice on. You can change these anytime in Apple Health settings."
     }
 
-    public static let sampleNote = "Example records, labeled Sample Data everywhere and kept apart from yours. Clear them anytime from Sleep trends in Settings."
+    public static let sampleNote = "Example records, clearly labeled. Clear them anytime in Settings."
 }

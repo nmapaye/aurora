@@ -59,7 +59,7 @@ struct EnergyEvidenceSections: View {
                 .accessibilityLabel("\(part.kind.label), \(part.pointsText) points. \(detail(part))")
             }
             if !estimate.contributions.isEmpty {
-                Text("Signed points on the model scale, rounded, so they may not add up exactly.")
+                Text("Points on the model scale, rounded.")
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
@@ -186,7 +186,7 @@ struct EnergyTimelineChart: View {
     }
 
     private var accessibilitySummary: String {
-        "\(EnergyEstimate.title), 24 hours. \(text.clockTime(projection.points.first?.t ?? projection.capturedAt)) to \(text.clockTime(projection.points.last?.t ?? projection.capturedAt)). Modeled, not measured."
+        "\(EnergyEstimate.title), 24 hours. \(text.clockTime(projection.points.first?.t ?? projection.capturedAt)) to \(text.clockTime(projection.points.last?.t ?? projection.capturedAt)). Modeled."
     }
 
     private func readout(_ point: EnergyProjection.Point) -> some View {

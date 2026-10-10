@@ -248,7 +248,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
         let curve = app.otherElements["assistant-energy-curve"]
         XCTAssertTrue(curve.waitForExistence(timeout: 5))
-        XCTAssertTrue(curve.label.contains("Modeled, not measured"))
+        XCTAssertTrue(curve.label.contains("Modeled."))
         XCTAssertTrue(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
     }
 

@@ -262,7 +262,7 @@ final class AssistantModel {
             updateCard(messageID) {
                 $0.commitments = calendars.commitments
                 $0.state = calendars.message == nil ? .ready : .failed
-                $0.summary = calendars.message ?? "Nothing changes until you approve a preview."
+                $0.summary = calendars.message ?? ""
             }
         case .energyProjection:
             appendCard(AssistantCards.make(.energyProjection, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
@@ -345,7 +345,7 @@ final class AssistantModel {
         var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: title)
         card.state = .saved; card.recordID = recordID; card.recordKind = kind
         card.timeZone = app.clock.timeZone.identifier
-        card.summary = title.contains("updated") ? "Correction recorded. Open history to review it." : "Entry recorded on this device."
+        card.summary = title.contains("updated") ? "Correction saved." : "Saved."
         card.records = AssistantCards.make(.history, state: app.state, now: app.now, clock: app.clock, text: app.text).records.filter { $0.id == recordID && $0.kind == kind }
         if kind == "caffeine", let health = healthMetric(doseID: recordID, app: app) { card.metrics = [health] }
         let id = appendCard(card)
@@ -412,7 +412,7 @@ final class AssistantModel {
         else { return }
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         updateCard(message.id) {
-            $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry on this device. Other records are unchanged."
+            $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry."
             $0.metrics.removeAll { $0.id == "health" }
             if kind == "caffeine", let health = healthMetric(doseID: id, app: app) { $0.metrics.append(health) }
         }
@@ -437,7 +437,7 @@ final class AssistantModel {
         var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: draft.original == nil ? "Check-in saved" : "Check-in updated")
         card.state = .saved; card.recordID = checkIn.id; card.recordKind = "checkin"
         card.timeZone = app.clock.timeZone.identifier
-        card.summary = "Your rating, saved on this device. It is not part of the model."
+        card.summary = "Your rating, saved."
         card.checkIn = .init(saved: checkIn, previous: draft.original)
         appendCard(card)
     }
@@ -457,7 +457,7 @@ final class AssistantModel {
         updateCard(message.id) {
             $0.state = .undone
             $0.title = previous == nil ? "Check-in removed" : "Correction undone"
-            $0.summary = previous == nil ? "Removed that check-in on this device. Other records are unchanged." : "Restored the earlier rating. Other records are unchanged."
+            $0.summary = previous == nil ? "Removed that check-in." : "Restored the earlier rating."
         }
     }
 
@@ -498,7 +498,7 @@ final class AssistantModel {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }
         app.undo(dose)
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
-        savedDose = nil; appendRemoval("Removed that caffeine entry on this device. Other records are unchanged.", doseID: dose.id, app: app)
+        savedDose = nil; appendRemoval("Removed that caffeine entry.", doseID: dose.id, app: app)
     }
     func dismissSuggestion(_ message: ConversationMessage) {
         if let key = message.suggestionKey { conversation.dismissedSuggestions.insert(key) }

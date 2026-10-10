@@ -123,8 +123,16 @@ struct AssistantCardView: View {
             }
         }
     }
+    /// When the card's records were read: just the time today, the day
+    /// otherwise, and the zone only if it isn't the current one.
+    private var captureText: String {
+        let sameZone = snapshotClock.timeZone.secondsFromGMT() == TimeZone.current.secondsFromGMT()
+        let today = app.clock.dayKey(card.capturedAt) == app.clock.dayKey(app.now)
+        let when = today ? snapshotText.clockTime(card.capturedAt) : snapshotText.fullDateTime(card.capturedAt)
+        return sameZone ? when : "\(when) · \(snapshotClock.timeZone.abbreviation() ?? card.timeZone)"
+    }
     private var captureLabel: some View {
-        Text("Captured \(snapshotText.fullDateTime(card.capturedAt)) · \(card.timeZone)")
+        Text(captureText)
             .font(.caption2).foregroundStyle(Palette.textSecondary)
     }
     @ViewBuilder private var refreshButton: some View {

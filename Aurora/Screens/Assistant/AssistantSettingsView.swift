@@ -15,7 +15,7 @@ struct AssistantSettingsView: View {
             Form {
                 Section("Local intelligence") {
                     Text(assistant.intelligenceName)
-                    Text("No cloud model, API key, or external AI service is used. Your records stay on this device.").font(.footnote)
+                    Text("No cloud model. Your records stay on this device.").font(.footnote)
                     #if targetEnvironment(simulator)
                     Toggle("Use this Mac’s local Ollama model", isOn: $assistant.conversation.preferences.useMacModel)
                     if assistant.conversation.preferences.useMacModel {
@@ -40,7 +40,7 @@ struct AssistantSettingsView: View {
                     Stepper("Briefing: \(assistant.conversation.preferences.briefingHour):00", value: $assistant.conversation.preferences.briefingHour, in: 0...23)
                     Stepper("Quiet hours begin: \(assistant.conversation.preferences.quietStartHour):00", value: $assistant.conversation.preferences.quietStartHour, in: 0...23)
                     Stepper("Quiet hours end: \(assistant.conversation.preferences.quietEndHour):00", value: $assistant.conversation.preferences.quietEndHour, in: 0...23)
-                    Text("At most two unsolicited suggestions per day, during active refreshes. Known reminders use local notifications. Aurora does not continuously reason in the background.").font(.footnote)
+                    Text("Up to two a day.").font(.footnote)
                     Button("Update briefing notification") { Task { await assistant.syncBriefingNotification(prompt: true) } }
                 }
                 #if DEBUG
@@ -53,7 +53,7 @@ struct AssistantSettingsView: View {
                     NavigationLink("Records, exports, Health, and privacy", destination: SettingsView())
                         .accessibilityIdentifier("assistant-record-settings")
                     Button("Clear conversation", role: .destructive) { clearConversation = true }
-                    Text("Clearing conversation does not delete caffeine, sleep, or reaction-test records.").font(.footnote)
+                    Text("Your records are kept.").font(.footnote)
                 }
                 if let failure = assistant.failure { Text(failure).foregroundStyle(Palette.destructive) }
             }

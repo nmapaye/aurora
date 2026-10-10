@@ -85,8 +85,8 @@ struct SummaryView: View {
                     .font(.headline)
                     .foregroundStyle(Palette.textPrimary)
                 Text(sample
-                     ? "Includes Sample Data. Plus active caffeine and time of day. Not a measurement."
-                     : "Plus active caffeine and time of day. Not a measurement.")
+                     ? "Includes Sample Data. Plus active caffeine and time of day."
+                     : "Plus active caffeine and time of day.")
                     .font(.footnote)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
