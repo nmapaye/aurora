@@ -108,6 +108,13 @@ struct AssistantCardView: View {
             // Old snapshots keep their results; this only says they are old.
             StatusBadge(text: "Earlier snapshot · Refresh for current", tone: .warning)
         }
+        if card.kind == .cutoffScenario {
+            switch card.state {
+            case .ready: draftActive ? StatusBadge(text: "Scenario · nothing saved", tone: .info) : StatusBadge(text: "Closed")
+            case .expired: StatusBadge(text: "Expired", tone: .warning)
+            default: StatusBadge(text: "Closed")
+            }
+        }
         if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
             case .ready: draftActive ? StatusBadge(text: "Review before saving", tone: .info) : StatusBadge(text: "Closed")
@@ -147,6 +154,7 @@ struct AssistantCardView: View {
         case .clarification: "sparkle"
         case .energyProjection: "chart.xyaxis.line"
         case .energyCheckIn: "hand.raised"
+        case .cutoffScenario: "moon.zzz"
         case .receipt: card.state == .undone ? "arrow.uturn.backward" : "checkmark.circle"
         }
     }
@@ -175,6 +183,7 @@ struct AssistantCardView: View {
         case .exports: exports
         case .energyProjection: projection
         case .energyCheckIn: checkInEditor
+        case .cutoffScenario: CutoffScenarioCardView(message: message, card: card, active: draftActive)
         case .reminders:
             metricRows
             Text("Current device controls").font(.caption.weight(.medium)).foregroundStyle(Palette.textSecondary)
