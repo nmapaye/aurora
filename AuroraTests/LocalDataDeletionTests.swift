@@ -47,6 +47,23 @@ import Testing
         #expect(try JSONDecoder().decode(AppState.self, from: Data(contentsOf: store.fileURL)).doses.isEmpty)
     }
 
+    /// A resumed erase clears every Aurora notification, including a saved
+    /// cutoff scenario reminder, not only the ones the live erase cancels.
+    @Test func resumedEraseClearsScenarioReminderToo() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(Set(LocalDataDeletion.notificationIdentifiers) == [CutoffReminder.identifier, CutoffScenario.reminderIdentifier, "aurora.assistant.briefing"])
+        let store = StateStore(directory: root)
+        try LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: {}).begin()
+        var cleared: [String] = []
+        let app = AppModel(makeStore: { store }, legacy: { nil }, makeDeletion: {
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { cleared = LocalDataDeletion.notificationIdentifiers })
+        })
+        app.load()
+        #expect(cleared.contains(CutoffScenario.reminderIdentifier) && cleared.contains(CutoffReminder.identifier))
+        #expect(!LocalDataDeletion(store: store, legacy: nil).pending)
+    }
+
     @Test func connectionFailureLeavesMarkerAndOriginalFilesForRetry() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

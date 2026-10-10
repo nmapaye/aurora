@@ -22,8 +22,11 @@ struct LocalDataDeletion {
         UserDefaults.standard.removeObject(forKey: "assistant.selectedCalendars")
         UserDefaults.standard.removeObject(forKey: "assistant.calendarMirrorAuthority")
     }
+    /// Every notification Aurora schedules: the daily cutoff reminder, a
+    /// saved cutoff scenario reminder, and the morning briefing.
+    static let notificationIdentifiers = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier, "aurora.assistant.briefing"]
     var clearNotifications: () -> Void = {
-        let ids = [CutoffReminder.identifier, "aurora.assistant.briefing"]
+        let ids = LocalDataDeletion.notificationIdentifiers
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
