@@ -21,6 +21,9 @@ final class AssistantModel {
     var showCalendarSettings = false
     var showAssistantSettings = false
     var historySheet: AssistantIntent?
+    /// A text field inside a card has keyboard focus. The composer inset
+    /// then keeps only its field, so the card's Save stays above the keyboard.
+    var editingCardField = false
     let calendars: CalendarService
     private let makeConversationStore: () throws -> ConversationStore
     private var store: ConversationStore?
@@ -35,21 +38,30 @@ final class AssistantModel {
     init(calendars: CalendarService? = nil, makeStore: @escaping () throws -> ConversationStore = {
         ConversationStore(directory: try StateStore.live().directory)
     }) {
-        self.calendars = calendars ?? CalendarService(); self.makeConversationStore = makeStore
+        // Created with the App, before the first frame: EventKit store and
+        // the Google credential lookup run synchronously here.
+        self.calendars = calendars ?? Signposts.measure("Launch.CalendarServiceInit") { CalendarService() }
+        self.makeConversationStore = makeStore
     }
 
     var intelligenceName: String {
         if conversation.preferences.useMacModel { return "Mac local · \(conversation.preferences.macModel)" }
-        return AppleIntentModel.available ? "On-device intelligence" : "Local quick actions · AI unavailable"
+        // Read while the conversation's first frame renders.
+        let available = Signposts.measure("Assistant.ModelAvailability") { AppleIntentModel.available }
+        return available ? "On-device intelligence" : "Local quick actions · AI unavailable"
     }
 
     func start(app: AppModel) async {
         guard !started else { return }
         started = true
+        let interval = Signposts.signposter.beginInterval("Assistant.Start")
+        defer { Signposts.signposter.endInterval("Assistant.Start", interval) }
         do {
             let store = try makeConversationStore()
             self.store = store
-            conversation = ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset") ? ConversationState() : try store.load()
+            conversation = try Signposts.measure("Assistant.ConversationLoad") {
+                ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset") ? ConversationState() : try store.load()
+            }
             storageReady = true
             for index in conversation.messages.indices {
                 if let card = conversation.messages[index].card {
@@ -65,16 +77,18 @@ final class AssistantModel {
                 appendCard(AssistantCards.make(.clarification, state: app.state, now: app.now, clock: app.clock, text: app.text))
             }
             if app.state.isWalkthroughPending { app.completeWalkthrough() }
-            await calendars.refreshCalendars()
+            await Signposts.measureAsync("Assistant.CalendarListRefresh") { await calendars.refreshCalendars() }
             await foreground(app: app)
         } catch {
+            Signposts.lifecycle.error("conversation storage did not open")
             failure = "Your conversation couldn't be opened. It has been preserved. Records and native tools remain available."
         }
     }
 
     func prepareForInput() {
         guard !processing, !conversation.preferences.useMacModel else { return }
-        appleModel.prewarm()
+        // Runs as the keyboard appears; times the synchronous part only.
+        Signposts.measure("Assistant.Prewarm") { appleModel.prewarm() }
     }
 
     func releaseWarmResources() {
@@ -99,7 +113,7 @@ final class AssistantModel {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
-        showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false
+        showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; editingCardField = false
         releaseWarmResources(); calendars.resetAfterErase()
         failure = nil
     }
@@ -143,18 +157,27 @@ final class AssistantModel {
                 if self.requestID == id { self.processing = false; self.status = ""; self.task = nil }
             }
             do {
+                // Route words only; the request text is never recorded.
+                var route = "explicit"
+                let classifying = Signposts.signposter.beginInterval("Assistant.Classify")
+                var classified = false
+                // Also ends the interval on failure or Stop.
+                defer { if !classified { Signposts.signposter.endInterval("Assistant.Classify", classifying, "\(route, privacy: .public) ended") } }
                 var intent = AssistantPlanner.explicitIntent(text)
                 if intent == nil {
                     let source = self.conversation.preferences.useMacModel
                         ? "mac:\(self.conversation.preferences.macModel)" : "apple"
                     if let cached = self.intentCache.lookup(text, model: source) {
                         self.status = "Checking your request"
+                        route = "cached"
                         intent = cached
                     } else if self.conversation.preferences.useMacModel {
                         self.status = "Asking your Mac’s local model"
+                        route = "mac-local"
                         intent = try await MacIntentModel(model: self.conversation.preferences.macModel).classify(text)
                     } else {
                         self.status = "Using on-device intelligence"
+                        route = "on-device"
                         intent = try await self.appleModel.classify(text)
                     }
                     try Task.checkCancellation()
@@ -162,9 +185,11 @@ final class AssistantModel {
                         self.intentCache.insert(intent, text: text, model: source)
                     }
                 }
+                classified = true
+                Signposts.signposter.endInterval("Assistant.Classify", classifying, "\(route, privacy: .public)")
                 try Task.checkCancellation()
                 guard self.requestID == id else { return }
-                await self.handle(intent ?? .unsupported, input: text, app: app)
+                await Signposts.measureAsync("Assistant.Card") { await self.handle(intent ?? .unsupported, input: text, app: app) }
             } catch is CancellationError { }
             catch {
                 guard self.requestID == id else { return }
@@ -173,6 +198,7 @@ final class AssistantModel {
         }
     }
     func cancel() {
+        Signposts.event("Assistant.Cancel")
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         append("Stopped. No proposed action was saved.")
     }

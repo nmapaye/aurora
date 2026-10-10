@@ -28,6 +28,7 @@ struct AuroraApp: App {
                     if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return }
                     #endif
                     connectAssistant()
+                    Signposts.event("Launch.SceneTask")
                     model.load()
                 }
                 .onOpenURL { url in
@@ -108,14 +109,14 @@ struct RootView: View {
     var body: some View {
         switch model.phase {
         case .loading:
-            BootView()
+            BootView().onAppear { Signposts.event("Launch.BootVisible") }
         case .storageUnavailable:
-            StorageRecoveryView()
+            StorageRecoveryView().onAppear { Signposts.event("Launch.RecoveryVisible") }
         case .ready:
             if model.state.onboarding.completed {
-                AssistantView()
+                AssistantView().onAppear { Signposts.event("Launch.AssistantVisible") }
             } else {
-                OnboardingView()
+                OnboardingView().onAppear { Signposts.event("Launch.OnboardingVisible") }
             }
         }
     }

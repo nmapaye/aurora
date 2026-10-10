@@ -14,7 +14,10 @@ struct AssistantCardView: View {
     @State private var historyLimit = 30
     @State private var editingDose: DoseSheet?
     @State private var editingSleep: SleepSheet?
+    @FocusState private var field: CardField?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum CardField: Hashable { case amount, source, note, search }
 
     private var snapshotClock: LocalClock { LocalClock(timeZone: TimeZone(identifier: card.timeZone) ?? .current) }
     private var snapshotText: DateText { .localized(timeZone: snapshotClock.timeZone) }
@@ -45,6 +48,9 @@ struct AssistantCardView: View {
                 }
             }
         }
+        // Save or Discard removes the focused field, which clears focus too.
+        .onChange(of: field) { _, value in assistant.editingCardField = value != nil }
+        .onDisappear { if field != nil { assistant.editingCardField = false } }
         .sheet(item: $editingDose) { mode in
             if case .edit(let original) = mode {
                 DoseEntrySheet(mode: mode, draft: CaffeineLog.editDraft(for: original)) { result in
@@ -305,7 +311,7 @@ struct AssistantCardView: View {
                 Text(EnergyCheckIn.sourceLabel + " · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
                 LabeledField(label: "Note") {
                     TextField("Optional note", text: Binding(get: { assistant.pendingCheckIn?.note ?? "" }, set: { assistant.pendingCheckIn?.note = $0 }))
-                        .font(Typography.evidence).accessibilityIdentifier("assistant-checkin-note")
+                        .font(Typography.evidence).focused($field, equals: .note).accessibilityIdentifier("assistant-checkin-note")
                 }
                 draftActions(save: draft.original == nil ? "Save check-in" : "Save correction", saveID: "assistant-checkin-save", disabled: false) { assistant.saveCheckIn(app: app) }
                 recentCheckIns
@@ -356,7 +362,8 @@ struct AssistantCardView: View {
             VStack(alignment: .leading, spacing: Metrics.md) {
                 LabeledField(label: "Amount", unit: "mg") {
                     TextField("Amount in mg", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
-                        .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().accessibilityIdentifier("assistant-dose-amount")
+                        .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().focused($field, equals: .amount)
+                        .accessibilityIdentifier("assistant-dose-amount")
                 }
                 // Mirrors Save's own validation once something is typed; Save
                 // stays enabled and still reports an empty amount itself.
@@ -365,7 +372,7 @@ struct AssistantCardView: View {
                 }
                 LabeledField(label: "Drink or source") {
                     TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
-                        .font(Typography.evidence).accessibilityIdentifier("assistant-dose-source")
+                        .font(Typography.evidence).focused($field, equals: .source).accessibilityIdentifier("assistant-dose-source")
                 }
                 DatePicker(selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now) {
                     Text("Recorded time").font(Typography.label).foregroundStyle(Palette.textSecondary)
@@ -413,7 +420,7 @@ struct AssistantCardView: View {
                 if let problem = ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()).message { fieldProblem(problem) }
                 Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
                 LabeledField(label: "Note") {
-                    TextField("Optional note", text: Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 })).font(Typography.evidence)
+                    TextField("Optional note", text: Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 })).font(Typography.evidence).focused($field, equals: .note)
                 }
                 draftActions(save: "Save sleep", saveID: "assistant-sleep-save", disabled: ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()) != .valid) { assistant.saveSleep(app: app) }
             }
@@ -435,7 +442,7 @@ struct AssistantCardView: View {
     }
     private var history: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            TextField("Search records", text: $query).textFieldStyle(.roundedBorder).accessibilityIdentifier("assistant-history-search")
+            TextField("Search records", text: $query).textFieldStyle(.roundedBorder).focused($field, equals: .search).accessibilityIdentifier("assistant-history-search")
             Picker("Date range", selection: $historyDays) { Text("7d").tag(7); Text("30d").tag(30); Text("All").tag(0) }.pickerStyle(.segmented)
             Picker("Source", selection: $source) { ForEach(["All sources", "Manual", "Health", "Sample Data", "Recorded"], id: \.self) { Text($0).tag($0) } }
             if filteredRecords.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }

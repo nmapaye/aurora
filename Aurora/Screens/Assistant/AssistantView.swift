@@ -75,7 +75,7 @@ struct AssistantView: View {
         .task { await assistant.start(app: app) }
         // Becoming active refreshes through AppModel's shared scheduler.
         .onChange(of: phase) { _, value in
-            if value != .active { dictation.stop(); assistant.releaseWarmResources() }
+            if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.editingCardField = false }
         }
         .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
         .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }
@@ -145,35 +145,19 @@ struct AssistantView: View {
         }
     }
 
+    /// While a card's own field is being edited, the inset rides above the
+    /// keyboard. Keep only the composer field so the card's Save stays
+    /// visible and swipes can't land on quick actions.
+    private var editingCard: Bool { assistant.editingCardField && !composerFocused }
+
     private var composer: some View {
         VStack(spacing: 10) {
-            if !typeSize.isAccessibilitySize, assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
+            if !editingCard, !typeSize.isAccessibilitySize, assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
                 Text("Start with a quick action, or ask in your own words.")
                     .font(.caption).foregroundStyle(Palette.textSecondary)
                     .padding(.horizontal, 16)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    quickAction("Log caffeine", symbol: "cup.and.saucer")
-                    quickAction("Log sleep", symbol: "moon")
-                    quickAction("Connect Apple Health", symbol: "heart.text.square") {
-                        composerFocused = false
-                        showHealthConnection = true
-                    }
-                    quickAction("How is my energy?", symbol: "sparkle")
-                    quickAction("Show my energy curve", symbol: "chart.xyaxis.line")
-                    quickAction("Check in my energy", symbol: "hand.raised")
-                    quickAction("Show this week", symbol: "chart.bar")
-                    quickAction("Review calendar", symbol: "calendar")
-                    quickAction("Morning briefing", symbol: "sun.horizon")
-                    quickAction("Reaction test", symbol: "hand.tap")
-                    quickAction("History", symbol: "clock.arrow.circlepath")
-                    quickAction("Export records", symbol: "square.and.arrow.up")
-                    quickAction("Reminders", symbol: "bell")
-                }
-                .padding(.horizontal, 16)
-            }
-            .accessibilityIdentifier("assistant-quick-actions")
+            if !editingCard { quickActions }
             HStack(alignment: .center, spacing: 12) {
                 TextField("", text: $input, axis: .vertical)
                     .lineLimit(1...5).focused($composerFocused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
@@ -199,6 +183,30 @@ struct AssistantView: View {
         // The inset never scrolls, so uncapped accessibility sizes left the
         // conversation a sliver of the screen. Messages and cards still scale fully.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+    private var quickActions: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                quickAction("Log caffeine", symbol: "cup.and.saucer")
+                quickAction("Log sleep", symbol: "moon")
+                quickAction("Connect Apple Health", symbol: "heart.text.square") {
+                    composerFocused = false
+                    showHealthConnection = true
+                }
+                quickAction("How is my energy?", symbol: "sparkle")
+                quickAction("Show my energy curve", symbol: "chart.xyaxis.line")
+                quickAction("Check in my energy", symbol: "hand.raised")
+                quickAction("Show this week", symbol: "chart.bar")
+                quickAction("Review calendar", symbol: "calendar")
+                quickAction("Morning briefing", symbol: "sun.horizon")
+                quickAction("Reaction test", symbol: "hand.tap")
+                quickAction("History", symbol: "clock.arrow.circlepath")
+                quickAction("Export records", symbol: "square.and.arrow.up")
+                quickAction("Reminders", symbol: "bell")
+            }
+            .padding(.horizontal, 16)
+        }
+        .accessibilityIdentifier("assistant-quick-actions")
     }
     private func quickAction(_ text: String, symbol: String, action: (() -> Void)? = nil) -> some View {
         Button { if let action { action() } else { assistant.send(text, app: app) } } label: { Label(text, systemImage: symbol).font(.caption.weight(.medium)).padding(12).frame(minHeight: 44).background(Palette.card, in: Capsule()) }

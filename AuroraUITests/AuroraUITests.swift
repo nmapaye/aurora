@@ -184,6 +184,23 @@ final class AuroraUITests: XCTestCase {
         undo.tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch.waitForExistence(timeout: 5))
     }
+    func testDraftFieldKeepsSaveAboveCollapsedComposer() {
+        finishSetup()
+        app.buttons["assistant-quick-Log caffeine"].tap()
+        let amount = app.textFields["assistant-dose-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        amount.tap(); amount.typeText("80")
+        // While a card field is edited the composer keeps only its own field.
+        XCTAssertTrue(app.buttons["assistant-quick-Log sleep"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["assistant-composer"].exists)
+        let source = app.textFields["assistant-dose-source"]
+        source.tap(); source.typeText("Tea\n")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["assistant-quick-Log sleep"].waitForExistence(timeout: 5))
+        // Nothing was saved by editing; Save is still the explicit step.
+        XCTAssertTrue(app.buttons["assistant-dose-save"].isHittable)
+        XCTAssertFalse(app.buttons["assistant-undo"].exists)
+    }
     func testOfflineChartAndNativeToolsAreReachable() {
         finishSetup()
         tapQuick("Show this week")
