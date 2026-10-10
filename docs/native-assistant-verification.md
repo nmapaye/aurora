@@ -481,3 +481,17 @@ relaunch restored the conversation, and opening the new energy-curve card render
 the truthful missing-data state. This startup observation requires follow-up; do not
 claim cold-start acceptance from this demo. Evidence: integrated Release log at
 /private/tmp/aurora-energy-integrated-release.log and Device Hub inspection.
+
+## October10 overnight reliability acceptance
+
+Reviewed and integrated individually:8b85c65→dacf9ed, b221170→b1c2c55,813c4a2→c4af855,e622637→48e2ed8,4130a3a→0c7269a. Integrated tree matches tested candidate4130a3a before this documentation update.
+
+Codex independently verified:
+- Core189/189 in UTC and America/Los_Angeles. Logs `/private/tmp/aurora-night-codex-core-r2-{utc,la}.log`.
+- Native60/60 on iPhone and iPad, including lifetime teardown and per-card focus ownership. Original runtime crash was reproduced and its stack identified the unowned AppModel callback during asynchronous Health reconciliation. Retry completes without that crash.
+- Focused iPhone keyboardUI1/1; focused iPad keyboard and Save/UndoUI2/2. Serial runs, no simultaneous UI runners. These are focused checks, not a new full-suite pass. Bundles `/private/tmp/aurora-night-codex-reliability-r2.xcresult` and `/private/tmp/aurora-night-codex-reliability-pad.xcresult`.
+- Keyboard screenshots inspected on both devices: complete44pt Save above composer and software keyboard; quick actions collapsed while editing, explicit Save produced receipt and restored quick actions.
+- Unsigned Release build succeeded, `/private/tmp/aurora-night-codex-release.log`. Brand-token and whitespace checks pass.
+- Fresh Release installed in new disposable simulator1E142134-1060-476E-B548-133545EFF174, no existing demo/record erase. First launch visibly reached onboarding. Fixed-name signposts show calendar setup9ms, storage4ms and OnboardingVisible about166ms after initial marker. These simulator observations are not physical-device latency claims. Screenshot `/private/tmp/aurora-night-cold-first.png`, log `/private/tmp/aurora-night-cold-first.log`. Prior blank demo launch is not reproduced here and no speculative root cause/fix is claimed.
+
+Remaining overnight checks: adapted onboarding and polish, full serial iPhone/iPad suites on final combined build, light/dark/largest text/Reduce Motion, completed-user cold launch and background-return behavior. iPad composer width is wider than card column in capture; send to polish package for shared-width treatment. Physical/live/accessibility/performance/signing/TestFlight/publication gates remain open. No pushes or global configuration changes.
