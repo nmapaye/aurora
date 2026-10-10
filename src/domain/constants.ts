@@ -1,3 +1,0 @@
-export const DEFAULT_HALFLIFE_H = Number(process.env.EXPO_PUBLIC_DEFAULT_HALF_LIFE_HOURS ?? 5);
-export const DEFAULT_TARGET_SLEEP_H = Number(process.env.EXPO_PUBLIC_DAILY_SLEEP_TARGET_HOURS ?? 8);
-  
