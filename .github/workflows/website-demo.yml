@@ -7,14 +7,12 @@ on:
     paths:
       - 'website/**'
       - '.github/workflows/website-demo.yml'
-      - 'package.json'
   pull_request:
     branches:
       - main
     paths:
       - 'website/**'
       - '.github/workflows/website-demo.yml'
-      - 'package.json'
   workflow_dispatch:
 
 env:

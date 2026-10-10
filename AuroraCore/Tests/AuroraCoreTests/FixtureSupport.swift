@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AuroraCore
 
-/// Loads the JSON files that `tests/fixtures/exportCoreFixtures.spec.ts`
+/// Loads the JSON files that the removed React Native build's `tests/fixtures/exportCoreFixtures.spec.ts`
 /// wrote from the TypeScript originals.
 enum Fixture {
     static func load(_ name: String) throws -> JSONValue {
