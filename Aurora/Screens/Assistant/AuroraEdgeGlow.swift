@@ -6,7 +6,6 @@ struct AuroraEdgeGlow: View {
     let active: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var frozenPhase = Date().timeIntervalSinceReferenceDate
 
     var body: some View {
         ZStack {
@@ -15,17 +14,15 @@ struct AuroraEdgeGlow: View {
                     edge(phase: context.date.timeIntervalSinceReferenceDate)
                 }
             } else {
-                edge(phase: reduceMotion ? 0 : frozenPhase)
+                // Rendered when work ends, is stopped or fails, or the scene
+                // leaves active: the bands hold where the timeline left them,
+                // so the fade starts from the last frame instead of jumping
+                // to a stale one. Reduce Motion always draws the same frame.
+                edge(phase: reduceMotion ? 0 : Date.now.timeIntervalSinceReferenceDate)
             }
         }
         .opacity(active ? 1 : 0)
         .animation(reduceMotion || scenePhase != .active ? nil : .easeInOut(duration: active ? Motion.processingFadeIn : Motion.processingFadeOut), value: active)
-        .onChange(of: active) { _, isActive in
-            if !isActive { frozenPhase = Date().timeIntervalSinceReferenceDate }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active { frozenPhase = Date().timeIntervalSinceReferenceDate }
-        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
