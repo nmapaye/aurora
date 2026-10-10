@@ -7,6 +7,8 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Starting setup couldn't be saved; the story stays so it can be retried.
+    @State private var startFailure: String?
 
     var body: some View {
         ZStack {
@@ -14,10 +16,13 @@ struct OnboardingView: View {
                 SetupConversationView()
                     .transition(.opacity)
             } else {
-                StoryScenesView {
+                StoryScenesView(failure: startFailure) {
+                    var saved = false
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: Motion.contentDuration)) {
-                        model.setSetupStep(.name)
+                        saved = model.setSetupStep(.name)
                     }
+                    startFailure = saved ? nil : (model.mutationFailure ?? "Couldn’t start setup. Try again.")
+                    if let startFailure { UIAccessibility.post(notification: .announcement, argument: startFailure) }
                 }
                 .transition(.opacity)
             }
@@ -28,6 +33,7 @@ struct OnboardingView: View {
 /// Dawn, midday light, dusk. Swipe or Continue; Skip is always available
 /// and goes straight to setup. The sky changes with the scene.
 struct StoryScenesView: View {
+    var failure: String?
     let onFinish: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
@@ -58,6 +64,13 @@ struct StoryScenesView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .interactive))
+                if let failure {
+                    StatusText(text: failure, tone: .error)
+                        .padding(.horizontal, Metrics.lg)
+                        .padding(.bottom, Metrics.xs)
+                        .frame(maxWidth: Metrics.contentMaxWidth)
+                        .accessibilityIdentifier("story-save-failure")
+                }
                 Button(page == scenes.count - 1 ? "Begin setup" : "Continue") {
                     if page == scenes.count - 1 { onFinish() } else { page += 1 }
                 }

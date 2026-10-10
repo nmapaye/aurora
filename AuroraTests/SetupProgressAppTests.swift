@@ -28,24 +28,99 @@ import Testing
         return model
     }
 
+    private var stateFile: URL { root.appendingPathComponent("Support/Aurora/state.json") }
+
+    /// Every later save fails: the state file's path becomes a directory.
+    private func breakSaving() throws {
+        try FileManager.default.removeItem(at: stateFile)
+        try FileManager.default.createDirectory(at: stateFile, withIntermediateDirectories: false)
+    }
+
+    private func restoreSaving() throws {
+        try FileManager.default.removeItem(at: stateFile)
+    }
+
+    private func transcript(_ model: AppModel) -> [SetupTranscript.Entry] {
+        SetupTranscript.entries(state: model.state, healthAvailable: true, calendarsChosen: false, modelAvailable: true)
+    }
+
     @Test func answersResumeAfterRelaunchAndCompletedSetupStaysDone() {
         let health = ScriptedHealth()
         let first = makeModel(health: health)
         #expect(FirstRun(first.state.onboarding) == .story)
-        first.setSetupStep(.name)
-        first.setDisplayName("  Sam  ")
-        first.setSetupStep(.health)
+        #expect(first.setSetupStep(.name))
+        #expect(first.recordSetup(.name, .answered) { $0.prefs.displayName = Welcome.cleanName("  Sam  ") })
+        #expect(first.recordSetup(.sleepTarget, .skipped))
 
         let relaunched = makeModel(health: health)
         #expect(relaunched.state.prefs.displayName == "Sam")
+        #expect(relaunched.state.prefs.targetSleep == Prefs.defaultTargetSleep)
         #expect(FirstRun(relaunched.state.onboarding) == .setup(.health))
-        relaunched.setDisplayName("   ")
-        #expect(relaunched.state.prefs.displayName == nil)
-        relaunched.completeOnboarding()
+        #expect(transcript(relaunched).map(\.reply) == [.person("Sam"), .retained("Sleep target stays at 8 hours. You can change it in Settings."), nil])
+        #expect(relaunched.finishSetup(withSampleData: false))
 
         let again = makeModel(health: health)
         #expect(FirstRun(again.state.onboarding) == .done)
         #expect(health.authorizations.isEmpty, "Setup answers alone never ask Health")
+    }
+
+    @Test func skipToEndInventsNoAnswers() {
+        let model = makeModel(health: ScriptedHealth())
+        #expect(model.setSetupStep(.name))
+        #expect(model.skipSetupToEnd())
+        #expect(transcript(model).map(\.step) == [.finish])
+        #expect(model.state.prefs.targetSleep == Prefs.defaultTargetSleep && model.state.prefs.displayName == nil)
+        #expect(model.state.onboarding.setupOutcomes == nil)
+        #expect(model.state.onboarding.source == .manual)
+    }
+
+    @Test func failedNameSaveKeepsTheQuestionAndNothingAdvances() throws {
+        let model = makeModel(health: ScriptedHealth())
+        #expect(model.setSetupStep(.name))
+        try breakSaving()
+        #expect(!model.recordSetup(.name, .answered) { $0.prefs.displayName = "Sam" })
+        #expect(model.mutationFailure != nil)
+        #expect(model.state.prefs.displayName == nil)
+        #expect(SetupStep(stored: model.state.onboarding.setupStep) == .name)
+        #expect(model.state.onboarding.setupOutcomes == nil)
+
+        // Retrying after storage recovers saves the name and the step together.
+        try restoreSaving()
+        #expect(model.recordSetup(.name, .answered) { $0.prefs.displayName = "Sam" })
+        #expect(model.mutationFailure == nil)
+        let relaunched = makeModel(health: ScriptedHealth())
+        #expect(relaunched.state.prefs.displayName == "Sam")
+        #expect(FirstRun(relaunched.state.onboarding) == .setup(.sleepTarget))
+    }
+
+    @Test func failedSkipsDoNotAdvanceOrRecordOutcomes() throws {
+        let model = makeModel(health: ScriptedHealth())
+        #expect(model.setSetupStep(.sleepTarget))
+        try breakSaving()
+        #expect(!model.recordSetup(.sleepTarget, .skipped))
+        #expect(!model.skipSetupToEnd())
+        #expect(!model.setSetupStep(.health))
+        #expect(model.mutationFailure != nil)
+        #expect(SetupStep(stored: model.state.onboarding.setupStep) == .sleepTarget)
+        #expect(model.state.onboarding.setupOutcomes == nil)
+        #expect(model.state.onboarding.source == .healthkit)
+    }
+
+    @Test func failedFinishLeavesSetupOpenWithoutSampleData() throws {
+        let model = makeModel(health: ScriptedHealth())
+        #expect(model.setSetupStep(.finish))
+        try breakSaving()
+        #expect(!model.finishSetup(withSampleData: true))
+        #expect(!model.completeOnboarding())
+        #expect(model.mutationFailure != nil)
+        #expect(!model.state.onboarding.completed)
+        #expect(!model.state.demoMode && model.state.doses.isEmpty)
+        #expect(FirstRun(model.state.onboarding) == .setup(.finish))
+
+        try restoreSaving()
+        #expect(model.finishSetup(withSampleData: true))
+        #expect(model.state.onboarding.completed && model.state.demoMode)
+        #expect(model.state.doses.allSatisfy { RecordID.isSample($0.id) && $0.timestamp <= model.now })
     }
 
     @Test func noRecordsAndSampleDataGiveHonestWelcomeEvidence() {
@@ -77,6 +152,8 @@ import Testing
         _ = await model.setHealthChoice(.readSleep, enabled: true)
         #expect(!model.state.healthChoices.readSleep)
         #expect(model.state.onboarding.source == .manual)
+        #expect(model.state.onboarding.permissionStatus == .denied)
+        #expect(model.recordSetup(.health, .skipped) { $0.settleSetupSleepSource() })
         #expect(model.state.onboarding.permissionStatus == .denied)
         let note = SetupCopy.healthNote(model.state.healthChoices, healthAvailable: true, permission: model.state.onboarding.permissionStatus, demoMode: false)
         #expect(note.contains("didn’t finish"))

@@ -2,17 +2,24 @@ import AuroraCore
 import SwiftUI
 
 /// First-run setup as a short conversation. Aurora asks one question at a
-/// time; every question can be skipped, and "Skip to the end" leaves setup
-/// at any point. Each answer is saved as it is given, so a relaunch resumes
-/// at the next question. Health and calendars use the same connection
-/// services as Settings, and nothing is requested until the person chooses
-/// it here. Health access is never shown as granted.
+/// time; every question has its own "Not now", and "Skip to the end" leaves
+/// setup at any point. An answer, its outcome and the next step are saved
+/// together, so a relaunch resumes at the next question; if that save
+/// fails, the question stays with the error and can be retried. The
+/// transcript shows only questions actually asked and what the person did.
+/// Health and calendars use the same connection services as Settings, and
+/// nothing is requested until the person chooses it here. Health access is
+/// never shown as granted.
 struct SetupConversationView: View {
     @Environment(AppModel.self) private var model
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var controlsHeight: CGFloat = 0
     @State private var name = ""
+    /// Edited here and saved only by Continue, so "Not now" keeps the stored target.
+    @State private var targetDraft: Double?
+    /// The last failed save, shown above the controls until the next try.
+    @State private var saveFailure: String?
     @State private var working: HealthChoice?
     @State private var healthMessages: [HealthChoice: String] = [:]
     @State private var showCalendars = false
@@ -36,7 +43,7 @@ struct SetupConversationView: View {
                             AuroraMark().frame(width: 40, height: 40)
                             Spacer()
                             if step != .finish {
-                                Button("Skip to the end") { leave(to: .finish) }
+                                Button("Skip to the end", action: skipToEnd)
                                     .font(.subheadline.weight(.medium))
                                     .frame(minHeight: Metrics.minimumTouchTarget)
                                     .accessibilityHint("Keeps what you’ve answered and goes to the last step.")
@@ -44,8 +51,8 @@ struct SetupConversationView: View {
                             }
                         }
                         .padding(.top, Metrics.md)
-                        ForEach(transcript, id: \.self) { asked in
-                            exchange(asked)
+                        ForEach(transcript, id: \.step) { entry in
+                            exchange(entry)
                         }
                         Color.clear.frame(height: 1).id("end")
                     }
@@ -98,50 +105,60 @@ struct SetupConversationView: View {
 
     // MARK: Transcript
 
-    /// Every question asked so far, the current one last.
-    private var transcript: [SetupStep] {
-        SetupStep.allCases.filter { $0.rawValue <= step.rawValue }
+    /// Questions actually asked, with what the person really did, then the
+    /// current question. Nothing is inferred from progress alone.
+    private var transcript: [SetupTranscript.Entry] {
+        SetupTranscript.entries(
+            state: model.state,
+            healthAvailable: model.healthAvailable,
+            calendarsChosen: !assistant.calendars.selected.isEmpty,
+            modelAvailable: modelAvailable
+        )
     }
 
-    @ViewBuilder private func exchange(_ asked: SetupStep) -> some View {
-        bubble(SetupCopy.question(asked, modelAvailable: modelAvailable), fromAurora: true)
-            .accessibilityIdentifier("setup-question-\(asked)")
-        if asked != step, let answer = answer(asked) {
-            bubble(answer, fromAurora: false)
+    @ViewBuilder private func exchange(_ entry: SetupTranscript.Entry) -> some View {
+        bubble(entry.question, speaker: "Aurora", fill: Palette.card, alignment: .leading)
+            .accessibilityIdentifier("setup-question-\(entry.step)")
+        switch entry.reply {
+        case .person(let text)?:
+            bubble(text, speaker: "You", fill: Palette.selectionFill, alignment: .trailing)
+        case .retained(let text)?:
+            // A setting that stayed as it was: Aurora's note, not a reply.
+            bubble(text, speaker: "Aurora", fill: Palette.cardMuted, alignment: .leading)
+                .accessibilityIdentifier("setup-retained-\(entry.step)")
+        case nil:
+            EmptyView()
         }
     }
 
-    private func bubble(_ text: String, fromAurora: Bool) -> some View {
+    private func bubble(_ text: String, speaker: String, fill: Color, alignment: Alignment) -> some View {
         Text(text)
             .font(Typography.evidence)
             .foregroundStyle(Palette.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Metrics.md)
             .padding(.vertical, Metrics.sm)
-            .background(
-                fromAurora ? Palette.card : Palette.selectionFill,
-                in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous)
-            )
-            .frame(maxWidth: .infinity, alignment: fromAurora ? .leading : .trailing)
-            .accessibilityLabel("\(fromAurora ? "Aurora" : "You"): \(text)")
+            .background(fill, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: alignment)
+            .accessibilityLabel("\(speaker): \(text)")
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
-    }
-
-    private func answer(_ step: SetupStep) -> String? {
-        let state = model.state
-        switch step {
-        case .name: return state.prefs.displayName ?? "Skip for now"
-        case .sleepTarget: return OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).spoken
-        case .health: return SetupCopy.healthAnswer(state.healthChoices, healthAvailable: model.healthAvailable)
-        case .calendar: return assistant.calendars.selected.isEmpty ? "Not now" : "Calendars chosen"
-        case .finish: return nil
-        }
     }
 
     // MARK: Controls
 
     @ViewBuilder private var controls: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
+            if let saveFailure {
+                Label(saveFailure, systemImage: StatusTone.error.symbol)
+                    .font(.footnote)
+                    .foregroundStyle(StatusTone.error.foreground)
+                    .padding(.horizontal, Metrics.sm)
+                    .padding(.vertical, Metrics.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(StatusTone.error.background, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("setup-save-failure")
+            }
             switch step {
             case .name: nameControls
             case .sleepTarget: sleepTargetControls
@@ -169,18 +186,17 @@ struct SetupConversationView: View {
                 .accessibilityIdentifier("setup-name")
             actionRow(primary: "Continue", primaryDisabled: Welcome.cleanName(name) == nil, primaryAction: saveName) {
                 nameFocused = false
-                model.setDisplayName(nil)
-                advance()
+                record(.name, .skipped)
             }
         }
     }
 
     private var sleepTargetControls: some View {
-        let target = model.state.prefs.targetSleep
+        let target = targetDraft ?? model.state.prefs.targetSleep
         let formatted = OnboardingCopy.formatSleepTarget(target)
         return VStack(alignment: .leading, spacing: Metrics.sm) {
             Stepper(
-                value: Binding(get: { target }, set: { model.setSleepTarget($0) }),
+                value: Binding(get: { target }, set: { targetDraft = $0 }),
                 in: OnboardingCopy.sleepTargetRange,
                 step: OnboardingCopy.sleepTargetStep
             ) {
@@ -190,9 +206,13 @@ struct SetupConversationView: View {
             }
             .accessibilityLabel("Sleep target")
             .accessibilityValue(formatted.spoken)
-            Button("Continue") { advance() }
-                .buttonStyle(.auroraPrimary)
-                .accessibilityIdentifier("setup-next")
+            .accessibilityIdentifier("setup-sleep-target")
+            // Continue confirms the shown target; Not now keeps the stored one.
+            actionRow(primary: "Continue", primaryDisabled: false, primaryAction: {
+                record(.sleepTarget, .answered) { $0.prefs.targetSleep = target }
+            }) {
+                record(.sleepTarget, .skipped)
+            }
         }
     }
 
@@ -212,12 +232,12 @@ struct SetupConversationView: View {
                 .accessibilityIdentifier("setup-health-note")
             let anyOn = Self.healthChoices.contains { state.healthChoices[$0] }
             if anyOn {
-                Button("Continue") { leaveHealth() }
+                Button("Continue") { record(.health, .answered) { $0.settleSetupSleepSource() } }
                     .buttonStyle(.auroraPrimary)
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-next")
             } else {
-                Button("Not now") { leaveHealth() }
+                Button("Not now") { record(.health, .skipped) { $0.settleSetupSleepSource() } }
                     .buttonStyle(.auroraSecondary)
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-skip")
@@ -247,10 +267,12 @@ struct SetupConversationView: View {
     /// selected unless the person does it there.
     @ViewBuilder private var calendarControls: some View {
         if assistant.calendars.selected.isEmpty {
-            actionRow(primary: "Choose calendars", primaryDisabled: false, primaryAction: { showCalendars = true }) { advance() }
+            actionRow(primary: "Choose calendars", primaryDisabled: false, primaryAction: { showCalendars = true }) {
+                record(.calendar, .skipped)
+            }
         } else {
             VStack(spacing: Metrics.xs) {
-                Button("Continue") { advance() }
+                Button("Continue") { record(.calendar, .answered) }
                     .buttonStyle(.auroraPrimary)
                     .accessibilityIdentifier("setup-next")
                 Button("Change calendars") { showCalendars = true }
@@ -261,15 +283,12 @@ struct SetupConversationView: View {
 
     private var finishControls: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            Button("Start with Aurora") { model.completeOnboarding() }
+            Button("Start with Aurora") { finish(withSampleData: false) }
                 .buttonStyle(.auroraPrimary)
                 .accessibilityIdentifier("setup-finish")
-            Button("Explore with Sample Data") {
-                model.loadSampleData()
-                model.completeOnboarding()
-            }
-            .buttonStyle(.auroraSecondary)
-            .accessibilityIdentifier("setup-sample")
+            Button("Explore with Sample Data") { finish(withSampleData: true) }
+                .buttonStyle(.auroraSecondary)
+                .accessibilityIdentifier("setup-sample")
             Text(SetupCopy.sampleNote)
                 .font(.footnote)
                 .foregroundStyle(Palette.textSecondary)
@@ -293,10 +312,9 @@ struct SetupConversationView: View {
     // MARK: Actions
 
     private func saveName() {
-        guard Welcome.cleanName(name) != nil else { return }
-        model.setDisplayName(name)
+        guard let cleaned = Welcome.cleanName(name) else { return }
         nameFocused = false
-        advance()
+        record(.name, .answered) { $0.prefs.displayName = cleaned }
     }
 
     /// The same path as Apple Health settings: each choice asks Health for
@@ -311,27 +329,37 @@ struct SetupConversationView: View {
         }
     }
 
-    /// Without Health sleep, sleep is logged by hand. A declined request
-    /// already set that, with its own status, so it isn't overwritten.
-    private func settleSleepSource() {
-        let state = model.state
-        if state.onboarding.source == .healthkit && !state.healthChoices.readSleep {
-            model.chooseSleepSource(.manual)
+    /// Saves the answer, outcome and next step together. On failure the
+    /// question stays, with the model's own error, so it can be retried.
+    private func record(_ asked: SetupStep, _ outcome: SetupOutcome, answer: (inout AppState) -> Void = { _ in }) {
+        var saved = false
+        withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) {
+            saved = model.recordSetup(asked, outcome, answer: answer)
         }
+        settle(saved)
+        if saved { targetDraft = nil }
     }
 
-    private func leaveHealth() {
-        settleSleepSource()
-        advance()
-    }
-
-    private func leave(to target: SetupStep) {
+    /// Questions not reached get no outcome, so none is shown as answered.
+    private func skipToEnd() {
         nameFocused = false
-        settleSleepSource()
-        withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) { model.setSetupStep(target) }
+        var saved = false
+        withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) { saved = model.skipSetupToEnd() }
+        settle(saved)
     }
 
-    private func advance() {
-        withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) { model.setSetupStep(step.next) }
+    /// Finishing is shown as done only once it was saved.
+    private func finish(withSampleData: Bool) {
+        settle(model.finishSetup(withSampleData: withSampleData))
+    }
+
+    private func settle(_ saved: Bool) {
+        if saved {
+            saveFailure = nil
+            return
+        }
+        let message = model.mutationFailure ?? "Couldn't save this answer. Try again."
+        saveFailure = message
+        UIAccessibility.post(notification: .announcement, argument: message)
     }
 }

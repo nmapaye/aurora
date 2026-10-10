@@ -118,6 +118,12 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   conversation with one glass control panel (capped at accessibility2; the transcript
   scales fully, keeps the latest question above the panel and fades under the status
   bar). Every question has "Not now", and "Skip to the end" is always available.
+  The transcript shows only questions actually asked. "You" bubbles are only what the
+  person typed, chose or declined ("Not now"). A setting kept by "Not now" (the sleep
+  target) appears as Aurora's note on `cardMuted`, never as a reply. Questions passed
+  over by "Skip to the end" don't appear. A failed save keeps the question, shows an
+  error tone with its symbol above the controls, announces it, and leaves the controls
+  ready for a retry.
 - Setup's Health step shows the three separate choices from Apple Health settings and
   uses the same requests; calendars open the same connection sheet as Settings.
   Nothing is requested, connected or selected until the person chooses it. Sample Data

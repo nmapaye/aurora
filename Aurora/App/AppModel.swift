@@ -489,12 +489,15 @@ final class AppModel {
 
     func loadSampleData() {
         tick()
-        update {
-            $0.loadSampleData(now: now, clock: clock)
-            $0.doses.removeAll { RecordID.isSample($0.id) && $0.timestamp > now }
-            $0.sleeps.removeAll { RecordID.isSample($0.id) && $0.end > now }
-            $0.vigilanceSessions.removeAll { RecordID.isSample($0.id) && $0.completedAt > now }
-        }
+        update { Self.applySampleData(to: &$0, now: now, clock: clock) }
+    }
+
+    /// Sample Data up to now; nothing sample-labeled lies in the future.
+    private static func applySampleData(to state: inout AppState, now: Millis, clock: LocalClock) {
+        state.loadSampleData(now: now, clock: clock)
+        state.doses.removeAll { RecordID.isSample($0.id) && $0.timestamp > now }
+        state.sleeps.removeAll { RecordID.isSample($0.id) && $0.end > now }
+        state.vigilanceSessions.removeAll { RecordID.isSample($0.id) && $0.completedAt > now }
     }
 
     func clearSampleData() {
@@ -545,14 +548,35 @@ final class AppModel {
         update { $0.prefs.targetSleep = hours }
     }
 
-    /// Nil or blank clears the name.
-    func setDisplayName(_ name: String?) {
-        update { $0.prefs.displayName = Welcome.cleanName(name) }
+    /// Remembers the next setup question so a relaunch resumes there. False
+    /// when it couldn't be saved; `mutationFailure` says why.
+    @discardableResult
+    func setSetupStep(_ step: SetupStep) -> Bool {
+        update { $0.onboarding.setupStep = step.rawValue }
     }
 
-    /// Remembers the next setup question so a relaunch resumes there.
-    func setSetupStep(_ step: SetupStep) {
-        update { $0.onboarding.setupStep = step.rawValue }
+    /// Saves a setup question's answer (if any), its outcome and the next
+    /// step as one change. False leaves everything as it was, on the same
+    /// question.
+    @discardableResult
+    func recordSetup(_ step: SetupStep, _ outcome: SetupOutcome, answer: (inout AppState) -> Void = { _ in }) -> Bool {
+        update { answer(&$0); $0.recordSetup(step, outcome) }
+    }
+
+    @discardableResult
+    func skipSetupToEnd() -> Bool {
+        update { $0.skipSetupToEnd() }
+    }
+
+    /// Completes setup, with labeled Sample Data if chosen, as one change.
+    /// False means setup is still open and nothing was loaded.
+    @discardableResult
+    func finishSetup(withSampleData: Bool) -> Bool {
+        tick()
+        return update {
+            if withSampleData { Self.applySampleData(to: &$0, now: now, clock: clock) }
+            $0.completeOnboarding(now: now)
+        }
     }
 
     func chooseSleepSource(_ source: OnboardingSource) {
@@ -583,9 +607,12 @@ final class AppModel {
         await importHealth(days: HealthImport.onboardingImportDays, failurePrefix: "Health import failed.")
     }
 
-    func completeOnboarding() {
+    /// False when it couldn't be saved: onboarding stays incomplete and
+    /// `mutationFailure` says why.
+    @discardableResult
+    func completeOnboarding() -> Bool {
         tick()
-        update { $0.completeOnboarding(now: now) }
+        return update { $0.completeOnboarding(now: now) }
     }
 
     func advanceWalkthrough() {

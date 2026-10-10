@@ -16,6 +16,13 @@ final class AuroraUITests: XCTestCase {
         tapWhenReady(app.buttons["setup-finish"])
         XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
     }
+    /// Kept for visual review; not an assertion.
+    private func attachScreenshot(_ name: String) {
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = name
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
     private func tapWhenReady(_ element: XCUIElement, timeout: TimeInterval = 5) {
         XCTAssertTrue(element.waitForExistence(timeout: timeout))
         let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
@@ -97,6 +104,7 @@ final class AuroraUITests: XCTestCase {
     func testStoryLeadsIntoSetupThatSkipsEachStepAndResumesAfterRelaunch() {
         let next = app.buttons["story-continue"]
         XCTAssertTrue(next.waitForExistence(timeout: 15))
+        attachScreenshot("First story scene")
         next.tap(); next.tap()
         XCTAssertTrue(app.buttons["Begin setup"].waitForExistence(timeout: 5))
         next.tap()
@@ -116,11 +124,57 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["onboarding-skip-story"].exists)
         XCTAssertTrue(app.staticTexts["You: Sam"].exists)
+        // The target was confirmed with Continue, so it is shown as the person's answer.
+        XCTAssertTrue(app.staticTexts["You: 8 hours"].exists)
         tapWhenReady(app.buttons["setup-skip"])
         XCTAssertTrue(app.staticTexts["setup-question-calendar"].waitForExistence(timeout: 5))
         tapWhenReady(app.buttons["setup-skip"])
         tapWhenReady(app.buttons["setup-finish"])
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 10))
+    }
+
+    func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        tapWhenReady(app.buttons["setup-skip-all"])
+        XCTAssertTrue(app.buttons["setup-finish"].waitForExistence(timeout: 5))
+        for step in ["name", "sleepTarget", "health", "calendar"] {
+            XCTAssertFalse(app.staticTexts["setup-question-" + step].exists, step + " was never asked")
+        }
+        XCTAssertFalse(app.staticTexts["You: 8 hours"].exists)
+        XCTAssertFalse(app.staticTexts["You: Not now"].exists)
+    }
+
+    func testSleepTargetNotNowKeepsTheSettingAsAuroraNote() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        // Change the shown value, then decline: the stored target stays.
+        app.steppers["setup-sleep-target"].buttons.element(boundBy: 1).tap()
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["You: Not now"].exists)
+        XCTAssertTrue(app.staticTexts["setup-retained-sleepTarget"].exists)
+        XCTAssertTrue(app.staticTexts["setup-retained-sleepTarget"].label.contains("8 hours"))
+        XCTAssertFalse(app.staticTexts["You: 8 hours"].exists)
+        XCTAssertFalse(app.staticTexts["You: 8.5 hours"].exists)
+    }
+
+    func testHealthSetupAtLargestTextRequestsNothing() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
+        for choice in ["readSleep", "readCaffeine", "writeCaffeine"] {
+            let control = app.switches["setup-health-" + choice]
+            XCTAssertTrue(control.exists)
+            XCTAssertEqual(control.value as? String, "0", "Inspection must not enable Health access")
+        }
+        XCTAssertTrue(app.buttons["setup-skip"].exists)
+        attachScreenshot("Health setup at largest text")
     }
 
     func testWelcomeGreetsByNameAndATapSkipsAtOnce() {
@@ -136,6 +190,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(welcome.waitForExistence(timeout: 10))
         XCTAssertTrue(welcome.label.contains("Sam"))
         XCTAssertTrue(welcome.label.contains("Ready when you are."))
+        attachScreenshot("Held welcome")
         welcome.tap()
         // No dissolve to wait out: the conversation takes touches right away.
         let send = app.buttons["assistant-send"]
