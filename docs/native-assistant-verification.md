@@ -495,3 +495,15 @@ Codex independently verified:
 - Fresh Release installed in new disposable simulator1E142134-1060-476E-B548-133545EFF174, no existing demo/record erase. First launch visibly reached onboarding. Fixed-name signposts show calendar setup9ms, storage4ms and OnboardingVisible about166ms after initial marker. These simulator observations are not physical-device latency claims. Screenshot `/private/tmp/aurora-night-cold-first.png`, log `/private/tmp/aurora-night-cold-first.log`. Prior blank demo launch is not reproduced here and no speculative root cause/fix is claimed.
 
 Remaining overnight checks: adapted onboarding and polish, full serial iPhone/iPad suites on final combined build, light/dark/largest text/Reduce Motion, completed-user cold launch and background-return behavior. iPad composer width is wider than card column in capture; send to polish package for shared-width treatment. Physical/live/accessibility/performance/signing/TestFlight/publication gates remain open. No pushes or global configuration changes.
+
+## October10 onboarding acceptance
+
+Reviewed sourcecommits5dea303,6d15da5,807039d,f8152d5,aac442b,f698213 individually, integrated as3d99705,9c6a72f,e0ac522,4203aa9,462c550,10cd37c. Tree identical to independently testedf698213 before this verification update. Optional setup fields decode from old storage without changing record/schema formats. Setup outcomes prevent fabricated user replies; answer+progress and finish/sample actions save atomically and preserve the step on failure.
+
+- Core216/216 in UTC and Los Angeles; `/private/tmp/aurora-night-onboarding-core-r2-{utc,la}.log`.
+- Native68/68 on iPhone and iPad, including failed setup writes and retries; focused correctedUI4/4 on each device: global skip leaves no invented answers, sleepNotnow retains stored target as Aurora note, largesttextHealth controls request no permissions, held welcome releases conversation immediately on tap. Bundles `/private/tmp/aurora-night-onboarding-r2-{phone,pad}.xcresult`.
+- Prior candidate807039d passed five focused iPhone flows including erase/relaunch, story/resume, keyboardSave and largesttextcomposer; these are prior-candidate evidence, not a new full combined acceptance run.
+- Phone and pad heldwelcome/Health-largesttext screenshots inspected under `/private/tmp/aurora-night-onboarding-r2-{phone,pad}-captures`. Health controls andNotnow visible, controls remain separate from scrollable conversation; welcome uses readable teal/mint/indigo identity.
+- Independent unsignedRelease and brandtoken/whitespace checks pass. Release log `/private/tmp/aurora-night-onboarding-release.log`, with standard AppIntents metadata warning (no dependency).
+
+Final fullserial suites, light/dark/ReduceMotion and representative error/gallery visuals remain after polish. VoiceOver, older supported systems, physical-device performance/battery/accessibility, liveHealth/calendar, signing and TestFlight remain release gates. No push/publication/live account setup or personal record erase.
