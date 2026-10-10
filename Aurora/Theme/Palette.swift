@@ -99,6 +99,12 @@ enum Metrics {
     static let minimumTouchTarget: CGFloat = 44
 
     static let contentMaxWidth: CGFloat = 600
+    /// Leading and trailing inset of the conversation column (at most
+    /// `contentMaxWidth`, centered, at least `lg` from each edge), for content
+    /// that scrolls past the column but should start in line with it.
+    static func columnInset(containerWidth: CGFloat) -> CGFloat {
+        lg + max(0, (containerWidth - 2 * lg - contentMaxWidth) / 2)
+    }
     static let wideContentMaxWidth: CGFloat = 1220
     /// Two columns only on iPad windows at least this wide.
     static let twoColumnMinWidth: CGFloat = 900

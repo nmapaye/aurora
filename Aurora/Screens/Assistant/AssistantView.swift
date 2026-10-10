@@ -15,7 +15,15 @@ struct AssistantView: View {
     @State private var showHealthConnection = false
     /// How far the software keyboard reaches up from the screen's bottom.
     @State private var keyboardOverlap: CGFloat = 0
+    /// Messages at least partly on screen, and whether the end is.
+    @State private var visibleMessages: Set<UUID> = []
+    @State private var endVisible = true
+    @State private var viewportHeight: CGFloat = 0
+    /// The first message added while earlier messages were being read.
+    @State private var heldMessage: UUID?
+    @State private var composerWidth: CGFloat = 0
     @FocusState private var composerFocused: Bool
+    private static let viewport = "conversation"
 
     var body: some View {
         @Bindable var assistant = assistant
@@ -27,21 +35,32 @@ struct AssistantView: View {
                         identity
                         ForEach(assistant.conversation.messages) { message in
                             messageView(message).id(message.id)
+                                .onGeometryChange(for: Bool.self, of: onScreen) { visible in
+                                    if visible { visibleMessages.insert(message.id) } else { visibleMessages.remove(message.id) }
+                                    if visible && heldMessage == message.id { heldMessage = nil }
+                                }
+                                .onDisappear { visibleMessages.remove(message.id) }
                         }
+                        // Stop lives in the composer, so it stays reachable
+                        // while earlier messages are being read.
                         if assistant.processing {
-                            HStack(spacing: 12) {
+                            HStack(spacing: Metrics.sm) {
                                 AuroraActivity(active: true).frame(width: 54, height: 36)
                                 Text(assistant.status).font(.subheadline).foregroundStyle(Palette.textSecondary)
-                                Spacer()
-                                Button("Stop") { assistant.cancel() }.accessibilityIdentifier("assistant-stop")
+                                Spacer(minLength: 0)
                             }
-                            .accessibilityElement(children: .contain)
+                            .accessibilityElement(children: .combine)
                         }
                         if let failure = assistant.failure ?? dictation.error {
                             Text(failure).foregroundStyle(Palette.destructive).font(.footnote)
                                 .accessibilityIdentifier("assistant-error")
                         }
                         Color.clear.frame(height: 1).id("bottom")
+                            .onGeometryChange(for: Bool.self, of: onScreen) { visible in
+                                endVisible = visible
+                                if visible { heldMessage = nil }
+                            }
+                            .onDisappear { endVisible = false }
                         // QA showed the conversation could not scroll a card's
                         // Save above the composer while the number pad was up:
                         // its extent stopped short by about the keyboard. While
@@ -52,12 +71,32 @@ struct AssistantView: View {
                         }
                     }
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
-                    .padding(20)
+                    .padding(Metrics.lg)
                 }
+                .coordinateSpace(.named(Self.viewport))
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
                 .scrollDismissesKeyboard(.interactively)
-                .onChange(of: assistant.conversation.messages.count) { _, _ in
-                    if reduceMotion { proxy.scrollTo("bottom", anchor: .bottom) }
-                    else { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
+                .overlay(alignment: .bottom) { newMessageBelow(proxy) }
+                .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
+                .onChange(of: assistant.conversation.messages.count) { old, _ in
+                    let messages = assistant.conversation.messages
+                    let readingLatest = endVisible || (old > 0 && old <= messages.count && visibleMessages.contains(messages[old - 1].id))
+                    switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
+                    case .none:
+                        if messages.isEmpty { heldMessage = nil }
+                    case .end:
+                        heldMessage = nil
+                        reveal(proxy, "bottom", anchor: .bottom)
+                    case .start(let id):
+                        heldMessage = nil
+                        reveal(proxy, id, anchor: .top)
+                    case .hold(let id):
+                        // Keep the earliest unseen message; reading resumes there.
+                        if heldMessage == nil {
+                            heldMessage = id
+                            UIAccessibility.post(notification: .announcement, argument: "New message below")
+                        }
+                    }
                 }
             }
             .background(Palette.screen)
@@ -160,6 +199,39 @@ struct AssistantView: View {
         }
     }
 
+    /// At least partly inside the conversation's visible height.
+    private func onScreen(_ proxy: GeometryProxy) -> Bool {
+        let frame = proxy.frame(in: .named(Self.viewport))
+        return frame.maxY > 0 && frame.minY < viewportHeight
+    }
+
+    /// Runs after this update, so a message added in it has been laid out.
+    /// Short and interruptible; instant under Reduce Motion.
+    private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
+        Task { @MainActor in
+            withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
+        }
+    }
+
+    @ViewBuilder private func newMessageBelow(_ proxy: ScrollViewProxy) -> some View {
+        if let held = heldMessage {
+            Button {
+                heldMessage = nil
+                reveal(proxy, held, anchor: .top)
+            } label: {
+                Label("New message below", systemImage: "arrow.down")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, Metrics.md)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+            }
+            .buttonStyle(CapsuleActionStyle())
+            .padding(.bottom, Metrics.xs)
+            .transition(.opacity)
+            .accessibilityHint("Shows the start of the newest message.")
+            .accessibilityIdentifier("assistant-new-below")
+        }
+    }
+
     /// While a card's own field is being edited, the inset rides above the
     /// keyboard. Keep only the composer field so the card's Save stays
     /// visible and swipes can't land on quick actions.
@@ -173,43 +245,69 @@ struct AssistantView: View {
         return max(0, screen.bounds.maxY - frame.minY)
     }
 
+    private var inputEmpty: Bool { input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    /// Hint, quick actions and composer share the conversation column, so on
+    /// iPad they line up with the cards instead of spanning the window.
     private var composer: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Metrics.xs) {
             if !editingCard, !typeSize.isAccessibilitySize, assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
                 Text("Start with a quick action, or ask in your own words.")
                     .font(.caption).foregroundStyle(Palette.textSecondary)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, Metrics.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .conversationColumn()
             }
             if !editingCard { quickActions }
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .bottom, spacing: Metrics.sm) {
                 TextField("", text: $input, axis: .vertical)
                     .lineLimit(1...5).focused($composerFocused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
                     .submitLabel(.send).onSubmit { send() }
+                    .frame(minHeight: Metrics.minimumTouchTarget)
                 Button {
                     if dictation.recording { dictation.stop() } else { Task { await dictation.start() } }
-                } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.system(size: 20)).frame(width: 44, height: 44) }
+                } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.system(size: 20)).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget) }
                     .accessibilityLabel(dictation.recording ? "Stop local dictation" : "Dictate on device")
-                Button(action: send) {
-                    Image(systemName: "arrow.up").font(.system(size: 20, weight: .semibold)).frame(width: 44, height: 44)
-                        .background(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || assistant.processing ? Palette.primaryButtonDisabled : Palette.tint, in: Circle())
-                        .foregroundStyle(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || assistant.processing ? Palette.primaryButtonDisabledText : Palette.primaryButtonText)
-                }
-                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || assistant.processing)
+                // Send becomes Stop the moment work starts, and back when it ends.
+                if assistant.processing {
+                    Button { assistant.cancel() } label: {
+                        Image(systemName: "stop.fill").font(.system(size: 20, weight: .semibold))
+                            .frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
+                            .background(Palette.secondaryButton, in: Circle())
+                            .foregroundStyle(Palette.secondaryButtonText)
+                    }
+                    .accessibilityLabel("Stop").accessibilityHint("Ends this request. Nothing is saved.")
+                    .accessibilityIdentifier("assistant-stop")
+                } else {
+                    Button(action: send) {
+                        Image(systemName: "arrow.up").font(.system(size: 20, weight: .semibold))
+                            .frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
+                            .background(inputEmpty ? Palette.primaryButtonDisabled : Palette.tint, in: Circle())
+                            .foregroundStyle(inputEmpty ? Palette.primaryButtonDisabledText : Palette.primaryButtonText)
+                    }
+                    .disabled(inputEmpty)
                     .accessibilityLabel("Send to Aurora").accessibilityIdentifier("assistant-send")
+                }
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(Palette.card, in: RoundedRectangle(cornerRadius: 28))
-            .overlay(RoundedRectangle(cornerRadius: 28).stroke(Palette.cardBorder))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Metrics.md).padding(.vertical, Metrics.xs)
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous).strokeBorder(composerFocused ? Palette.tint : Palette.cardBorder))
+            // The whole surface focuses the field, not only its text line.
+            .contentShape(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))
+            .onTapGesture { composerFocused = true }
+            .conversationColumn()
         }
-        .padding(.vertical, 10).background(.regularMaterial)
+        .padding(.vertical, Metrics.xs).background(.regularMaterial)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
         // conversation a sliver of the screen. Messages and cards still scale fully.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
+    /// Scrolls past the column's edges, but its first action starts in line
+    /// with the cards and composer.
     private var quickActions: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: Metrics.xs) {
                 quickAction("Log caffeine", symbol: "cup.and.saucer")
                 quickAction("Log sleep", symbol: "moon")
                 quickAction("Connect Apple Health", symbol: "heart.text.square") {
@@ -227,13 +325,16 @@ struct AssistantView: View {
                 quickAction("Export records", symbol: "square.and.arrow.up")
                 quickAction("Reminders", symbol: "bell")
             }
-            .padding(.horizontal, 16)
         }
+        .contentMargins(.horizontal, Metrics.columnInset(containerWidth: composerWidth), for: .scrollContent)
         .accessibilityIdentifier("assistant-quick-actions")
     }
     private func quickAction(_ text: String, symbol: String, action: (() -> Void)? = nil) -> some View {
-        Button { if let action { action() } else { assistant.send(text, app: app) } } label: { Label(text, systemImage: symbol).font(.caption.weight(.medium)).padding(12).frame(minHeight: 44).background(Palette.card, in: Capsule()) }
-            .buttonStyle(.plain).disabled(assistant.processing).accessibilityIdentifier("assistant-quick-\(text)")
+        Button { if let action { action() } else { assistant.send(text, app: app) } } label: {
+            Label(text, systemImage: symbol).font(.caption.weight(.medium))
+                .padding(.horizontal, Metrics.sm).frame(minHeight: Metrics.minimumTouchTarget)
+        }
+        .buttonStyle(CapsuleActionStyle()).disabled(assistant.processing).accessibilityIdentifier("assistant-quick-\(text)")
     }
     private func send() {
         guard !assistant.processing else { return }
@@ -243,6 +344,35 @@ struct AssistantView: View {
         } else {
             assistant.send(text, app: app)
         }
+    }
+}
+
+private extension View {
+    /// The conversation's column: at most `contentMaxWidth`, centered, `lg`
+    /// from the edges, matching the message list.
+    func conversationColumn() -> some View {
+        frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity).padding(.horizontal, Metrics.lg)
+    }
+}
+
+/// Quick actions and the new-message control: a card capsule whose press
+/// and disabled states show at once.
+private struct CapsuleActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { CapsuleActionBody(configuration: configuration) }
+}
+
+private struct CapsuleActionBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.primaryButtonDisabledText)
+            .background(Palette.card, in: Capsule())
+            .overlay(Capsule().strokeBorder(Palette.cardBorder))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
     }
 }
 
