@@ -491,8 +491,8 @@ final class AssistantModel {
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         updateCard(pendingMessageID) { $0.state = .saved }
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
+        // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
-        Haptics.success()
     }
     func undoDose(app: AppModel) {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }

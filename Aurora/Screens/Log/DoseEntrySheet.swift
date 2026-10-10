@@ -134,7 +134,7 @@ struct DoseEntrySheet: View {
                             .background(Capsule().fill(selected ? Palette.selectionFill : Palette.fieldBackground))
                             .overlay(Capsule().strokeBorder(selected ? Palette.tint : Palette.cardBorder))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }

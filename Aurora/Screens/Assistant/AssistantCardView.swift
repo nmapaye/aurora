@@ -16,6 +16,8 @@ struct AssistantCardView: View {
     @State private var editingSleep: SleepSheet?
     @FocusState private var field: CardField?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Set when this card turns Saved while on screen, for the save moment.
+    @State private var justSaved = false
 
     private enum CardField: Hashable { case amount, source, note, search }
 
@@ -53,6 +55,7 @@ struct AssistantCardView: View {
                 }
             }
         }
+        .onChange(of: card.state) { old, new in justSaved = old == .ready && new == .saved }
         // Save or Discard removes the focused field, which clears focus too.
         .onChange(of: field) { _, value in assistant.cardFocus(message.id, focused: value != nil) }
         .onDisappear { assistant.cardFocus(message.id, focused: false) }
@@ -111,7 +114,7 @@ struct AssistantCardView: View {
         if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
             case .ready: draftActive ? StatusBadge(text: "Review before saving", tone: .info) : StatusBadge(text: "Closed")
-            case .saved: StatusBadge(text: "Saved", tone: .success)
+            case .saved: SavedBadge(celebrate: justSaved)
             case .undone: StatusBadge(text: "Removed")
             case .expired: StatusBadge(text: "Expired", tone: .warning)
             case .discarded: StatusBadge(text: "Discarded")
@@ -195,7 +198,7 @@ struct AssistantCardView: View {
         case .clarification:
             ForEach([("Record caffeine", "Log caffeine"), ("Record sleep", "Log sleep"), ("Understand my energy", "How is my energy?"), ("See my modeled day", "Show my energy curve"), ("Check in my energy", "Check in my energy"), ("Explore trends", "Show this week"), ("Review my day", "Review calendar")], id: \.0) { label, prompt in
                 Button { assistant.send(prompt, app: app) } label: { HStack { Text(label); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: Metrics.minimumTouchTarget) }
-                    .buttonStyle(.plain).foregroundStyle(Palette.tint).disabled(assistant.processing)
+                    .buttonStyle(.auroraPress).foregroundStyle(Palette.tint).disabled(assistant.processing)
             }
         case .receipt where card.recordKind == "checkin":
             checkInReceipt
@@ -461,7 +464,7 @@ struct AssistantCardView: View {
                         Spacer(minLength: 0)
                         if row.editable { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary).accessibilityHidden(true) }
                     }.frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(!row.editable)
+                }.buttonStyle(.auroraPress).disabled(!row.editable)
             }
             if filteredRecords.count > historyLimit { Button("Show more records (\(filteredRecords.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
         }

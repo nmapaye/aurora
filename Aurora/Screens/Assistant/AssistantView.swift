@@ -371,8 +371,7 @@ private struct CapsuleActionBody: View {
             .background(Palette.card, in: Capsule())
             .overlay(Capsule().strokeBorder(Palette.cardBorder))
             .contentShape(Capsule())
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
+            .pressFeedback(configuration.isPressed)
     }
 }
 

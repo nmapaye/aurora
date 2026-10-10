@@ -158,7 +158,7 @@ struct SleepView: View {
                 .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                 .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.auroraPress)
             .accessibilityLabel("Sleep Data, \(status.state)")
             .accessibilityHint(showSources ? "Hides Health, manual, and sample data controls" : "Shows Health, manual, and sample data controls")
             .accessibilityIdentifier("sleep-data")
@@ -355,7 +355,7 @@ struct SleepHistoryView: View {
         return Group {
             if manual {
                 Button { editing = .edit(session) } label: { content }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .swipeActions {
                         Button("Delete", role: .destructive) { model.deleteManualSleep(id: session.id) }
                         Button("Edit") { editing = .edit(session) }.tint(Palette.tint)
