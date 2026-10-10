@@ -27,16 +27,25 @@ extension HealthProviderError: LocalizedError {
 @MainActor
 public final class HealthSyncEngine {
     /// The app's state, reached without the engine owning it.
+    ///
+    /// Lifetime contract: the engine never keeps its host alive, and work it
+    /// started (a read, a write, an observer start, a reconciliation) may
+    /// resume after the host has gone. A host that has gone returns nil from
+    /// `state` and false from `commit`. The engine then stops that work:
+    /// it applies nothing, makes no further Health call, and reports
+    /// `.discarded` where a result is returned.
     public struct Host {
-        public var state: @MainActor () -> AppState
-        /// Applies and saves a change. False means it couldn't be saved and
-        /// nothing changed.
+        /// Nil once the host has gone away.
+        public var state: @MainActor () -> AppState?
+        /// Applies and saves a change. False means it couldn't be saved (or
+        /// the host has gone) and nothing changed.
         public var commit: @MainActor (_ change: (inout AppState) -> Void) -> Bool
+        /// Only used for times written through `commit`.
         public var now: @MainActor () -> Millis
         public var newActionID: @MainActor () -> String
 
         public init(
-            state: @escaping @MainActor () -> AppState,
+            state: @escaping @MainActor () -> AppState?,
             commit: @escaping @MainActor (_ change: (inout AppState) -> Void) -> Bool,
             now: @escaping @MainActor () -> Millis,
             newActionID: @escaping @MainActor () -> String = { UUID().uuidString.lowercased() }
@@ -82,6 +91,7 @@ public final class HealthSyncEngine {
     private var caffeineReadGeneration: Int?
     private var sleepReadGeneration: Int?
     private var reconciledThisLaunch = false
+    private var reconciliation: Task<Void, Never>?
 
     /// Runs when Health reports a change to an observed kind. Health is told
     /// the notification was handled only after this returns.
@@ -116,7 +126,7 @@ public final class HealthSyncEngine {
             await reconcileBackgroundDelivery()
             return result
         }
-        let state = host.state()
+        guard let state = host.state() else { return .discarded }
         guard state.healthLedger.isSupported else { return .paused }
         guard !state.demoMode else { return .sampleData }
         guard provider.isAvailable else { return .unavailable }
@@ -129,7 +139,7 @@ public final class HealthSyncEngine {
             guard generations == (readGenerations, exportGeneration) else { return .discarded }
             return .failed(Self.message(for: error))
         }
-        guard generations == (readGenerations, exportGeneration) else { return .discarded }
+        guard generations == (readGenerations, exportGeneration), host.state() != nil else { return .discarded }
         guard host.commit({ $0.healthChoices[choice] = true }) else { return .notSaved }
         if !choice.readKinds.isEmpty {
             await startObservers()
@@ -141,7 +151,7 @@ public final class HealthSyncEngine {
     /// Asks Health to wake Aurora for the kinds it reads, and stores the
     /// choice only if Health accepted. Asks for no Health permission.
     private func turnOnBackgroundUpdates() async -> ChoiceResult {
-        let kinds = host.state().healthChoices.observedKinds
+        guard let kinds = host.state()?.healthChoices.observedKinds else { return .discarded }
         let generations = readGenerations
         do {
             if !kinds.isEmpty { try await provider.setBackgroundDelivery(kinds, enabled: true) }
@@ -149,7 +159,7 @@ public final class HealthSyncEngine {
             guard generations == readGenerations else { return .discarded }
             return .failed(Self.message(for: error))
         }
-        guard generations == readGenerations else {
+        guard generations == readGenerations, host.state() != nil else {
             await reconcileBackgroundDelivery()
             return .discarded
         }
@@ -168,12 +178,14 @@ public final class HealthSyncEngine {
     public func reconcileBackgroundDelivery() async {
         guard provider.capabilities.contains(.backgroundDelivery) else { return }
         for _ in 0..<2 {
-            let state = host.state()
+            // Each Health call can resume after the host has gone; stop then.
+            guard let state = host.state() else { return }
             let wanted = state.healthLedger.isSupported && !state.demoMode ? state.healthChoices.backgroundKinds : []
             let unwanted = Set(HealthDataKind.allCases).subtracting(wanted)
             try? await provider.setBackgroundDelivery(unwanted, enabled: false)
+            guard host.state() != nil else { return }
             if !wanted.isEmpty { try? await provider.setBackgroundDelivery(wanted, enabled: true) }
-            let now = host.state()
+            guard let now = host.state() else { return }
             let still = now.healthLedger.isSupported && !now.demoMode ? now.healthChoices.backgroundKinds : []
             if still == wanted { return }
         }
@@ -202,16 +214,19 @@ public final class HealthSyncEngine {
             reconciledThisLaunch = true
             await reconcileBackgroundDelivery()
         }
-        let state = host.state()
-        guard state.healthLedger.isSupported, !state.demoMode, provider.capabilities.contains(.observeChanges) else { return }
+        guard let state = host.state(), state.healthLedger.isSupported, !state.demoMode,
+              provider.capabilities.contains(.observeChanges) else { return }
         let wanted = state.healthChoices.observedKinds.subtracting(observations.keys)
         for kind in HealthDataKind.allCases where wanted.contains(kind) {
             let generation = readGeneration(kind)
             guard let observation = try? await provider.startObserving([kind], onChange: { [weak self] kind in
                 await self?.observed(kind)
             }) else { continue }
-            // Turned off, erased or started twice while registering.
-            let current = host.state()
+            // Turned off, erased, host gone or started twice while registering.
+            guard let current = host.state() else {
+                provider.stopObserving(observation)
+                return
+            }
             guard generation == readGeneration(kind), current.healthChoices.observedKinds.contains(kind),
                   !current.demoMode, observations[kind] == nil else {
                 provider.stopObserving(observation)
@@ -239,7 +254,7 @@ public final class HealthSyncEngine {
     /// Anchored caffeine reads in bounded pages. Additions and deletions
     /// apply by sample UUID only.
     public func readCaffeineChanges() async -> ReadResult {
-        let state = host.state()
+        guard let state = host.state() else { return .discarded }
         let generation = readGeneration(.caffeine)
         guard state.healthChoices.readCaffeine, !state.demoMode, state.healthLedger.isSupported,
               provider.capabilities.contains(.readCaffeineChanges), caffeineReadGeneration != generation else { return .skipped }
@@ -264,7 +279,7 @@ public final class HealthSyncEngine {
     /// provenance. Each page also records the sleep status, which says
     /// "partly imported" while Health has more.
     public func readSleepChanges() async -> ReadResult {
-        let state = host.state()
+        guard let state = host.state() else { return .discarded }
         let generation = readGeneration(.sleepAnalysis)
         guard state.healthChoices.readSleep, !state.demoMode, state.healthLedger.isSupported,
               provider.capabilities.contains(.readSleepChanges), sleepReadGeneration != generation else { return .skipped }
@@ -300,7 +315,8 @@ public final class HealthSyncEngine {
     ) async -> ReadResult? {
         var pages = 0
         while pages < maxPagesPerRead {
-            let anchor = host.state().healthLedger.anchor(for: kind)?.data
+            guard let state = host.state() else { return .discarded }
+            let anchor = state.healthLedger.anchor(for: kind)?.data
             guard isCurrentRead(kind, generation, anchor: anchor) else { return .discarded }
             let changes: Changes
             do {
@@ -331,7 +347,7 @@ public final class HealthSyncEngine {
     }
 
     private func isCurrentRead(_ kind: HealthDataKind, _ generation: Int, anchor: Data?) -> Bool {
-        let state = host.state()
+        guard let state = host.state() else { return false }
         return !Task.isCancelled && generation == readGeneration(kind) && state.healthChoices.observedKinds.contains(kind) && !state.demoMode
             && state.healthLedger.anchor(for: kind)?.data == anchor
     }
@@ -365,8 +381,7 @@ public final class HealthSyncEngine {
     private func drain(_ doseIDs: Set<String>?, generation: Int) async {
         var handled: Set<String> = []
         while generation == exportGeneration {
-            let state = host.state()
-            guard state.healthExportActive,
+            guard let state = host.state(), state.healthExportActive,
                   let action = state.healthLedger.pendingActions.first(where: {
                       !handled.contains($0.id) && (doseIDs?.contains($0.doseID) ?? true)
                   }) else { return }
@@ -377,7 +392,8 @@ public final class HealthSyncEngine {
 
     private func attempt(_ action: HealthPendingAction, generation: Int) async {
         let needed: HealthCapabilities = action.kind == .saveCaffeine ? .writeOwnCaffeine : .deleteOwnCaffeine
-        let dose = host.state().doses.first { $0.id == action.doseID }
+        guard let state = host.state() else { return }
+        let dose = state.doses.first { $0.id == action.doseID }
         // A save whose dose is gone was replaced by its removal, if any.
         if action.kind == .saveCaffeine && dose == nil { return }
         let wasStarted = action.startedAt != nil
@@ -429,8 +445,7 @@ public final class HealthSyncEngine {
     /// happened. Checked after every suspension before starting another
     /// external operation.
     private func stillCurrent(_ action: HealthPendingAction, dose: Dose?, generation: Int) -> Bool {
-        let state = host.state()
-        guard generation == exportGeneration, state.healthExportActive,
+        guard let state = host.state(), generation == exportGeneration, state.healthExportActive,
               let queued = state.healthLedger.pendingAction(forDoseID: action.doseID),
               queued.id == action.id, queued.kind == action.kind, queued.syncVersion == action.syncVersion,
               queued.syncIdentifier == action.syncIdentifier else { return false }
@@ -451,7 +466,19 @@ public final class HealthSyncEngine {
         sleepReadGeneration = nil
         stopObservers()
         // Health keeps wake-ups across launches; match them to the choices
-        // that remain (none after full erase).
-        Task { await reconcileBackgroundDelivery() }
+        // that remain (none after full erase). Runs after the caller's
+        // synchronous erase finishes. Held weakly: if the engine is gone
+        // first, the next launch reconciles; if the host goes while Health
+        // answers, the host contract stops it.
+        let previous = reconciliation
+        reconciliation = Task { [weak self] in
+            await previous?.value
+            await self?.reconcileBackgroundDelivery()
+        }
+    }
+
+    /// Awaits the reconciliation started by the latest `invalidateAll`.
+    public func waitForReconciliation() async {
+        await reconciliation?.value
     }
 }

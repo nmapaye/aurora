@@ -64,10 +64,16 @@ final class AppModel {
         self.makeStore = makeStore
         self.legacy = legacy
         self.makeDeletion = makeDeletion ?? { LocalDataDeletion(store: $0, legacy: $1) }
+        // Weak: Health work can resume after this model is gone (a test
+        // ending, an erase's reconciliation). The engine then sees no state
+        // and stops; it never keeps the model alive.
         healthSync = HealthSyncEngine(provider: health, host: HealthSyncEngine.Host(
-            state: { [unowned self] in self.state },
-            commit: { [unowned self] change in self.update(change) },
-            now: { [unowned self] in self.tick(); return self.now }
+            state: { [weak self] in self?.state },
+            commit: { [weak self] change in self?.update(change) ?? false },
+            now: { [weak self] in
+                guard let self else { return AppModel.currentMillis() }
+                self.tick(); return self.now
+            }
         ))
         refresher = RefreshScheduler { [weak self] triggers, isCurrent in
             await self?.performRefresh(triggers, isCurrent: isCurrent)
@@ -221,6 +227,12 @@ final class AppModel {
     /// This does not retry failed exports or wait for future record changes.
     func waitForHealthExports() async {
         await healthExportDispatch?.value
+    }
+
+    /// Await the background-delivery reconciliation an erase or Delete All
+    /// Records started.
+    func waitForHealthReconciliation() async {
+        await healthSync.waitForReconciliation()
     }
 
     func healthStatus(forDoseID id: String) -> HealthExportStatus {

@@ -100,6 +100,32 @@ import Testing
         #expect(model.state.healthChoices.readCaffeine)
     }
 
+    /// Erase starts a background-delivery reconciliation that suspends in
+    /// Health. Releasing the model meanwhile must free it, and the resumed
+    /// reconciliation must neither touch it nor call Health again.
+    @Test func modelReleasedDuringEraseReconciliationIsFreedAndUntouched() async throws {
+        let health = HeldBackgroundHealth()
+        let directory = root.appendingPathComponent("Support/Aurora", isDirectory: true)
+        var model: AppModel? = AppModel(health: health, makeStore: { StateStore(directory: directory) }, legacy: { nil }, makeDeletion: {
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: {})
+        })
+        model?.load()
+        model?.completeOnboarding()
+        weak let probe = model
+        let engine = try #require(model?.healthSync)
+        let assistant = AssistantModel(
+            calendars: CalendarService(providers: [], defaults: UserDefaults(suiteName: UUID().uuidString)!),
+            makeStore: { ConversationStore(directory: directory) }
+        )
+        #expect(model?.eraseAllLocalData(assistant: assistant) == true)
+        await health.arrival()
+        model = nil
+        #expect(probe == nil)
+        health.release()
+        await engine.waitForReconciliation()
+        #expect(health.backgroundCalls == 1)
+    }
+
     @Test func anchoredSleepKeepsSampleIdentityThroughConnect() async throws {
         let end = AppModel.currentMillis() - 60_000
         let provider = AnchoredSleepHealth(samples: [
@@ -142,6 +168,57 @@ private struct AnchoredSleepHealth: HealthDataProvider {
     func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {}
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         HealthSleepChanges(added: anchor == nil ? samples : [], deletedSampleUUIDs: [], anchor: Data("1".utf8))
+    }
+}
+
+/// Background delivery only. Holds every wake-up change until released, and
+/// reports when one is held, so the test controls the suspension exactly.
+final class HeldBackgroundHealth: HealthDataProvider, @unchecked Sendable {
+    private let lock = NSLock()
+    private var held: [CheckedContinuation<Void, Never>] = []
+    private var arrivals: [CheckedContinuation<Void, Never>] = []
+    private var released = false
+    private var calls = 0
+
+    var capabilities: HealthCapabilities { [.authorization, .backgroundDelivery] }
+    var isAvailable: Bool { true }
+    var backgroundCalls: Int { lock.withLock { calls } }
+
+    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {}
+
+    func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let (pass, waiting) = lock.withLock { () -> (Bool, [CheckedContinuation<Void, Never>]) in
+                calls += 1
+                if released { return (true, []) }
+                held.append(continuation)
+                defer { arrivals = [] }
+                return (false, arrivals)
+            }
+            waiting.forEach { $0.resume() }
+            if pass { continuation.resume() }
+        }
+    }
+
+    /// Returns once a call is held.
+    func arrival() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let ready = lock.withLock { () -> Bool in
+                if !held.isEmpty { return true }
+                arrivals.append(continuation)
+                return false
+            }
+            if ready { continuation.resume() }
+        }
+    }
+
+    func release() {
+        let waiting = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            released = true
+            defer { held = [] }
+            return held
+        }
+        waiting.forEach { $0.resume() }
     }
 }
 

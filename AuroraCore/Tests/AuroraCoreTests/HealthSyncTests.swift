@@ -317,20 +317,37 @@ final class Harness {
         saved = state
     }
 
+    /// A host that has gone away, as AppModel's weak host reports it,
+    /// while this harness stays inspectable.
+    var gone = false
+
     var host: HealthSyncEngine.Host {
         HealthSyncEngine.Host(
-            state: { self.state },
-            commit: { change in
-                var next = self.state
-                change(&next)
-                guard !self.failCommits else { return false }
-                self.state = next
-                self.saved = next
-                return true
-            },
+            state: { self.gone ? nil : self.state },
+            commit: { self.apply($0) },
             now: { self.now },
             newActionID: { self.ids += 1; return "action-\(self.ids)" }
         )
+    }
+
+    /// Captures the harness weakly, as AppModel does, so it can really be
+    /// released while the engine still has work in flight.
+    var weakHost: HealthSyncEngine.Host {
+        HealthSyncEngine.Host(
+            state: { [weak self] in self?.state },
+            commit: { [weak self] change in self?.apply(change) ?? false },
+            now: { [weak self] in self?.now ?? base }
+        )
+    }
+
+    private func apply(_ change: (inout AppState) -> Void) -> Bool {
+        guard !gone else { return false }
+        var next = state
+        change(&next)
+        guard !failCommits else { return false }
+        state = next
+        saved = next
+        return true
     }
 
     func engine(_ provider: FakeHealth, maxPages: Int = HealthSyncEngine.defaultMaxPagesPerRead) -> HealthSyncEngine {
@@ -1397,7 +1414,7 @@ private func reading(_ state: inout AppState) {
         #expect(await engine.setChoice(.backgroundUpdates, enabled: true) == .requested)
         #expect(health.background == [.caffeine])
         harness.erase(engine)
-        for _ in 0..<50 where !health.background.isEmpty { await Task.yield() }
+        await engine.waitForReconciliation()
         #expect(health.background.isEmpty)
 
         // Health remembers wake-ups across launches; a relaunch without the
@@ -1406,6 +1423,99 @@ private func reading(_ state: inout AppState) {
         let relaunched = Harness { $0.healthChoices = HealthChoices(readSleep: true) }
         await relaunched.engine(health).startObservers()
         #expect(health.background.isEmpty && health.activeObservers.contains(.sleepAnalysis))
+    }
+}
+
+// MARK: Host lifetime
+
+/// The engine never keeps its host alive. Work that resumes after the host
+/// has gone applies nothing and asks Health nothing more.
+@MainActor
+@Suite struct HealthHostLifetimeTests {
+    @Test func reconciliationResumingAfterTheHostIsReleasedStops() async {
+        let health = FakeHealth()
+        var harness: Harness? = Harness { $0.healthChoices = HealthChoices(readCaffeine: true, backgroundUpdates: true) }
+        weak let probe = harness
+        let engine = HealthSyncEngine(provider: health, host: harness!.weakHost)
+        let gate = health.hold("background")
+        engine.invalidateAll()
+        await gate.arrival()
+        // Released while Health holds the reconciliation's first call.
+        harness = nil
+        #expect(probe == nil)
+        gate.open()
+        await engine.waitForReconciliation()
+        // Only the held call ran; nothing was turned back on afterwards.
+        #expect(health.count("background") == 1)
+    }
+
+    @Test func suspendedCallsResumingAfterTheHostIsGoneApplyNothing() async {
+        let health = FakeHealth()
+        health.add("third-party", at: base - hourMs, mg: 80)
+        let harness = Harness { $0.healthChoices = HealthChoices(readCaffeine: true, writeCaffeine: true) }
+        let engine = harness.engine(health)
+        harness.saveDose("d1", mg: 95, at: base - hourMs)
+
+        // A read held inside Health.
+        let read = health.hold("read")
+        let reading = Task { await engine.readCaffeineChanges() }
+        await read.arrival()
+        harness.gone = true
+        read.open()
+        #expect(await reading.value == .discarded)
+        harness.gone = false
+        #expect(harness.saved.doses.map(\.id) == ["d1"] && harness.saved.healthLedger.anchor(for: .caffeine) == nil)
+
+        // A write held inside Health: the pending outcome stays as stored,
+        // started, so a later retry checks for the landed sample first.
+        let save = health.hold("save")
+        let writing = Task { await engine.runPendingActions() }
+        await save.arrival()
+        harness.gone = true
+        save.open()
+        await writing.value
+        harness.gone = false
+        let pending = harness.saved.healthLedger.pendingAction(forDoseID: "d1")
+        #expect(pending?.startedAt != nil && health.count("save") == 1)
+
+        // An observer registration held inside Health is stopped, not kept.
+        let observe = health.hold("observe")
+        let observing = Task { await engine.startObservers() }
+        await observe.arrival()
+        harness.gone = true
+        observe.open()
+        await observing.value
+        #expect(health.activeObservers.isEmpty && engine.observedKinds.isEmpty)
+
+        // A permission sheet answered after the host has gone stores nothing.
+        harness.gone = false
+        let sheet = health.hold("authorization")
+        let choosing = Task { await engine.setChoice(.readSleep, enabled: true) }
+        await sheet.arrival()
+        harness.gone = true
+        sheet.open()
+        #expect(await choosing.value == .discarded)
+        harness.gone = false
+        #expect(!harness.saved.healthChoices.readSleep)
+    }
+
+    @Test func eraseThenHostGoneLeavesLateWriteUnapplied() async {
+        let health = FakeHealth()
+        let harness = Harness(exporting)
+        let engine = harness.engine(health)
+        harness.saveDose("d1", mg: 95, at: base - hourMs)
+        let save = health.hold("save")
+        let writing = Task { await engine.runPendingActions() }
+        await save.arrival()
+        harness.erase(engine)
+        harness.gone = true
+        save.open()
+        await writing.value
+        await engine.waitForReconciliation()
+        harness.gone = false
+        // Erased state stays erased; the late answer and reconciliation
+        // touched nothing.
+        #expect(harness.saved == AppState())
     }
 }
 
