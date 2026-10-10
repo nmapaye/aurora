@@ -23,6 +23,11 @@ struct AssistantCardView: View {
     private var snapshotText: DateText { .localized(timeZone: snapshotClock.timeZone) }
     private var active: Bool { assistant.activeCards.contains(message.id) && card.state == .ready }
     private var draftActive: Bool { active && assistant.pendingMessageID == message.id }
+    /// The open check-in editor states what a rating is; a summary saying the
+    /// same sentence above it is skipped. Corrections still show their summary.
+    private var repeatsCheckInLabel: Bool {
+        card.kind == .energyCheckIn && draftActive && assistant.pendingCheckIn != nil && card.summary == EnergyCheckIn.kindLabel
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
@@ -31,7 +36,7 @@ struct AssistantCardView: View {
             } else {
                 Card {
                     header
-                    if !card.summary.isEmpty && ![.energy, .briefing, .energyProjection].contains(card.kind) {
+                    if !card.summary.isEmpty && ![.energy, .briefing, .energyProjection].contains(card.kind) && !repeatsCheckInLabel {
                         Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
                     }
                     content
