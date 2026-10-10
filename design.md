@@ -75,6 +75,12 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 - Radii: controls 12, cards 16, hero 24; capsules for quick actions/composer.
 - Minimum touch target 44 points. iPhone cards use available width; primary iPad
   conversation column max 600 points. Larger text stacks controls without clipping.
+- The composer inset shares that column (`contentMaxWidth`, centered, `lg` from
+  the edges): the hint and composer sit in it, and the quick-action strip scrolls
+  edge to edge with its first action in line with the column (`Metrics.columnInset`).
+  The composer field and card content both start 16 points inside the column.
+  Composer: hero radius, tint border while focused, the whole surface focuses the
+  field. Send turns into Stop while work runs, so Stop is reachable from anywhere.
 - Decorative light is reserved for Aurora identity/processing. Cards use clean
   surfaces and subtle borders, with no decorative linear gradients or muddy shadows.
 
@@ -95,6 +101,13 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   symbol replacing. `Motion.stateTransition` is a fade with a 2% scale from the top;
   under Reduce Motion both become an instant change or plain crossfade. Cards do
   not get entrance animations; evidence text and charts do not move on their own.
+- A new reply scrolls so its start (title, evidence) is visible, never its last
+  control, when the latest message or the end was on screen. If the person is
+  reading earlier messages, the page stays put and a "New message below" capsule
+  shows the new reply's start on request. Their own message always shows the end.
+  Scrolling uses `Motion.content`, instant under Reduce Motion.
+- The rim's fade-out starts from the frame on screen when work ended, was stopped
+  or failed; no timeline runs while it fades.
 - Save/Undo use compact receipts, not celebration effects. Chart selection moves
   its focus without moving the page. Animation must not affect reaction-test timing.
 - No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual
@@ -121,7 +134,9 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   The transcript shows only questions actually asked. "You" bubbles are only what the
   person typed, chose or declined ("Not now"). A setting kept by "Not now" (the sleep
   target) appears as Aurora's note on `cardMuted`, never as a reply. Questions passed
-  over by "Skip to the end" don't appear. A failed save keeps the question, shows an
+  over by "Skip to the end" don't appear. The current question is shown from its
+  first line; at the largest sizes, where it's taller than the space above the
+  panel, the rest scrolls instead of its start being cut off. A failed save keeps the question, shows an
   error tone with its symbol above the controls, announces it, and leaves the controls
   ready for a retry.
 - Setup's Health step shows the three separate choices from Apple Health settings and
@@ -131,6 +146,13 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 
 ## Review and references
 
+Gallery fixtures run in a temporary folder with a Health provider that refuses
+every choice, no calendar providers and private defaults; the Reminders card's
+device switches are disabled there. States: populated/missing/Sample Data/earlier
+energy and card snapshots, interaction states (loading, saved, removed, expired,
+failed, discarded), receipt Apple Health rows (pending, not exported, added,
+unconfirmed), setup with failing then working saves, welcome evidence (recorded,
+Sample Data, none) and processing light (rest, working, stopped, failed, static).
 Use the Debug Design Gallery with synthetic records, plus actual simulator captures
 and device recordings. Reference the existing Aurora palette and user-approved
 flowing identity; study native Apple interaction conventions without copying branding.
