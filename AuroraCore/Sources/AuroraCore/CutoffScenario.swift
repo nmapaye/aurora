@@ -280,6 +280,7 @@ public enum CutoffScenario {
         public var title: String
         public var body: String
         public var fireAt: Millis
+        public init(title: String, body: String, fireAt: Millis) { self.title = title; self.body = body; self.fireAt = fireAt }
     }
 
     public static let reminderIdentifier = "cutoff-scenario-reminder"

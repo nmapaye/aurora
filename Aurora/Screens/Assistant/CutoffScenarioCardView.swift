@@ -37,6 +37,15 @@ struct CutoffScenarioCardView: View {
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
+        // Decimal pads have no return key; Done ends editing so Calculate is reachable.
+        .toolbar {
+            if field != nil {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { field = nil }.accessibilityIdentifier("cutoff-keyboard-done")
+                }
+            }
+        }
         .onChange(of: field) { _, value in assistant.cardFocus(message.id, focused: value != nil) }
         .onDisappear { assistant.cardFocus(message.id, focused: false) }
     }
@@ -49,6 +58,7 @@ struct CutoffScenarioCardView: View {
             SectionLabel(text: "Your scenario")
             Text("Times in \(zone.identifier)").font(Typography.source).foregroundStyle(Palette.textSecondary)
             localTime("Bedtime", key: \.bedtime, occurrence: \.bedtimeOccurrence, id: "bedtime", add: "Add bedtime", optional: false)
+                .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.bedtimeRepeated, .bedtimeSkipped, .bedtimeInvalid, .bedtimeNotAfterCapture])
             LabeledField(label: "Threshold at bedtime", unit: "mg") {
                 TextField("Enter mg", text: binding(\.thresholdMg))
@@ -56,6 +66,7 @@ struct CutoffScenarioCardView: View {
                     .focused($field, equals: .threshold).accessibilityLabel("Threshold at bedtime, milligrams")
                     .accessibilityIdentifier("cutoff-threshold")
             }
+            .disabled(assistant.savingCutoffReminder)
             if !input.thresholdMg.isEmpty { problemLabels(problems, [.invalidThreshold]) }
             assumptionRow
             LabeledField(label: "Hypothetical drink · optional", unit: "mg") {
@@ -64,8 +75,10 @@ struct CutoffScenarioCardView: View {
                     .focused($field, equals: .amount).accessibilityLabel("Hypothetical drink, milligrams, optional")
                     .accessibilityIdentifier("cutoff-amount")
             }
+            .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.invalidAmount])
             localTime("Hypothetical drink time", key: \.drinkTime, occurrence: \.drinkOccurrence, id: "drink", add: "Add drink time", optional: true)
+                .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.drinkTimeRepeated, .drinkTimeSkipped, .drinkTimeInvalid, .drinkTimeBeforeCapture, .drinkTimeAfterBedtime])
             Text("Nothing here is recorded. Log caffeine records a drink you had.")
                 .font(Typography.source).foregroundStyle(Palette.textSecondary)

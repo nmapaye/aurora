@@ -36,13 +36,14 @@ extension AssistantModel {
 
     /// Any edit makes an open preview stale.
     func editCutoff(_ change: (inout CutoffScenario.Input) -> Void) {
-        guard pendingCutoff != nil else { return }
+        // Inputs are locked while a Save is in flight.
+        guard pendingCutoff != nil, !savingCutoffReminder else { return }
         change(&pendingCutoff!)
         cutoffPreview = nil
     }
 
     func calculateCutoff(app: AppModel) {
-        guard let id = pendingMessageID, let card = openCutoffCard(id), let input = pendingCutoff else { return }
+        guard let id = pendingMessageID, let card = openCutoffCard(id), let input = pendingCutoff, !savingCutoffReminder else { return }
         app.tick()
         guard card.timeZone == app.clock.timeZone.identifier else {
             failure = "Your time zone changed. Start a new scenario."
@@ -50,7 +51,8 @@ extension AssistantModel {
         }
         failure = nil; cutoffPreview = nil
         let snapshot = CutoffScenario.evaluate(input: input, doses: app.state.doses, halfLifeHours: app.state.prefs.halfLife, now: app.now, timeZone: app.clock.timeZone)
-        updateCard(id) { $0.cutoff = snapshot }
+        // The card's capture line shows when this result was frozen.
+        updateCard(id) { $0.cutoff = snapshot; $0.capturedAt = snapshot.capturedAt; $0.timeZone = snapshot.timeZone }
     }
 
     private func revalidate(_ snapshot: CutoffScenario.Snapshot, input: CutoffScenario.Input, app: AppModel) -> CutoffScenario.Revalidation {
@@ -70,12 +72,25 @@ extension AssistantModel {
         }
     }
 
+    var savingCutoffReminder: Bool { cutoffSaveOperation != nil }
+
+    /// Ends the open scenario's inputs, preview and any Save in flight. A
+    /// Save already sent to the notification center still finishes there;
+    /// only its result stops reaching the conversation.
+    func closeCutoff() {
+        pendingCutoff = nil; cutoffPreview = nil; cutoffSaveOperation = nil
+    }
+
+    static let notAllowedMessage = "Notifications aren’t allowed for Aurora, so nothing was scheduled. A scenario never asks for permission. Turning on a reminder in Reminders or Settings asks iOS once; if you declined before, allow Aurora in iOS Settings › Notifications, then save again."
+
     /// Schedules the previewed reminder after checking it is still current.
     /// Repeated taps while saving, or after the preview closed, do nothing.
     func saveCutoffReminder(app: AppModel) async {
         guard let preview = cutoffPreview, !savingCutoffReminder, openCutoffCard(preview.messageID) != nil, let input = pendingCutoff else { return }
-        savingCutoffReminder = true
-        defer { savingCutoffReminder = false }
+        let operation = UUID()
+        cutoffSaveOperation = operation
+        // Only this operation's own state is released; a newer Save keeps its own.
+        defer { if cutoffSaveOperation == operation { cutoffSaveOperation = nil } }
         app.tick()
         guard case .current(let content) = revalidate(preview.snapshot, input: input, app: app), content == preview.content else {
             cutoffPreview = nil
@@ -84,13 +99,21 @@ extension AssistantModel {
             return
         }
         let outcome = await (scheduleCutoffReminder ?? { await app.reminders.scheduleScenario($0) })(content)
-        // Cleared or erased meanwhile: there is no conversation to report into.
-        guard conversation.messages.contains(where: { $0.id == preview.messageID }) else { return }
         app.tick()
+        let current = cutoffSaveOperation == operation && cutoffPreview == preview && openCutoffCard(preview.messageID) != nil
+        guard current else {
+            // Closed, replaced, cleared or erased meanwhile. A reminder iOS
+            // actually accepted is still true of its own card; nothing else
+            // (receipt, failure text, another card's state) is touched.
+            if outcome == .scheduled, conversation.messages.contains(where: { $0.id == preview.messageID }) {
+                updateCard(preview.messageID) { $0.cutoff?.reminder = .scheduled(fireAt: content.fireAt, savedAt: app.now) }
+            }
+            return
+        }
         switch outcome {
         case .scheduled:
             failure = nil
-            if cutoffPreview == preview { cutoffPreview = nil }
+            cutoffPreview = nil
             updateCard(preview.messageID) { $0.cutoff?.reminder = .scheduled(fireAt: content.fireAt, savedAt: app.now) }
             var receipt = AssistantCard(kind: .receipt, capturedAt: app.now, title: "Scenario reminder scheduled")
             receipt.state = .saved
@@ -99,7 +122,7 @@ extension AssistantModel {
             receipt.metrics = [.init(id: "reminder", label: "Reminder", value: app.text.fullDateTime(content.fireAt), source: preview.snapshot.timeZone)]
             appendCard(receipt)
         case .notAllowed:
-            failure = "Notifications aren’t allowed for Aurora, so nothing was scheduled. The scenario never asks for permission."
+            failure = Self.notAllowedMessage
             updateCard(preview.messageID) { $0.cutoff?.reminder = .notAllowed }
         case .failed:
             failure = "The reminder couldn’t be scheduled. Nothing was saved."
@@ -107,5 +130,22 @@ extension AssistantModel {
         }
     }
 
-    func cancelCutoffPreview() { cutoffPreview = nil }
+    func cancelCutoffPreview() {
+        guard !savingCutoffReminder else { return }
+        cutoffPreview = nil
+    }
+
+    #if DEBUG
+    /// UI tests pass `-AuroraUITestCutoffReminder scheduled|notAllowed|failed`
+    /// so scenario Save never reaches the notification center or a prompt.
+    static func uiTestCutoffScheduler(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> (@MainActor (CutoffScenario.ReminderContent) async -> ReminderService.ScenarioOutcome)? {
+        guard let index = arguments.firstIndex(of: "-AuroraUITestCutoffReminder"), index + 1 < arguments.count else { return nil }
+        let outcome: ReminderService.ScenarioOutcome = switch arguments[index + 1] {
+        case "scheduled": .scheduled
+        case "notAllowed": .notAllowed
+        default: .failed
+        }
+        return { _ in outcome }
+    }
+    #endif
 }

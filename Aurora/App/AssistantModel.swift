@@ -19,7 +19,9 @@ final class AssistantModel {
     var pendingCutoff: CutoffScenario.Input?
     /// A scenario reminder shown for review; nothing is scheduled until Save.
     var cutoffPreview: CutoffReminderPreview?
-    var savingCutoffReminder = false
+    /// The scenario reminder Save in flight. Closing or replacing the
+    /// scenario clears it, so a late result can't act on newer state.
+    var cutoffSaveOperation: UUID?
     /// Tests and the Design Gallery replace this; nil uses the app's ReminderService.
     @ObservationIgnored var scheduleCutoffReminder: (@MainActor (CutoffScenario.ReminderContent) async -> ReminderService.ScenarioOutcome)?
     var activeCards: Set<UUID> = []
@@ -59,6 +61,9 @@ final class AssistantModel {
         // the Google credential lookup run synchronously here.
         self.calendars = calendars ?? Signposts.measure("Launch.CalendarServiceInit") { CalendarService() }
         self.makeConversationStore = makeStore
+        #if DEBUG
+        scheduleCutoffReminder = Self.uiTestCutoffScheduler()
+        #endif
     }
 
     var intelligenceName: String {
@@ -120,7 +125,7 @@ final class AssistantModel {
         do { try store?.save(cleared) }
         catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return }
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
-        pendingCutoff = nil; cutoffPreview = nil
+        closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil
         releaseWarmResources()
         do { try store?.removeMigrationSource() }
@@ -130,7 +135,7 @@ final class AssistantModel {
     func resetAfterErase() {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
-        pendingCutoff = nil; cutoffPreview = nil
+        closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
         releaseWarmResources(); calendars.resetAfterErase()
@@ -302,7 +307,7 @@ final class AssistantModel {
     func expireDraft() {
         updateCard(pendingMessageID) { $0.state = .expired }
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
-        pendingCutoff = nil; cutoffPreview = nil
+        closeCutoff()
     }
     func captureDraft(app: AppModel) {
         if let draft = pendingDraft {
@@ -326,7 +331,7 @@ final class AssistantModel {
     func discardDraft() {
         updateCard(pendingMessageID) { $0.state = .discarded }
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
-        pendingCutoff = nil; cutoffPreview = nil
+        closeCutoff()
     }
     func refresh(_ card: AssistantCard, app: AppModel) {
         guard let intent = card.refreshIntent, !processing else { return }

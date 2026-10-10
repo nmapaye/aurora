@@ -28,7 +28,21 @@ final class ReminderService {
     /// One reminder at a cutoff scenario's instant, apart from the daily
     /// cutoff reminder, which it never changes. Never asks for permission.
     /// A fixed identifier means a repeated Save replaces, never duplicates.
+    /// Writes run one at a time in the order Save was tapped, so an older
+    /// Save can never land after, and replace, a newer one.
     func scheduleScenario(_ content: CutoffScenario.ReminderContent) async -> ScenarioOutcome {
+        let previous = scenarioWrites
+        let write = Task { @MainActor in
+            await previous?.value
+            return await self.writeScenario(content)
+        }
+        scenarioWrites = Task { _ = await write.value }
+        return await write.value
+    }
+
+    private var scenarioWrites: Task<Void, Never>?
+
+    private func writeScenario(_ content: CutoffScenario.ReminderContent) async -> ScenarioOutcome {
         let currentGeneration = generation
         let settings = await center.notificationSettings()
         guard generation == currentGeneration else { return .failed }

@@ -164,6 +164,126 @@ import Testing
         #expect(again.calls.isEmpty && relaunched.cutoffPreview == nil)
     }
 
+    @Test func calculateSetsCaptureLineAndRefreshKeepsIt() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, _) = setup(directory)
+        assistant.openCutoff(input: scenario(app), app: app)
+        let id = try #require(assistant.pendingMessageID)
+        try await Task.sleep(for: .milliseconds(20))
+        assistant.calculateCutoff(app: app)
+        let calculated = try #require(card(assistant, id))
+        #expect(calculated.capturedAt == calculated.cutoff?.capturedAt && calculated.timeZone == calculated.cutoff?.timeZone)
+        try await Task.sleep(for: .milliseconds(20))
+        assistant.refresh(calculated, app: app)
+        #expect(card(assistant, id)?.capturedAt == calculated.capturedAt && card(assistant, id)?.cutoff == calculated.cutoff)
+        #expect(card(assistant, assistant.pendingMessageID)!.capturedAt > calculated.capturedAt)
+    }
+
+    // MARK: Saves that finish late
+
+    /// Holds each schedule call until the test releases it.
+    @MainActor final class GatedScheduler {
+        var calls: [CutoffScenario.ReminderContent] = []
+        private var waiting: [CheckedContinuation<ReminderService.ScenarioOutcome, Never>] = []
+        func schedule(_ content: CutoffScenario.ReminderContent) async -> ReminderService.ScenarioOutcome {
+            calls.append(content)
+            return await withCheckedContinuation { waiting.append($0) }
+        }
+        func release(_ outcome: ReminderService.ScenarioOutcome) { waiting.removeFirst().resume(returning: outcome) }
+        func waitForCalls(_ count: Int) async {
+            for _ in 0..<1000 where calls.count < count { await Task.yield() }
+        }
+    }
+
+    /// An open, previewed scenario whose Save is suspended in the scheduler.
+    private func suspendedSave(_ app: AppModel, _ assistant: AssistantModel, _ gate: GatedScheduler) async -> (UUID, Task<Void, Never>) {
+        assistant.openCutoff(input: scenario(app), app: app)
+        let id = assistant.pendingMessageID!
+        assistant.calculateCutoff(app: app)
+        assistant.previewCutoffReminder(app: app)
+        let task = Task { await assistant.saveCutoffReminder(app: app) }
+        await gate.waitForCalls(gate.calls.count + 1)
+        return (id, task)
+    }
+
+    private func gated(_ directory: URL) -> (AppModel, AssistantModel, GatedScheduler) {
+        let (app, assistant, _) = setup(directory)
+        let gate = GatedScheduler()
+        assistant.scheduleCutoffReminder = { await gate.schedule($0) }
+        return (app, assistant, gate)
+    }
+
+    @Test(arguments: [ReminderService.ScenarioOutcome.scheduled, .failed]) func closeDuringSaveGetsNoReceiptOrFailure(outcome: ReminderService.ScenarioOutcome) async {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, gate) = gated(directory)
+        let (id, task) = await suspendedSave(app, assistant, gate)
+        #expect(assistant.savingCutoffReminder)
+        // Inputs are locked while saving.
+        assistant.editCutoff { $0.thresholdMg = "70" }
+        #expect(assistant.pendingCutoff?.thresholdMg == "50")
+        assistant.discardDraft()
+        #expect(!assistant.savingCutoffReminder)
+        let messages = assistant.conversation.messages.count
+        gate.release(outcome); await task.value
+        #expect(assistant.conversation.messages.count == messages && assistant.failure == nil)
+        // A reminder iOS accepted stays true of its own closed card.
+        #expect(card(assistant, id)?.state == .discarded)
+        #expect(card(assistant, id)?.cutoff?.reminder.map { if case .scheduled = $0 { true } else { false } } == (outcome == .scheduled ? true : nil))
+    }
+
+    @Test func newerScenarioKeepsItsOwnSaveWhenTheOlderFinishes() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, gate) = gated(directory)
+        let (oldID, oldTask) = await suspendedSave(app, assistant, gate)
+        // Opening a newer scenario closes the older one and starts its own Save.
+        let (newID, newTask) = await suspendedSave(app, assistant, gate)
+        #expect(card(assistant, oldID)?.state == .expired && gate.calls.count == 2)
+        let newPreview = assistant.cutoffPreview
+        // The older Save fails late: nothing about the newer one changes,
+        // and its defer can't clear the newer Save's in-flight state.
+        gate.release(.failed); await oldTask.value
+        #expect(assistant.savingCutoffReminder && assistant.cutoffPreview == newPreview && assistant.failure == nil)
+        #expect(card(assistant, oldID)?.cutoff?.reminder == nil && card(assistant, newID)?.cutoff?.reminder == nil)
+        // A second tap while the newer Save runs does nothing.
+        await assistant.saveCutoffReminder(app: app)
+        #expect(gate.calls.count == 2)
+        gate.release(.scheduled); await newTask.value
+        #expect(!assistant.savingCutoffReminder && assistant.cutoffPreview == nil)
+        #expect(assistant.conversation.messages.filter { $0.card?.title == "Scenario reminder scheduled" }.count == 1)
+        #expect(assistant.conversation.messages.last?.card?.kind == .receipt)
+        if case .scheduled = card(assistant, newID)?.cutoff?.reminder {} else { Issue.record("expected the newer card scheduled") }
+    }
+
+    @Test(arguments: [false, true]) func clearOrEraseDuringSaveAddsNothingLate(erase: Bool) async {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, gate) = gated(directory)
+        await assistant.start(app: app)
+        let (_, task) = await suspendedSave(app, assistant, gate)
+        if erase { assistant.resetAfterErase() } else { assistant.clearConversation() }
+        #expect(!assistant.savingCutoffReminder && assistant.pendingCutoff == nil)
+        let after = assistant.conversation
+        gate.release(.scheduled); await task.value
+        #expect(assistant.conversation == after && assistant.failure == nil)
+    }
+
+    @Test func notAllowedExplainsHowToEnable() async {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, scheduler) = setup(directory)
+        scheduler.outcome = .notAllowed
+        assistant.openCutoff(input: scenario(app), app: app)
+        assistant.calculateCutoff(app: app)
+        assistant.previewCutoffReminder(app: app)
+        await assistant.saveCutoffReminder(app: app)
+        #expect(assistant.failure == AssistantModel.notAllowedMessage)
+        #expect(AssistantModel.notAllowedMessage.contains("Reminders or Settings") && AssistantModel.notAllowedMessage.contains("iOS Settings"))
+    }
+
+    @Test func uiTestSchedulerNeedsItsArgument() async throws {
+        #expect(AssistantModel.uiTestCutoffScheduler([]) == nil)
+        let scheduler = try #require(AssistantModel.uiTestCutoffScheduler(["-AuroraUITestCutoffReminder", "notAllowed"]))
+        #expect(await scheduler(.init(title: "", body: "", fireAt: 0)) == .notAllowed)
+    }
+
     @Test func savedConversationWithScenarioDecodesAndOldOneStillLoads() throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let store = ConversationStore(directory: directory)
