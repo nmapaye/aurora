@@ -1,6 +1,7 @@
 import AuroraCore
 import EventKit
 import SwiftUI
+import UIKit
 
 struct AssistantView: View {
     @Environment(AppModel.self) private var app
@@ -12,6 +13,8 @@ struct AssistantView: View {
     @State private var dictation = OnDeviceDictation()
     @State private var input = ""
     @State private var showHealthConnection = false
+    /// How far the software keyboard reaches up from the screen's bottom.
+    @State private var keyboardOverlap: CGFloat = 0
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -39,6 +42,14 @@ struct AssistantView: View {
                                 .accessibilityIdentifier("assistant-error")
                         }
                         Color.clear.frame(height: 1).id("bottom")
+                        // QA showed the conversation could not scroll a card's
+                        // Save above the composer while the number pad was up:
+                        // its extent stopped short by about the keyboard. While
+                        // a card field is edited, extend the end by the keyboard
+                        // overlap so Save can always be scrolled into view.
+                        if editingCard && keyboardOverlap > 0 {
+                            Color.clear.frame(height: keyboardOverlap).accessibilityHidden(true)
+                        }
                     }
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(20)
@@ -83,6 +94,10 @@ struct AssistantView: View {
             if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
         }
         .onChange(of: app.state.sleeps) { old, _ in assistant.sleepChanged(app: app, before: old) }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            keyboardOverlap = Self.keyboardOverlap(note)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardOverlap = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             Task { await assistant.calendars.refreshCalendars(); await assistant.foreground(app: app) }
         }
@@ -149,6 +164,14 @@ struct AssistantView: View {
     /// keyboard. Keep only the composer field so the card's Save stays
     /// visible and swipes can't land on quick actions.
     private var editingCard: Bool { assistant.editingCardField && !composerFocused }
+
+    /// The keyboard's end frame against its screen. A hardware keyboard's
+    /// offscreen frame gives zero.
+    private static func keyboardOverlap(_ note: Notification) -> CGFloat {
+        guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return 0 }
+        guard let screen = note.object as? UIScreen else { return frame.height }
+        return max(0, screen.bounds.maxY - frame.minY)
+    }
 
     private var composer: some View {
         VStack(spacing: 10) {

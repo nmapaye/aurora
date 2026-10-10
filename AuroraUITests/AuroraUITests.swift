@@ -202,16 +202,28 @@ final class AuroraUITests: XCTestCase {
         let composer = app.textFields["assistant-composer"]
         XCTAssertTrue(composer.exists)
 
-        // Scroll the conversation itself, not the composer, until Save sits
-        // fully between the screen top and the composer above the keyboard.
+        // Scroll the conversation itself until Save sits fully between the
+        // screen top and the composer above the keyboard. Each drag starts
+        // in the conversation, well above the composer and keyboard, and
+        // holds at its end so it moves a fixed distance without a fling.
         let save = app.buttons["assistant-dose-save"]
-        let conversation = app.scrollViews.containing(.textField, identifier: "assistant-dose-amount").firstMatch
-        let window = app.windows.firstMatch.frame
+        let window = app.windows.firstMatch
         func saveReachable() -> Bool {
             let frame = save.frame
-            return save.isHittable && frame.minY >= window.minY && frame.maxY <= composer.frame.minY && frame.maxY <= keyboard.frame.minY
+            return save.isHittable && frame.height >= 44 && frame.minY >= window.frame.minY
+                && frame.maxY <= composer.frame.minY && frame.maxY <= keyboard.frame.minY
         }
-        for _ in 0..<4 where !saveReachable() { conversation.swipeUp(velocity: .slow) }
+        for _ in 0..<6 where !saveReachable() {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).press(
+                forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)),
+                withVelocity: .slow, thenHoldForDuration: 0.05
+            )
+        }
+        // Kept for visual diagnosis whether or not the geometry passes.
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Draft Save with numeric keyboard"
+        capture.lifetime = .keepAlways
+        add(capture)
         XCTAssertTrue(keyboard.exists, "Save must be reachable while the numeric pad is up")
         XCTAssertTrue(saveReachable(), "Save \(save.frame) composer \(composer.frame) keyboard \(keyboard.frame)")
         XCTAssertTrue(quick.waitForNonExistence(timeout: 1))
