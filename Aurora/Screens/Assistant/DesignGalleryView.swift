@@ -248,6 +248,14 @@ extension DesignGalleryView {
         }
         fixtureApp.tick()
         let now = fixtureApp.now
+        if kind == .calendar && energyVariant == .populated {
+            // Made-up events from both sources; the shared standup appears once.
+            var card = AssistantCard(kind: .calendar, capturedAt: now, title: "Your commitments", summary: "")
+            card.timeZone = fixtureApp.clock.timeZone.identifier
+            card.commitments = CalendarMerge.newestCopies(Self.calendarFixtures(now: Date(timeIntervalSince1970: now / 1000)))
+            fixtureAssistant.conversation.messages.append(.init(text: card.title, card: card))
+            return
+        }
         let current = AssistantCards.make(kind, state: fixtureApp.state, now: now, clock: fixtureApp.clock, text: fixtureApp.text)
         switch energyVariant {
         case .stale:
@@ -267,6 +275,26 @@ extension DesignGalleryView {
                 await fixtureAssistant.handle(intent, input: "Gallery fixture", app: fixtureApp)
             }
         }
+    }
+
+    static func calendarFixtures(now: Date) -> [Commitment] {
+        let day = Calendar.current.startOfDay(for: now)
+        func at(_ dayOffset: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            Calendar.current.date(byAdding: DateComponents(day: dayOffset, hour: hour, minute: minute), to: day)!
+        }
+        func event(_ id: String, _ provider: CalendarProviderID, _ title: String, _ start: Date, minutes: Double, color: String, location: String? = nil, modified: TimeInterval = 0, allDay: Bool = false) -> Commitment {
+            Commitment(id: id, calendarID: "fixture-\(provider.rawValue)", provider: provider, title: title, start: start, end: start.addingTimeInterval(minutes * 60),
+                       timeZone: TimeZone.current.identifier, revision: "fixture", canMove: false, recurring: false,
+                       location: location, colorHex: color, lastModified: now.addingTimeInterval(modified), allDay: allDay)
+        }
+        return [
+            event("g1", .google, "Team standup", at(0, 9, 30), minutes: 15, color: "#039BE5", location: "Meet", modified: -60),
+            event("a1", .apple, "Team standup", at(0, 9, 30), minutes: 15, color: "#34C759", modified: -3600),
+            event("a2", .apple, "Dentist", at(0, 14), minutes: 45, color: "#FF9500", location: "12 Main St"),
+            event("g2", .google, "Design review", at(0, 16), minutes: 60, color: "#7986CB"),
+            event("a3", .apple, "Gym", at(1, 7), minutes: 60, color: "#34C759"),
+            event("g3", .google, "Lunch with Alex", at(1, 12, 30), minutes: 60, color: "#F6BF26", location: "Café Luna"),
+        ]
     }
 
     /// Made-up manual records for the populated and stale fixtures.
