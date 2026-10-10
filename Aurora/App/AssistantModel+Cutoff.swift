@@ -99,7 +99,7 @@ extension AssistantModel {
             receipt.metrics = [.init(id: "reminder", label: "Reminder", value: app.text.fullDateTime(content.fireAt), source: preview.snapshot.timeZone)]
             appendCard(receipt)
         case .notAllowed:
-            failure = "Notifications aren’t allowed for Aurora, so nothing was scheduled. You can allow them in iOS Settings, then save again."
+            failure = "Notifications aren’t allowed for Aurora, so nothing was scheduled. The scenario never asks for permission."
             updateCard(preview.messageID) { $0.cutoff?.reminder = .notAllowed }
         case .failed:
             failure = "The reminder couldn’t be scheduled. Nothing was saved."
