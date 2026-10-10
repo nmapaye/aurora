@@ -129,15 +129,37 @@ final class AuroraUITests: XCTestCase {
         tapWhenReady(app.buttons["setup-skip"])
         XCTAssertTrue(app.staticTexts["setup-question-calendar"].waitForExistence(timeout: 5))
         tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-wakeReminders"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-skip"])
         tapWhenReady(app.buttons["setup-finish"])
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 10))
+    }
+
+    func testWakeRemindersChosenInSetupShowInTranscriptAndSettings() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        for step in ["sleepTarget", "health", "calendar", "wakeReminders"] {
+            tapWhenReady(app.buttons["setup-skip"])
+            XCTAssertTrue(app.staticTexts["setup-question-" + step].waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.staticTexts["wake-preview"].exists)
+        tapWhenReady(app.buttons["wake-offset-120"])
+        tapWhenReady(app.buttons["setup-next"])
+        // Notification permission is asked only now, after the explicit choice.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        XCTAssertTrue(app.staticTexts["You: 1 h and 2 h after waking"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-finish"])
+        tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
+        let entry = app.buttons["assistant-wake-reminders"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertTrue(entry.label.contains("+1 h, +2 h"))
     }
 
     func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
         tapWhenReady(app.buttons["setup-skip-all"])
         XCTAssertTrue(app.buttons["setup-finish"].waitForExistence(timeout: 5))
-        for step in ["name", "sleepTarget", "health", "calendar"] {
+        for step in ["name", "sleepTarget", "health", "calendar", "wakeReminders"] {
             XCTAssertFalse(app.staticTexts["setup-question-" + step].exists, step + " was never asked")
         }
         XCTAssertFalse(app.staticTexts["You: 8 hours"].exists)

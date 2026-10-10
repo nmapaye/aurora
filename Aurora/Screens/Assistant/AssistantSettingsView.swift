@@ -5,6 +5,11 @@ struct AssistantSettingsView: View {
     @Bindable var assistant: AssistantModel
     @Environment(\.dismiss) private var dismiss
     @State private var clearConversation = false
+    @Environment(AppModel.self) private var app
+    private var wakeSummary: String {
+        guard let settings = app.state.prefs.wakeReminders?.normalized(), settings.enabled, !settings.offsetsMinutes.isEmpty else { return "Off" }
+        return settings.offsetsMinutes.map { "+" + WakeReminders.offsetText($0) }.joined(separator: ", ")
+    }
     var body: some View {
         NavigationStack {
             Form {
@@ -19,6 +24,14 @@ struct AssistantSettingsView: View {
                         Text("Only your request text goes to 127.0.0.1:11434 on this Mac. Health records and calendars are not sent. This option works in the simulator only.").font(.footnote)
                     }
                     #endif
+                }
+                Section("Caffeine reminders") {
+                    NavigationLink {
+                        WakeRemindersView()
+                    } label: {
+                        LabeledContent("After waking", value: wakeSummary)
+                    }
+                    .accessibilityIdentifier("assistant-wake-reminders")
                 }
                 Section("Proactive suggestions") {
                     Toggle("Offer useful updates", isOn: $assistant.conversation.preferences.proactive)
