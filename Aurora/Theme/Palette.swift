@@ -1,3 +1,4 @@
+import AuroraCore
 import SwiftUI
 import UIKit
 
@@ -141,4 +142,36 @@ enum StatusTone {
 extension Font {
     /// Small uppercase label above grouped content.
     static let eyebrow = Font.footnote.weight(.semibold)
+}
+
+/// The welcome and first-run skies, built only from existing surface and
+/// aurora tokens. Each time of day has its own top-to-horizon gradient in
+/// the current light or dark appearance. Identity decoration only: never
+/// behind readable evidence without a glass surface.
+enum Sky {
+    static func stops(_ daypart: Welcome.Daypart) -> [Color] {
+        switch daypart {
+        case .morning:
+            [Color(light: Brand.ivory50, dark: Brand.ink900), Color(light: Brand.ivory100, dark: Brand.ink850), Color(light: Brand.sea100, dark: Brand.sea800)]
+        case .afternoon:
+            [Color(light: Brand.sea100, dark: Brand.ink850), Color(light: Brand.ivory100, dark: Brand.sea800), Color(light: Brand.ivory200, dark: Brand.ink900)]
+        case .evening:
+            [Color(light: Brand.ivory300, dark: Brand.ink900), Color(light: Brand.ivory200, dark: Brand.ink850), Color(light: Brand.sea100, dark: Brand.sea800)]
+        case .night:
+            [Color(light: Brand.ivory300, dark: Brand.ink900), Color(light: Brand.sea100, dark: Brand.ink900), Color(light: Brand.ivory200, dark: Brand.ink800)]
+        }
+    }
+
+    /// Ribbon colors, front to back.
+    static func ribbons(_ daypart: Welcome.Daypart) -> [Color] {
+        switch daypart {
+        case .morning: [Palette.auroraMint, Palette.auroraTeal, Palette.auroraIndigo]
+        case .afternoon: [Palette.auroraMint, Palette.auroraTeal, Palette.auroraMint]
+        case .evening: [Palette.auroraTeal, Palette.auroraIndigo, Palette.auroraMint]
+        case .night: [Palette.auroraIndigo, Palette.auroraTeal, Palette.auroraMint]
+        }
+    }
+
+    /// Ribbon opacity: quieter on light surfaces.
+    static func ribbonStrength(dark: Bool) -> Double { dark ? 0.5 : 0.34 }
 }

@@ -8,11 +8,19 @@ final class AuroraUITests: XCTestCase {
         app.launchArguments = ["-AuroraUITestReset"]
         app.launch()
     }
+    /// Skips the story and the optional setup questions without requesting
+    /// Health or calendar access, then finishes.
     private func finishSetup() {
-        let next = app.buttons["onboarding-continue"]
-        XCTAssertTrue(next.waitForExistence(timeout: 15))
-        next.tap(); app.buttons["source-manual"].tap(); next.tap(); next.tap()
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        tapWhenReady(app.buttons["setup-skip-all"])
+        tapWhenReady(app.buttons["setup-finish"])
         XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
+    }
+    private func tapWhenReady(_ element: XCUIElement, timeout: TimeInterval = 5) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: timeout), .completed)
+        element.tap()
     }
     private func tapQuick(_ label: String) {
         let button = app.buttons["assistant-quick-" + label]
@@ -81,9 +89,58 @@ final class AuroraUITests: XCTestCase {
         erase.tap()
         XCTAssertTrue(app.alerts["Erase all local Aurora data?"].waitForExistence(timeout: 3))
         app.alerts.buttons["Erase all local data"].tap()
-        XCTAssertTrue(app.buttons["onboarding-continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["onboarding-skip-story"].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments = []; app.launch()
-        XCTAssertTrue(app.buttons["onboarding-continue"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding-skip-story"].waitForExistence(timeout: 10))
+    }
+
+    func testStoryLeadsIntoSetupThatSkipsEachStepAndResumesAfterRelaunch() {
+        let next = app.buttons["story-continue"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        next.tap(); next.tap()
+        XCTAssertTrue(app.buttons["Begin setup"].waitForExistence(timeout: 5))
+        next.tap()
+        let field = app.textFields["setup-name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText("Sam")
+        tapWhenReady(app.buttons["setup-next"])
+        XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-next"])
+        XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
+        // Inspecting Health choices requests nothing.
+        for choice in ["readSleep", "readCaffeine", "writeCaffeine"] where app.switches["setup-health-" + choice].exists {
+            XCTAssertEqual(app.switches["setup-health-" + choice].value as? String, "0")
+        }
+        app.terminate(); app.launchArguments = []; app.launch()
+        // Resumes at Health with the earlier answer kept; no story again.
+        XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["onboarding-skip-story"].exists)
+        XCTAssertTrue(app.staticTexts["You: Sam"].exists)
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-calendar"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-skip"])
+        tapWhenReady(app.buttons["setup-finish"])
+        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 10))
+    }
+
+    func testWelcomeGreetsByNameAndATapSkipsAtOnce() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        let field = app.textFields["setup-name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText("Sam")
+        tapWhenReady(app.buttons["setup-next"])
+        tapWhenReady(app.buttons["setup-skip-all"])
+        tapWhenReady(app.buttons["setup-finish"])
+        app.terminate(); app.launchArguments = ["-AuroraWelcomeHold"]; app.launch()
+        let welcome = app.descendants(matching: .any)["welcome"]
+        XCTAssertTrue(welcome.waitForExistence(timeout: 10))
+        XCTAssertTrue(welcome.label.contains("Sam"))
+        XCTAssertTrue(welcome.label.contains("Ready when you are."))
+        welcome.tap()
+        // No dissolve to wait out: the conversation takes touches right away.
+        let send = app.buttons["assistant-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 1))
+        XCTAssertTrue(app.buttons["assistant-quick-Log caffeine"].isHittable)
     }
 
     func testDebugDesignGalleryUsesNativeSyntheticFixtures() {

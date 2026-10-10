@@ -31,6 +31,20 @@ Update this specification and affected tokens together; screenshots confirm inte
 | Aurora mint | #7CC4B8 | #A7DBD1 |
 | Aurora indigo | #4A5590 | #A3ADE6 |
 
+Sky (`Sky` in Palette.swift): welcome and first-run backgrounds only, built from the
+surface and sea tokens above, with no new colors. Each time of day (night before 5:00,
+morning 5–12, afternoon 12–18, evening 18–24) has its own top-to-horizon gradient, and
+light/dark appearance still decides the family. Ribbons use only aurora teal, mint and
+indigo, blurred, at 0.34 (light) / 0.50 (dark) opacity. Text over a sky always sits on
+`auroraGlass`: Liquid Glass on iOS 26+, regular material with a card border before.
+
+| Daypart | Light (top · middle · horizon) | Dark (top · middle · horizon) |
+|---|---|---|
+| Morning | ivory50 · ivory100 · sea100 | ink900 · ink850 · sea800 |
+| Afternoon | sea100 · ivory100 · ivory200 | ink850 · sea800 · ink900 |
+| Evening | ivory300 · ivory200 · sea100 | ink900 · ink850 · sea800 |
+| Night | ivory300 · sea100 · ivory200 | ink900 · ink900 · ink800 |
+
 Semantic status, field, selection, chart, and disabled roles remain in Palette.
 Do not invent per-screen colors. Do not use tint alone to communicate state:
 every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
@@ -85,6 +99,29 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
   its focus without moving the page. Animation must not affect reaction-test timing.
 - No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual
   movement around readable evidence.
+
+### Welcome and first run
+
+- The welcome is decoration over an already-loaded conversation, once per cold launch
+  for people who finished setup. Any tap ends it in the same update: touches and
+  VoiceOver return to the conversation at once, and the 0.25 s fade that follows
+  ignores touches. With no tap it ends after 1.2 s. It never delays records, cards
+  or processing.
+- Under VoiceOver the welcome isn't shown, so focus starts in the conversation and
+  nothing is announced twice. Reduce Motion: still ribbons, no scale or offset, and no exit fade. Sky ribbons
+  pause whenever the scene isn't active.
+- Greeting evidence is at most one captured record: sleep that ended in the last six
+  hours, else caffeine recorded today, always with its time and source (Health,
+  Manual, Sample Data). Sample Data uses the sample accent. No calendar events,
+  estimates or zero values; with no record the line is "Ready when you are."
+- First run: three skippable "Your day as a sky" scenes, then setup as a short
+  conversation with one glass control panel (capped at accessibility2; the transcript
+  scales fully, keeps the latest question above the panel and fades under the status
+  bar). Every question has "Not now", and "Skip to the end" is always available.
+- Setup's Health step shows the three separate choices from Apple Health settings and
+  uses the same requests; calendars open the same connection sheet as Settings.
+  Nothing is requested, connected or selected until the person chooses it. Sample Data
+  is a separate, labeled finish option.
 
 ## Review and references
 

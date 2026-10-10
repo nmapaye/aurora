@@ -545,6 +545,16 @@ final class AppModel {
         update { $0.prefs.targetSleep = hours }
     }
 
+    /// Nil or blank clears the name.
+    func setDisplayName(_ name: String?) {
+        update { $0.prefs.displayName = Welcome.cleanName(name) }
+    }
+
+    /// Remembers the next setup question so a relaunch resumes there.
+    func setSetupStep(_ step: SetupStep) {
+        update { $0.onboarding.setupStep = step.rawValue }
+    }
+
     func chooseSleepSource(_ source: OnboardingSource) {
         update {
             $0.onboarding.source = source
