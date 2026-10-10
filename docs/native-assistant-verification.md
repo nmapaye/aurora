@@ -507,3 +507,43 @@ Reviewed sourcecommits5dea303,6d15da5,807039d,f8152d5,aac442b,f698213 individual
 - Independent unsignedRelease and brandtoken/whitespace checks pass. Release log `/private/tmp/aurora-night-onboarding-release.log`, with standard AppIntents metadata warning (no dependency).
 
 Final fullserial suites, light/dark/ReduceMotion and representative error/gallery visuals remain after polish. VoiceOver, older supported systems, physical-device performance/battery/accessibility, liveHealth/calendar, signing and TestFlight remain release gates. No push/publication/live account setup or personal record erase.
+
+## October 10 combined premium-demo acceptance
+
+Claude polish candidate `9e84717` was reviewed commit by commit and integrated as:
+69842e2→45b3984, 94ec4bc→71c0f73, b7b2fb4→1e23128,
+50ec451→9763d23, c4762ed→0c3a8f9, 83ce853→94b428a,
+9e84717→a5f7b21. Before this documentation update, integrated and tested candidate
+trees were identical (`git diff 9e84717 HEAD --stat` empty).
+
+Codex independently verified the combined candidate:
+- Core 216/216 in UTC and America/Los_Angeles.
+- Native 76/76 on each iPhone and iPad.
+- Full serial UI suites 31/31 on each device, without parallel simulator runners.
+- Additional focused phone polish checks 5/5.
+- Actual simulator Dark appearance and Reduce Motion enabled: three representative
+  flows passed on each device. QA phone and pad restored to Light and motion off.
+- Unsigned Release build, brand-token check and whitespace check passed.
+
+Evidence lives under `/private/tmp/aurora-night-polish-`: core-{utc,la}.log,
+native-phone.xcresult, full-phone.xcresult, full-pad.xcresult,
+focused-phone.xcresult, dark-reduced-{phone,pad}.xcresult, and
+independent-release.log. Attachment exports with matching capture directories
+were inspected for shared composer/card alignment, long-card title visibility,
+held earlier replies, keyboard Save clearance, largest-text Health setup/settings,
+and readable dark error/retry states on phone and pad.
+
+The Release app was upgraded without erasing records on the isolated Aurora
+Assistant iPhone simulator. Device Hub visibly displayed its preserved conversation,
+interactive cards, local composer and Aurora identity. Synthetic gallery remains
+available in the development build with isolated fixtures.
+
+Remaining gates: manual observation of actual model-processing Stop/background
+transitions and frame-continuous rim fade; physical-device motion smoothness,
+VoiceOver, accessibility, latency, thermal and battery measurements; live Health
+and calendar permission/data behavior; older supported OS acceptance; production
+OAuth/support/signing, signed upgrade, TestFlight and publication. Synthetic motion
+state labels and three reduced-motion UI flows do not establish these manual gates.
+Planning/history and widgets/performance remain outside this completed overnight
+premium-demo queue. No push, publication, account setup, personal-record erase,
+global tool configuration change, paid fallback or banked reset was performed.
