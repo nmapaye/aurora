@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 /// stored caffeine reference is never framed as a safe amount or a goal.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(PurchaseService.self) private var purchases
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var confirmDelete = false
@@ -22,6 +23,17 @@ struct SettingsView: View {
         let prefs = state.prefs
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        PlusView()
+                    } label: {
+                        row("Aurora Plus", detail: purchases.isUnlocked
+                            ? "Unlocked. Thank you for supporting Aurora."
+                            : "Two-week and month views. One purchase, no subscription.")
+                    }
+                    .accessibilityIdentifier("settings-plus")
+                }
+
                 Section("Appearance") {
                     Picker("Appearance", selection: Binding(get: { state.appearanceMode }, set: { model.setAppearance($0) })) {
                         Text("System").tag(AppearanceMode.system)

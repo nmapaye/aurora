@@ -5,6 +5,7 @@ import SwiftUI
 struct AuroraApp: App {
     @State private var model = AppModel()
     @State private var router = Router()
+    @State private var purchases = PurchaseService()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -12,9 +13,11 @@ struct AuroraApp: App {
             RootView()
                 .environment(model)
                 .environment(router)
+                .environment(purchases)
                 .preferredColorScheme(model.colorScheme)
                 .tint(Palette.tint)
                 .task { model.load() }
+                .task { await purchases.start() }
                 .onOpenURL { url in
                     guard let link = DeepLink(url: url) else { return }
                     route(link)

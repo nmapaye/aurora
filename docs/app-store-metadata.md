@@ -1,6 +1,6 @@
 # Aurora App Store Metadata Draft
 
-Use this copy when preparing the paid App Store release. Replace bracketed values only after the real App Store Connect record, support URL, privacy URL, screenshots, and pricing exist.
+Use this copy when preparing the App Store release. Aurora is free to download with one in-app purchase, Aurora Plus. Replace bracketed values only after the real App Store Connect record, support URL, privacy URL, screenshots, and pricing exist.
 
 ## Name
 
@@ -50,7 +50,7 @@ Aurora uses HealthKit only to read recent sleep data for caffeine and sleep guid
 
 No cloud account is required. Demo records and user logs are stored on device unless the user explicitly shares or exports a summary.
 
-Aurora is a paid App Store app for v0.1.0. There are no in-app license keys, Gumroad unlock codes, account gates, or hidden premium features. Gumroad may provide a companion guide/support package only; it does not unlock app access.
+Aurora is free to download. Aurora Plus (`com.nmapaye.aurora.plus`) is a non-consumable in-app purchase that unlocks the two-week and month views in Insights and Sleep. Logging, the alertness estimate, the Reaction Test, Health import and exports are free. To review Plus, open Settings → Aurora Plus, or choose 2W or M in Insights. Restore Purchase is on the same screen. There are no license keys, Gumroad unlock codes or accounts.
 
 ## Known Release Limits
 

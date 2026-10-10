@@ -7,15 +7,18 @@ import SwiftUI
 struct SleepView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(PurchaseService.self) private var purchases
     @State private var range: SleepRange = .week
     @State private var showDistribution = false
     @State private var showSources = false
     @State private var editing: SleepSheet?
     @State private var loading = false
     @State private var savedCount = 0
+    @State private var showPlus = false
 
     var body: some View {
         let state = model.state
+        let range = PlusAccess.shown(self.range, unlocked: purchases.isUnlocked)
         let presentation = SleepModel.presentation(
             sessions: state.sleeps, targetSleepHours: state.prefs.targetSleep, range: range,
             now: model.now, clock: model.clock, text: model.text
@@ -28,8 +31,11 @@ struct SleepView: View {
             RangeControl(
                 label: "Sleep range",
                 options: [(SleepRange.week, "W", "Week"), (.month, "M", "Month")],
-                selection: $range
+                selection: Binding(get: { range }, set: choose)
             )
+            if !purchases.isUnlocked {
+                PlusRangeHint { presentPlus() }
+            }
             WideColumns {
                 chart(presentation, target: state.prefs.targetSleep)
             } trailing: {
@@ -43,6 +49,12 @@ struct SleepView: View {
             await model.importHealth()
         }
         .sensoryFeedback(.success, trigger: savedCount)
+        .sheet(isPresented: $showPlus) {
+            NavigationStack { PlusView(showsClose: true) }
+        }
+        .onChange(of: purchases.isUnlocked) { _, unlocked in
+            if unlocked { showPlus = false }
+        }
         .sheet(item: $editing) { sheet in
             SleepEntrySheet(mode: sheet) { draft in
                 switch sheet {
@@ -55,6 +67,20 @@ struct SleepView: View {
                 if case .edit(let session) = sheet { model.deleteManualSleep(id: session.id) }
             }
         }
+    }
+
+    /// A locked range opens Aurora Plus and keeps Week on screen.
+    private func choose(_ value: SleepRange) {
+        if PlusAccess.requiresPlus(value) && !purchases.isUnlocked {
+            presentPlus()
+        } else {
+            range = value
+        }
+    }
+
+    private func presentPlus() {
+        guard !model.state.isWalkthroughPending else { return }
+        showPlus = true
     }
 
     private func chart(_ presentation: SleepPresentation, target: Double) -> some View {
