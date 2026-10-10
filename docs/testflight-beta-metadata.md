@@ -22,7 +22,7 @@ Aurora is not a medical device and does not diagnose, treat, cure, or prevent an
 
 No cloud account is required for this demo. Demo records and user logs are stored on device unless the tester explicitly shares or exports a summary.
 
-TestFlight access is free and used only for beta testing. Paid app distribution is handled through the App Store after release approval. Gumroad, if used, contains only companion guide/support material and does not unlock app access.
+TestFlight access is free and used only for beta testing. Aurora Plus purchases in TestFlight use the sandbox and are never charged. Gumroad, if used, contains only companion guide/support material and does not unlock app access.
 
 ## Reviewer Access
 

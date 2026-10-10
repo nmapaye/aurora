@@ -1,6 +1,6 @@
 # Aurora App Store + Free TestFlight Release
 
-Aurora app access should be sold through the App Store. TestFlight is for uncompensated beta testing only. Gumroad may sell a companion guide, setup walkthrough, changelog, support path, and educational material, but it must not unlock the app or gate TestFlight access.
+Aurora is free on the App Store, and Aurora Plus is sold only as an in-app purchase. TestFlight is for uncompensated beta testing only. Gumroad may sell a companion guide, setup walkthrough, changelog, support path, and educational material, but it must not unlock the app or gate TestFlight access.
 
 Do not sell TestFlight access and do not distribute a raw IPA as the product file.
 
@@ -38,7 +38,9 @@ validation and upload remain blocked.
 ## App Store Checklist
 
 - Configure the App Store Connect app record for `com.nmapaye.aurora`.
-- Set app pricing in App Store Connect for the paid v0.1.0 release.
+- Set the app's price to Free in App Store Connect.
+- Create the non-consumable in-app purchase `com.nmapaye.aurora.plus` (reference name Aurora Plus), set its price, enable Family Sharing to match `Aurora.storekit`, and attach it to the v0.1.0 submission.
+- Sign the Paid Applications agreement and add banking and tax details, or the in-app purchase can't be sold.
 - Add the production privacy policy URL: `https://nmapaye.github.io/aurora/privacy.html`.
 - Add the production support URL: `https://nmapaye.github.io/aurora/support.html`.
 - Follow the Organizer workflow above.
@@ -75,6 +77,8 @@ validation and upload remain blocked.
 - Sample data loads caffeine, sleep, and vigilance records.
 - Sample data can be removed without deleting non-demo records.
 - Quick Add updates dashboard totals.
+- Insights and Sleep show Week and a Plus hint; choosing 2W or M opens Aurora Plus.
+- Buying Aurora Plus in the sandbox unlocks 2W and M at once; Restore Purchase on a fresh install unlocks it again.
 - Custom caffeine entry appears in history.
 - Custom-entry time selection preserves the chosen time.
 - Vigilance test completes and saves a result.

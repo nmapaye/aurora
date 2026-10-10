@@ -239,16 +239,16 @@ export default function App() {
         <section id="access" className="section access-section">
           <div className="section-heading">
             <div className="eyebrow">App Store + TestFlight</div>
-            <h2>Buy through the App Store. Test through free TestFlight.</h2>
+            <h2>Free on the App Store. Plus is one purchase.</h2>
             <p>
-              Aurora is prepared for paid App Store distribution. TestFlight is for unpaid beta testing, and Gumroad is only a companion guide and support package.
+              Aurora is free to download. Aurora Plus is a one-time in-app purchase through Apple. TestFlight is for unpaid beta testing, and Gumroad is only a companion guide and support package.
             </p>
           </div>
           <div className="proof-grid">
             <article id="release-links" className="proof-card">
-              <h3>Paid app release</h3>
+              <h3>App Store release</h3>
               <p>
-                App access is sold through Apple commerce when the App Store listing is approved.
+                Download Aurora free once the App Store listing is approved. Two-week and month views come with Aurora Plus, bought in the app.
               </p>
               <ConfiguredLink
                 className="button button-primary full-width"
@@ -276,7 +276,7 @@ export default function App() {
             <article className="proof-card">
               <h3>Free beta testing</h3>
               <p>
-                TestFlight is used only for uncompensated beta testing before the paid App Store release.
+                TestFlight is used only for uncompensated beta testing before the App Store release.
               </p>
               <ul>
                 <li>Health sleep import with a manual path</li>

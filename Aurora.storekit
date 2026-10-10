@@ -1,0 +1,33 @@
+{
+  "identifier" : "4F1C2B7E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : true,
+      "internalID" : "6740000001",
+      "localizations" : [
+        {
+          "description" : "Two-week and month views, and every feature added to Plus later.",
+          "displayName" : "Aurora Plus",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.nmapaye.aurora.plus",
+      "referenceName" : "Aurora Plus",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

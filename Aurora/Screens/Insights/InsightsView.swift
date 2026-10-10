@@ -7,11 +7,14 @@ import SwiftUI
 struct InsightsView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(PurchaseService.self) private var purchases
     @State private var range: InsightsRange = .default
     @State private var showDetails = false
+    @State private var showPlus = false
 
     var body: some View {
         let state = model.state
+        let range = PlusAccess.shown(self.range, unlocked: purchases.isUnlocked)
         let p = Insights.presentation(
             doses: state.doses, vigilanceSessions: state.vigilanceSessions, range: range,
             now: model.now, clock: model.clock, text: model.text
@@ -20,8 +23,11 @@ struct InsightsView: View {
             RangeControl(
                 label: "Insights range",
                 options: [(InsightsRange.week, "W", "Week"), (.twoWeeks, "2W", "Two weeks"), (.month, "M", "Month")],
-                selection: $range
+                selection: Binding(get: { range }, set: choose)
             )
+            if !purchases.isUnlocked {
+                PlusRangeHint { presentPlus() }
+            }
             WideColumns {
                 intake(p)
             } trailing: {
@@ -29,6 +35,26 @@ struct InsightsView: View {
                 details(p)
             }
         }
+        .sheet(isPresented: $showPlus) {
+            NavigationStack { PlusView(showsClose: true) }
+        }
+        .onChange(of: purchases.isUnlocked) { _, unlocked in
+            if unlocked { showPlus = false }
+        }
+    }
+
+    /// A locked range opens Aurora Plus and keeps Week on screen.
+    private func choose(_ value: InsightsRange) {
+        if PlusAccess.requiresPlus(value) && !purchases.isUnlocked {
+            presentPlus()
+        } else {
+            range = value
+        }
+    }
+
+    private func presentPlus() {
+        guard !model.state.isWalkthroughPending else { return }
+        showPlus = true
     }
 
     private func intake(_ p: InsightsPresentation) -> some View {
