@@ -62,6 +62,9 @@ struct SetupConversationView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .defaultScrollAnchor(.bottom)
+                // Keeps scrolled-to content, such as a question's first line,
+                // below the fade rather than inside it.
+                .safeAreaPadding(.top, Metrics.xl)
                 // Earlier answers fade out under the status bar instead of
                 // colliding with it.
                 .mask(
@@ -87,7 +90,7 @@ struct SetupConversationView: View {
                     UIAccessibility.post(notification: .announcement, argument: SetupCopy.question(newStep, modelAvailable: modelAvailable))
                 }
                 .onChange(of: controlsHeight) { _, _ in scrollToEnd(proxy) }
-                .onAppear { proxy.scrollTo("end", anchor: .bottom) }
+                .onAppear { proxy.scrollTo(latestQuestion, anchor: .top) }
             }
         }
         .background(Palette.screen.ignoresSafeArea())
@@ -97,11 +100,21 @@ struct SetupConversationView: View {
         .onAppear { name = model.state.prefs.displayName ?? "" }
     }
 
+    /// Shows the current question from its first line. When it fits above
+    /// the controls the scroll stops at the end, as before; when it's taller
+    /// (largest text), its start stays visible instead of being cut off.
     private func scrollToEnd(_ proxy: ScrollViewProxy) {
+        let target = latestQuestion
         Task { @MainActor in
-            withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo("end", anchor: .bottom) }
+            withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(target, anchor: .top) }
         }
     }
+
+    private var latestQuestion: String {
+        transcript.last.map { Self.questionAnchor($0.step) } ?? "end"
+    }
+
+    private static func questionAnchor(_ step: SetupStep) -> String { "question-\(step.rawValue)" }
 
     // MARK: Transcript
 
@@ -118,6 +131,7 @@ struct SetupConversationView: View {
 
     @ViewBuilder private func exchange(_ entry: SetupTranscript.Entry) -> some View {
         bubble(entry.question, speaker: "Aurora", fill: Palette.card, alignment: .leading)
+            .id(Self.questionAnchor(entry.step))
             .accessibilityIdentifier("setup-question-\(entry.step)")
         switch entry.reply {
         case .person(let text)?:
