@@ -189,6 +189,109 @@ struct WelcomeTests {
         #expect(decoded.schemaVersion == AppState.schemaVersion)
     }
 
+    // MARK: Truthful transcript
+
+    private func transcript(_ state: AppState, calendars: Bool = false) -> [SetupTranscript.Entry] {
+        SetupTranscript.entries(state: state, healthAvailable: true, calendarsChosen: calendars, modelAvailable: true)
+    }
+
+    private func setupState(at step: SetupStep) -> AppState {
+        var state = AppState()
+        state.onboarding.setupStep = step.rawValue
+        return state
+    }
+
+    @Test func skipToEndShowsNoAnswersForQuestionsNeverAsked() {
+        var state = setupState(at: .name)
+        state.skipSetupToEnd()
+        let entries = transcript(state)
+        #expect(entries.map(\.step) == [.finish])
+        #expect(entries.allSatisfy { $0.reply == nil })
+        #expect(state.prefs.targetSleep == Prefs.defaultTargetSleep)
+        #expect(state.onboarding.setupOutcomes == nil)
+        #expect(state.onboarding.source == .manual)
+    }
+
+    @Test func skipToEndFromMidSetupKeepsOnlyRealOutcomes() {
+        var state = setupState(at: .name)
+        state.prefs.displayName = "Sam"
+        state.recordSetup(.name, .answered)
+        state.skipSetupToEnd()
+        let entries = transcript(state)
+        #expect(entries.map(\.step) == [.name, .finish])
+        #expect(entries[0].reply == .person("Sam"))
+    }
+
+    @Test func eachStepSkipsOnItsOwnAndKeepsSettings() {
+        var state = setupState(at: .name)
+        state.prefs.targetSleep = 7
+        state.recordSetup(.name, .skipped)
+        #expect(SetupStep(stored: state.onboarding.setupStep) == .sleepTarget)
+        state.recordSetup(.sleepTarget, .skipped)
+        state.recordSetup(.health, .skipped)
+        state.recordSetup(.calendar, .skipped)
+        #expect(SetupStep(stored: state.onboarding.setupStep) == .finish)
+        #expect(state.prefs.targetSleep == 7 && state.prefs.displayName == nil)
+        let replies = transcript(state).map(\.reply)
+        #expect(replies == [.person("Not now"), .retained("Sleep target stays at 7 hours. You can change it in Settings."), .person("Not now"), .person("Not now"), nil])
+    }
+
+    @Test func explicitAnswersAreShownAsTheirs() {
+        var state = setupState(at: .name)
+        state.prefs.displayName = "Sam"
+        state.recordSetup(.name, .answered)
+        state.prefs.targetSleep = 7.5
+        state.recordSetup(.sleepTarget, .answered)
+        state.healthChoices.readCaffeine = true
+        state.recordSetup(.health, .answered)
+        state.recordSetup(.calendar, .answered)
+        let replies = transcript(state, calendars: true).map(\.reply)
+        #expect(replies == [.person("Sam"), .person("7.5 hours"), .person("Requested: Read caffeine"), .person("Calendars chosen"), nil])
+    }
+
+    @Test func outcomesResumeAfterRelaunchAndOldProgressKeepsItsName() throws {
+        var state = setupState(at: .name)
+        state.prefs.displayName = "Sam"
+        state.recordSetup(.name, .answered)
+        state.recordSetup(.sleepTarget, .skipped)
+        let relaunched = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(state))
+        #expect(transcript(relaunched) == transcript(state))
+        #expect(FirstRun(relaunched.onboarding) == .setup(.health))
+
+        // Progress saved before outcomes were kept: the entered name is
+        // known, the sleep target was never confirmed, so it isn't shown.
+        let file = #"{"prefs":{"halfLife":5,"targetSleep":8,"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false,"displayName":"Sam"},"onboarding":{"completed":false,"source":"healthkit","permissionStatus":"idle","appWalkthroughCompleted":false,"appWalkthroughStep":0,"setupStep":4}}"#
+        let older = try JSONDecoder().decode(AppState.self, from: Data(file.utf8))
+        #expect(older.onboarding.setupOutcomes == nil)
+        #expect(transcript(older).map(\.step) == [.name, .health])
+        #expect(transcript(older).first?.reply == .person("Sam"))
+    }
+
+    @Test func unknownOutcomeValuesDecodeAndAreIgnored() throws {
+        let file = #"{"onboarding":{"completed":false,"source":"healthkit","permissionStatus":"idle","appWalkthroughCompleted":false,"appWalkthroughStep":0,"setupStep":5,"setupOutcomes":{"2":"later","9":"answered"}}}"#
+        let state = try JSONDecoder().decode(AppState.self, from: Data(file.utf8))
+        #expect(transcript(state).map(\.step) == [.calendar])
+    }
+
+    @Test func completedOldUsersStayOutAndOutcomesAreNotWrittenUnset() throws {
+        let file = #"{"onboarding":{"completed":true,"source":"manual","permissionStatus":"unsupported","appWalkthroughCompleted":true,"appWalkthroughStep":9}}"#
+        let state = try JSONDecoder().decode(AppState.self, from: Data(file.utf8))
+        #expect(FirstRun(state.onboarding) == .done)
+        #expect(!String(decoding: try JSONEncoder().encode(state), as: UTF8.self).contains("setupOutcomes"))
+    }
+
+    @Test func settlingSleepSourceKeepsADeclinedStatusAndReadSleep() {
+        var declined = AppState()
+        declined.onboarding.source = .manual
+        declined.onboarding.permissionStatus = .denied
+        declined.settleSetupSleepSource()
+        #expect(declined.onboarding.permissionStatus == .denied)
+        var reading = AppState()
+        reading.healthChoices.readSleep = true
+        reading.settleSetupSleepSource()
+        #expect(reading.onboarding.source == .healthkit)
+    }
+
     @Test func favoritesComeFirstWithoutDuplicates() {
         #expect(CaffeinePreset.ordered(favorites: ["matcha", "espresso", "matcha", "unknown"]).map(\.id) == ["matcha", "espresso", "drip", "energy"])
         #expect(CaffeinePreset.ordered(favorites: nil).map(\.id) == CaffeinePreset.all.map(\.id))

@@ -157,6 +157,101 @@ public enum SetupStep: Int, CaseIterable, Sendable {
     }
 }
 
+/// What the person did when a setup question was asked.
+public enum SetupOutcome: String, Sendable {
+    /// They gave or confirmed an answer.
+    case answered
+    /// They tapped "Not now"; whatever was already stored stays.
+    case skipped
+}
+
+extension Onboarding {
+    /// The recorded outcome for a step. Unknown values from another build
+    /// read as nil. A display name only ever comes from the name question,
+    /// so files from before outcomes were kept treat a stored name as
+    /// answered.
+    public func setupOutcome(_ step: SetupStep, displayName: String?) -> SetupOutcome? {
+        if let raw = setupOutcomes?[String(step.rawValue)], let outcome = SetupOutcome(rawValue: raw) { return outcome }
+        if step == .name, displayName != nil { return .answered }
+        return nil
+    }
+}
+
+extension AppState {
+    /// Records the outcome for `step` and moves to the next question in one
+    /// change, so an answer and its progress are saved together or not at all.
+    public mutating func recordSetup(_ step: SetupStep, _ outcome: SetupOutcome) {
+        var outcomes = onboarding.setupOutcomes ?? [:]
+        outcomes[String(step.rawValue)] = outcome.rawValue
+        onboarding.setupOutcomes = outcomes
+        onboarding.setupStep = step.next.rawValue
+    }
+
+    /// "Skip to the end": goes to the last step. Questions not asked get no
+    /// outcome, so nothing is shown as an answer for them.
+    public mutating func skipSetupToEnd() {
+        settleSetupSleepSource()
+        onboarding.setupStep = SetupStep.finish.rawValue
+    }
+
+    /// Without Health sleep, sleep is logged by hand. A declined request has
+    /// already set manual with its own status, which is kept.
+    public mutating func settleSetupSleepSource() {
+        guard onboarding.source == .healthkit, !healthChoices.readSleep else { return }
+        onboarding.source = .manual
+        onboarding.permissionStatus = .unsupported
+    }
+}
+
+/// The setup conversation, built only from what was asked and recorded.
+public enum SetupTranscript {
+    public enum Reply: Equatable, Sendable {
+        /// Something the person actually chose or typed.
+        case person(String)
+        /// A note from Aurora about a setting that stayed as it was.
+        case retained(String)
+    }
+
+    public struct Entry: Equatable, Sendable {
+        public var step: SetupStep
+        public var question: String
+        public var reply: Reply?
+    }
+
+    /// Asked questions in order with their real outcomes, then the current
+    /// question. Questions with no recorded outcome (passed over by "Skip to
+    /// the end", or never reached) are left out rather than given an answer.
+    public static func entries(
+        state: AppState,
+        healthAvailable: Bool,
+        calendarsChosen: Bool,
+        modelAvailable: Bool
+    ) -> [Entry] {
+        let current = SetupStep(stored: state.onboarding.setupStep)
+        var entries: [Entry] = []
+        for step in SetupStep.allCases where step.rawValue < current.rawValue {
+            guard let outcome = state.onboarding.setupOutcome(step, displayName: state.prefs.displayName) else { continue }
+            entries.append(Entry(step: step, question: SetupCopy.question(step, modelAvailable: modelAvailable),
+                                 reply: reply(step, outcome, state: state, healthAvailable: healthAvailable, calendarsChosen: calendarsChosen)))
+        }
+        entries.append(Entry(step: current, question: SetupCopy.question(current, modelAvailable: modelAvailable), reply: nil))
+        return entries
+    }
+
+    static func reply(_ step: SetupStep, _ outcome: SetupOutcome, state: AppState, healthAvailable: Bool, calendarsChosen: Bool) -> Reply? {
+        let target = OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).spoken
+        switch (step, outcome) {
+        case (.name, .answered): return state.prefs.displayName.map(Reply.person)
+        case (.sleepTarget, .answered): return .person(target)
+        case (.sleepTarget, .skipped): return .retained("Sleep target stays at \(target). You can change it in Settings.")
+        case (.health, .answered): return .person(SetupCopy.healthAnswer(state.healthChoices, healthAvailable: healthAvailable))
+        case (.calendar, .answered): return .person(calendarsChosen ? "Calendars chosen" : "No calendars chosen")
+        case (_, .skipped): return .person("Not now")
+        case (.finish, _): return nil
+        }
+    }
+}
+
 /// Where first run starts: nowhere once setup is done, the story before
 /// setup begins, then the stored setup question.
 public enum FirstRun: Equatable, Sendable {

@@ -159,6 +159,12 @@ public struct Onboarding: Codable, Equatable, Sendable {
     /// so a relaunch resumes there. Nil before setup starts and in files
     /// from older builds; not written while nil.
     public var setupStep: Int?
+    /// What the person actually did at each setup question they were asked,
+    /// keyed by `SetupStep` raw value: `SetupOutcome` raw values. Questions
+    /// passed over by "Skip to the end" have no entry. Plain strings so a
+    /// value from another build is ignored instead of failing the decode.
+    /// Nil in older files; not written while nil.
+    public var setupOutcomes: [String: String]?
 
     public static let defaults = Onboarding(
         completed: false,
@@ -176,7 +182,8 @@ public struct Onboarding: Codable, Equatable, Sendable {
         completedAt: Millis? = nil,
         appWalkthroughCompleted: Bool,
         appWalkthroughStep: Int,
-        setupStep: Int? = nil
+        setupStep: Int? = nil,
+        setupOutcomes: [String: String]? = nil
     ) {
         self.completed = completed
         self.source = source
@@ -185,6 +192,7 @@ public struct Onboarding: Codable, Equatable, Sendable {
         self.appWalkthroughCompleted = appWalkthroughCompleted
         self.appWalkthroughStep = appWalkthroughStep
         self.setupStep = setupStep
+        self.setupOutcomes = setupOutcomes
     }
 }
 
