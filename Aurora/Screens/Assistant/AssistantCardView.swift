@@ -18,6 +18,7 @@ struct AssistantCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set when this card turns Saved while on screen, for the save moment.
     @State private var justSaved = false
+    @State private var editingWakeReminders = false
 
     private enum CardField: Hashable { case amount, source, note, search }
 
@@ -123,6 +124,28 @@ struct AssistantCardView: View {
             }
         }
     }
+    /// The person's caffeine reminders after waking, with the next one.
+    @ViewBuilder private var wakeReminderRow: some View {
+        let settings = app.state.prefs.wakeReminders?.normalized()
+        let on = settings?.enabled == true && settings?.offsetsMinutes.isEmpty == false
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Caffeine after waking", systemImage: "alarm").font(Typography.label).foregroundStyle(Palette.textPrimary)
+                Spacer()
+                Text(on ? settings!.offsetsMinutes.map { "+" + WakeReminders.offsetText($0) }.joined(separator: ", ") : "Off")
+                    .font(Typography.value.monospacedDigit()).foregroundStyle(on ? Palette.textPrimary : Palette.textSecondary)
+            }
+            if on, let next = app.nextWakeReminder {
+                Text("Next \(app.clock.dayKey(next.fireAt) == app.clock.dayKey(app.now) ? "" : "tomorrow ")\(app.text.clockTime(next.fireAt))")
+                    .font(Typography.source).foregroundStyle(Palette.textSecondary)
+            }
+            Button(on ? "Change" : "Set up") { editingWakeReminders = true }
+                .buttonStyle(on ? AnyButtonStyle(.auroraSecondary) : AnyButtonStyle(.auroraPrimary))
+                .accessibilityIdentifier("assistant-wake-reminders-edit")
+        }
+        .accessibilityElement(children: .contain)
+        .sheet(isPresented: $editingWakeReminders) { NavigationStack { WakeRemindersView() } }
+    }
     /// When the card's records were read: just the time today, the day
     /// otherwise, and the zone only if it isn't the current one.
     private var captureText: String {
@@ -187,8 +210,8 @@ struct AssistantCardView: View {
         case .energyProjection: projection
         case .energyCheckIn: checkInEditor
         case .reminders:
+            wakeReminderRow
             metricRows
-            Text("Current device controls").font(.caption.weight(.medium)).foregroundStyle(Palette.textSecondary)
             Toggle("Proactive suggestions", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: enabled) }
