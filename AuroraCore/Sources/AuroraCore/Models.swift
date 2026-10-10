@@ -107,6 +107,12 @@ public struct Prefs: Codable, Equatable, Sendable {
     public var dailyLimitMg: Double
     public var cutoffHour: Double
     public var notifyCutoff: Bool
+    /// What Aurora calls the person in greetings. Optional, stays on device,
+    /// and isn't written while unset.
+    public var displayName: String?
+    /// `CaffeinePreset` ids chosen as favorites. Optional and isn't written
+    /// while unset.
+    public var favoriteDrinkIDs: [String]?
 
     public static let defaultHalfLife: Double = 5
     public static let defaultTargetSleep: Double = 8
@@ -126,7 +132,9 @@ public struct Prefs: Codable, Equatable, Sendable {
         tz: String? = nil,
         dailyLimitMg: Double,
         cutoffHour: Double,
-        notifyCutoff: Bool
+        notifyCutoff: Bool,
+        displayName: String? = nil,
+        favoriteDrinkIDs: [String]? = nil
     ) {
         self.halfLife = halfLife
         self.targetSleep = targetSleep
@@ -134,6 +142,8 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.dailyLimitMg = dailyLimitMg
         self.cutoffHour = cutoffHour
         self.notifyCutoff = notifyCutoff
+        self.displayName = displayName
+        self.favoriteDrinkIDs = favoriteDrinkIDs
     }
 }
 
@@ -145,6 +155,10 @@ public struct Onboarding: Codable, Equatable, Sendable {
     public var appWalkthroughCompleted: Bool
     /// 0 through 9.
     public var appWalkthroughStep: Int
+    /// The next unanswered first-run setup question (`SetupStep` raw value),
+    /// so a relaunch resumes there. Nil before setup starts and in files
+    /// from older builds; not written while nil.
+    public var setupStep: Int?
 
     public static let defaults = Onboarding(
         completed: false,
@@ -161,7 +175,8 @@ public struct Onboarding: Codable, Equatable, Sendable {
         permissionStatus: HealthPermissionStatus,
         completedAt: Millis? = nil,
         appWalkthroughCompleted: Bool,
-        appWalkthroughStep: Int
+        appWalkthroughStep: Int,
+        setupStep: Int? = nil
     ) {
         self.completed = completed
         self.source = source
@@ -169,6 +184,7 @@ public struct Onboarding: Codable, Equatable, Sendable {
         self.completedAt = completedAt
         self.appWalkthroughCompleted = appWalkthroughCompleted
         self.appWalkthroughStep = appWalkthroughStep
+        self.setupStep = setupStep
     }
 }
 
