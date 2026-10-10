@@ -144,9 +144,82 @@ I make no runtime claim about any of them.
 8. Release gates remain: physical-device onboarding with Health allow/deny, VoiceOver,
    Dynamic Type AX sizes, Reduce Motion, iPad split, signing, TestFlight.
 
+## Corrections after Codex review (`onboarding-review.md`)
+
+| Commit | Content |
+|---|---|
+| `f8152d5` | Core: `Onboarding.setupOutcomes`, `AppState.recordSetup/skipSetupToEnd/settleSetupSleepSource`, `SetupTranscript`, 8 new core tests |
+| `aac442b` | App: atomic AppModel helpers, setup view transcript/skip/errors, native failure-injection tests, UI regressions and screenshots, `design.md` |
+
+1. **Truthful transcript.** The new optional `Onboarding.setupOutcomes: [String: String]?`
+   maps a `SetupStep` raw value to `answered` or `skipped`.
+   - Why it's needed: progress alone can't tell a skipped question from one never
+     asked.
+   - Old files decode it as nil, and it isn't written while nil. Plain strings mean an
+     unknown value from another build is ignored instead of failing the `AppState`
+     decode.
+   - No record or schema change.
+   - What the transcript shows:
+     - Only questions with a recorded outcome, plus the current question.
+     - "You" for typed or chosen answers and for an explicit "Not now".
+     - A sleep target kept by "Not now" as an Aurora note ("Sleep target stays at…").
+     - Nothing for questions passed over by Skip to the end.
+   - Progress from `807039d`-era files (no outcomes) still shows a stored name as
+     answered, since a name only comes from that question. It shows nothing else.
+2. **Sleep target "Not now".** The stepper edits a local draft. Continue saves the
+   target and `answered` together. "Not now" saves only `skipped` and the next step, so
+   the stored target stays. Every optional question now has its own "Not now".
+3. **Atomic saves and visible errors.**
+   - New helpers: `AppModel.recordSetup(step, outcome, answer:)`, `skipSetupToEnd()` and
+     `finishSetup(withSampleData:)`. Each is one `update`.
+   - `completeOnboarding()` and `setSetupStep()` now return `Bool`
+     (`@discardableResult`). `setDisplayName` is removed.
+   - On failure, `update` already restores the previous state. The view then stays on
+     the question and shows the real `mutationFailure` in error tone with its symbol
+     (`setup-save-failure`, or `story-save-failure` on the story). It also posts an
+     announcement and leaves the controls ready for a retry.
+   - Sample Data plus completion is now one change, so a failure loads nothing.
+   - `update`, erase generation, Health/Energy/calendar/intelligence code paths and
+     record formats are unchanged. `loadSampleData` only had its body extracted into
+     a shared static helper; its behavior is unchanged.
+
+Tests added:
+- **Core:** skip-to-end (from the start and mid-setup), per-step skip keeping settings,
+  explicit answers, resume round-trip plus an old-progress file, unknown outcome values,
+  completed old users, settle keeps a declined status.
+- **Native (compiled only):** failed name save stays on the question and retry saves
+  name and step together; failed skips, skip-to-end and setSetupStep don't advance or
+  record; failed finish (with Sample Data) leaves setup open with no samples, then a
+  retry completes; skip-to-end invents no answers. Failures are injected by replacing
+  `state.json` with a directory, the same technique as `failedSaveRestoresPreviousRecords`.
+  No sleeps or timing.
+- **UI (compiled only):**
+  - `testSkipToEndShowsNoAnswersForQuestionsNotAsked`
+  - `testSleepTargetNotNowKeepsTheSettingAsAuroraNote`
+  - `testHealthSetupAtLargestTextRequestsNothing`
+  - The story test now also asserts "You: 8 hours" after an explicit Continue.
+- **Screenshot attachments:** "First story scene", "Health setup at largest text",
+  "Held welcome".
+
+Runtime-unverified selectors: `app.steppers["setup-sleep-target"].buttons.element(boundBy: 1)`
+as the Increment button, and `staticTexts["setup-retained-sleepTarget"]`.
+
+Checks run for the corrections:
+
+| Check | Result |
+|---|---|
+| Core `swift test` TZ=UTC / America/Los_Angeles | 216/216 each |
+| `build-for-testing`, ad-hoc simulator signing | App, AuroraTests, AuroraUITests compiled, no errors/warnings (`-quiet`) |
+| Unsigned Release, `CODE_SIGNING_ALLOWED=NO` | Built, no errors/warnings |
+| `scripts/check-design-tokens.py` | passed |
+| `git diff --check` | clean |
+
+Not run: native AuroraTests, UI tests, installs, visual review. The failure-path UI (error
+banner layout and announcement) has not been seen at runtime.
+
 ## Next steps for Codex
 
-1. Review `5dea303` (core) separately from `6d15da5`.
+1. Review `5dea303` (core) separately from `6d15da5`, then `f8152d5` and `aac442b`.
 2. Run core in both zones, then native AuroraTests (including `SetupProgressAppTests`),
    then serial iPhone/iPad UI, especially the two new UI tests, the erase test and any
    test that relaunches a completed app.
