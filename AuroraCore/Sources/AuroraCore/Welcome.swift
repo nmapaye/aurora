@@ -143,7 +143,8 @@ public enum SetupStep: Int, CaseIterable, Sendable {
     case sleepTarget = 2
     case health = 4
     case calendar = 5
-    case finish = 6
+    case wakeReminders = 6
+    case finish = 7
 
     public var next: SetupStep {
         Self.allCases.first { $0.rawValue > rawValue } ?? .finish
@@ -246,6 +247,9 @@ public enum SetupTranscript {
         case (.sleepTarget, .skipped): return .retained("Sleep target stays at \(target). You can change it in Settings.")
         case (.health, .answered): return .person(SetupCopy.healthAnswer(state.healthChoices, healthAvailable: healthAvailable))
         case (.calendar, .answered): return .person(calendarsChosen ? "Calendars chosen" : "No calendars chosen")
+        case (.wakeReminders, .answered):
+            guard let settings = state.prefs.wakeReminders?.normalized(), settings.enabled, !settings.offsetsMinutes.isEmpty else { return .person("Not now") }
+            return .person(ListFormatter.localizedString(byJoining: settings.offsetsMinutes.map(WakeReminders.offsetText)) + " after waking")
         case (_, .skipped): return .person("Not now")
         case (.finish, _): return nil
         }
@@ -294,6 +298,7 @@ public enum SetupCopy {
         case .sleepTarget: "How much sleep do you aim for on a typical night? It’s your own reference, not a rule."
         case .health: "Apple Health is optional. Each choice below asks Health for that permission alone."
         case .calendar: "I can read calendars you choose to mention what’s coming up. Nothing connects unless you choose it, and I change an event only after you approve a preview."
+        case .wakeReminders: "Want caffeine reminders after you wake? Pick when, and I’ll time them from your recorded wake-up, or your usual wake time."
         case .finish:
             modelAvailable
                 ? "You’re set. Ask me about your sleep, caffeine or energy, or use the quick actions."

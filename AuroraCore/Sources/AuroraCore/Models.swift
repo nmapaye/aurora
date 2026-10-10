@@ -113,6 +113,9 @@ public struct Prefs: Codable, Equatable, Sendable {
     /// `CaffeinePreset` ids chosen as favorites. Optional and isn't written
     /// while unset.
     public var favoriteDrinkIDs: [String]?
+    /// Caffeine reminders the person set relative to waking. Nil until set
+    /// up, and in files from older builds.
+    public var wakeReminders: WakeReminderSettings?
 
     public static let defaultHalfLife: Double = 5
     public static let defaultTargetSleep: Double = 8
@@ -134,7 +137,8 @@ public struct Prefs: Codable, Equatable, Sendable {
         cutoffHour: Double,
         notifyCutoff: Bool,
         displayName: String? = nil,
-        favoriteDrinkIDs: [String]? = nil
+        favoriteDrinkIDs: [String]? = nil,
+        wakeReminders: WakeReminderSettings? = nil
     ) {
         self.halfLife = halfLife
         self.targetSleep = targetSleep
@@ -144,6 +148,7 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.notifyCutoff = notifyCutoff
         self.displayName = displayName
         self.favoriteDrinkIDs = favoriteDrinkIDs
+        self.wakeReminders = wakeReminders
     }
 }
 
