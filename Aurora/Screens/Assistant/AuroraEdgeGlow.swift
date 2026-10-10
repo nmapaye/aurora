@@ -4,12 +4,16 @@ import SwiftUI
 /// No motion timer runs at rest, in the background, or with Reduce Motion enabled.
 struct AuroraEdgeGlow: View {
     let active: Bool
+    /// False draws the Reduce Motion treatment (Design Gallery review).
+    var allowsMotion = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
+    private var still: Bool { reduceMotion || !allowsMotion }
+
     var body: some View {
         ZStack {
-            if active && !reduceMotion && scenePhase == .active {
+            if active && !still && scenePhase == .active {
                 TimelineView(.animation(minimumInterval: Motion.decorationFrameInterval)) { context in
                     edge(phase: context.date.timeIntervalSinceReferenceDate)
                 }
@@ -18,11 +22,11 @@ struct AuroraEdgeGlow: View {
                 // leaves active: the bands hold where the timeline left them,
                 // so the fade starts from the last frame instead of jumping
                 // to a stale one. Reduce Motion always draws the same frame.
-                edge(phase: reduceMotion ? 0 : Date.now.timeIntervalSinceReferenceDate)
+                edge(phase: still ? 0 : Date.now.timeIntervalSinceReferenceDate)
             }
         }
         .opacity(active ? 1 : 0)
-        .animation(reduceMotion || scenePhase != .active ? nil : .easeInOut(duration: active ? Motion.processingFadeIn : Motion.processingFadeOut), value: active)
+        .animation(still || scenePhase != .active ? nil : .easeInOut(duration: active ? Motion.processingFadeIn : Motion.processingFadeOut), value: active)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

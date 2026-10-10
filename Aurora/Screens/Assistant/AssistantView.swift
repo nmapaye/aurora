@@ -380,12 +380,14 @@ private struct CapsuleActionBody: View {
 struct AuroraActivity: View {
     let active: Bool
     var subdued = false
+    /// False draws the Reduce Motion treatment (Design Gallery review).
+    var allowsMotion = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        if active && !reduceMotion && scenePhase == .active {
-            TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+        if active && allowsMotion && !reduceMotion && scenePhase == .active {
+            TimelineView(.animation(minimumInterval: Motion.decorationFrameInterval)) { timeline in
                 ribbon(phase: timeline.date.timeIntervalSinceReferenceDate)
             }
         } else {

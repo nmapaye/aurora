@@ -24,6 +24,9 @@ struct SetupConversationView: View {
     @State private var healthMessages: [HealthChoice: String] = [:]
     @State private var showCalendars = false
     @FocusState private var nameFocused: Bool
+    /// False only in the Design Gallery fixture, whose calendar sheet could
+    /// otherwise ask the system for real calendar access.
+    var connectionsEnabled = true
 
     /// The choices that ask Health for a permission. Background updates stay
     /// in Apple Health settings.
@@ -281,7 +284,7 @@ struct SetupConversationView: View {
     /// selected unless the person does it there.
     @ViewBuilder private var calendarControls: some View {
         if assistant.calendars.selected.isEmpty {
-            actionRow(primary: "Choose calendars", primaryDisabled: false, primaryAction: { showCalendars = true }) {
+            actionRow(primary: "Choose calendars", primaryDisabled: !connectionsEnabled, primaryAction: { showCalendars = true }) {
                 record(.calendar, .skipped)
             }
         } else {
@@ -291,6 +294,7 @@ struct SetupConversationView: View {
                     .accessibilityIdentifier("setup-next")
                 Button("Change calendars") { showCalendars = true }
                     .buttonStyle(.auroraSecondary)
+                    .disabled(!connectionsEnabled)
             }
         }
     }

@@ -355,7 +355,11 @@ final class AssistantModel {
     /// The receipt's Apple Health row, apart from the local outcome in the
     /// title. Nil when Health has nothing to do with this entry.
     func healthMetric(doseID: String, app: AppModel) -> AssistantCard.Metric? {
-        let status = app.healthStatus(forDoseID: doseID)
+        Self.healthMetric(app.healthStatus(forDoseID: doseID))
+    }
+
+    /// The same row for a given status; the Design Gallery shows each one.
+    static func healthMetric(_ status: HealthExportStatus) -> AssistantCard.Metric? {
         guard let value = status.value else { return nil }
         return .init(id: "health", label: "Apple Health", value: value, source: "Aurora’s own entry", detail: status.detail, missing: status.needsAttention)
     }

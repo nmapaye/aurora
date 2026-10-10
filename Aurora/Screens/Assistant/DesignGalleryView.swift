@@ -15,6 +15,11 @@ struct DesignGalleryView: View {
     @State private var showHealthChoices = false
     @State private var energyVariant = EnergyVariant.populated
     @State private var healthAtAccessibilitySize = true
+    /// Non-energy cards captured three hours earlier, as an old snapshot.
+    @State private var earlier = false
+    @State private var receiptHealth = ReceiptHealth.none
+    @State private var showSetup = false
+    @State private var welcome: WelcomeFixture?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
     private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
@@ -34,15 +39,26 @@ struct DesignGalleryView: View {
             }
         }
     }
+    /// The receipt's Apple Health row, using the app's own status copy.
+    enum ReceiptHealth: String, CaseIterable {
+        case none = "No Health row", pending = "Export pending", failed = "Not exported", added = "Added", unconfirmed = "Unconfirmed"
+        var status: HealthExportStatus? {
+            switch self {
+            case .none: nil
+            case .pending: .pending(.saveCaffeine)
+            case .failed: .failed(.saveCaffeine, nil)
+            case .added: .exported
+            case .unconfirmed: .uncertain
+            }
+        }
+    }
     private let states: [AssistantCard.State] = [.ready, .loading, .saved, .undone, .expired, .failed, .discarded]
     private let tones: [(String, StatusTone)] = [("Neutral", .neutral), ("Info", .info), ("Success", .success), ("Warning", .warning), ("Error", .error)]
 
     init() {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AuroraGallery-\(UUID().uuidString)")
-        let app = AppModel(health: GalleryHealth(), makeStore: { StateStore(directory: directory) }, legacy: { nil })
-        let assistant = AssistantModel(calendars: CalendarService(providers: []), makeStore: { ConversationStore(directory: directory) })
-        _fixtureApp = State(initialValue: app)
-        _fixtureAssistant = State(initialValue: assistant)
+        let fixture = GalleryFixture.make()
+        _fixtureApp = State(initialValue: fixture.app)
+        _fixtureAssistant = State(initialValue: fixture.assistant)
     }
 
     var body: some View {
@@ -61,6 +77,14 @@ struct DesignGalleryView: View {
                             ForEach(EnergyVariant.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
                         .accessibilityIdentifier("gallery-energy-variant")
+                    } else if kind == .receipt {
+                        Picker("Apple Health row", selection: $receiptHealth) {
+                            ForEach(ReceiptHealth.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        .accessibilityIdentifier("gallery-receipt-health")
+                    } else {
+                        Toggle("Earlier snapshot (3 hours ago)", isOn: $earlier)
+                            .accessibilityIdentifier("gallery-earlier")
                     }
                     Picker("Interaction state", selection: $state) {
                         Text("Live").tag(AssistantCard.State?.none)
@@ -68,12 +92,21 @@ struct DesignGalleryView: View {
                     }
                     Text("Evidence and actions").font(.title2)
                     ForEach(experience) { message in
-                        if let card = message.card { AssistantCardView(message: message, card: display(card)) }
+                        if let card = message.card {
+                            // Its switches reach the real notification center, so they stay off here.
+                            AssistantCardView(message: message, card: display(card)).disabled(card.kind == .reminders)
+                            if card.kind == .reminders {
+                                Text("Fixture: device controls are off; notifications are never requested here.")
+                                    .font(Typography.source).foregroundStyle(Palette.textSecondary)
+                            }
+                        }
                     }
                     if let failure = fixtureAssistant.failure {
                         Text(failure).font(.footnote).foregroundStyle(Palette.destructive)
                     }
                     healthChoices
+                    onboarding
+                    MotionFixtures()
                     tokens
                     Text(reduceMotion ? "Reduce Motion: static treatment" : "Motion follows device accessibility settings")
                         .font(Typography.source)
@@ -96,7 +129,13 @@ struct DesignGalleryView: View {
             await fixtureAssistant.start(app: fixtureApp)
             await showExperience()
         }
+        .sheet(isPresented: $showSetup) { SetupFixtureView() }
+        .fullScreenCover(item: $welcome) { variant in
+            WelcomeOverlay(content: variant.content(), showing: true) { welcome = nil }
+        }
         .onChange(of: kind) { _, _ in Task { await showExperience() } }
+        .onChange(of: earlier) { _, _ in Task { await showExperience() } }
+        .onChange(of: receiptHealth) { _, _ in Task { await showExperience() } }
         .onChange(of: energyVariant) { _, _ in Task { await showExperience() } }
         .onChange(of: populated) { _, value in
             if value { fixtureApp.loadSampleData() } else { fixtureApp.deleteAllData() }
@@ -124,6 +163,21 @@ struct DesignGalleryView: View {
             Button("Show Health choices") { showHealthChoices = true }
                 .buttonStyle(.auroraSecondary)
                 .accessibilityIdentifier("gallery-health-choices")
+        }
+    }
+
+    /// Setup with failing and working saves, and the welcome for each kind of evidence.
+    private var onboarding: some View {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
+            Text("First run").font(.title2)
+            Button("Show setup fixture") { showSetup = true }
+                .buttonStyle(.auroraSecondary)
+                .accessibilityIdentifier("gallery-setup")
+            ForEach(WelcomeFixture.allCases) { variant in
+                Button("Welcome · \(variant.rawValue)") { welcome = variant }
+                    .buttonStyle(.auroraSecondary)
+                    .accessibilityIdentifier("gallery-welcome-\(variant)")
+            }
         }
     }
 
@@ -166,6 +220,12 @@ struct DesignGalleryView: View {
             var card = AssistantCard(kind: .receipt, capturedAt: fixtureApp.now, title: "Sample receipt", summary: "Fixture only · no personal record saved")
             card.state = .saved
             card.records = Array(AssistantCards.make(.history, state: fixtureApp.state, now: fixtureApp.now, clock: fixtureApp.clock, text: fixtureApp.text).records.filter { $0.kind == "caffeine" }.prefix(1))
+            if let status = receiptHealth.status, let row = AssistantModel.healthMetric(status) { card.metrics = [row] }
+            fixtureAssistant.conversation.messages.append(.init(text: card.summary, card: card))
+        } else if earlier {
+            fixtureApp.tick()
+            var card = AssistantCards.make(kind, state: fixtureApp.state, now: fixtureApp.now - 3 * hourMs, clock: fixtureApp.clock, text: fixtureApp.text)
+            card.timeZone = fixtureApp.clock.timeZone.identifier
             fixtureAssistant.conversation.messages.append(.init(text: card.summary, card: card))
         } else {
             let card = AssistantCards.make(kind, state: fixtureApp.state, now: fixtureApp.now, clock: fixtureApp.clock, text: fixtureApp.text)
@@ -217,13 +277,6 @@ extension DesignGalleryView {
         _ = fixtureApp.addCustomDose(.init(mg: "60", source: "Tea", timestamp: now - 90 * minuteMs, note: "Synthetic fixture"))
         fixtureApp.addEnergyCheckIn(.init(id: RecordID.newEnergyCheckInID(now: now - hourMs), recordedAt: now - hourMs, rating: 3, note: "Synthetic fixture"))
     }
-}
-
-/// Available, but declares no Health capability, so every choice is refused
-/// before HealthKit is asked anything.
-private struct GalleryHealth: HealthDataProvider {
-    var capabilities: HealthCapabilities { [] }
-    var isAvailable: Bool { true }
 }
 
 /// Status badges wrap onto new lines at large text sizes.
