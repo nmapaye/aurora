@@ -78,3 +78,31 @@ synchronously during erase; same risk, behind a loading screen.
   metrics); worth a follow-up trim.
 - UI tests touching setup: `finishSetup()` uses Skip all and is unaffected; the
   step-by-step test now expects the reminder question after calendars.
+
+## Round 2: first-time-user feedback (2026-10-11)
+
+A first-time user's walkthrough of the phone build, clarified with Nathan.
+
+| Feedback | Change | Commit |
+|---|---|---|
+| Welcome too fast to read | Holds ~3 s; wave mark draws in, dot pops (soft haptic), card rises; exits by lifting away as the mark swells; tap skips | `7420777` |
+| Should land at the bottom after welcome | Conversation opens at its latest message (`defaultScrollAnchor(.bottom)`) | `7420777` |
+| "Refresh for current", but where? | Visible Refresh pill; the earlier-snapshot badge itself refreshes | `7420777` |
+| Logo beside "Aurora" blurry | Crisp mark at rest; blurred ribbon only while working | `7420777` |
+| "5 h" / "8 h" hard to read | "5h", "8h", "1h 30m" | `7420777` |
+| No drink suggestions when logging | One-tap drink chips, favorites first | `7420777` |
+| Too many quick buttons, scrolling tedious; Morning briefing first; Apple Health belongs in settings | Four tiles that fit: Briefing, Caffeine, Energy, Reaction. Apple Health + Calendars lead Aurora settings as Connections | `7420777`, `98dc03c`, `46eb88c` |
+| Too much detail on energy; wants what it means for the day | Score + "Your day" (today's modeled high and low, now vs past week with 4+ days) up front; recorded inputs, model breakdown, plain "What this means" behind taps. `EnergyOutlook` stored on snapshots (optional) | `a0602fa` |
+| Sleep history redundant; buttons messy | Records list drops Sleep history; Sleep Data uses one list of icon rows in sentence case; "Apple Health" wording | `37c96ab` |
+| Reminders card repeats itself | Each setting shown once | `98dc03c` |
+
+**Still open from this round:** "only the left side of the modal is responsive
+when inputting values". Not reproduced: an automated tap probe of the caffeine
+card's fields focused at every point tried. Waiting for which screen/control.
+
+**Decided by Nathan (for Codex, Health code):** after erase, reinstall or a new
+phone, re-adopt Aurora's own earlier caffeine exports from Health as the person's
+entries when no local entry has that sync identifier (currently skipped).
+
+**Release gate:** paid Apple Developer enrollment not started; device testing
+uses the free Personal Team (7-day profiles).
