@@ -34,6 +34,8 @@ final class AuroraUITests: XCTestCase {
         // Only four quick actions remain; others are the same request typed.
         if !button.waitForExistence(timeout: 3) { request(label); return }
         let strip = app.scrollViews["assistant-quick-actions"]
+        // The quick actions are a fixed row of tiles now; no scrolling needed.
+        guard strip.exists else { button.tap(); return }
         for _ in 0..<5 {
             let frame = strip.frame
             let center = button.frame.midX

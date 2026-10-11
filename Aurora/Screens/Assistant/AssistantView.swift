@@ -317,26 +317,31 @@ struct AssistantView: View {
     }
     /// Scrolls past the column's edges, but its first action starts in line
     /// with the cards and composer.
+    /// Four everyday actions as equal tiles that fit without scrolling;
+    /// everything else is in Settings, the history button, or a request.
     private var quickActions: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Metrics.xs) {
-                // Four everyday actions; everything else is in Settings, the
-                // history button, or a typed request.
-                quickAction("Morning briefing", symbol: "sun.horizon")
-                quickAction("Log caffeine", symbol: "cup.and.saucer")
-                quickAction("How is my energy?", symbol: "sparkle")
-                quickAction("Reaction test", symbol: "hand.tap")
-            }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 140 : 72), spacing: Metrics.xs)], spacing: Metrics.xs) {
+            quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
+            quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
+            quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
+            quickAction("Reaction test", short: "Reaction", symbol: "hand.tap")
         }
-        .contentMargins(.horizontal, Metrics.columnInset(containerWidth: composerWidth), for: .scrollContent)
+        .padding(.horizontal, Metrics.columnInset(containerWidth: composerWidth))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assistant-quick-actions")
     }
-    private func quickAction(_ text: String, symbol: String, action: (() -> Void)? = nil) -> some View {
-        Button { if let action { action() } else { assistant.send(text, app: app) } } label: {
-            Label(text, systemImage: symbol).font(.caption.weight(.medium))
-                .padding(.horizontal, Metrics.sm).frame(minHeight: Metrics.minimumTouchTarget)
+    private func quickAction(_ text: String, short: String, symbol: String) -> some View {
+        Button { assistant.send(text, app: app) } label: {
+            VStack(spacing: Metrics.xxs) {
+                Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
+                Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
         }
-        .buttonStyle(CapsuleActionStyle()).disabled(assistant.processing).accessibilityIdentifier("assistant-quick-\(text)")
+        .buttonStyle(TileActionStyle())
+        .disabled(assistant.processing)
+        .accessibilityLabel(text)
+        .accessibilityIdentifier("assistant-quick-\(text)")
     }
     private func send() {
         guard !assistant.processing else { return }
@@ -373,6 +378,26 @@ private struct CapsuleActionBody: View {
             .background(Palette.card, in: Capsule())
             .overlay(Capsule().strokeBorder(Palette.cardBorder))
             .contentShape(Capsule())
+            .pressFeedback(configuration.isPressed)
+    }
+}
+
+/// Quick action tiles: a card surface with the shared press feedback.
+private struct TileActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { TileActionBody(configuration: configuration) }
+}
+
+private struct TileActionBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius + 2, style: .continuous)
+        configuration.label
+            .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.primaryButtonDisabledText)
+            .background(Palette.card, in: shape)
+            .overlay(shape.strokeBorder(Palette.cardBorder))
+            .contentShape(shape)
             .pressFeedback(configuration.isPressed)
     }
 }
