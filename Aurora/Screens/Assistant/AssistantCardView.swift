@@ -297,45 +297,48 @@ struct AssistantCardView: View {
             if card.kind == .energy && card.state == .failed {
                 Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive)
             }
-            ForEach(card.metrics) { item in
-                VStack(alignment: .leading, spacing: Metrics.xxs) {
-                    Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-                    Text(item.value).font(Typography.heroValue).monospacedDigit()
-                    if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
-                    if item.missing && (item.id == "sleep" || item.id == "caffeine") {
-                        Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }.font(.subheadline).frame(minHeight: Metrics.minimumTouchTarget)
-                    }
-                }.accessibilityElement(children: .contain)
+            // The overview: the headline number, then what it means for the day.
+            ForEach(card.metrics.filter { $0.id == "alertness" || card.kind != .energy }) { item in
+                metricHero(item)
             }
-            if card.kind == .energy, let energy = card.energy {
-                EnergyEvidenceSections(snapshot: energy, text: snapshotText)
+            if let outlook = card.energy?.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
+            // Missing inputs stay visible, with a way to add them.
+            ForEach(card.metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
+                Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }
+                    .buttonStyle(.auroraSecondary)
+            }
+            // Everything else only when asked for.
+            if card.kind == .energy {
+                DisclosureGroup("What’s recorded") {
+                    ForEach(card.metrics.filter { $0.id != "alertness" }) { metricHero($0) }
+                }
+                if let energy = card.energy {
+                    DisclosureGroup("What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+                }
             }
             DisclosureGroup("What this means") {
-                if let estimate = card.metrics.first(where: { $0.id == "alertness" }) { Text(estimate.detail).font(.footnote) }
-                if let energy = card.energy { limitations(energy) }
-                Text(card.summary).font(.footnote).padding(.top, Metrics.xxs)
-            }
-            DisclosureGroup("What’s missing") {
-                if card.metrics.contains(where: \.missing) { Text("Missing records stay ‘No record’. You can add an entry above; Aurora will not fill in a cause or a measurement.").font(.footnote) }
-                else { Text("Stress, illness, and other factors aren't measured here. Recorded signals cannot establish a cause.").font(.footnote) }
+                Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
-    private func limitations(_ energy: EnergySnapshot) -> some View {
+    private func metricHero(_ item: AssistantCard.Metric) -> some View {
         VStack(alignment: .leading, spacing: Metrics.xxs) {
-            Text(EnergySnapshot.scaleNote)
-            ForEach(energy.estimate.limitations, id: \.self) { Text($0.text) }
-            Text("Model \(energy.estimate.modelVersion) · captured in \(energy.estimate.timeZoneIdentifier)")
-                .foregroundStyle(Palette.textSecondary)
-        }
-        .font(.footnote).padding(.top, Metrics.xxs)
+            Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+            Text(item.value).font(Typography.heroValue).monospacedDigit()
+            if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
+        }.accessibilityElement(children: .combine)
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
             if card.state == .failed { Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive) }
-            EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
-            EnergyEvidenceSections(snapshot: energy, text: snapshotText)
-            DisclosureGroup("What this means") { limitations(energy) }
+            let chart = EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
+            chart
+            if let outlook = energy.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
+            DisclosureGroup("What’s recorded in this window") { chart.observations.padding(.top, Metrics.xs) }
+            DisclosureGroup("What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+            DisclosureGroup("What this means") {
+                Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
+            }
         } else {
             Text(card.summary.isEmpty ? "This snapshot has no curve. Refresh for a current one." : card.summary)
                 .font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)

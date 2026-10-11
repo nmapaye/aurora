@@ -43,6 +43,8 @@ public struct EnergySnapshot: Codable, Equatable, Sendable {
     public var checkIns: [EnergyCheckIn]
     /// Reaction Tests, newest first.
     public var reactions: [EnergyReaction]
+    /// What the curve means for the day. Nil in snapshots from older builds.
+    public var outlook: EnergyOutlook?
 
     public static func capture(state: AppState, now: Millis, clock: LocalClock, includeProjection: Bool) -> EnergySnapshot {
         let inputs = EstimateInputs(prefs: state.prefs, clock: clock)
@@ -69,7 +71,8 @@ public struct EnergySnapshot: Codable, Equatable, Sendable {
                 .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) },
             reactions: state.vigilanceSessions.filter { $0.completedAt >= windowStart && $0.completedAt <= now }
                 .sorted { ($0.completedAt, $0.id) > ($1.completedAt, $1.id) }
-                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id)) }
+                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id)) },
+            outlook: EnergyOutlook.make(state: state, now: now, clock: clock)
         )
     }
 
