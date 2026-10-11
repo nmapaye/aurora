@@ -5,6 +5,7 @@ struct AssistantSettingsView: View {
     @Bindable var assistant: AssistantModel
     @Environment(\.dismiss) private var dismiss
     @State private var clearConversation = false
+    @State private var showAppleHealth = false
     @Environment(AppModel.self) private var app
     private var wakeSummary: String {
         guard let settings = app.state.prefs.wakeReminders?.normalized(), settings.enabled, !settings.offsetsMinutes.isEmpty else { return "Off" }
@@ -49,8 +50,13 @@ struct AssistantSettingsView: View {
                 }
                 #endif
                 Section("Connections and records") {
+                    Button { showAppleHealth = true } label: {
+                        HStack { Label("Apple Health", systemImage: "heart.text.square"); Spacer(); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary) }
+                    }
+                    .foregroundStyle(Palette.textPrimary)
+                    .accessibilityIdentifier("assistant-apple-health")
                     NavigationLink("Calendar connections", destination: CalendarConnectionsView(service: assistant.calendars))
-                    NavigationLink("Records, exports, Health, and privacy", destination: SettingsView())
+                    NavigationLink("Your records, exports and privacy", destination: SettingsView())
                         .accessibilityIdentifier("assistant-record-settings")
                     Button("Clear conversation", role: .destructive) { clearConversation = true }
                     Text("Your records are kept.").font(.footnote)
@@ -63,6 +69,7 @@ struct AssistantSettingsView: View {
                 assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: false) }
             }
+            .sheet(isPresented: $showAppleHealth) { HealthConnectionView() }
             .confirmationDialog("Clear this conversation?", isPresented: $clearConversation) {
                 Button("Clear conversation", role: .destructive) {
                     assistant.clearConversation()

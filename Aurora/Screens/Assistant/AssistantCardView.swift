@@ -110,7 +110,16 @@ struct AssistantCardView: View {
         if (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
             && app.now - card.capturedAt > EnergyCardTiming.staleAfterMs {
             // Old snapshots keep their results; this only says they are old.
-            StatusBadge(text: "Earlier snapshot · Refresh for current", tone: .warning)
+            // The badge itself refreshes, so "Refresh" is never a riddle.
+            Button { assistant.refresh(card, app: app) } label: {
+                Label("Earlier snapshot · Tap to refresh", systemImage: "arrow.clockwise")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(StatusTone.warning.foreground)
+                    .padding(.horizontal, Metrics.sm).padding(.vertical, Metrics.xxs)
+                    .background(StatusTone.warning.background, in: Capsule())
+            }
+            .buttonStyle(.auroraPress)
+            .disabled(assistant.processing)
         }
         if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
@@ -160,10 +169,18 @@ struct AssistantCardView: View {
     }
     @ViewBuilder private var refreshButton: some View {
         if card.refreshIntent != nil {
-            Button([.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind) ? "New review" : "Refresh") {
-                assistant.refresh(card, app: app)
-            }.font(.caption.weight(.medium)).frame(minHeight: Metrics.minimumTouchTarget)
-                .disabled(assistant.processing).accessibilityIdentifier("assistant-refresh-\(card.kind.rawValue)")
+            let label = [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind) ? "New review" : "Refresh"
+            Button { assistant.refresh(card, app: app) } label: {
+                Label(label, systemImage: "arrow.clockwise")
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, Metrics.sm)
+                    .frame(minHeight: 32)
+                    .background(Palette.selectionFill, in: Capsule())
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+            }
+            .buttonStyle(.auroraPress)
+            .foregroundStyle(Palette.tint)
+            .disabled(assistant.processing).accessibilityIdentifier("assistant-refresh-\(card.kind.rawValue)")
         }
     }
     private var symbol: String {
@@ -396,9 +413,36 @@ struct AssistantCardView: View {
             }
         }
     }
+    /// One-tap drinks, favorites first: each fills the drink and amount,
+    /// which stay editable before Save.
+    private func drinkChips(selected draft: CustomDoseDraft) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Metrics.xs) {
+                ForEach(CaffeinePreset.ordered(favorites: app.state.prefs.favoriteDrinkIDs)) { preset in
+                    let chosen = draft.source == preset.label && draft.mg == numberText(preset.mg)
+                    Button {
+                        assistant.pendingDraft?.source = preset.label
+                        assistant.pendingDraft?.mg = numberText(preset.mg)
+                    } label: {
+                        Label("\(preset.label) · \(numberText(preset.mg)) mg", systemImage: preset.symbol)
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .padding(.horizontal, Metrics.sm)
+                            .frame(minHeight: Metrics.minimumTouchTarget)
+                            .foregroundStyle(chosen ? Palette.primaryButtonText : Palette.textPrimary)
+                            .background(chosen ? Palette.tint : Palette.cardMuted, in: Capsule())
+                    }
+                    .buttonStyle(.auroraPress)
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
+                    .accessibilityIdentifier("assistant-drink-\(preset.id)")
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
     @ViewBuilder private var caffeineEditor: some View {
         if draftActive, let draft = assistant.pendingDraft {
             VStack(alignment: .leading, spacing: Metrics.md) {
+                drinkChips(selected: draft)
                 LabeledField(label: "Amount", unit: "mg") {
                     TextField("Amount in mg", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
                         .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().focused($field, equals: .amount)

@@ -106,9 +106,10 @@ public enum Welcome {
     public struct Presentation: Equatable, Sendable {
         public private(set) var showing: Bool
 
-        /// How long the welcome stays before ending by itself. A tap ends it
-        /// sooner; it never has to finish before the conversation works.
-        public static let holdSeconds = 1.2
+        /// How long the welcome stays before ending by itself: long enough to
+        /// read the greeting and its one fact. A tap ends it sooner; it never
+        /// has to finish before the conversation works.
+        public static let holdSeconds = 3.0
 
         /// Once per cold launch, only for people who finished setup. Not
         /// shown under VoiceOver, so focus starts in the conversation and

@@ -73,6 +73,8 @@ struct AssistantView: View {
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(Metrics.lg)
                 }
+                // Opens at the latest message, including right after the welcome.
+                .defaultScrollAnchor(.bottom)
                 .coordinateSpace(.named(Self.viewport))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
                 .scrollDismissesKeyboard(.interactively)
@@ -105,7 +107,17 @@ struct AssistantView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 7) {
-                        AuroraActivity(active: true, subdued: true).frame(width: 28, height: 20)
+                        // The crisp mark at rest; the flowing ribbon only while working.
+                        ZStack {
+                            if assistant.processing {
+                                AuroraActivity(active: true, subdued: true).frame(width: 28, height: 20)
+                                    .transition(.opacity)
+                            } else {
+                                AuroraMark().frame(width: 22, height: 22).transition(.opacity)
+                            }
+                        }
+                        .frame(width: 28, height: 22)
+                        .animation(Motion.content(reduceMotion: reduceMotion), value: assistant.processing)
                         Text("Aurora").font(.headline)
                     }
                     .accessibilityElement(children: .ignore).accessibilityLabel("Aurora")
@@ -308,22 +320,12 @@ struct AssistantView: View {
     private var quickActions: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Metrics.xs) {
-                quickAction("Log caffeine", symbol: "cup.and.saucer")
-                quickAction("Log sleep", symbol: "moon")
-                quickAction("Connect Apple Health", symbol: "heart.text.square") {
-                    composerFocused = false
-                    showHealthConnection = true
-                }
-                quickAction("How is my energy?", symbol: "sparkle")
-                quickAction("Show my energy curve", symbol: "chart.xyaxis.line")
-                quickAction("Check in my energy", symbol: "hand.raised")
-                quickAction("Show this week", symbol: "chart.bar")
-                quickAction("Review calendar", symbol: "calendar")
+                // Four everyday actions; everything else is in Settings, the
+                // history button, or a typed request.
                 quickAction("Morning briefing", symbol: "sun.horizon")
+                quickAction("Log caffeine", symbol: "cup.and.saucer")
+                quickAction("How is my energy?", symbol: "sparkle")
                 quickAction("Reaction test", symbol: "hand.tap")
-                quickAction("History", symbol: "clock.arrow.circlepath")
-                quickAction("Export records", symbol: "square.and.arrow.up")
-                quickAction("Reminders", symbol: "bell")
             }
         }
         .contentMargins(.horizontal, Metrics.columnInset(containerWidth: composerWidth), for: .scrollContent)

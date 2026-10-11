@@ -70,9 +70,9 @@ struct EnergyEvidenceSections: View {
         case .baseline: return "Where every estimate starts."
         case .timeOfDay: return "The same daily curve for everyone, by local time."
         case .caffeine:
-            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours)) h half-life."
+            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours))h half-life."
         case .sleepDebt:
-            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours)) h."
+            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours))h."
         case .inertia:
             return estimate.evidence.lastWakeAt.map { "Recorded sleep ended at \(text.clockTime($0))." } ?? "Not shortly after recorded sleep."
         }

@@ -152,7 +152,7 @@ struct SettingsView: View {
     }
 
     private func hoursText(_ value: Double) -> String {
-        "\(OnboardingCopy.formatSleepTarget(value).value) h"
+        "\(OnboardingCopy.formatSleepTarget(value).value)h"
     }
 
     private func stepper(

@@ -122,7 +122,7 @@ public enum AssistantCards {
                 card.metrics.insert(.init(
                     id: "activeCaffeine", label: "Estimated active caffeine",
                     value: evidence.hasActiveCaffeine ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg" : "No record",
-                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours)) h half-life",
+                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours))h half-life",
                     missing: !evidence.hasActiveCaffeine
                 ), at: 2)
             }

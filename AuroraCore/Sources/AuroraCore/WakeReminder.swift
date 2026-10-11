@@ -124,10 +124,10 @@ public enum WakeReminders {
         }
     }
 
-    /// "45 min", "1 h", "1 h 30 min".
+    /// "45m", "1h", "1h 30m", matching the app's other durations.
     public static func offsetText(_ minutes: Int) -> String {
         let hours = minutes / 60, rest = minutes % 60
-        if hours == 0 { return "\(rest) min" }
-        return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
+        if hours == 0 { return "\(rest)m" }
+        return rest == 0 ? "\(hours)h" : "\(hours)h \(rest)m"
     }
 }

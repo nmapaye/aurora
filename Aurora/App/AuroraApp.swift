@@ -174,7 +174,9 @@ struct RootView: View {
             welcomeContent = nil
             return
         }
-        withAnimation(.easeOut(duration: Motion.contentDuration)) {
+        // The exit (card lifting away, mark swelling) is decoration over a
+        // conversation that is already usable.
+        withAnimation(.easeIn(duration: 0.7)) {
             welcome.skip()
         } completion: {
             if !welcome.showing { welcomeContent = nil }

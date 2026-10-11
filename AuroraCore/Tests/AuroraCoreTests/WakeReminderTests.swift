@@ -23,7 +23,7 @@ struct WakeReminderTests {
         let today = plan.filter { $0.id.contains(clock.dayKey(now)) }
         #expect(today.map(\.fireAt) == [wake + 60 * minuteMs, wake + 300 * minuteMs])
         #expect(today.allSatisfy { $0.basis == .recordedWake(wake) })
-        #expect(today.first?.body == "1 h after waking · woke at \(fixtureTime(wake))")
+        #expect(today.first?.body == "1h after waking · woke at \(fixtureTime(wake))")
     }
 
     @Test(arguments: zones) func noRecordedWakeFallsBackToUsualTime(zone: String) {
@@ -33,7 +33,7 @@ struct WakeReminderTests {
         let plan = WakeReminders.plan(settings: settings(), cutoffHour: 16, sleeps: [], now: now, clock: clock, text: fixtureText)
         let today = plan.filter { $0.id.contains(clock.dayKey(now)) }
         #expect(today.map(\.fireAt) == [usual + hourMs, usual + 5 * hourMs])
-        #expect(today.first?.body == "1 h after your usual \(fixtureTime(usual)) wake time")
+        #expect(today.first?.body == "1h after your usual \(fixtureTime(usual)) wake time")
     }
 
     @Test(arguments: zones) func tomorrowIsAlwaysScheduledFromTheUsualTime(zone: String) {
@@ -126,9 +126,9 @@ struct WakeReminderTests {
             #expect(CopyRules.violations(in: reminder.title + " " + reminder.body).isEmpty)
             #expect(!reminder.body.localizedCaseInsensitiveContains("should"))
         }
-        #expect(WakeReminders.offsetText(45) == "45 min")
-        #expect(WakeReminders.offsetText(90) == "1 h 30 min")
-        #expect(WakeReminders.offsetText(120) == "2 h")
+        #expect(WakeReminders.offsetText(45) == "45m")
+        #expect(WakeReminders.offsetText(90) == "1h 30m")
+        #expect(WakeReminders.offsetText(120) == "2h")
     }
 
     @Test func olderPrefsDecodeWithoutWakeReminders() throws {
@@ -142,7 +142,7 @@ struct WakeReminderTests {
         #expect(SetupStep.wakeReminders.next == .finish)
         var state = AppState()
         state.prefs.wakeReminders = WakeReminderSettings(enabled: true, offsetsMinutes: [300, 60], usualWakeMinutes: 420)
-        #expect(SetupTranscript.reply(.wakeReminders, .answered, state: state, healthAvailable: true, calendarsChosen: false) == .person("1 h and 5 h after waking"))
+        #expect(SetupTranscript.reply(.wakeReminders, .answered, state: state, healthAvailable: true, calendarsChosen: false) == .person("1h and 5h after waking"))
         state.prefs.wakeReminders?.enabled = false
         #expect(SetupTranscript.reply(.wakeReminders, .answered, state: state, healthAvailable: true, calendarsChosen: false) == .person("Not now"))
         #expect(CopyRules.violations(in: SetupCopy.question(.wakeReminders, modelAvailable: true)).isEmpty)

@@ -138,7 +138,8 @@ struct WelcomeTests {
         #expect(!welcome.showing && !welcome.blocksInteraction && !welcome.hidesConversationFromAccessibility)
         welcome.skip()
         #expect(!welcome.showing)
-        #expect(Welcome.Presentation.holdSeconds <= 1.5)
+        // Readable, but still short: a tap always ends it sooner.
+        #expect((2.5...3.5).contains(Welcome.Presentation.holdSeconds))
     }
 
     // MARK: Setup order, resume and migration
