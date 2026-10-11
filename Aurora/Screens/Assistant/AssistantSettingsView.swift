@@ -14,6 +14,14 @@ struct AssistantSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Connections") {
+                    Button { showAppleHealth = true } label: {
+                        HStack { Label("Apple Health", systemImage: "heart.text.square"); Spacer(); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary) }
+                    }
+                    .foregroundStyle(Palette.textPrimary)
+                    .accessibilityIdentifier("assistant-apple-health")
+                    NavigationLink { CalendarConnectionsView(service: assistant.calendars) } label: { Label("Calendars", systemImage: "calendar") }
+                }
                 Section("Local intelligence") {
                     Text(assistant.intelligenceName)
                     Text("No cloud model. Your records stay on this device.").font(.footnote)
@@ -49,13 +57,7 @@ struct AssistantSettingsView: View {
                     NavigationLink("Design Gallery", destination: DesignGalleryView())
                 }
                 #endif
-                Section("Connections and records") {
-                    Button { showAppleHealth = true } label: {
-                        HStack { Label("Apple Health", systemImage: "heart.text.square"); Spacer(); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary) }
-                    }
-                    .foregroundStyle(Palette.textPrimary)
-                    .accessibilityIdentifier("assistant-apple-health")
-                    NavigationLink("Calendar connections", destination: CalendarConnectionsView(service: assistant.calendars))
+                Section("Records") {
                     NavigationLink("Your records, exports and privacy", destination: SettingsView())
                         .accessibilityIdentifier("assistant-record-settings")
                     Button("Clear conversation", role: .destructive) { clearConversation = true }

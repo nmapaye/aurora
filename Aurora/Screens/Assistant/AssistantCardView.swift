@@ -227,8 +227,8 @@ struct AssistantCardView: View {
         case .energyProjection: projection
         case .energyCheckIn: checkInEditor
         case .reminders:
+            // Each setting appears once, as its own control.
             wakeReminderRow
-            metricRows
             Toggle("Proactive suggestions", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: enabled) }
