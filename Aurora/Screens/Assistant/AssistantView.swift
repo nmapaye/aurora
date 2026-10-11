@@ -429,8 +429,8 @@ struct AssistantToolsView: View {
                 else {
                     List {
                         NavigationLink("Caffeine history", destination: CaffeineHistoryView())
-                        NavigationLink("Sleep history", destination: SleepHistoryView())
-                        NavigationLink("Sleep trends and Health", destination: SleepView())
+                        // Sleep's own "All sleep entries" holds the full list.
+                        NavigationLink("Sleep", destination: SleepView())
                         NavigationLink("Recorded insights", destination: InsightsView())
                         NavigationLink("Records, exports, and privacy", destination: SettingsView())
                     }.navigationTitle("Your records")
