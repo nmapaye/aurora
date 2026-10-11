@@ -320,7 +320,9 @@ struct AssistantView: View {
     /// Four everyday actions as equal tiles that fit without scrolling;
     /// everything else is in Settings, the history button, or a request.
     private var quickActions: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 140 : 72), spacing: Metrics.xs)], spacing: Metrics.xs) {
+        // Always one row: wrapping at large text would grow the fixed bottom
+        // area and squeeze the conversation. Labels shrink a little instead.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4), spacing: Metrics.xs) {
             quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
             quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
             quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
@@ -334,7 +336,7 @@ struct AssistantView: View {
         Button { assistant.send(text, app: app) } label: {
             VStack(spacing: Metrics.xxs) {
                 Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
-                Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity, minHeight: 56)
         }
