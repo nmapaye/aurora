@@ -56,6 +56,43 @@ Actual checks (Claude ran them):
   for the new simulator to boot (booted manually with `simctl boot`).
 - Core 239/239 in UTC and America/Los_Angeles after `92c5740`.
 
+### Later the same night (Claude-only, all runners Claude's, serial)
+
+| Commit | What |
+|---|---|
+| `6770573` | Notification calls run on one serial background queue (`LiveNotificationBackend`). Root cause of the launch freeze, from the attached spindump: main thread in `foregroundSync → sync → removePendingNotificationRequests → xpc_connection_send_message_with_reply_sync` |
+| `355e009`, `4db627c` | Cutoff UI tests now reach controls the way a person does: frame-based quick-action scroll, popover dismiss, clearing the floating composer (Save was tapping the composer), iPad keyboard hide |
+| `c83bd62` | Rendered-review fix: date/time picker labels were squeezed to one character at the largest text, and duplicated at default size. Adds `CutoffGalleryCaptureUITests` |
+
+Results on disposable QA simulators "Aurora Night QA iPhone" (iPhone 17,
+`E7D5FEBF…`) and "Aurora Night QA iPad" (iPad Pro 11-inch M5, `5F82C716…`),
+iOS 27.0, xcresults under `build/logs/`:
+- **AuroraTests, phone:** 96 tests (101 runs) passed at `229f188` and again at
+  `355e009`. That includes `HealthSyncAppTests.modelReleasedDuringEraseReconciliationIsFreedAndUntouched`,
+  which wasn't interrupted this time.
+- **AuroraTests, pad:** 96 (101 runs) passed at `229f188` and at `355e009`.
+- **AuroraUITests, phone, complete serial suite at `355e009`:** 35/35 passed.
+  Runtime warning: "Invalid frame dimension (negative or non-finite)".
+- **AuroraUITests, pad, complete suite at `355e009`:** 31 passed, 4 failed.
+  - Three were cutoff UI tests stopped by the iPad keyboard Done. They pass
+    4/4 on pad after `4db627c`, and the phone rerun is also 4/4.
+  - `testFullEraseReturnsToSetupAcrossRelaunch` timed out at 237 s. Its
+    spindump shows the main thread in `LocalDataDeletion.clearNotifications`,
+    a synchronous XPC removal during erase that is unchanged from the base. A
+    single rerun passed, but took 185 s. This is the same issue as wake review
+    P1 (durable, awaited, off-main erase cleanup) and is not fixed here.
+  - No complete pad UI rerun was done after `4db627c`.
+- **CutoffScenarioUITests at `c83bd62`:** 4/4 on phone.
+- **Gallery captures:**
+  - Reviewed: phone light and dark at default text (8 fixtures each), phone
+    largest text (Empty, Time ahead), and pad light at default text.
+  - The largest-text capture can't select menu options past the second:
+    that's a harness limit, and those cards weren't seen at that size.
+  - Reduce Motion wasn't captured. The card's transitions use
+    `Motion.stateTransition(reduceMotion:)`, which was not verified visually.
+- **Static checks at `c83bd62`:** core 239/239 in UTC and Los Angeles, unsigned
+  Release build succeeded, tokens and whitespace clean.
+
 ## Round 1 corrections
 
 1. **Resumed erase:** `LocalDataDeletion.notificationIdentifiers` now includes
