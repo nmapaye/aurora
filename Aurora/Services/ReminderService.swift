@@ -13,14 +13,18 @@ final class ReminderService {
         case denied
     }
 
-    private let center = UNUserNotificationCenter.current()
+    private let center: any NotificationBackend
     private var generation = 0
+
+    init(backend: (any NotificationBackend)? = nil) {
+        center = backend ?? LiveNotificationBackend()
+    }
 
     func cancelForErase() {
         generation += 1
         let ids = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier]
-        center.removePendingNotificationRequests(withIdentifiers: ids)
-        center.removeDeliveredNotifications(withIdentifiers: ids)
+        center.removePending(ids)
+        center.removeDelivered(ids)
     }
 
     enum ScenarioOutcome: Equatable { case scheduled, notAllowed, failed }
@@ -30,11 +34,14 @@ final class ReminderService {
     /// A fixed identifier means a repeated Save replaces, never duplicates.
     /// Writes run one at a time in the order Save was tapped, so an older
     /// Save can never land after, and replace, a newer one.
+    /// The erase generation is taken when Save is tapped, so a write queued
+    /// before an erase never reaches the notification center after it.
     func scheduleScenario(_ content: CutoffScenario.ReminderContent) async -> ScenarioOutcome {
         let previous = scenarioWrites
+        let enqueued = generation
         let write = Task { @MainActor in
             await previous?.value
-            return await self.writeScenario(content)
+            return await self.writeScenario(content, generation: enqueued)
         }
         scenarioWrites = Task { _ = await write.value }
         return await write.value
@@ -42,11 +49,11 @@ final class ReminderService {
 
     private var scenarioWrites: Task<Void, Never>?
 
-    private func writeScenario(_ content: CutoffScenario.ReminderContent) async -> ScenarioOutcome {
-        let currentGeneration = generation
-        let settings = await center.notificationSettings()
+    private func writeScenario(_ content: CutoffScenario.ReminderContent, generation currentGeneration: Int) async -> ScenarioOutcome {
         guard generation == currentGeneration else { return .failed }
-        guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return .notAllowed }
+        let status = await center.authorizationStatus()
+        guard generation == currentGeneration else { return .failed }
+        guard [.authorized, .provisional, .ephemeral].contains(status) else { return .notAllowed }
         // An interval from now fires at the absolute instant, whatever the
         // wall clock does in between.
         let interval = content.fireAt / 1000 - Date.now.timeIntervalSince1970
@@ -58,8 +65,10 @@ final class ReminderService {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
         do {
             try await center.add(UNNotificationRequest(identifier: CutoffScenario.reminderIdentifier, content: notification, trigger: trigger))
+            // Erased while adding. Later writes wait for this one, so this
+            // removal can only reach this write's own request.
             guard generation == currentGeneration else {
-                center.removePendingNotificationRequests(withIdentifiers: [CutoffScenario.reminderIdentifier])
+                center.removePending([CutoffScenario.reminderIdentifier])
                 return .failed
             }
             return .scheduled
@@ -72,16 +81,16 @@ final class ReminderService {
     /// Settings passes `true`; foreground syncs never prompt.
     func sync(enabled: Bool, cutoffHour: Double, prompt: Bool) async -> Status {
         let currentGeneration = generation
-        center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+        center.removePending([CutoffReminder.identifier])
         guard enabled else { return .off }
 
-        var settings = await center.notificationSettings()
-        if settings.authorizationStatus == .notDetermined && prompt {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound])
-            settings = await center.notificationSettings()
+        var status = await center.authorizationStatus()
+        if status == .notDetermined && prompt {
+            await center.requestAuthorization()
+            status = await center.authorizationStatus()
         }
         guard generation == currentGeneration else { return .off }
-        switch settings.authorizationStatus {
+        switch status {
         case .authorized, .provisional, .ephemeral:
             break
         default:
@@ -101,7 +110,7 @@ final class ReminderService {
         do {
             try await center.add(request)
             guard generation == currentGeneration else {
-                center.removePendingNotificationRequests(withIdentifiers: [CutoffReminder.identifier])
+                center.removePending([CutoffReminder.identifier])
                 return .off
             }
             return .scheduled(hour: content.hour)
@@ -109,4 +118,24 @@ final class ReminderService {
             return .denied
         }
     }
+}
+
+/// The notification calls Aurora makes, so tests can run the service against
+/// a controlled backend that never reaches iOS.
+@MainActor
+protocol NotificationBackend: AnyObject {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func requestAuthorization() async
+    func add(_ request: UNNotificationRequest) async throws
+    func removePending(_ ids: [String])
+    func removeDelivered(_ ids: [String])
+}
+
+final class LiveNotificationBackend: NotificationBackend {
+    private let center = UNUserNotificationCenter.current()
+    func authorizationStatus() async -> UNAuthorizationStatus { await center.notificationSettings().authorizationStatus }
+    func requestAuthorization() async { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
+    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
+    func removePending(_ ids: [String]) { center.removePendingNotificationRequests(withIdentifiers: ids) }
+    func removeDelivered(_ ids: [String]) { center.removeDeliveredNotifications(withIdentifiers: ids) }
 }
