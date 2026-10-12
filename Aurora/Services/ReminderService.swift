@@ -131,11 +131,44 @@ protocol NotificationBackend: AnyObject {
     func removeDelivered(_ ids: [String])
 }
 
+/// Every call goes through one serial queue off the main thread. Removal is
+/// a synchronous XPC round trip that blocked the main thread for minutes on
+/// a freshly booted simulator (spindump: `foregroundSync → sync →
+/// removePendingNotificationRequests → xpc_connection_send_message_with_reply_sync`).
+/// One queue keeps calls in the order Aurora made them, so a removal
+/// requested before an add can never land after it.
 final class LiveNotificationBackend: NotificationBackend {
     private let center = UNUserNotificationCenter.current()
-    func authorizationStatus() async -> UNAuthorizationStatus { await center.notificationSettings().authorizationStatus }
-    func requestAuthorization() async { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
-    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
-    func removePending(_ ids: [String]) { center.removePendingNotificationRequests(withIdentifiers: ids) }
-    func removeDelivered(_ ids: [String]) { center.removeDeliveredNotifications(withIdentifiers: ids) }
+    private let queue = DispatchQueue(label: "com.nmapaye.aurora.notifications", qos: .userInitiated)
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        let center = center
+        return await withCheckedContinuation { continuation in
+            queue.async { center.getNotificationSettings { continuation.resume(returning: $0.authorizationStatus) } }
+        }
+    }
+    func requestAuthorization() async {
+        let center = center
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async { center.requestAuthorization(options: [.alert, .sound]) { _, _ in continuation.resume() } }
+        }
+    }
+    func add(_ request: UNNotificationRequest) async throws {
+        let center = center
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                center.add(request) { error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                }
+            }
+        }
+    }
+    func removePending(_ ids: [String]) {
+        let center = center
+        queue.async { center.removePendingNotificationRequests(withIdentifiers: ids) }
+    }
+    func removeDelivered(_ ids: [String]) {
+        let center = center
+        queue.async { center.removeDeliveredNotifications(withIdentifiers: ids) }
+    }
 }
