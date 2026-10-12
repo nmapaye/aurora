@@ -33,7 +33,7 @@ struct ReactionTestView: View {
                     .accessibilityLabel("Time remaining \(countdown)")
             }
             area
-            summary
+            if run.phase != .instructions { summary }
         }
         .padding(.horizontal, Metrics.md)
         .padding(.top, Metrics.lg)
@@ -67,6 +67,12 @@ struct ReactionTestView: View {
                 running
             case .complete:
                 if let saved { results(saved) }
+                else {
+                    VStack(spacing: Metrics.md) {
+                        Text("No timed reactions were recorded, so this run wasn’t saved.")
+                        Button("Run Again") { start() }.buttonStyle(.auroraPrimary)
+                    }.padding(Metrics.xl)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -217,9 +223,15 @@ struct ReactionTestView: View {
                 trialResults: next.trialResults,
                 falseStartCount: next.falseStartCount
             )
-            model.saveReactionTest(session)
-            saved = session
-            Haptics.success()
+            let hasTimedResponse = session.validReactionCount > 0 || next.trialResults.contains(where: {
+                if case .lapse(let reaction) = $0 { return reaction != nil }
+                return false
+            })
+            model.saveReactionTest(session, hasTimedResponse: hasTimedResponse)
+            if hasTimedResponse, model.mutationFailure == nil {
+                saved = session
+                Haptics.success()
+            }
         }
     }
 

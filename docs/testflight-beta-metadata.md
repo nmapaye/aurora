@@ -1,47 +1,29 @@
-# Aurora TestFlight Beta Metadata Draft
+# Aurora TestFlight metadata draft
 
-Use this copy when preparing App Store Connect/TestFlight beta review. Replace bracketed values only after the real build and links exist.
+Unpublished. No TestFlight invitation exists from this draft.
 
-## Beta App Description
+## Beta description
 
-Aurora is an iPhone and iPad caffeine and sleep guidance app. Testers can log caffeine intake, optionally import recent sleep from Apple Health, run a 60-second vigilance reaction test, and review on-device insights that connect intake timing, sleep windows, and attentiveness.
+Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. Interactive cards support caffeine and sleep recording, evidence review, trends, reaction tests, approved calendar changes, exports, and optional reminders.
 
-## What To Test
+## What to test
 
-- Complete onboarding with either HealthKit or manual-only setup.
-- Deny Health access and confirm Aurora remains usable with manual caffeine logging.
-- Grant Health access, if available, and confirm sleep import or the empty-state explanation is clear.
-- Use sample data to review the full product loop without personal Health data.
-- Quick-add caffeine, add a custom caffeine entry, run a vigilance test, and share an insights summary or daily totals CSV.
+- Manual setup, missing records, sample labels, and optional read-only Apple Health connection.
+- Caffeine/sleep draft edits, invalid values, duplicate taps, Save, Undo, history corrections, exports, and relaunch snapshots.
+- Full local-data erase and onboarding after relaunch.
+- Offline use and unavailable local models through explicit quick actions.
+- Apple/Google calendars, read-only access, recurrence scope, stale proposals, and partial failures. Never approve a real change you do not intend.
+- Largest text, VoiceOver, Reduce Motion, light/dark, keyboard, Stop, and interrupted processing on real iPhone and iPad.
 
-## Beta Review Notes
+## Beta review notes
 
-Aurora uses HealthKit only to read recent sleep data for caffeine and sleep guidance. Health access is optional. If HealthKit is unavailable, denied, or empty, testers can continue with manual logging or load sample data from onboarding or the Sleep screen.
+HealthKit is read-only and optional. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. Google Calendar requires direct Google authentication and network requests; local account tokens are protected in Keychain. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
 
-Aurora is not a medical device and does not diagnose, treat, cure, or prevent any disease or condition. Guidance is informational and based on locally stored caffeine logs, imported sleep timing when available, and an on-device reaction test.
+Aurora is informational, not a medical device. Estimates cannot establish the cause of fatigue or prescribe caffeine doses or sleep schedules.
 
-No cloud account is required for this demo. Demo records and user logs are stored on device unless the tester explicitly shares or exports a summary.
+## Access and gates
 
-TestFlight access is free and used only for beta testing. Paid app distribution is handled through the App Store after release approval. Gumroad, if used, contains only companion guide/support material and does not unlock app access.
+Free TestFlight access; public release defaults to paid upfront. Supply actual reviewer access through App Store Connect only if required, never repository credentials. Production Google configuration, signed archive, physical-device acceptance, and privacy/support deployment remain pending. See app-store-release-checklist.md.
 
-## Reviewer Access
-
-- TestFlight invite: [insert public or reviewer TestFlight link]
-- App Store listing: [insert App Store link, after approval]
-- Gumroad companion guide: [insert Gumroad product link, if applicable]
-- Privacy policy: https://nmapaye.github.io/aurora/privacy.html
-- Support: https://nmapaye.github.io/aurora/support.html
-- Sample-data path without Health data: launch Aurora, use manual setup, then tap "Load Sample Data" from onboarding or Sleep.
-
-## Privacy Notes
-
-- HealthKit sleep data is read-only.
-- Aurora does not write Health data.
-- Sample Data uses generated records identifiable by `demo:` ids.
-- Export/share actions use the iOS share sheet and require explicit tester action.
-
-## Known Demo Limits
-
-- Available for iPhone and iPad.
-- Cloud sync is not included in v0.1.0.
-- Apple Watch and background automation are not included in v0.1.0.
+Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
+Proposed support: https://nmapaye.github.io/aurora/support.html

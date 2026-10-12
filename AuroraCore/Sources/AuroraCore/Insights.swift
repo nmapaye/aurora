@@ -260,7 +260,7 @@ public enum Insights {
             signal: SignalCardModel(
                 id: id, label: label, period: period, source: source, status: status,
                 value: "\(latest.score)",
-                context: "\(detail) · Baseline \(median), median of \(recent.count) tests in the last \(reactionBaselineWindowDays) days\(recentSource == .mixed ? " (includes Sample Data)" : "")",
+                context: "\(detail) · Baseline \(median), median of \(recent.count) tests in the last \(reactionBaselineWindowDays) days\(recentSource?.includesSample == true && recentSource != .sample ? " (includes Sample Data)" : "")",
                 destination: destination
             ),
             baseline: .established,

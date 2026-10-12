@@ -72,8 +72,12 @@ jobs:
         shell: bash
         run: |
           set +e
-          swift test 2>&1 | tee ../swift-test.log
-          status=${PIPESTATUS[0]}
+          status=0
+          # Day keys and exports depend on the time zone, so run in both.
+          for tz in UTC America/Los_Angeles; do
+            TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 
@@ -92,8 +96,12 @@ jobs:
         shell: bash
         run: |
           set +e
-          swift test 2>&1 | tee ../swift-test.log
-          status=${PIPESTATUS[0]}
+          status=0
+          # Day keys and exports depend on the time zone, so run in both.
+          for tz in UTC America/Los_Angeles; do
+            TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 

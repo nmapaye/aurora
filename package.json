@@ -1,0 +1,22 @@
+{
+  "name": "aurora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tooling for the Aurora repository: the website and icon generation. The iOS app is the Xcode project.",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11.6"
+  },
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "site:dev": "npm --prefix website run dev",
+    "site:build": "npm --prefix website run build",
+    "site:type-check": "npm --prefix website run type-check",
+    "contrib:grid": "node scripts/starry-night-grid.js",
+    "contrib:plan": "node scripts/starry-night-grid.js plan",
+    "contrib:paint": "node scripts/paint-contribs.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4"
+  }
+}

@@ -12,9 +12,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(Router.self) private var router
-    /// During the walkthrough the screen's controls are unavailable; the
-    /// scroll view stays scrollable and the coach sits outside it.
-    @Environment(\.walkthroughLocked) private var walkthroughLocked
 
     var body: some View {
         GeometryReader { proxy in
@@ -23,7 +20,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 VStack(alignment: .leading, spacing: Metrics.xl) {
                     header
                     content()
-                        .disabled(walkthroughLocked)
                 }
                 .frame(maxWidth: wide ? Metrics.wideContentMaxWidth : Metrics.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, wide ? Metrics.lg : Metrics.md)
@@ -44,7 +40,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                     .font(.largeTitle.bold())
                     .foregroundStyle(Palette.textPrimary)
                     .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("screen-title-\(title)")
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
@@ -53,10 +48,9 @@ struct AppScreen<Content: View, Trailing: View>: View {
             }
             Spacer(minLength: Metrics.sm)
             trailing()
-                .disabled(walkthroughLocked)
             if showsSettings {
                 Button {
-                    router.presentSettings()
+                    router.showSettings = true
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.title3)
@@ -66,8 +60,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 }
                 .foregroundStyle(Palette.tint)
                 .accessibilityLabel("Open settings")
-                .accessibilityIdentifier("open-settings")
-                .disabled(walkthroughLocked)
             }
         }
         .padding(.top, Metrics.md)
@@ -140,9 +132,18 @@ struct StatusText: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PrimaryButtonBody(configuration: configuration)
+    }
+}
+
+/// Reads `isEnabled` inside a view so it stays correct when the style is
+/// wrapped by `AnyButtonStyle`, which calls `makeBody` directly.
+private struct PrimaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
@@ -153,19 +154,77 @@ struct PrimaryButtonStyle: ButtonStyle {
                     .fill(isEnabled ? Palette.primaryButton : Palette.primaryButtonDisabled)
             )
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        SecondaryButtonBody(configuration: configuration)
+    }
+}
+
+private struct SecondaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
             .padding(.horizontal, Metrics.md)
-            .foregroundStyle(Palette.secondaryButtonText)
-            .background(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).fill(Palette.secondaryButton))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).strokeBorder(Palette.secondaryButtonBorder))
+            .foregroundStyle(isEnabled ? Palette.secondaryButtonText : Palette.primaryButtonDisabledText)
+            .background(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .fill(isEnabled ? Palette.secondaryButton : Palette.primaryButtonDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .strokeBorder(isEnabled ? Palette.secondaryButtonBorder : Palette.neutralButtonBorder)
+            )
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// A compact state label: symbol plus text on a tone capsule, so state is
+/// never carried by color alone.
+struct StatusBadge: View {
+    let text: String
+    var tone: StatusTone = .neutral
+
+    var body: some View {
+        Label(text, systemImage: tone.symbol)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, Metrics.sm)
+            .padding(.vertical, Metrics.xxs)
+            .background(Capsule().fill(tone.background))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A form field with its label above and an optional trailing unit, sharing
+/// one field surface so labels, values and units align down a card.
+struct LabeledField<Field: View>: View {
+    let label: String
+    var unit: String?
+    @ViewBuilder var field: () -> Field
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+            HStack(spacing: Metrics.xs) {
+                field()
+                if let unit {
+                    Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, Metrics.sm)
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+        }
     }
 }
 

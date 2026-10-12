@@ -1,0 +1,162 @@
+# Aurora: Agent Handoff
+
+## What this is
+
+Aurora is a native SwiftUI app for iPhone and iPad (iOS 17+). It tracks
+caffeine against sleep and alertness through optional HealthKit sleep and
+caffeine import, optional export of caffeine saved in Aurora, manual logging, a 60-second Reaction Test, and an alertness
+estimate. A standalone Vite showcase site lives in `website/`.
+
+The app was rewritten from React Native and Expo in October 2026. The rules,
+copy and estimates were ported one-to-one. The core tests still compare
+against fixtures the TypeScript code generated before it was removed, in UTC
+and America/Los_Angeles.
+
+The target is a paid App Store v0.1.0 release, free TestFlight beta testing,
+and an optional Gumroad companion guide.
+
+## Layout
+
+- `AuroraCore/`: a Swift package with no UIKit, which builds on Linux too.
+  - `Models.swift` and `AppState.swift`: the stored records and every action
+    that changes them.
+  - `Algorithms.swift`: caffeine decay, circadian term, sleep debt, inertia,
+    alertness.
+  - `Summary.swift`, `Sleep.swift`, `Insights.swift`, `CaffeineLog.swift`:
+    what each screen shows and says.
+  - `Signals.swift`: the signal card contract.
+  - `Export.swift`: the three CSVs.
+  - `Walkthrough.swift`: the ten steps, their reducer and deep links.
+  - `LegacyState.swift` and `MMKVReader.swift`: the import from the old
+    build.
+- `Aurora/`: the app.
+  - `App/AppModel.swift` owns the state and saves after every change.
+  - `App/Router.swift` holds tabs, pushed screens and modals.
+  - `Screens/Assistant/AssistantView.swift` is the primary conversation surface.
+  - `App/AssistantModel.swift` owns conversation, snapshots, proposals, receipts, and proactivity.
+  - `AuroraCore/AssistantCard.swift` builds finite typed native responses; models never populate UI data.
+  - `Services/LocalIntelligence.swift` classifies typed intents locally; no cloud AI.
+  - `Services/` covers storage, HealthKit, reminders and haptics.
+  - `Screens/` has one folder per screen.
+- `AuroraTests/` (Swift Testing) and `AuroraUITests/` (XCTest).
+
+`Aurora.xcodeproj` uses folder-synchronized groups. New files under
+`Aurora/`, `AuroraTests/` or `AuroraUITests/` join their target without
+project edits. `Info.plist` and `Aurora.entitlements` are excluded from the
+app's resources in the project file.
+
+## Rules that must hold
+
+- Describe what was recorded. Never prescribe a dose, a bedtime, a wake time
+  or a sleep-cycle schedule, and never frame caffeine against a limit,
+  allowance or "remaining" amount. `CopyRules.violations(in:)` lists the
+  banned phrasing, and core tests run user-facing copy through it.
+- The stored `dailyLimitMg` is the user's "Personal caffeine reference". It
+  is never a safe amount or a goal.
+- A day with no record is "No record", never 0 mg. Averages count recorded
+  days only.
+- Caffeine timing before sleep shows a number only at 14 paired nights in
+  the last 30 days. A Reaction Test baseline appears only at 3 tests in 30
+  days. A period comparison appears only when both periods have enough
+  recorded days.
+- Sample Data (ids starting `demo:`) is labeled and read-only everywhere.
+  Health sleep and Health caffeine are read-only. Only manual sleep (`manual:sleep:`) and
+  recorded caffeine can be edited or deleted.
+- HealthKit has three separate opt-ins in `HealthChoices`: read Sleep
+  Analysis, read dietary caffeine, and write caffeine saved in Aurora. Each
+  asks Health for that permission alone. Imported Health records are
+  read-only and match by sample UUID only, never time and amount. Aurora
+  writes, edits and deletes only its own samples (exact bundle source, sync
+  identifier `com.nmapaye.aurora.dose.<id>`). Never describe access as
+  granted: HealthKit doesn't reveal read decisions, and empty reads prove
+  nothing.
+- Local first: a dose and its queued Health action are saved in one change
+  before Health is asked. Receipts report Health's outcome on its own
+  "Apple Health" row (`HealthExportStatus`), never as "saved to Health"
+  until Health confirmed it. Retry is explicit and checks for an
+  interrupted write first. Erase and Delete All cancel Health work and
+  leave Aurora's exported samples in Health.
+- Health sleep read anchored is keyed `healthkit:sleep:sample:<uuid>` with
+  provenance; deletions remove exactly that UUID. Older
+  `healthkit:sleep:<start>:<end>` records convert only at their exact
+  interval on the first anchored read; others are kept. Equal intervals stay
+  separate records; calculations merge intervals and never use ids.
+- HealthKit background delivery is its own opt-in (`backgroundUpdates`),
+  reconciled at launch and erase. Observers register at launch in
+  `AppDelegate`.
+- Foreground, background and Health observer refreshes go through
+  `RefreshScheduler` and `RefreshPolicy`; Health changes never start
+  calendar refreshes or suggestions by themselves.
+- The assistant replaces the tab walkthrough and completes its legacy flag.
+  Native history, settings, charts, and reaction tests remain reachable.
+- Never add an AI API-key field, a remote/cloud model, or automatic calendar
+  writes. A calendar preview must be explicitly approved and revalidated.
+- Day math goes through `LocalClock` and number rounding through `jsRound`,
+  so DST and halves behave as they did in the old build.
+
+## Storage
+
+`StateStore` writes `Application Support/Aurora/state.json`. The folder is
+excluded from backups, and the exclusion is confirmed before anything is
+read; otherwise the app shows a recovery screen. A file that fails to decode
+is moved to `state.corrupt.<ms>.json`, never overwritten. `AppState` decodes
+missing keys as defaults, so adding a field needs no migration. Bump
+`AppState.schemaVersion` only for a change that does. Schema 2 (energy
+check-ins, Health sync ledger) is opened through `StateMigration`, which keeps
+a verified `state.v1-source.json`, leaves newer or unverifiable files
+untouched, and is removed only by full erase.
+
+On first launch, `LegacyImport` reads the React Native build's
+`Documents/mmkv/aurora` (key `aurora/state`), saves and verifies the records,
+and retains the original folder. Native state also retains a pre-assistant
+snapshot. Unreadable files enter recovery without being overwritten.
+Conversation has separate version-2, protected local storage. Version-1 migration
+retains and verifies the source copy; explicit Clear conversation removes that copy.
+Past cards are snapshots with Refresh. Drafts and calendar reviews expire across
+relaunches; receipts revalidate the exact record before Undo.
+See `docs/native-assistant.md` for full behavior and release gates.
+
+## Checks
+
+- `cd AuroraCore && swift test`
+- `xcodebuild test -project Aurora.xcodeproj -scheme Aurora -destination 'platform=iOS Simulator,name=iPhone 17'`
+- `npm run site:type-check` and `npm run site:build` for the website
+
+CI runs Swift Core (Linux and macOS), iOS App (iPhone and iPad simulators
+plus a Release build), CodeQL (Actions, JavaScript/TypeScript, Swift) and
+gitleaks. Never merge on red.
+
+## Icons and brand
+
+- Warm ivory light surfaces (`#F6F2EA`), deep ink dark surfaces (`#0F1317`),
+  and a sea-glass accent (`#1E6B64` light, `#7CC4B8` dark). Every color role
+  lives in `Aurora/Theme/Palette.swift`.
+- The wave mark is drawn by `AuroraMark` in `Aurora/App/AuroraApp.swift` and
+  mirrored by `scripts/make-icons.mjs` and `website/public/aurora-mark.svg`.
+  Keep all three in sync.
+- `npm run icons` (Node 24) regenerates the icon PNGs in
+  `Aurora/Assets.xcassets/AppIcon.appiconset`.
+
+## Landmines
+
+1. **The historical SSH-key alert was false.** The removed file only
+   contained the text `REMOVED`; full-history scanning confirmed no private
+   key was committed.
+2. **Do not bypass FortiGate TLS errors.** If a network re-signs GitHub
+   traffic, wait for a clean network or let the repository owner decide.
+3. **Unsigned builds can't reach HealthKit.** Set a team to test Health.
+
+## Remaining release work
+
+1. Configure the Apple Developer team and the App Store Connect record for
+   `com.nmapaye.aurora`.
+2. Run the device checklist on a physical iPhone and iPad:
+   - HealthKit allow, deny and import
+   - the cutoff reminder
+   - VoiceOver, Dynamic Type and Reduce Motion
+   - chart drag versus scroll
+   - migration from a phone that ran the React Native build
+3. Archive in Xcode, validate in Organizer, and distribute an internal
+   TestFlight build.
+4. Fill the real website and metadata link placeholders once the public App
+   Store and TestFlight pages exist.

@@ -3,18 +3,34 @@ import SwiftUI
 
 @main
 struct AuroraApp: App {
-    @State private var model = AppModel()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    private var model: AppModel { delegate.model }
     @State private var router = Router()
+    @State private var assistant = AssistantModel()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { DesignGalleryView() } else { RootView() }
+                    #else
+                    RootView()
+                    #endif
+                }
                 .environment(model)
                 .environment(router)
+                .environment(assistant)
                 .preferredColorScheme(model.colorScheme)
                 .tint(Palette.tint)
-                .task { model.load() }
+                .task {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return }
+                    #endif
+                    connectAssistant()
+                    Signposts.event("Launch.SceneTask")
+                    model.load()
+                }
                 .onOpenURL { url in
                     guard let link = DeepLink(url: url) else { return }
                     route(link)
@@ -22,6 +38,8 @@ struct AuroraApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task { await model.foregroundSync() }
+                    } else if phase == .background {
+                        BackgroundRefresh.schedule(enabled: backgroundRefreshWanted)
                     }
                 }
                 .task(id: model.phase) {
@@ -38,6 +56,38 @@ struct AuroraApp: App {
                     }
                 }
         }
+        .backgroundTask(.appRefresh(BackgroundRefresh.identifier)) {
+            await refreshAssistantInBackground()
+        }
+    }
+
+    /// A granted opportunity runs the same coalesced refresh as foreground:
+    /// Health reads that were chosen, then calendars and suggestions under
+    /// the existing opt-in limits.
+    @MainActor private func refreshAssistantInBackground() async {
+        connectAssistant()
+        model.load()
+        guard model.phase == .ready, model.state.onboarding.completed else { return }
+        await assistant.start(app: model)
+        guard !Task.isCancelled else { return }
+        await model.refresh(.background)
+        BackgroundRefresh.schedule(enabled: backgroundRefreshWanted)
+    }
+
+    /// Calendars, suggestions and sleep-change offers run through the
+    /// assistant, which applies its opt-in policy.
+    @MainActor private func connectAssistant() {
+        model.assistantRefresh = { [assistant, model] steps in
+            await assistant.foreground(app: model, steps: steps)
+        }
+        model.sleepChanged = { [assistant, model] before in
+            assistant.sleepChanged(app: model, before: before)
+        }
+    }
+
+    /// Only opted-in suggestions or a chosen Health read ask iOS for time.
+    @MainActor private var backgroundRefreshWanted: Bool {
+        assistant.conversation.preferences.proactive || !model.state.healthChoices.observedKinds.isEmpty
     }
 
     private func route(_ link: DeepLink) {
@@ -47,36 +97,87 @@ struct AuroraApp: App {
         }
         let state = model.state
         guard state.onboarding.completed else { return }
-        router.open(link.resolved(walkthroughPending: state.isWalkthroughPending, step: state.onboarding.appWalkthroughStep))
+        router.open(link)
     }
 }
 
-/// Boot gating: a loading screen while storage opens, recovery when records
-/// can't be opened safely, first-run setup, then the tabs.
+/// Boot gating: a loading screen while storage opens, recovery when backup
+/// exclusion can't be confirmed, first-run setup, then the conversation with
+/// a once-per-launch welcome over it.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Set when storage first opens, so the welcome plays at most once per
+    /// launch and never right after finishing setup or an erase.
+    @State private var launchHandled = false
+    @State private var welcome = Welcome.Presentation.atLaunch(onboardingCompleted: false, voiceOverRunning: false)
+    /// Kept while the welcome fades after a skip; it no longer takes touches.
+    @State private var welcomeContent: WelcomeContent?
 
     var body: some View {
         switch model.phase {
         case .loading:
-            BootView()
+            BootView().onAppear { Signposts.event("Launch.BootVisible") }
         case .storageUnavailable:
-            StorageRecoveryView(reason: nil)
-        case .recovery(let recovery):
-            StorageRecoveryView(reason: recovery)
+            StorageRecoveryView().onAppear { Signposts.event("Launch.RecoveryVisible") }
         case .ready:
             Group {
                 if model.state.onboarding.completed {
-                    MainTabs()
+                    AssistantView()
+                        .onAppear { Signposts.event("Launch.AssistantVisible") }
+                        .accessibilityHidden(welcome.hidesConversationFromAccessibility)
+                        .overlay {
+                            if let welcomeContent {
+                                WelcomeOverlay(content: welcomeContent, showing: welcome.showing, onSkip: skipWelcome)
+                                    .opacity(welcome.showing ? 1 : 0)
+                                    .allowsHitTesting(welcome.blocksInteraction)
+                                    .accessibilityHidden(!welcome.showing)
+                            }
+                        }
                 } else {
-                    OnboardingView()
+                    OnboardingView().onAppear { Signposts.event("Launch.OnboardingVisible") }
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if model.saveFailed {
-                    SaveFailureBanner()
-                }
+            .onAppear(perform: handleLaunch)
+            .onChange(of: model.state.onboarding.completed) { _, completed in
+                // Run what an activation would, so Health reads chosen during
+                // setup start now instead of at the next foreground.
+                if completed { Task { await model.foregroundSync() } }
             }
+        }
+    }
+
+    private func handleLaunch() {
+        guard !launchHandled else { return }
+        launchHandled = true
+        let presentation = Welcome.Presentation.atLaunch(
+            onboardingCompleted: FirstRun(model.state.onboarding) == .done,
+            voiceOverRunning: UIAccessibility.isVoiceOverRunning
+        )
+        guard presentation.showing else { return }
+        model.tick()
+        let daypart = Welcome.Daypart.current(clock: model.clock, now: model.now)
+        welcomeContent = WelcomeContent(
+            daypart: daypart,
+            greeting: Welcome.greeting(daypart: daypart, name: model.state.prefs.displayName),
+            evidence: Welcome.evidence(state: model.state, now: model.now, clock: model.clock, text: model.text)
+        )
+        welcome = presentation
+    }
+
+    /// Touches and VoiceOver return to the conversation in this update; the
+    /// fade that follows ignores touches.
+    private func skipWelcome() {
+        guard welcome.showing else { return }
+        if reduceMotion {
+            welcome.skip()
+            welcomeContent = nil
+            return
+        }
+        withAnimation(.easeOut(duration: Motion.contentDuration)) {
+            welcome.skip()
+        } completion: {
+            if !welcome.showing { welcomeContent = nil }
         }
     }
 }
@@ -96,91 +197,23 @@ struct BootView: View {
     }
 }
 
-/// Shown instead of the app while records can't be opened. Nothing is
-/// written from here except an explicit, confirmed fresh start.
 struct StorageRecoveryView: View {
     @Environment(AppModel.self) private var model
-    /// `nil` when backup exclusion couldn't be confirmed.
-    let reason: AppModel.Recovery?
-    @State private var confirmFresh = false
-
-    private var copy: (title: String, body: String) {
-        switch reason {
-        case nil:
-            ("Aurora can’t open its records",
-             "Aurora could not protect local records from device backups, so it hasn’t opened them. Nothing was changed or deleted.")
-        case .unreadable:
-            ("Aurora can’t read its records yet",
-             "Your records are on this device but couldn’t be read, which can happen before the device is unlocked. Nothing was changed. Unlock the device, then try again.")
-        case .corrupt(let backupKept):
-            ("Aurora’s saved records are damaged",
-             backupKept
-                ? "The saved file couldn’t be read. Aurora kept a copy of it and hasn’t changed anything. Try again, or start fresh; the copy stays on this device."
-                : "The saved file couldn’t be read, and Aurora couldn’t make a copy of it, so it hasn’t changed anything. Try again.")
-        case .legacyUnreadable:
-            ("Aurora couldn’t bring over your earlier records",
-             "Records from the previous version of Aurora couldn’t be read. They were left exactly as they were, and Aurora will try again each time it opens. You can also start fresh; the earlier records stay on this device.")
-        case .importNotSaved:
-            ("Aurora couldn’t save your earlier records",
-             "Records from the previous version were read but couldn’t be saved. Nothing was changed. Try again.")
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.md) {
-            Text(copy.title)
+            Text("Aurora can’t open its records")
                 .font(.title2.bold())
                 .foregroundStyle(Palette.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-            Text(copy.body)
+            Text(model.mutationFailure ?? "Aurora could not open or verify its protected local records. The original files are preserved. Retry after restoring access or recovering the saved file.")
                 .foregroundStyle(Palette.textSecondary)
-                .accessibilityIdentifier("storage-recovery-message")
-            if model.startFreshFailed {
-                Text("Aurora couldn’t start fresh because saving failed. Nothing was changed. Try again.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(StatusTone.error.foreground)
-                    .accessibilityIdentifier("storage-start-fresh-failed")
-            }
-            Button("Try Again") { model.retryStorage() }
+            Button("Retry opening AURORA") { model.retryStorage() }
                 .buttonStyle(.auroraPrimary)
-                .accessibilityIdentifier("storage-retry")
-            if reason?.allowsStartFresh == true {
-                Button("Start Fresh", role: .destructive) { confirmFresh = true }
-                    .buttonStyle(.auroraSecondary)
-                    .accessibilityIdentifier("storage-start-fresh")
-            }
         }
         .padding(Metrics.xl)
         .frame(maxWidth: Metrics.contentMaxWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.screen.ignoresSafeArea())
-        .alert("Start with no records?", isPresented: $confirmFresh) {
-            Button("Cancel", role: .cancel) {}
-            Button("Start Fresh", role: .destructive) { model.startFresh() }
-        } message: {
-            Text("Aurora will open with no entries. The unreadable data stays on this device and is removed only by Delete All Data.")
-        }
-    }
-}
-
-/// A save didn't reach disk. The change is on screen; Try Again saves it.
-struct SaveFailureBanner: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        HStack(spacing: Metrics.sm) {
-            Text("Your latest change couldn’t be saved.")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(StatusTone.error.foreground)
-            Spacer(minLength: 0)
-            Button("Try Again") { model.retrySave() }
-                .font(.footnote.weight(.semibold))
-                .accessibilityIdentifier("save-retry")
-        }
-        .padding(Metrics.sm)
-        .background(StatusTone.error.background)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("save-failure")
     }
 }
 

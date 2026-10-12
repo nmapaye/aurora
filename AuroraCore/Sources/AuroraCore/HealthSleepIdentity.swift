@@ -1,7 +1,11 @@
 import Foundation
 
-/// Health-imported sleep ids are `healthkit:sleep:<start>:<end>` with whole
-/// milliseconds, so the same sample imported twice keeps one id.
+/// Health sleep read with sample identity uses `RecordID.healthSleepID`, the
+/// Health sample UUID, and is never renamed or merged here. Sleep imported
+/// before that, or from a provider without sample identity, uses
+/// `healthkit:sleep:<start>:<end>` with whole milliseconds, so the same
+/// interval imported twice keeps one id. Calculations merge intervals on
+/// their own and never depend on these ids.
 public enum HealthSleepIdentity {
     public static func id(start: Millis, end: Millis) -> String {
         "\(RecordID.healthSleepPrefix)\(Int64(jsRound(start))):\(Int64(jsRound(end)))"
@@ -29,7 +33,8 @@ public enum HealthSleepIdentity {
     }
 
     public static func normalize(_ session: SleepSession) -> SleepSession {
-        guard RecordID.isHealthSleep(session.id) || isBoundaryEquivalentLegacy(session) else { return session }
+        guard !RecordID.isHealthSleepSample(session.id),
+              RecordID.isHealthSleep(session.id) || isBoundaryEquivalentLegacy(session) else { return session }
         var normalized = session
         normalized.id = id(start: session.start, end: session.end)
         return normalized

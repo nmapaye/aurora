@@ -39,7 +39,7 @@ struct SleepView: View {
             sleepData(state)
         }
         .refreshable {
-            guard state.onboarding.permissionStatus == .granted, !state.demoMode else { return }
+            guard state.healthChoices.readSleep, !state.demoMode else { return }
             await model.importHealth()
         }
         .sensoryFeedback(.success, trigger: savedCount)
@@ -87,7 +87,7 @@ struct SleepView: View {
             if signal.status == .empty {
                 editing = .new
             } else {
-                router.push(.sleep, on: .sleep)
+                router.sleepPath.append(.sleep)
             }
         }
     }
@@ -189,7 +189,7 @@ struct SleepView: View {
                     HStack(spacing: Metrics.sm) {
                         Button("Add Sleep Manually") { editing = .new }
                             .buttonStyle(.auroraSecondary)
-                        Button("Show All Data") { router.push(.sleep, on: .sleep) }
+                        Button("Show All Data") { router.sleepPath.append(.sleep) }
                             .buttonStyle(.auroraSecondary)
                             .accessibilityLabel("Show All Data, \(state.sleeps.count) \(state.sleeps.count == 1 ? "session" : "sessions")")
                     }
@@ -200,7 +200,6 @@ struct SleepView: View {
                             .disabled(!state.demoMode)
                     }
                 }
-                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("sleep-data-panel")
             }
         }
@@ -290,7 +289,7 @@ struct SleepEntrySheet: View {
             guard !loaded else { return }
             loaded = true
             switch mode {
-            case .new: draft = ManualSleep.newDraft(now: AppModel.currentMillis())
+            case .new: draft = AssistantPlanner.usualNight(model.state.sleeps, now: AppModel.currentMillis(), clock: model.clock) ?? ManualSleep.newDraft(now: AppModel.currentMillis())
             case .edit(let session): draft = ManualSleep.Draft(start: session.start, end: session.end, note: session.note ?? "")
             }
         }

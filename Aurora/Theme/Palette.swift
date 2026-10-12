@@ -1,3 +1,4 @@
+import AuroraCore
 import SwiftUI
 import UIKit
 
@@ -34,6 +35,12 @@ extension Color {
 }
 
 enum Palette {
+    // Shared light for Aurora's identity and processing decoration.
+    static let auroraTeal = Color(light: Brand.sea600, dark: Brand.sea300)
+    static let auroraMint = Color(light: Brand.sea300, dark: Brand.sea200)
+    static let auroraIndigo = Color(light: 0x4A5590, dark: 0xA3ADE6)
+    static let auroraColors = [auroraTeal, auroraMint, auroraIndigo]
+
     static let screen = Color(light: Brand.ivory200, dark: Brand.ink900)
     static let modalBackground = Color(light: Brand.ivory100, dark: Brand.ink850)
     static let card = Color(light: Brand.ivory50, dark: Brand.ink850)
@@ -92,6 +99,12 @@ enum Metrics {
     static let minimumTouchTarget: CGFloat = 44
 
     static let contentMaxWidth: CGFloat = 600
+    /// Leading and trailing inset of the conversation column (at most
+    /// `contentMaxWidth`, centered, at least `lg` from each edge), for content
+    /// that scrolls past the column but should start in line with it.
+    static func columnInset(containerWidth: CGFloat) -> CGFloat {
+        lg + max(0, (containerWidth - 2 * lg - contentMaxWidth) / 2)
+    }
     static let wideContentMaxWidth: CGFloat = 1220
     /// Two columns only on iPad windows at least this wide.
     static let twoColumnMinWidth: CGFloat = 900
@@ -119,9 +132,52 @@ enum StatusTone {
         case .error: Palette.statusErrorText
         }
     }
+
+    /// Paired with every tone so state never depends on color alone.
+    var symbol: String {
+        switch self {
+        case .neutral: "circle.dashed"
+        case .info: "pencil.circle"
+        case .success: "checkmark.circle"
+        case .warning: "clock.badge.exclamationmark"
+        case .error: "exclamationmark.triangle"
+        }
+    }
 }
 
 extension Font {
     /// Small uppercase label above grouped content.
     static let eyebrow = Font.footnote.weight(.semibold)
+}
+
+/// The welcome and first-run skies, built only from existing surface and
+/// aurora tokens. Each time of day has its own top-to-horizon gradient in
+/// the current light or dark appearance. Identity decoration only: never
+/// behind readable evidence without a glass surface.
+enum Sky {
+    static func stops(_ daypart: Welcome.Daypart) -> [Color] {
+        switch daypart {
+        case .morning:
+            [Color(light: Brand.ivory50, dark: Brand.ink900), Color(light: Brand.ivory100, dark: Brand.ink850), Color(light: Brand.sea100, dark: Brand.sea800)]
+        case .afternoon:
+            [Color(light: Brand.sea100, dark: Brand.ink850), Color(light: Brand.ivory100, dark: Brand.sea800), Color(light: Brand.ivory200, dark: Brand.ink900)]
+        case .evening:
+            [Color(light: Brand.ivory300, dark: Brand.ink900), Color(light: Brand.ivory200, dark: Brand.ink850), Color(light: Brand.sea100, dark: Brand.sea800)]
+        case .night:
+            [Color(light: Brand.ivory300, dark: Brand.ink900), Color(light: Brand.sea100, dark: Brand.ink900), Color(light: Brand.ivory200, dark: Brand.ink800)]
+        }
+    }
+
+    /// Ribbon colors, front to back.
+    static func ribbons(_ daypart: Welcome.Daypart) -> [Color] {
+        switch daypart {
+        case .morning: [Palette.auroraMint, Palette.auroraTeal, Palette.auroraIndigo]
+        case .afternoon: [Palette.auroraMint, Palette.auroraTeal, Palette.auroraMint]
+        case .evening: [Palette.auroraTeal, Palette.auroraIndigo, Palette.auroraMint]
+        case .night: [Palette.auroraIndigo, Palette.auroraTeal, Palette.auroraMint]
+        }
+    }
+
+    /// Ribbon opacity: quieter on light surfaces.
+    static func ribbonStrength(dark: Bool) -> Double { dark ? 0.5 : 0.34 }
 }

@@ -2,19 +2,30 @@ import Foundation
 
 /// One logged caffeine entry. `source` is the drink label ("Drip",
 /// "Espresso"), not where the record came from; that comes from the id.
+/// Health-imported entries also keep the sample's provenance. It is absent
+/// from every other entry, so their stored JSON keeps its original keys.
 public struct Dose: Codable, Equatable, Hashable, Identifiable, Sendable {
     public var id: String
     public var timestamp: Millis
     public var mg: Double
     public var source: String?
     public var note: String?
+    public var health: HealthSampleProvenance?
 
-    public init(id: String, timestamp: Millis, mg: Double, source: String? = nil, note: String? = nil) {
+    public init(
+        id: String,
+        timestamp: Millis,
+        mg: Double,
+        source: String? = nil,
+        note: String? = nil,
+        health: HealthSampleProvenance? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.mg = mg
         self.source = source
         self.note = note
+        self.health = health
     }
 }
 
@@ -29,13 +40,17 @@ public struct SleepSession: Codable, Equatable, Hashable, Identifiable, Sendable
     public var end: Millis
     public var type: SleepType
     public var note: String?
+    /// Health sleep read with its sample identity keeps the provenance Health
+    /// reported. Absent everywhere else, so stored sessions keep their keys.
+    public var health: HealthSampleProvenance?
 
-    public init(id: String, start: Millis, end: Millis, type: SleepType = .sleep, note: String? = nil) {
+    public init(id: String, start: Millis, end: Millis, type: SleepType = .sleep, note: String? = nil, health: HealthSampleProvenance? = nil) {
         self.id = id
         self.start = start
         self.end = end
         self.type = type
         self.note = note
+        self.health = health
     }
 }
 
@@ -76,6 +91,9 @@ public enum HealthImportStatus: String, Codable, Sendable {
     case importing
     case succeeded
     case failed
+    /// Some of Health's changes were read; the rest follow at the next
+    /// refresh. Never shown as current or as "no sleep found".
+    case partial
 }
 
 public struct Prefs: Codable, Equatable, Sendable {
@@ -89,6 +107,12 @@ public struct Prefs: Codable, Equatable, Sendable {
     public var dailyLimitMg: Double
     public var cutoffHour: Double
     public var notifyCutoff: Bool
+    /// What Aurora calls the person in greetings. Optional, stays on device,
+    /// and isn't written while unset.
+    public var displayName: String?
+    /// `CaffeinePreset` ids chosen as favorites. Optional and isn't written
+    /// while unset.
+    public var favoriteDrinkIDs: [String]?
 
     public static let defaultHalfLife: Double = 5
     public static let defaultTargetSleep: Double = 8
@@ -108,7 +132,9 @@ public struct Prefs: Codable, Equatable, Sendable {
         tz: String? = nil,
         dailyLimitMg: Double,
         cutoffHour: Double,
-        notifyCutoff: Bool
+        notifyCutoff: Bool,
+        displayName: String? = nil,
+        favoriteDrinkIDs: [String]? = nil
     ) {
         self.halfLife = halfLife
         self.targetSleep = targetSleep
@@ -116,6 +142,8 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.dailyLimitMg = dailyLimitMg
         self.cutoffHour = cutoffHour
         self.notifyCutoff = notifyCutoff
+        self.displayName = displayName
+        self.favoriteDrinkIDs = favoriteDrinkIDs
     }
 }
 
@@ -127,6 +155,16 @@ public struct Onboarding: Codable, Equatable, Sendable {
     public var appWalkthroughCompleted: Bool
     /// 0 through 9.
     public var appWalkthroughStep: Int
+    /// The next unanswered first-run setup question (`SetupStep` raw value),
+    /// so a relaunch resumes there. Nil before setup starts and in files
+    /// from older builds; not written while nil.
+    public var setupStep: Int?
+    /// What the person actually did at each setup question they were asked,
+    /// keyed by `SetupStep` raw value: `SetupOutcome` raw values. Questions
+    /// passed over by "Skip to the end" have no entry. Plain strings so a
+    /// value from another build is ignored instead of failing the decode.
+    /// Nil in older files; not written while nil.
+    public var setupOutcomes: [String: String]?
 
     public static let defaults = Onboarding(
         completed: false,
@@ -143,7 +181,9 @@ public struct Onboarding: Codable, Equatable, Sendable {
         permissionStatus: HealthPermissionStatus,
         completedAt: Millis? = nil,
         appWalkthroughCompleted: Bool,
-        appWalkthroughStep: Int
+        appWalkthroughStep: Int,
+        setupStep: Int? = nil,
+        setupOutcomes: [String: String]? = nil
     ) {
         self.completed = completed
         self.source = source
@@ -151,6 +191,8 @@ public struct Onboarding: Codable, Equatable, Sendable {
         self.completedAt = completedAt
         self.appWalkthroughCompleted = appWalkthroughCompleted
         self.appWalkthroughStep = appWalkthroughStep
+        self.setupStep = setupStep
+        self.setupOutcomes = setupOutcomes
     }
 }
 
@@ -175,6 +217,8 @@ public enum RecordID {
     public static let samplePrefix = "demo:"
     public static let healthSleepPrefix = "healthkit:sleep:"
     public static let manualSleepPrefix = "manual:sleep:"
+    public static let healthCaffeinePrefix = "healthkit:caffeine:"
+    public static let energyCheckInPrefix = "checkin:"
 
     public static func isSample(_ id: String) -> Bool {
         id.hasPrefix(samplePrefix)
@@ -182,6 +226,39 @@ public enum RecordID {
 
     public static func isHealthSleep(_ id: String) -> Bool {
         id.hasPrefix(healthSleepPrefix)
+    }
+
+    /// `healthkit:sleep:sample:<sample uuid>`: Health sleep read with its
+    /// sample identity. Two samples with the same interval stay two records.
+    public static let healthSleepSamplePrefix = "healthkit:sleep:sample:"
+
+    public static func healthSleepID(sampleUUID: String) -> String {
+        "\(healthSleepSamplePrefix)\(sampleUUID.lowercased())"
+    }
+
+    public static func isHealthSleepSample(_ id: String) -> Bool {
+        id.hasPrefix(healthSleepSamplePrefix)
+    }
+
+    /// Health sleep from before sample identity: `healthkit:sleep:<start>:<end>`.
+    public static func isLegacyHealthSleep(_ id: String) -> Bool {
+        isHealthSleep(id) && !isHealthSleepSample(id)
+    }
+
+    /// Health caffeine is read-only here; Health owns the record.
+    public static func isHealthCaffeine(_ id: String) -> Bool {
+        id.hasPrefix(healthCaffeinePrefix)
+    }
+
+    /// `healthkit:caffeine:<sample uuid>`. The Health sample UUID is the only
+    /// identity: two samples with the same time and amount stay two entries.
+    public static func healthCaffeineID(sampleUUID: String) -> String {
+        "\(healthCaffeinePrefix)\(sampleUUID.lowercased())"
+    }
+
+    /// Energy check-in ids: `checkin:<ms>:<entropy>`.
+    public static func newEnergyCheckInID(now: Millis, entropy: String = RecordID.entropy()) -> String {
+        "\(energyCheckInPrefix)\(Int64(now)):\(entropy)"
     }
 
     public static func isManualSleep(_ id: String) -> Bool {

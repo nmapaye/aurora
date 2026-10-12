@@ -8,9 +8,11 @@ import UniformTypeIdentifiers
 /// stored caffeine reference is never framed as a safe amount or a goal.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AssistantModel.self) private var assistant
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var confirmDelete = false
+    @State private var confirmErase = false
     @State private var reminderBusy = false
     @State private var deletedCount = 0
 
@@ -78,7 +80,7 @@ struct SettingsView: View {
 
                 Section("About") {
                     Button { openURL(Self.privacyPolicyURL) } label: {
-                        row("Privacy Policy", detail: "Read-only Health sleep access, local storage, exports, and deletion.")
+                        row("Privacy Policy", detail: "Separate Health sleep and caffeine reads, optional caffeine writes, local storage, exports, and deletion.")
                     }
                     Button { openURL(Self.supportURL) } label: {
                         row("Support", detail: "Get help, report issues, and avoid sharing private Health data.")
@@ -107,16 +109,12 @@ struct SettingsView: View {
                               preview: SharePreview("Reaction Tests")) {
                         row("Export Reaction Tests", detail: "CSV of every Reaction Test (\(state.vigilanceSessions.count)), with its source.")
                     }
-                    Button("Delete All Data", role: .destructive) { confirmDelete = true }
+                    Button("Delete recorded data", role: .destructive) { confirmDelete = true }
                         .accessibilityIdentifier("delete-all-data")
-                    if let result = model.deletionResult {
-                        Text(result == .completed
-                             ? "All Aurora data was deleted from this device."
-                             : "Some Aurora files couldn’t be removed. Try Delete All Data again.")
-                            .font(.footnote)
-                            .foregroundStyle(result == .completed ? Palette.textSecondary : StatusTone.error.foreground)
-                            .accessibilityIdentifier("delete-all-result")
-                    }
+                    Text("Record-only deletion keeps settings and conversation snapshots. Use Erase all local data to remove retained copies too.").font(.footnote)
+                    Button("Erase all local data", role: .destructive) { confirmErase = true }
+                        .accessibilityIdentifier("erase-all-local-data")
+                    if let failure = model.mutationFailure { Text(failure).foregroundStyle(Palette.destructive) }
                 } header: {
                     Text("Data")
                 }
@@ -130,14 +128,22 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .alert("Delete all Aurora data?", isPresented: $confirmDelete) {
+            .alert("Delete recorded data?", isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
                     deletedCount += 1
                     model.deleteAllData()
                 }
             } message: {
-                Text("This removes every caffeine entry, sleep session, and reaction test stored in Aurora, along with copies of unreadable files, the previous version’s data, and exported CSV files. Your Apple Health data is not changed.")
+                Text("This clears current caffeine, sleep, and reaction records. Settings, conversation snapshots, and recovery copies remain. Apple Health data is not changed.")
+            }
+            .alert("Erase all local Aurora data?", isPresented: $confirmErase) {
+                Button("Erase all local data", role: .destructive) {
+                    if model.eraseAllLocalData(assistant: assistant) { dismiss() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes records, conversation, recovery and migration copies, preferences, local calendar connections, and Aurora reminders. Apple Health and external calendar events are not deleted. Export anything you want to keep first.")
             }
             .sensoryFeedback(.warning, trigger: deletedCount)
             .task { await model.resyncReminder() }

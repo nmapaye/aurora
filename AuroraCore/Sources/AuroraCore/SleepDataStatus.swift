@@ -32,6 +32,7 @@ public enum SleepDataStatus {
             switch healthSync.importStatus {
             case .succeeded: state = healthSync.importedCount > 0 ? "Health sleep imported" : "No sleep found"
             case .importing: state = "Importing sleep"
+            case .partial: state = "Sleep partly imported"
             default: state = "Health access requested"
             }
         } else {
@@ -41,6 +42,8 @@ public enum SleepDataStatus {
         let detail: String
         if let failure {
             detail = failure
+        } else if state == "Sleep partly imported" {
+            detail = HealthImport.partialMessage
         } else if ["Health sleep imported", "No sleep found", "Importing sleep", "Health access requested"].contains(state) {
             detail = healthSync.importStatus == .succeeded && healthSync.importedCount == 0
                 ? "Check sleep records and Aurora’s read access in Health, or add sleep manually."
