@@ -139,10 +139,14 @@ struct CutoffScenarioCardView: View {
         if let value = assistant.pendingCutoff?[keyPath: key] {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-                DatePicker("\(label) date", selection: dayBinding(key), displayedComponents: .date)
-                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("cutoff-\(id)-date")
-                DatePicker("\(label) time", selection: timeBinding(key), displayedComponents: .hourAndMinute)
-                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("cutoff-\(id)-time")
+                pickerRow("Date") {
+                    DatePicker("\(label) date", selection: dayBinding(key), displayedComponents: .date)
+                        .labelsHidden().accessibilityLabel("\(label) date").accessibilityIdentifier("cutoff-\(id)-date")
+                }
+                pickerRow("Time") {
+                    DatePicker("\(label) time", selection: timeBinding(key), displayedComponents: .hourAndMinute)
+                        .labelsHidden().accessibilityLabel("\(label) time").accessibilityIdentifier("cutoff-\(id)-time")
+                }
                 if case .repeated(let first, let second) = S.resolve(value, in: zone) {
                     Picker("Which \(text.clockTime(first))?", selection: Binding(
                         get: { assistant.pendingCutoff?[keyPath: occurrence] },
@@ -165,6 +169,24 @@ struct CutoffScenarioCardView: View {
             Button(add) { assistant.editCutoff { $0[keyPath: key] = S.LocalTime(AppModel.currentMillis(), timeZone: zone) } }
                 .buttonStyle(.auroraSecondary).accessibilityIdentifier("cutoff-add-\(id)")
         }
+    }
+
+    /// A short label beside its picker, stacked above it when large text no
+    /// longer fits both; the section label above already names the field.
+    private func pickerRow<Control: View>(_ title: String, @ViewBuilder picker: () -> Control) -> some View {
+        let picker = picker()
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Metrics.sm) {
+                Text(title).font(Typography.evidence)
+                Spacer(minLength: 0)
+                picker
+            }
+            VStack(alignment: .leading, spacing: Metrics.xs) {
+                Text(title).font(Typography.evidence)
+                picker
+            }
+        }
+        .frame(minHeight: Metrics.minimumTouchTarget)
     }
 
     private func date(_ ms: Millis) -> Date { Date(timeIntervalSince1970: ms / 1000) }
