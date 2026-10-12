@@ -107,7 +107,7 @@ import Testing
         let health = HeldBackgroundHealth()
         let directory = root.appendingPathComponent("Support/Aurora", isDirectory: true)
         var model: AppModel? = AppModel(health: health, makeStore: { StateStore(directory: directory) }, legacy: { nil }, makeDeletion: {
-            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: {})
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { $0() })
         })
         model?.load()
         model?.completeOnboarding()

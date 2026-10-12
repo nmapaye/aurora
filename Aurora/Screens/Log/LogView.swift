@@ -76,7 +76,7 @@ struct LogView: View {
                         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .accessibilityLabel("Log \(preset.label), \(numberText(preset.mg)) mg")
                     .accessibilityIdentifier("quick-add-\(preset.id)")
                 }
@@ -241,7 +241,7 @@ struct DoseRow: View {
         Group {
             if editable {
                 Button(action: onEdit) { content }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .accessibilityHint("Edit or delete this entry")
             } else {
                 content

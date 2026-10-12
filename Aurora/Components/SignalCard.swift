@@ -67,7 +67,7 @@ struct SignalCard: View {
             .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
             .contentShape(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.auroraPress)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(model.accessibilityDescription)
         .accessibilityHint(model.destination)

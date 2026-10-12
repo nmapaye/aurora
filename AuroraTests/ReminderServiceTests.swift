@@ -24,6 +24,8 @@ import UserNotifications
         }
         func removePending(_ ids: [String]) { events.append(.removePending(ids)) }
         func removeDelivered(_ ids: [String]) { events.append(.removeDelivered(ids)) }
+        func pendingIdentifiers() async -> [String] { [] }
+        func deliveredIdentifiers() async -> [String] { [] }
         func releaseAdd() { waiting.removeFirst().resume() }
         func waitForAdds(_ count: Int) async {
             for _ in 0..<1000 where waitingCount < count { await Task.yield() }
@@ -89,5 +91,107 @@ import UserNotifications
         let service = ReminderService(backend: backend)
         #expect(await service.scheduleScenario(content("A")) == .notAllowed)
         #expect(backend.events.isEmpty)
+    }
+}
+
+/// The daily reminder's sync order, permission and failure reporting,
+/// carried over from main's ReminderService tests.
+@MainActor
+@Suite struct DailyReminderSyncTests {
+    /// Keeps pending requests like the system does. `holdStatus` parks the
+    /// next authorization check until `release()`, so tests can overlap syncs.
+    @MainActor final class ScriptedBackend: NotificationBackend {
+        var status: UNAuthorizationStatus = .authorized
+        var statusAfterRequest: UNAuthorizationStatus = .authorized
+        var addError: Error?
+        var holdStatus = false
+        private(set) var pending: [String: UNNotificationRequest] = [:]
+        private(set) var removed: [[String]] = []
+        private(set) var requested = 0
+        private var parked: CheckedContinuation<Void, Never>?
+
+        var isParked: Bool { parked != nil }
+
+        func release() {
+            holdStatus = false
+            parked?.resume()
+            parked = nil
+        }
+
+        func authorizationStatus() async -> UNAuthorizationStatus {
+            if holdStatus { await withCheckedContinuation { parked = $0 } }
+            return status
+        }
+        func requestAuthorization() async {
+            requested += 1
+            status = statusAfterRequest
+        }
+        func add(_ request: UNNotificationRequest) async throws {
+            if let addError { throw addError }
+            pending[request.identifier] = request
+        }
+        func removePending(_ ids: [String]) {
+            removed.append(ids)
+            for id in ids { pending[id] = nil }
+        }
+        func removeDelivered(_ ids: [String]) {}
+        func pendingIdentifiers() async -> [String] { Array(pending.keys) }
+        func deliveredIdentifiers() async -> [String] { [] }
+    }
+
+    struct AddFailed: Error {}
+
+    let backend = ScriptedBackend()
+    var service: ReminderService {
+        ReminderService(backend: backend, clock: { LocalClock(timeZone: TimeZone(identifier: "UTC")!) }, text: { .current })
+    }
+
+    @Test func schedulesUnderTheReactNativeIdentifier() async {
+        let service = service
+        #expect(await service.sync(enabled: true, cutoffHour: 14, prompt: false) == .scheduled(hour: 14))
+        #expect(CutoffReminder.identifier == "cutoff-reminder")
+        let trigger = backend.pending["cutoff-reminder"]?.trigger as? UNCalendarNotificationTrigger
+        #expect(trigger?.repeats == true)
+        #expect(trigger?.dateComponents.hour == 14)
+        #expect(backend.removed.first == ["cutoff-reminder"])
+    }
+
+    @Test func switchingOffCancelsAndSchedulesNothing() async {
+        let service = service
+        _ = await service.sync(enabled: true, cutoffHour: 14, prompt: false)
+        #expect(await service.sync(enabled: false, cutoffHour: 14, prompt: false) == .off)
+        #expect(backend.pending.isEmpty)
+    }
+
+    @Test func deniedPermissionIsReportedAndForegroundNeverPrompts() async {
+        backend.status = .notDetermined
+        let service = service
+        #expect(await service.sync(enabled: true, cutoffHour: 14, prompt: false) == .denied)
+        #expect(backend.requested == 0)
+        backend.statusAfterRequest = .denied
+        #expect(await service.sync(enabled: true, cutoffHour: 14, prompt: true) == .denied)
+        #expect(backend.requested == 1)
+        #expect(backend.pending.isEmpty)
+    }
+
+    @Test func schedulingErrorIsNotReportedAsDenied() async {
+        backend.addError = AddFailed()
+        #expect(await service.sync(enabled: true, cutoffHour: 14, prompt: false) == .failed)
+    }
+
+    @Test func aLaterSwitchOffWinsOverAnEarlierSync() async {
+        backend.holdStatus = true
+        let service = service
+        async let first = service.sync(enabled: true, cutoffHour: 14, prompt: false)
+        while !backend.isParked { await Task.yield() }
+        async let second = service.sync(enabled: false, cutoffHour: 14, prompt: false)
+        // Release only once the second sync has registered, so the first is
+        // superseded every time rather than by timing.
+        while service.latestIntent < 2 { await Task.yield() }
+        backend.release()
+        let results = await (first, second)
+        #expect(results.0 == .off)
+        #expect(results.1 == .off)
+        #expect(backend.pending.isEmpty)
     }
 }

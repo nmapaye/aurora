@@ -21,7 +21,7 @@ import Testing
         var connectionsCleared = false
         var notificationsCleared = false
         let deletion = LocalDataDeletion(store: store, legacy: legacy,
-            clearConnections: { connectionsCleared = true }, clearNotifications: { notificationsCleared = true })
+            clearConnections: { connectionsCleared = true }, clearNotifications: { notificationsCleared = true; $0() })
         try deletion.begin(); try deletion.finish()
         #expect(connectionsCleared && notificationsCleared)
         #expect(!deletion.pending)
@@ -36,12 +36,12 @@ import Testing
         let store = StateStore(directory: root)
         try store.prepare()
         try Data("old records".utf8).write(to: store.fileURL)
-        var deletion = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: {})
+        var deletion = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: { $0() })
         try deletion.begin()
         deletion.removeFile = { _ in throw StateStore.Failure.verificationFailed }
         #expect(throws: LocalDataDeletion.Failure.self) { try deletion.finish() }
         #expect(deletion.pending)
-        let retry = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: {})
+        let retry = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: { $0() })
         try retry.finish()
         #expect(!retry.pending)
         #expect(try JSONDecoder().decode(AppState.self, from: Data(contentsOf: store.fileURL)).doses.isEmpty)
@@ -54,10 +54,10 @@ import Testing
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(Set(LocalDataDeletion.notificationIdentifiers) == [CutoffReminder.identifier, CutoffScenario.reminderIdentifier, "aurora.assistant.briefing"])
         let store = StateStore(directory: root)
-        try LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: {}).begin()
+        try LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: { $0() }).begin()
         var cleared: [String] = []
         let app = AppModel(makeStore: { store }, legacy: { nil }, makeDeletion: {
-            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { cleared = LocalDataDeletion.notificationIdentifiers })
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { cleared = LocalDataDeletion.notificationIdentifiers; $0() })
         })
         app.load()
         #expect(cleared.contains(CutoffScenario.reminderIdentifier) && cleared.contains(CutoffReminder.identifier))
@@ -69,7 +69,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: root) }
         let store = StateStore(directory: root); try store.prepare(); try store.save(AppState())
         let deletion = LocalDataDeletion(store: store, legacy: nil,
-            clearConnections: { throw CalendarActionError.unavailable }, clearNotifications: {})
+            clearConnections: { throw CalendarActionError.unavailable }, clearNotifications: { $0() })
         try deletion.begin()
         #expect(throws: LocalDataDeletion.Failure.self) { try deletion.finish() }
         #expect(deletion.pending && FileManager.default.fileExists(atPath: store.fileURL.path))
@@ -95,10 +95,10 @@ import Testing
         try store.save(old)
         try FileManager.default.createDirectory(at: legacy.mmkvDirectory, withIntermediateDirectories: true)
         try Data("retained legacy fixture".utf8).write(to: legacy.mmkvFile)
-        let deletion = LocalDataDeletion(store: store, legacy: legacy, clearConnections: {}, clearNotifications: {})
+        let deletion = LocalDataDeletion(store: store, legacy: legacy, clearConnections: {}, clearNotifications: { $0() })
         try deletion.begin()
         let model = AppModel(makeStore: { store }, legacy: { legacy }, makeDeletion: {
-            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: {})
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { $0() })
         })
         model.load()
         #expect(model.phase == .ready && model.state == AppState())
@@ -114,7 +114,7 @@ import Testing
         let model = AppModel(makeStore: { store }, legacy: { nil }, makeDeletion: {
             LocalDataDeletion(store: $0, legacy: $1, clearConnections: {
                 throw GoogleCalendarProvider.CredentialDeletionFailure(status: -34018)
-            }, clearNotifications: {})
+            }, clearNotifications: { $0() })
         })
         model.load()
         #expect(model.phase == .storageUnavailable && !model.state.onboarding.completed)
@@ -150,4 +150,24 @@ import Testing
     }
     func current(_ event: Commitment) async throws -> Commitment { event }
     func move(_ change: CalendarChange) async throws -> Commitment { throw CalendarActionError.unavailable }
+
+    @Test func notificationRemovalInterruptedByQuittingResumesAtLaunch() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = StateStore(directory: root)
+        // The erase finishes, but Aurora stops before the queued removal runs.
+        let interrupted = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: { _ in })
+        try interrupted.begin(); try interrupted.finish()
+        #expect(!interrupted.pending)
+        #expect(interrupted.notificationsPending)
+
+        var cleared = 0
+        let app = AppModel(makeStore: { store }, legacy: { nil }, makeDeletion: {
+            LocalDataDeletion(store: $0, legacy: $1, clearConnections: {}, clearNotifications: { cleared += 1; $0() })
+        })
+        app.load()
+        #expect(app.phase == .ready)
+        #expect(cleared == 1)
+        #expect(!interrupted.notificationsPending)
+    }
 }

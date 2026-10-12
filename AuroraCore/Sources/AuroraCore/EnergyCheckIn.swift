@@ -7,7 +7,7 @@ import Foundation
 public struct EnergyCheckIn: Codable, Equatable, Hashable, Identifiable, Sendable {
     public static let scale = 1...5
     public static let scaleLabel = "Your energy, from 1 (very low) to 5 (very high)"
-    public static let kindLabel = "Your rating. Recorded by you, not modeled."
+    public static let kindLabel = "Your rating."
 
     public var id: String
     public var recordedAt: Millis

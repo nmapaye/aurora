@@ -100,7 +100,7 @@ struct InsightsView: View {
                 .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                 .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.auroraPress)
             .accessibilityHint(showDetails ? "Hides time of day and drinks" : "Shows time of day and drinks")
 
             if showDetails {

@@ -14,6 +14,9 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     private var authSession: ASWebAuthenticationSession?
     private var token: Token?
     private var sessionGeneration = 0
+    /// Calendar colors from the calendar list, so every read of an event
+    /// maps it the same way.
+    private var colors: [String: String] = [:]
     private struct Token: Codable { var accessToken: String; var refreshToken: String?; var expiresAt: Date }
     var configured: Bool {
         guard let clientID, let callbackScheme, !clientID.isEmpty, !callbackScheme.isEmpty else { return false }
@@ -115,7 +118,7 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     }
     private func pathComponent(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "" }
     private struct CalendarList: Decodable {
-        struct Item: Decodable { let id: String; let summary: String?; let accessRole: String? }
+        struct Item: Decodable { let id: String; let summary: String?; let accessRole: String?; let backgroundColor: String? }
         let items: [Item]?; let nextPageToken: String?
     }
     func calendars() async throws -> [AssistantCalendar] {
@@ -123,6 +126,7 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         var all: [AssistantCalendar] = [], page: String?
         repeat {
             let list = try JSONDecoder().decode(CalendarList.self, from: await request(path: "users/me/calendarList", query: page.map { [.init(name: "pageToken", value: $0)] } ?? []))
+            for item in list.items ?? [] { colors[item.id] = item.backgroundColor }
             all += (list.items ?? []).map { .init(id: $0.id, provider: .google, title: $0.summary ?? $0.id, writable: ["owner", "writer"].contains($0.accessRole ?? "")) }
             page = list.nextPageToken
         } while page != nil
@@ -134,6 +138,7 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         struct Attendee: Decodable { let email: String? }
         let id: String; let etag: String; let summary: String?; let start: Time?; let end: Time?
         let attendees: [Attendee]?; let organizer: Organizer?; let recurringEventId: String?; let status: String?
+        let location: String?; let updated: String?
     }
     private struct Events: Decodable { let items: [Event]?; let nextPageToken: String? }
     private func date(_ text: String) -> Date? {
@@ -148,7 +153,8 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         guard let from = start.dateTime.flatMap(date) ?? start.date.flatMap(format.date), let to = end.dateTime.flatMap(date) ?? end.date.flatMap(format.date) else { return nil }
         return .init(id: event.id, calendarID: calendarID, provider: .google, title: event.summary ?? "Untitled event", start: from, end: to,
             timeZone: start.timeZone ?? TimeZone.current.identifier, revision: event.etag,
-            canMove: writable && start.date == nil && (event.attendees?.isEmpty ?? true) && event.organizer?.isSelf == true, recurring: event.recurringEventId != nil)
+            canMove: writable && start.date == nil && (event.attendees?.isEmpty ?? true) && event.organizer?.isSelf == true, recurring: event.recurringEventId != nil,
+            location: event.location?.isEmpty == false ? event.location : nil, colorHex: colors[calendarID], lastModified: event.updated.flatMap(date), allDay: start.date != nil)
     }
     func events(calendarIDs: [String], from: Date, to: Date) async throws -> [Commitment] {
         let available = try await calendars(); var all: [Commitment] = []

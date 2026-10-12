@@ -23,9 +23,19 @@ public struct Commitment: Codable, Equatable, Identifiable, Sendable {
     public var revision: String
     public var canMove: Bool
     public var recurring: Bool
-    public init(id: String, calendarID: String, provider: CalendarProviderID, title: String, start: Date, end: Date, timeZone: String, revision: String, canMove: Bool, recurring: Bool) {
+    // Display details, absent in snapshots from older builds.
+    public var location: String?
+    /// The calendar's own color, "#RRGGBB".
+    public var colorHex: String?
+    /// When the source last changed the event; the newest copy wins when
+    /// the same event comes from both Apple and Google.
+    public var lastModified: Date?
+    public var allDay: Bool?
+    public init(id: String, calendarID: String, provider: CalendarProviderID, title: String, start: Date, end: Date, timeZone: String, revision: String, canMove: Bool, recurring: Bool,
+                location: String? = nil, colorHex: String? = nil, lastModified: Date? = nil, allDay: Bool? = nil) {
         self.id = id; self.calendarID = calendarID; self.provider = provider; self.title = title
         self.start = start; self.end = end; self.timeZone = timeZone; self.revision = revision; self.canMove = canMove; self.recurring = recurring
+        self.location = location; self.colorHex = colorHex; self.lastModified = lastModified; self.allDay = allDay
     }
     public var identity: String { "\(provider.rawValue):\(calendarID):\(id):\(start.timeIntervalSince1970)" }
 }
@@ -69,5 +79,37 @@ public enum CalendarActionValidator {
             start = start.addingTimeInterval(15 * 60)
         }
         return nil
+    }
+}
+
+/// One copy of each event when Apple and Google both deliver it (for
+/// example a Google calendar also added to the iPhone's Calendar app).
+public enum CalendarMerge {
+    /// Events from different providers with the same title (ignoring case and
+    /// spacing), start and end are the same event; the most recently changed
+    /// copy is kept, and an unknown change time counts as oldest. Events from
+    /// one provider are never merged with each other.
+    public static func newestCopies(_ events: [Commitment]) -> [Commitment] {
+        func key(_ event: Commitment) -> String {
+            let title = event.title.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return "\(title)|\(Int(event.start.timeIntervalSince1970))|\(Int(event.end.timeIntervalSince1970))"
+        }
+        var kept: [String: Commitment] = [:]
+        var order: [String] = []
+        var result: [Commitment] = []
+        for event in events {
+            let match = key(event)
+            guard let existing = kept[match] else {
+                kept[match] = event; order.append(match); continue
+            }
+            if existing.provider == event.provider {
+                // Same provider: genuinely separate events that look alike.
+                result.append(event)
+                continue
+            }
+            let newer = (event.lastModified ?? .distantPast) > (existing.lastModified ?? .distantPast)
+            if newer { kept[match] = event }
+        }
+        return (order.compactMap { kept[$0] } + result).sorted { ($0.start, $0.title) < ($1.start, $1.title) }
     }
 }

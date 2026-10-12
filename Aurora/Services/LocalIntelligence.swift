@@ -25,8 +25,10 @@ final class AppleIntentModel: LocalIntentModel {
 
     /// Warm one blank classifier session while the person composes. It is consumed
     /// once so previous requests never become context for a later classification.
-    func prewarm() {
-        guard prepared == nil, #available(iOS 26.0, *), Self.available else { return }
+    /// `available` is the caller's cached check; asking the system here would
+    /// block the main thread as the keyboard appears.
+    func prewarm(available: Bool) {
+        guard prepared == nil, available, #available(iOS 26.0, *) else { return }
         let session = LanguageModelSession(instructions: AssistantPlanner.modelInstructions)
         session.prewarm()
         preparedAt = .now
@@ -39,7 +41,7 @@ final class AppleIntentModel: LocalIntentModel {
 
     func releasePreparedSession() { prepared = nil; preparedAt = nil }
     let name = "Apple on-device model"
-    static var available: Bool {
+    nonisolated static var available: Bool {
         if #available(iOS 26.0, *) { return SystemLanguageModel.default.isAvailable }
         return false
     }

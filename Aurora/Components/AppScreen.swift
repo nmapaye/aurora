@@ -153,8 +153,7 @@ private struct PrimaryButtonBody: View {
                 RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
                     .fill(isEnabled ? Palette.primaryButton : Palette.primaryButtonDisabled)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
+            .pressFeedback(configuration.isPressed)
     }
 }
 
@@ -182,8 +181,7 @@ private struct SecondaryButtonBody: View {
                 RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
                     .strokeBorder(isEnabled ? Palette.secondaryButtonBorder : Palette.neutralButtonBorder)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
+            .pressFeedback(configuration.isPressed)
     }
 }
 
@@ -234,4 +232,57 @@ extension ButtonStyle where Self == PrimaryButtonStyle {
 
 extension ButtonStyle where Self == SecondaryButtonStyle {
     static var auroraSecondary: SecondaryButtonStyle { SecondaryButtonStyle() }
+}
+
+/// "Saved", with a check that draws itself in and a success tap when the
+/// save just happened in front of the person. Already-saved cards render
+/// still. Reduce Motion shows the finished check without drawing.
+struct SavedBadge: View {
+    var text = "Saved"
+    let celebrate: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 1
+    @State private var pop = false
+
+    var body: some View {
+        HStack(spacing: Metrics.xxs) {
+            CheckMark(progress: progress)
+                .stroke(StatusTone.success.foreground, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .frame(width: 12, height: 12)
+                .padding(3)
+                .background(Circle().fill(StatusTone.success.foreground.opacity(0.15)))
+            Text(text)
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(StatusTone.success.foreground)
+        .padding(.horizontal, Metrics.sm)
+        .padding(.vertical, Metrics.xxs)
+        .background(StatusTone.success.background, in: Capsule())
+        .scaleEffect(pop ? 1.08 : 1)
+        .accessibilityElement(children: .combine)
+        .sensoryFeedback(.success, trigger: celebrate) { _, now in now }
+        .onChange(of: celebrate, initial: true) { _, now in
+            guard now, !reduceMotion else { return }
+            progress = 0
+            withAnimation(.easeOut(duration: 0.32).delay(0.05)) { progress = 1 }
+            withAnimation(Motion.pressSpring) { pop = true }
+            withAnimation(Motion.pressSpring.delay(0.18)) { pop = false }
+        }
+    }
+}
+
+private struct CheckMark: Shape {
+    var progress: CGFloat
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.maxY - rect.height * 0.1))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.1))
+        return path.trimmedPath(from: 0, to: progress)
+    }
 }

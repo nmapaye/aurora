@@ -25,17 +25,26 @@ struct LocalDataDeletion {
     /// Every notification Aurora schedules: the daily cutoff reminder, a
     /// saved cutoff scenario reminder, and the morning briefing.
     static let notificationIdentifiers = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier, "aurora.assistant.briefing"]
-    var clearNotifications: () -> Void = {
-        let ids = LocalDataDeletion.notificationIdentifiers
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ids)
-        center.removeDeliveredNotifications(withIdentifiers: ids)
-        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: BackgroundRefresh.identifier)
+    /// Wake reminders carry one id per day and offset, so they go by prefix.
+    static let notificationPrefixes = [WakeReminders.identifierPrefix]
+    /// Queues the removals on the notification queue and calls `done` once
+    /// they have run. Removal is a synchronous XPC call that stalled the main
+    /// thread for minutes on a fresh simulator, so nothing here waits on it.
+    var clearNotifications: (_ done: @escaping @Sendable () -> Void) -> Void = { done in
+        UserDefaults.standard.removeObject(forKey: ReminderService.wakeScheduleKey)
+        LiveNotificationBackend.removeAll(ids: LocalDataDeletion.notificationIdentifiers, prefixes: LocalDataDeletion.notificationPrefixes) {
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: BackgroundRefresh.identifier)
+            done()
+        }
     }
     var removeFile: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
 
     var marker: URL { store.directory.appendingPathComponent("erase.pending") }
     var pending: Bool { FileManager.default.fileExists(atPath: marker.path) }
+    /// Written before notification removal is queued and removed once it has
+    /// run, so an erase interrupted before then clears them at next launch.
+    var notificationsMarker: URL { store.directory.appendingPathComponent("erase.notifications.pending") }
+    var notificationsPending: Bool { FileManager.default.fileExists(atPath: notificationsMarker.path) }
 
     func begin() throws {
         try store.prepare()
@@ -46,7 +55,10 @@ struct LocalDataDeletion {
         guard pending else { return }
         // Failures retain the marker. Never restore copies of erased health data.
         try perform("account connections", clearConnections)
-        clearNotifications()
+        try perform("noting notification removal") {
+            try Data("Aurora notification erase v1".utf8).write(to: notificationsMarker, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        clearQueuedNotifications()
         let files = try perform("listing local storage") { try FileManager.default.contentsOfDirectory(at: store.directory, includingPropertiesForKeys: nil) }
         for file in files where Self.owns(file.lastPathComponent) {
             try perform("removing \(file.lastPathComponent)") { try removeFile(file) }
@@ -63,6 +75,18 @@ struct LocalDataDeletion {
             throw StateStore.Failure.verificationFailed
         }
         try perform("completing erase") { try removeFile(marker) }
+    }
+
+    /// Resumes notification removal an earlier erase queued but Aurora
+    /// stopped before it ran.
+    func resumeNotificationClearing() {
+        guard notificationsPending else { return }
+        clearQueuedNotifications()
+    }
+
+    private func clearQueuedNotifications() {
+        let marker = notificationsMarker
+        clearNotifications { try? FileManager.default.removeItem(at: marker) }
     }
 
     static func owns(_ name: String) -> Bool {

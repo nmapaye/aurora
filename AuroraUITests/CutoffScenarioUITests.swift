@@ -32,7 +32,8 @@ final class CutoffScenarioUITests: XCTestCase {
         // XCUITest still calls an element under it hittable. Keep scrolling
         // until the element sits fully above the quick actions and composer.
         func clear() -> Bool {
-            let strip = app.scrollViews["assistant-quick-actions"]
+            // A fixed row of tiles, not a scroll view.
+            let strip = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
             let floor = strip.exists ? strip.frame.minY - 8 : app.windows.firstMatch.frame.maxY
             return element.isHittable && element.frame.maxY < floor
         }
@@ -44,23 +45,19 @@ final class CutoffScenarioUITests: XCTestCase {
         XCTAssertTrue(clear(), element.debugDescription)
     }
 
-    /// The quick action sits past the first screen of the strip.
+    /// Not one of the four quick tiles, so it's asked for the way a person
+    /// would: typed into the composer.
     private func openScenario() {
-        let button = app.buttons["assistant-quick-Cutoff scenario"]
-        let strip = app.scrollViews["assistant-quick-actions"]
-        XCTAssertTrue(button.waitForExistence(timeout: 5))
-        // Same frame-based scroll as AuroraUITests.tapQuick: isHittable
-        // can't be asked of an action scrolled out of the strip.
-        for _ in 0..<6 {
-            let frame = strip.frame
-            let center = button.frame.midX
-            if center > frame.minX + 12 && center < frame.maxX - 12 { break }
-            let delta = min(0.65, max(-0.65, (center - frame.midX) / frame.width))
-            let start = delta > 0 ? 0.85 : 0.15
-            strip.coordinate(withNormalizedOffset: CGVector(dx: start, dy: 0.5)).press(forDuration: 0.1,
-                thenDragTo: strip.coordinate(withNormalizedOffset: CGVector(dx: start - delta, dy: 0.5)))
+        let input = app.textFields["assistant-composer"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("Cutoff scenario")
+        // The keyboard can still be moving the composer when the tap lands.
+        // Sending clears the field, so a retry can never send twice.
+        let cleared = NSPredicate(format: "value != %@", "Cutoff scenario")
+        for _ in 0..<3 {
+            app.buttons["assistant-send"].tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
         }
-        button.tap()
         XCTAssertTrue(app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch.waitForExistence(timeout: 5), app.debugDescription)
     }
 
@@ -118,7 +115,7 @@ final class CutoffScenarioUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
-    func testQuickActionOpensEmptyScenarioAndCalculateNeedsInputs() {
+    func testRequestOpensEmptyScenarioAndCalculateNeedsInputs() {
         launch()
         openScenario()
         let threshold = app.textFields["cutoff-threshold"]

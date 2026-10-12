@@ -59,7 +59,7 @@ struct EnergyEvidenceSections: View {
                 .accessibilityLabel("\(part.kind.label), \(part.pointsText) points. \(detail(part))")
             }
             if !estimate.contributions.isEmpty {
-                Text("Signed points on the model scale, rounded, so they may not add up exactly.")
+                Text("Points on the model scale, rounded.")
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
@@ -70,9 +70,9 @@ struct EnergyEvidenceSections: View {
         case .baseline: return "Where every estimate starts."
         case .timeOfDay: return "The same daily curve for everyone, by local time."
         case .caffeine:
-            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours)) h half-life."
+            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours))h half-life."
         case .sleepDebt:
-            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours)) h."
+            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours))h."
         case .inertia:
             return estimate.evidence.lastWakeAt.map { "Recorded sleep ended at \(text.clockTime($0))." } ?? "Not shortly after recorded sleep."
         }
@@ -162,8 +162,6 @@ struct EnergyTimelineChart: View {
                 }
                 .accessibilityIdentifier("assistant-energy-curve")
             legend
-            Text(EnergyProjection.futureAssumption).font(.footnote).foregroundStyle(Palette.textSecondary)
-            observations
         }
     }
 
@@ -186,7 +184,7 @@ struct EnergyTimelineChart: View {
     }
 
     private var accessibilitySummary: String {
-        "\(EnergyEstimate.title), 24 hours. \(text.clockTime(projection.points.first?.t ?? projection.capturedAt)) to \(text.clockTime(projection.points.last?.t ?? projection.capturedAt)). Modeled, not measured."
+        "\(EnergyEstimate.title), 24 hours. \(text.clockTime(projection.points.first?.t ?? projection.capturedAt)) to \(text.clockTime(projection.points.last?.t ?? projection.capturedAt)). Modeled."
     }
 
     private func readout(_ point: EnergyProjection.Point) -> some View {
@@ -307,9 +305,8 @@ struct EnergyTimelineChart: View {
         Label("Recorded sleep", systemImage: "rectangle.fill")
     }
 
-    private var observations: some View {
+    var observations: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            SectionLabel(text: "Recorded in this window")
             if snapshot.observations.isEmpty {
                 Text("No sleep or caffeine recorded in this window.").font(.footnote).foregroundStyle(Palette.textSecondary)
             }
@@ -333,4 +330,41 @@ struct EnergyTimelineChart: View {
         case .sample: "Sample Data"
         }
     }
+}
+
+/// What the curve means for the day, up front: when modeled energy is
+/// highest and lowest, and how now compares with the past week.
+struct EnergyOutlookView: View {
+    let outlook: EnergyOutlook
+    let text: DateText
+
+    var body: some View {
+        let lines = outlook.lines(text: text)
+        if !lines.isEmpty {
+            VStack(alignment: .leading, spacing: Metrics.xs) {
+                Text("Your day").font(Typography.label).foregroundStyle(Palette.textSecondary)
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    Label(line, systemImage: symbol(index, line))
+                        .font(Typography.evidence.monospacedDigit())
+                        .foregroundStyle(Palette.textPrimary)
+                }
+                if outlook.includesSample {
+                    Text("Includes Sample Data").font(Typography.source).foregroundStyle(Palette.caffeineAccent)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("assistant-energy-outlook")
+        }
+    }
+
+    private func symbol(_ index: Int, _ line: String) -> String {
+        if line.hasPrefix("Highest") { return "arrow.up.right" }
+        if line.hasPrefix("Lowest") { return "arrow.down.right" }
+        return "calendar.badge.clock"
+    }
+}
+
+enum EnergyExplainer {
+    /// "What this means", in plain words.
+    static let meaning = "Aurora estimates your alertness from 0 to 100 using your recorded sleep, caffeine and the time of day. Higher means more alert. After now, the line assumes you add no more sleep or caffeine. It's an estimate, not a measurement."
 }

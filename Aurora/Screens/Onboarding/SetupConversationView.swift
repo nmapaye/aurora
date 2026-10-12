@@ -14,6 +14,7 @@ struct SetupConversationView: View {
     @Environment(AppModel.self) private var model
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var wakeDraft = WakeReminderSettings(enabled: true, offsetsMinutes: [60], usualWakeMinutes: 8 * 60)
     @State private var controlsHeight: CGFloat = 0
     @State private var name = ""
     /// Edited here and saved only by Continue, so "Not now" keeps the stored target.
@@ -33,7 +34,7 @@ struct SetupConversationView: View {
     private static let healthChoices: [HealthChoice] = [.readSleep, .readCaffeine, .writeCaffeine]
 
     private var step: SetupStep { SetupStep(stored: model.state.onboarding.setupStep) }
-    private var modelAvailable: Bool { AppleIntentModel.available }
+    private var modelAvailable: Bool { assistant.modelAvailable }
 
     var body: some View {
         ZStack {
@@ -100,7 +101,10 @@ struct SetupConversationView: View {
         .sheet(isPresented: $showCalendars) {
             CalendarConnectionsView(service: assistant.calendars)
         }
-        .onAppear { name = model.state.prefs.displayName ?? "" }
+        .onAppear {
+            name = model.state.prefs.displayName ?? ""
+            assistant.refreshModelAvailability()
+        }
     }
 
     /// Shows the current question from its first line. When it fits above
@@ -181,6 +185,7 @@ struct SetupConversationView: View {
             case .sleepTarget: sleepTargetControls
             case .health: healthControls
             case .calendar: calendarControls
+            case .wakeReminders: wakeReminderControls
             case .finish: finishControls
             }
         }
@@ -295,6 +300,20 @@ struct SetupConversationView: View {
                 Button("Change calendars") { showCalendars = true }
                     .buttonStyle(.auroraSecondary)
                     .disabled(!connectionsEnabled)
+            }
+        }
+    }
+
+    private var wakeReminderControls: some View {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
+            WakeReminderEditor(draft: $wakeDraft)
+            actionRow(primary: "Turn on reminders", primaryDisabled: wakeDraft.offsetsMinutes.isEmpty, primaryAction: {
+                let chosen = WakeReminderSettings(enabled: true, offsetsMinutes: wakeDraft.offsetsMinutes, usualWakeMinutes: wakeDraft.usualWakeMinutes).normalized()
+                record(.wakeReminders, .answered) { $0.prefs.wakeReminders = chosen }
+                // Asks for notification permission only after this explicit choice.
+                Task { await model.syncWakeReminders(prompt: true) }
+            }) {
+                record(.wakeReminders, .skipped)
             }
         }
     }

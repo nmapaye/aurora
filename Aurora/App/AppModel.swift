@@ -24,6 +24,7 @@ final class AppModel {
     var legacyImportFailed = false
     private(set) var mutationFailure: String?
     private(set) var reminderStatus: ReminderService.Status = .off
+    private(set) var wakeReminderStatus: ReminderService.WakeStatus = .off
     var pendingLink: DeepLink?
 
     let clock: LocalClock
@@ -113,6 +114,8 @@ final class AppModel {
                     mutationFailure = "Local data erase is incomplete. Retry to finish erasing; records will not be restored. " + error.localizedDescription
                     throw error
                 }
+            } else {
+                deletion.resumeNotificationClearing()
             }
             tick()
             if let saved = try store.load() {
@@ -266,15 +269,18 @@ final class AppModel {
             note: note.isEmpty ? nil : note
         )
         update { $0.addSleep(session) }
+        Task { await syncWakeReminders() }
     }
 
     func correctManualSleep(id: String, with draft: ManualSleep.Draft) {
         let note = draft.note.trimmingCharacters(in: .whitespacesAndNewlines)
         update { $0.updateManualSleep(id: id, start: draft.start, end: draft.end, note: .some(note.isEmpty ? nil : note)) }
+        Task { await syncWakeReminders() }
     }
 
     func deleteManualSleep(id: String) {
         update { $0.removeManualSleep(id: id) }
+        Task { await syncWakeReminders() }
     }
 
     // MARK: Energy check-ins
@@ -400,6 +406,7 @@ final class AppModel {
         tick()
         guard phase == .ready, state.onboarding.completed else { return }
         reminderStatus = await reminders.sync(enabled: state.prefs.notifyCutoff, cutoffHour: state.prefs.cutoffHour, prompt: false)
+        await syncWakeReminders()
         await healthSync.startObservers()
         await refresher.request(.foreground)
     }
@@ -432,6 +439,8 @@ final class AppModel {
         // Health-change runs don't evaluate suggestions in general; a real
         // change to relevant sleep still gets its one policy-checked offer.
         if !steps.contains(.suggestions), state.sleeps != sleepsBefore { sleepChanged?(sleepsBefore) }
+        // A newly recorded wake-up moves today's reminders to the real time.
+        if state.sleeps != sleepsBefore { await syncWakeReminders() }
         if steps.contains(.healthCaffeine) {
             let read = await healthSync.readCaffeineChanges()
             if case .applied(let result) = read, result.hasMore { } else { lastRefresh[.healthCaffeine] = started }
@@ -492,6 +501,35 @@ final class AppModel {
         reminderStatus = await reminders.sync(enabled: state.prefs.notifyCutoff, cutoffHour: state.prefs.cutoffHour, prompt: false)
     }
 
+    /// Saves the person's wake reminder settings, then schedules them. Saving
+    /// with reminders on is the only place that asks for permission.
+    func saveWakeReminders(_ settings: WakeReminderSettings) async {
+        update { $0.prefs.wakeReminders = settings.normalized() }
+        await syncWakeReminders(prompt: settings.enabled)
+    }
+
+    /// Re-plans wake reminders from the latest recorded sleep. Runs on
+    /// foreground, after sleep changes, and after a save.
+    func syncWakeReminders(prompt: Bool = false) async {
+        tick()
+        guard phase == .ready else { return }
+        let settings = state.prefs.wakeReminders ?? .defaults
+        let delivered = await reminders.deliveredWakeIDs(now: now)
+        let plan = WakeReminders.plan(
+            settings: settings, cutoffHour: state.prefs.cutoffHour, sleeps: state.sleeps,
+            now: now, clock: clock, text: text, delivered: delivered
+        )
+        wakeReminderStatus = await reminders.syncWake(plan, enabled: settings.enabled && !state.demoMode, now: now, prompt: prompt)
+    }
+
+    /// The next planned wake reminder, for settings and cards.
+    var nextWakeReminder: WakeReminders.Reminder? {
+        WakeReminders.plan(
+            settings: state.prefs.wakeReminders ?? .defaults, cutoffHour: state.prefs.cutoffHour,
+            sleeps: state.sleeps, now: now, clock: clock, text: text
+        ).min { $0.fireAt < $1.fireAt }
+    }
+
     // MARK: Sample Data and deletion
 
     func loadSampleData() {
@@ -530,7 +568,7 @@ final class AppModel {
         phase = .loading
         assistant.resetAfterErase()
         state = AppState(); lastQuickAddAt = nil; pendingLink = nil
-        reminderStatus = .off; legacyImportFailed = false
+        reminderStatus = .off; wakeReminderStatus = .off; legacyImportFailed = false
         do {
             try deletion.finish()
             mutationFailure = nil; phase = .ready

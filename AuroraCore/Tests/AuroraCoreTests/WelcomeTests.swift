@@ -138,13 +138,14 @@ struct WelcomeTests {
         #expect(!welcome.showing && !welcome.blocksInteraction && !welcome.hidesConversationFromAccessibility)
         welcome.skip()
         #expect(!welcome.showing)
-        #expect(Welcome.Presentation.holdSeconds <= 1.5)
+        // Readable, but still short: a tap always ends it sooner.
+        #expect((2.5...3.5).contains(Welcome.Presentation.holdSeconds))
     }
 
     // MARK: Setup order, resume and migration
 
     @Test func setupOrderEndsAtFinish() {
-        #expect(SetupStep.allCases.map(\.next) == [.sleepTarget, .health, .calendar, .finish, .finish])
+        #expect(SetupStep.allCases.map(\.next) == [.sleepTarget, .health, .calendar, .wakeReminders, .finish, .finish])
     }
 
     @Test func storedStepsResumeIncludingRetiredQuestions() {
@@ -230,10 +231,11 @@ struct WelcomeTests {
         state.recordSetup(.sleepTarget, .skipped)
         state.recordSetup(.health, .skipped)
         state.recordSetup(.calendar, .skipped)
+        state.recordSetup(.wakeReminders, .skipped)
         #expect(SetupStep(stored: state.onboarding.setupStep) == .finish)
-        #expect(state.prefs.targetSleep == 7 && state.prefs.displayName == nil)
+        #expect(state.prefs.targetSleep == 7 && state.prefs.displayName == nil && state.prefs.wakeReminders == nil)
         let replies = transcript(state).map(\.reply)
-        #expect(replies == [.person("Not now"), .retained("Sleep target stays at 7 hours. You can change it in Settings."), .person("Not now"), .person("Not now"), nil])
+        #expect(replies == [.person("Not now"), .retained("Sleep target stays at 7 hours. You can change it in Settings."), .person("Not now"), .person("Not now"), .person("Not now"), nil])
     }
 
     @Test func explicitAnswersAreShownAsTheirs() {

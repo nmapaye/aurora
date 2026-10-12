@@ -126,7 +126,7 @@ import Testing
         let export = try CSVFile(name: "aurora-erase-test.csv", text: "a,b\n").write()
         #expect(FileManager.default.fileExists(atPath: export.path))
 
-        let deletion = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: {})
+        let deletion = LocalDataDeletion(store: store, legacy: nil, clearConnections: {}, clearNotifications: { $0() })
         try deletion.begin()
         try deletion.finish()
         #expect(store.orphanedSaves().isEmpty)

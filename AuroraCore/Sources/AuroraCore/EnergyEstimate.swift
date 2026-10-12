@@ -53,9 +53,9 @@ public enum EnergyLimitation: String, Codable, Sendable, CaseIterable {
 
     public var text: String {
         switch self {
-        case .notMeasured: "Modeled from your records. It is not a measurement of how you feel or perform."
+        case .notMeasured: "Modeled from your records."
         case .genericCircadian: "Time of day follows a generic daily curve, not your personal rhythm."
-        case .halfLifeSetting: "Caffeine fades by the half-life in Settings, not a measured rate."
+        case .halfLifeSetting: "Fades by your half-life setting."
         case .unmeasuredFactors: "Illness, stress, medication, meals, activity, and anything else not recorded here are not part of the model."
         }
     }
@@ -289,7 +289,7 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
 
     public var summary: String {
         guard let modeledScore else { return "\(Self.title) unavailable. No sleep is recorded in the 24 hours before this time." }
-        return "\(Self.title) \(modeledScore) on a 0 to 100 model scale. Estimated from recorded sleep, caffeine, and a generic time-of-day curve; not measured."
+        return "\(Self.title) \(modeledScore) of 100, modeled from sleep, caffeine and time of day."
             + (includesSample ? " Includes Sample Data." : "")
     }
 }

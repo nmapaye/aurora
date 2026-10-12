@@ -2,9 +2,15 @@ import AuroraCore
 import Foundation
 import UserNotifications
 
-/// The daily reminder at the user's own cutoff hour, plus at most one
-/// one-off cutoff scenario reminder the person saved. Every sync cancels the
-/// daily one first and schedules it again only when it is switched on and allowed.
+/// Local notifications: a daily reminder at the user's own cutoff hour, at
+/// most one one-off cutoff scenario reminder the person saved, and the
+/// caffeine reminders they set relative to waking. Every sync cancels first
+/// and schedules again only when switched on and allowed.
+///
+/// Daily syncs run one at a time, in the order they were asked for, and a
+/// sync that a newer one has superseded does not schedule. So a foreground
+/// refresh that overlaps a change in Settings can't leave the reminder on
+/// after it was switched off.
 @MainActor
 final class ReminderService {
     enum Status: Equatable {
@@ -16,18 +22,40 @@ final class ReminderService {
     }
 
     private let center: any NotificationBackend
+    private let clock: () -> LocalClock
+    private let text: () -> DateText
+    private let defaults: UserDefaults
     private var generation = 0
 
-    init(backend: (any NotificationBackend)? = nil) {
+    init(
+        backend: (any NotificationBackend)? = nil,
+        clock: @escaping () -> LocalClock = { .current },
+        text: @escaping () -> DateText = { .current },
+        defaults: UserDefaults = .standard
+    ) {
         center = backend ?? LiveNotificationBackend()
+        self.clock = clock
+        self.text = text
+        self.defaults = defaults
+    }
+
+    /// Removes notifications on the same serial queue as every other call
+    /// Aurora makes, and returns once the removal has run.
+    nonisolated static func remove(pending: [String] = [], delivered: [String] = []) async {
+        await LiveNotificationBackend.remove(pending: pending, delivered: delivered)
     }
 
     func cancelForErase() {
         generation += 1
+        wakeGeneration += 1
         let ids = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier]
         center.removePending(ids)
         center.removeDelivered(ids)
+        Task { await removeWake(delivered: true) }
+        defaults.removeObject(forKey: Self.wakeScheduleKey)
     }
+
+    // MARK: Cutoff scenario
 
     enum ScenarioOutcome: Equatable { case scheduled, notAllowed, failed }
 
@@ -79,27 +107,130 @@ final class ReminderService {
         }
     }
 
+    // MARK: Wake reminders
+
+    enum WakeStatus: Equatable {
+        case off
+        case scheduled(next: Millis?)
+        case denied
+    }
+
+    private var wakeGeneration = 0
+    /// Ids and fire times last handed to the system, so a reminder whose time
+    /// has passed counts as delivered even after its banner is cleared.
+    static let wakeScheduleKey = "aurora.wakeReminders.scheduled"
+
+    /// Ids of wake reminders already shown, from the system's delivered list
+    /// and from earlier schedules whose time has passed.
+    func deliveredWakeIDs(now: Millis) async -> Set<String> {
+        let shown = await center.deliveredIdentifiers().filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
+        let scheduled = defaults.dictionary(forKey: Self.wakeScheduleKey) as? [String: Double] ?? [:]
+        return Set(shown).union(scheduled.filter { $0.value <= now }.map(\.key))
+    }
+
+    /// Replaces every pending wake reminder with `reminders`. Never prompts
+    /// unless `prompt` is set (only from Save in settings).
+    func syncWake(_ reminders: [WakeReminders.Reminder], enabled: Bool, now: Millis, prompt: Bool) async -> WakeStatus {
+        wakeGeneration += 1
+        let current = wakeGeneration
+        await removeWake(delivered: false)
+        guard enabled else {
+            defaults.removeObject(forKey: Self.wakeScheduleKey)
+            return .off
+        }
+        var status = await center.authorizationStatus()
+        if status == .notDetermined && prompt {
+            await center.requestAuthorization()
+            status = await center.authorizationStatus()
+        }
+        guard current == wakeGeneration else { return .off }
+        switch status {
+        case .authorized, .provisional, .ephemeral: break
+        default: return .denied
+        }
+        // Keep passed entries so they still count as delivered today.
+        var record = (defaults.dictionary(forKey: Self.wakeScheduleKey) as? [String: Double] ?? [:]).filter { $0.value <= now && $0.value > now - 2 * dayMs }
+        for reminder in reminders {
+            let content = UNMutableNotificationContent()
+            content.title = reminder.title
+            content.body = reminder.body
+            content.sound = .default
+            let date = Date(timeIntervalSince1970: reminder.fireAt / 1000)
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date),
+                repeats: false
+            )
+            do {
+                try await center.add(UNNotificationRequest(identifier: reminder.id, content: content, trigger: trigger))
+                record[reminder.id] = reminder.fireAt
+            } catch {
+                continue
+            }
+            guard current == wakeGeneration else {
+                await removeWake(delivered: false)
+                return .off
+            }
+        }
+        defaults.set(record, forKey: Self.wakeScheduleKey)
+        return .scheduled(next: reminders.map(\.fireAt).min())
+    }
+
+    private func removeWake(delivered: Bool) async {
+        let pending = await center.pendingIdentifiers().filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
+        if !pending.isEmpty { center.removePending(pending) }
+        if delivered {
+            let shown = await center.deliveredIdentifiers().filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
+            if !shown.isEmpty { center.removeDelivered(shown) }
+        }
+    }
+
+    // MARK: Daily cutoff reminder
+
+    /// How many daily syncs have been asked for. Tests wait on it.
+    private(set) var latestIntent = 0
+    private var promptingSyncs = 0
+    private var dailySyncs: Task<Void, Never>?
+    private(set) var lastStatus: Status = .off
+
     /// `prompt` asks for permission when it hasn't been decided yet. Only
-    /// Settings passes `true`; foreground syncs never prompt.
+    /// Settings passes `true`; foreground syncs never prompt, and one that
+    /// arrives while a prompting sync is open reports the last status rather
+    /// than racing the permission sheet.
     func sync(enabled: Bool, cutoffHour: Double, prompt: Bool) async -> Status {
+        if !prompt && promptingSyncs > 0 { return lastStatus }
+        latestIntent += 1
+        let intent = latestIntent
+        if prompt { promptingSyncs += 1 }
+        let previous = dailySyncs
+        let run = Task { @MainActor in
+            await previous?.value
+            return await self.applyDaily(enabled: enabled, cutoffHour: cutoffHour, prompt: prompt, intent: intent)
+        }
+        dailySyncs = Task { _ = await run.value }
+        let status = await run.value
+        if prompt { promptingSyncs -= 1 }
+        return status
+    }
+
+    private func applyDaily(enabled: Bool, cutoffHour: Double, prompt: Bool, intent: Int) async -> Status {
         let currentGeneration = generation
         center.removePending([CutoffReminder.identifier])
-        guard enabled else { return .off }
+        guard enabled, intent == latestIntent else { return finish(.off) }
 
         var status = await center.authorizationStatus()
         if status == .notDetermined && prompt {
             await center.requestAuthorization()
             status = await center.authorizationStatus()
         }
-        guard generation == currentGeneration else { return .off }
+        guard generation == currentGeneration, intent == latestIntent else { return finish(.off) }
         switch status {
         case .authorized, .provisional, .ephemeral:
             break
         default:
-            return .denied
+            return finish(.denied)
         }
 
-        let content = CutoffReminder.content(cutoffHour: cutoffHour, clock: .current, text: .current)
+        let content = CutoffReminder.content(cutoffHour: cutoffHour, clock: clock(), text: text())
         let notification = UNMutableNotificationContent()
         notification.title = content.title
         notification.body = content.body
@@ -111,14 +242,19 @@ final class ReminderService {
         let request = UNNotificationRequest(identifier: CutoffReminder.identifier, content: notification, trigger: trigger)
         do {
             try await center.add(request)
-            guard generation == currentGeneration else {
+            guard generation == currentGeneration, intent == latestIntent else {
                 center.removePending([CutoffReminder.identifier])
-                return .off
+                return finish(.off)
             }
-            return .scheduled(hour: content.hour)
+            return finish(.scheduled(hour: content.hour))
         } catch {
-            return .failed
+            return finish(.failed)
         }
+    }
+
+    private func finish(_ status: Status) -> Status {
+        lastStatus = status
+        return status
     }
 }
 
@@ -131,17 +267,21 @@ protocol NotificationBackend: AnyObject {
     func add(_ request: UNNotificationRequest) async throws
     func removePending(_ ids: [String])
     func removeDelivered(_ ids: [String])
+    func pendingIdentifiers() async -> [String]
+    func deliveredIdentifiers() async -> [String]
 }
 
 /// Every call goes through one serial queue off the main thread. Removal is
 /// a synchronous XPC round trip that blocked the main thread for minutes on
 /// a freshly booted simulator (spindump: `foregroundSync → sync →
 /// removePendingNotificationRequests → xpc_connection_send_message_with_reply_sync`).
-/// One queue keeps calls in the order Aurora made them, so a removal
-/// requested before an add can never land after it.
+/// One queue, shared by every instance and by erase, keeps calls in the
+/// order Aurora made them, so a removal requested before an add can never
+/// land after it.
 final class LiveNotificationBackend: NotificationBackend {
+    nonisolated static let queue = DispatchQueue(label: "com.nmapaye.aurora.notifications", qos: .userInitiated)
     private let center = UNUserNotificationCenter.current()
-    private let queue = DispatchQueue(label: "com.nmapaye.aurora.notifications", qos: .userInitiated)
+    private var queue: DispatchQueue { Self.queue }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
         let center = center
@@ -172,5 +312,48 @@ final class LiveNotificationBackend: NotificationBackend {
     func removeDelivered(_ ids: [String]) {
         let center = center
         queue.async { center.removeDeliveredNotifications(withIdentifiers: ids) }
+    }
+    func pendingIdentifiers() async -> [String] {
+        let center = center
+        return await withCheckedContinuation { continuation in
+            queue.async { center.getPendingNotificationRequests { continuation.resume(returning: $0.map(\.identifier)) } }
+        }
+    }
+    func deliveredIdentifiers() async -> [String] {
+        let center = center
+        return await withCheckedContinuation { continuation in
+            queue.async { center.getDeliveredNotifications { continuation.resume(returning: $0.map(\.request.identifier)) } }
+        }
+    }
+
+    /// Removes on the shared queue and returns once the removal has run.
+    nonisolated static func remove(pending: [String], delivered: [String]) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                let center = UNUserNotificationCenter.current()
+                if !pending.isEmpty { center.removePendingNotificationRequests(withIdentifiers: pending) }
+                if !delivered.isEmpty { center.removeDeliveredNotifications(withIdentifiers: delivered) }
+                continuation.resume()
+            }
+        }
+    }
+
+    /// For erase: removes `ids` and every pending or delivered notification
+    /// whose identifier starts with one of `prefixes`, then calls `done` on
+    /// the queue. Nothing waits on the main thread.
+    nonisolated static func removeAll(ids: [String], prefixes: [String], then done: @escaping @Sendable () -> Void) {
+        queue.async {
+            let center = UNUserNotificationCenter.current()
+            let matching: @Sendable (String) -> Bool = { id in prefixes.contains { id.hasPrefix($0) } }
+            center.getPendingNotificationRequests { pending in
+                center.getDeliveredNotifications { delivered in
+                    queue.async {
+                        center.removePendingNotificationRequests(withIdentifiers: ids + pending.map(\.identifier).filter(matching))
+                        center.removeDeliveredNotifications(withIdentifiers: ids + delivered.map(\.request.identifier).filter(matching))
+                        done()
+                    }
+                }
+            }
+        }
     }
 }

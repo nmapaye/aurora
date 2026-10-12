@@ -91,6 +91,9 @@ app's resources in the project file.
   Native history, settings, charts, and reaction tests remain reachable.
 - Never add an AI API-key field, a remote/cloud model, or automatic calendar
   writes. A calendar preview must be explicitly approved and revalidated.
+- Wake reminders fire at offsets the person chose after their recorded wake-up
+  (or their usual wake time), never at or after their own cutoff. Aurora never
+  suggests the offsets; copy says "your reminder", not why or how much.
 - Day math goes through `LocalClock` and number rounding through `jsRound`,
   so DST and halves behave as they did in the old build.
 

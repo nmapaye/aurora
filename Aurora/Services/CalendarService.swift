@@ -35,7 +35,12 @@ final class AppleCalendarProvider: CommitmentProvider {
         let canMove = calendar.allowsContentModifications && !event.isAllDay && (event.attendees?.isEmpty ?? true) && (event.organizer == nil || event.organizer?.isCurrentUser == true)
         return .init(id: id, calendarID: calendar.calendarIdentifier, provider: .apple, title: event.title ?? "Untitled event", start: start, end: end,
             timeZone: event.timeZone?.identifier ?? TimeZone.current.identifier,
-            revision: "\(event.lastModifiedDate?.timeIntervalSince1970 ?? 0)|\(start.timeIntervalSince1970)|\(end.timeIntervalSince1970)", canMove: canMove, recurring: event.hasRecurrenceRules || event.isDetached)
+            revision: "\(event.lastModifiedDate?.timeIntervalSince1970 ?? 0)|\(start.timeIntervalSince1970)|\(end.timeIntervalSince1970)", canMove: canMove, recurring: event.hasRecurrenceRules || event.isDetached,
+            location: event.location?.isEmpty == false ? event.location : nil, colorHex: calendar.cgColor.flatMap(Self.hex), lastModified: event.lastModifiedDate, allDay: event.isAllDay)
+    }
+    private static func hex(_ color: CGColor) -> String? {
+        guard let rgb = color.converted(to: CGColorSpace(name: CGColorSpace.sRGB)!, intent: .defaultIntent, options: nil)?.components, rgb.count >= 3 else { return nil }
+        return String(format: "#%02X%02X%02X", Int(rgb[0] * 255), Int(rgb[1] * 255), Int(rgb[2] * 255))
     }
     private func occurrence(_ original: Commitment) throws -> EKEvent {
         guard authorized, let calendar = store.calendar(withIdentifier: original.calendarID) else { throw CalendarActionError.unavailable }
@@ -137,7 +142,8 @@ final class CalendarService {
             }
             catch { guard generation == currentGeneration else { return }; failures.append(provider.providerID.rawValue.capitalized) }
         }
-        commitments.sort { $0.start < $1.start }
+        // The same event from Apple and Google appears once: the newest copy.
+        commitments = CalendarMerge.newestCopies(commitments)
         message = failures.isEmpty ? nil : "Couldn't refresh \(failures.joined(separator: ", ")). Changes are blocked until all selected calendars refresh."
     }
     func approve(_ change: CalendarChange) async throws -> Commitment {

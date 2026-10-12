@@ -31,7 +31,11 @@ final class AuroraUITests: XCTestCase {
     }
     private func tapQuick(_ label: String) {
         let button = app.buttons["assistant-quick-" + label]
+        // Only four quick actions remain; others are the same request typed.
+        if !button.waitForExistence(timeout: 3) { request(label); return }
         let strip = app.scrollViews["assistant-quick-actions"]
+        // The quick actions are a fixed row of tiles now; no scrolling needed.
+        guard strip.exists else { button.tap(); return }
         for _ in 0..<5 {
             let frame = strip.frame
             let center = button.frame.midX
@@ -43,13 +47,27 @@ final class AuroraUITests: XCTestCase {
         }
         button.tap()
     }
+    /// A relaunch shows the welcome; a tap on it only skips it, so tap it
+    /// away before using the conversation, as a person would.
+    private func dismissWelcome() {
+        let welcome = app.descendants(matching: .any)["welcome"]
+        if welcome.waitForExistence(timeout: 5) {
+            welcome.tap()
+            XCTAssertTrue(welcome.waitForNonExistence(timeout: 5))
+        }
+    }
+    /// Apple Health lives in Aurora settings, not the quick actions.
+    private func openAppleHealth() {
+        tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
+        tapWhenReady(app.buttons["assistant-apple-health"])
+    }
     func testAppleHealthConnectionIsReachableWithoutRequestingAccess() {
         finishSetup()
-        tapQuick("Connect Apple Health")
+        openAppleHealth()
         XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant-health-connect"].exists)
         app.buttons["assistant-health-done"].tap()
-        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
     }
 
     func testHealthChoicesRemainReachableAtLargestTextWithoutRequestingAccess() {
@@ -57,7 +75,7 @@ final class AuroraUITests: XCTestCase {
         app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         finishSetup()
-        tapQuick("Connect Apple Health")
+        openAppleHealth()
         XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
         let titles = ["readSleep": "Read sleep", "readCaffeine": "Read caffeine", "writeCaffeine": "Add my caffeine to Health", "backgroundUpdates": "Update in the background"]
         for choice in ["readSleep", "readCaffeine", "writeCaffeine", "backgroundUpdates"] {
@@ -129,15 +147,37 @@ final class AuroraUITests: XCTestCase {
         tapWhenReady(app.buttons["setup-skip"])
         XCTAssertTrue(app.staticTexts["setup-question-calendar"].waitForExistence(timeout: 5))
         tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-wakeReminders"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-skip"])
         tapWhenReady(app.buttons["setup-finish"])
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 10))
+    }
+
+    func testWakeRemindersChosenInSetupShowInTranscriptAndSettings() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        for step in ["sleepTarget", "health", "calendar", "wakeReminders"] {
+            tapWhenReady(app.buttons["setup-skip"])
+            XCTAssertTrue(app.staticTexts["setup-question-" + step].waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.staticTexts["wake-preview"].exists)
+        tapWhenReady(app.buttons["wake-offset-120"])
+        tapWhenReady(app.buttons["setup-next"])
+        // Notification permission is asked only now, after the explicit choice.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        XCTAssertTrue(app.staticTexts["You: 1h and 2h after waking"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-finish"])
+        tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
+        let entry = app.buttons["assistant-wake-reminders"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertTrue(entry.label.contains("+1h, +2h"))
     }
 
     func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
         tapWhenReady(app.buttons["setup-skip-all"])
         XCTAssertTrue(app.buttons["setup-finish"].waitForExistence(timeout: 5))
-        for step in ["name", "sleepTarget", "health", "calendar"] {
+        for step in ["name", "sleepTarget", "health", "calendar", "wakeReminders"] {
             XCTAssertFalse(app.staticTexts["setup-question-" + step].exists, step + " was never asked")
         }
         XCTAssertFalse(app.staticTexts["You: 8 hours"].exists)
@@ -226,8 +266,13 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
         let curve = app.otherElements["assistant-energy-curve"]
         XCTAssertTrue(curve.waitForExistence(timeout: 5))
-        XCTAssertTrue(curve.label.contains("Modeled, not measured"))
-        XCTAssertTrue(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
+        XCTAssertTrue(curve.label.contains("Modeled."))
+        // Recorded inputs are shown only when asked for.
+        XCTAssertFalse(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
+        let recorded = app.buttons["What’s recorded in this window"]
+        for _ in 0..<4 where !recorded.isHittable { app.swipeUp() }
+        recorded.tap()
+        XCTAssertTrue(app.staticTexts["No sleep or caffeine recorded in this window."].waitForExistence(timeout: 3))
     }
 
     func testCheckInNeedsARatingSaveAndUndo() {
@@ -298,7 +343,7 @@ final class AuroraUITests: XCTestCase {
     }
     func testDraftFieldKeepsSaveAboveCollapsedComposer() {
         finishSetup()
-        let quick = app.buttons["assistant-quick-Log sleep"]
+        let quick = app.buttons["assistant-quick-Log caffeine"]
         app.buttons["assistant-quick-Log caffeine"].tap()
         let amount = app.textFields["assistant-dose-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
@@ -375,7 +420,7 @@ final class AuroraUITests: XCTestCase {
     }
     func testInlineSleepSaveCreatesReceipt() {
         finishSetup()
-        app.buttons["assistant-quick-Log sleep"].tap()
+        request("Log sleep")
         let save = app.buttons["assistant-sleep-save"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         app.swipeUp()
@@ -400,6 +445,7 @@ final class AuroraUITests: XCTestCase {
         app.buttons["assistant-quick-Log caffeine"].tap()
         XCTAssertTrue(app.textFields["assistant-dose-amount"].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments = []; app.launch()
+        dismissWelcome()
         XCTAssertTrue(app.buttons["assistant-refresh-caffeineDraft"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["assistant-dose-save"].exists)
         app.buttons["assistant-refresh-caffeineDraft"].tap()
@@ -451,7 +497,8 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-send"].exists)
         request("Reminders")
         let reminder = app.switches["Cutoff reminder"]
-        XCTAssertTrue(reminder.waitForExistence(timeout: 5))
+        for _ in 0..<6 where !reminder.waitForExistence(timeout: 1) { app.swipeUp() }
+        XCTAssertTrue(reminder.exists)
         for _ in 0..<4 where !reminder.isHittable { app.swipeUp() }
         XCTAssertTrue(reminder.isHittable)
     }

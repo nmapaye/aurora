@@ -68,16 +68,32 @@ final class AssistantModel {
         #endif
     }
 
+    /// Whether Apple's on-device model is ready, checked off the main thread.
+    /// Views read this cached value: asking the system from a view body can
+    /// block the main thread while its model service starts.
+    private(set) var modelAvailable = false
+    private var availabilityTask: Task<Void, Never>?
+
+    func refreshModelAvailability() {
+        guard availabilityTask == nil else { return }
+        availabilityTask = Task { [weak self] in
+            let available = await Task.detached(priority: .utility) {
+                Signposts.measure("Assistant.ModelAvailability") { AppleIntentModel.available }
+            }.value
+            self?.modelAvailable = available
+            self?.availabilityTask = nil
+        }
+    }
+
     var intelligenceName: String {
         if conversation.preferences.useMacModel { return "Mac local · \(conversation.preferences.macModel)" }
-        // Read while the conversation's first frame renders.
-        let available = Signposts.measure("Assistant.ModelAvailability") { AppleIntentModel.available }
-        return available ? "On-device intelligence" : "Local quick actions · AI unavailable"
+        return modelAvailable ? "On-device intelligence" : "Local quick actions · AI unavailable"
     }
 
     func start(app: AppModel) async {
         guard !started else { return }
         started = true
+        refreshModelAvailability()
         let interval = Signposts.signposter.beginInterval("Assistant.Start")
         defer { Signposts.signposter.endInterval("Assistant.Start", interval) }
         do {
@@ -112,7 +128,7 @@ final class AssistantModel {
     func prepareForInput() {
         guard !processing, !conversation.preferences.useMacModel else { return }
         // Runs as the keyboard appears; times the synchronous part only.
-        Signposts.measure("Assistant.Prewarm") { appleModel.prewarm() }
+        Signposts.measure("Assistant.Prewarm") { appleModel.prewarm(available: modelAvailable) }
     }
 
     func releaseWarmResources() {
@@ -278,7 +294,7 @@ final class AssistantModel {
             updateCard(messageID) {
                 $0.commitments = calendars.commitments
                 $0.state = calendars.message == nil ? .ready : .failed
-                $0.summary = calendars.message ?? "Nothing changes until you approve a preview."
+                $0.summary = calendars.message ?? ""
             }
         case .energyProjection:
             appendCard(AssistantCards.make(.energyProjection, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
@@ -366,7 +382,7 @@ final class AssistantModel {
         var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: title)
         card.state = .saved; card.recordID = recordID; card.recordKind = kind
         card.timeZone = app.clock.timeZone.identifier
-        card.summary = title.contains("updated") ? "Correction recorded. Open history to review it." : "Entry recorded on this device."
+        card.summary = title.contains("updated") ? "Correction saved." : "Saved."
         card.records = AssistantCards.make(.history, state: app.state, now: app.now, clock: app.clock, text: app.text).records.filter { $0.id == recordID && $0.kind == kind }
         if kind == "caffeine", let health = healthMetric(doseID: recordID, app: app) { card.metrics = [health] }
         let id = appendCard(card)
@@ -433,7 +449,7 @@ final class AssistantModel {
         else { return }
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         updateCard(message.id) {
-            $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry on this device. Other records are unchanged."
+            $0.state = .undone; $0.title = "Entry removed"; $0.summary = "Removed that \(kind) entry."
             $0.metrics.removeAll { $0.id == "health" }
             if kind == "caffeine", let health = healthMetric(doseID: id, app: app) { $0.metrics.append(health) }
         }
@@ -458,7 +474,7 @@ final class AssistantModel {
         var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: draft.original == nil ? "Check-in saved" : "Check-in updated")
         card.state = .saved; card.recordID = checkIn.id; card.recordKind = "checkin"
         card.timeZone = app.clock.timeZone.identifier
-        card.summary = "Your rating, saved on this device. It is not part of the model."
+        card.summary = "Your rating, saved."
         card.checkIn = .init(saved: checkIn, previous: draft.original)
         appendCard(card)
     }
@@ -478,7 +494,7 @@ final class AssistantModel {
         updateCard(message.id) {
             $0.state = .undone
             $0.title = previous == nil ? "Check-in removed" : "Correction undone"
-            $0.summary = previous == nil ? "Removed that check-in on this device. Other records are unchanged." : "Restored the earlier rating. Other records are unchanged."
+            $0.summary = previous == nil ? "Removed that check-in." : "Restored the earlier rating."
         }
     }
 
@@ -512,14 +528,14 @@ final class AssistantModel {
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         updateCard(pendingMessageID) { $0.state = .saved }
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
+        // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
-        Haptics.success()
     }
     func undoDose(app: AppModel) {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }
         app.undo(dose)
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
-        savedDose = nil; appendRemoval("Removed that caffeine entry on this device. Other records are unchanged.", doseID: dose.id, app: app)
+        savedDose = nil; appendRemoval("Removed that caffeine entry.", doseID: dose.id, app: app)
     }
     func dismissSuggestion(_ message: ConversationMessage) {
         if let key = message.suggestionKey { conversation.dismissedSuggestions.insert(key) }
@@ -530,6 +546,7 @@ final class AssistantModel {
     /// decides. Suggestions keep their opt-in, quiet hours, daily limits and
     /// dismissals.
     func foreground(app: AppModel, steps: Set<RefreshPolicy.Step> = [.calendars, .suggestions]) async {
+        refreshModelAvailability()
         guard started, conversation.preferences.proactive else { return }
         let generation = cacheGeneration
         if steps.contains(.calendars) { await calendars.refresh() }
@@ -578,7 +595,8 @@ final class AssistantModel {
     func syncBriefingNotification(prompt: Bool) async {
         let generation = cacheGeneration
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"])
+        // Off the main thread: the system call can wait on a slow service.
+        await ReminderService.remove(pending: ["aurora.assistant.briefing"])
         guard conversation.preferences.proactive, conversation.preferences.morningBriefing else { return }
         if prompt { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
         let settings = await center.notificationSettings()
@@ -592,7 +610,7 @@ final class AssistantModel {
         var date = DateComponents(); date.hour = hour; date.minute = 0
         do {
             try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true)))
-            if generation != cacheGeneration { center.removePendingNotificationRequests(withIdentifiers: ["aurora.assistant.briefing"]) }
+            if generation != cacheGeneration { await ReminderService.remove(pending: ["aurora.assistant.briefing"]) }
         }
         catch { failure = "Couldn't schedule the briefing notification." }
     }

@@ -73,6 +73,8 @@ struct AssistantView: View {
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(Metrics.lg)
                 }
+                // Opens at the latest message, including right after the welcome.
+                .defaultScrollAnchor(.bottom)
                 .coordinateSpace(.named(Self.viewport))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
                 .scrollDismissesKeyboard(.interactively)
@@ -105,7 +107,17 @@ struct AssistantView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 7) {
-                        AuroraActivity(active: true, subdued: true).frame(width: 28, height: 20)
+                        // The crisp mark at rest; the flowing ribbon only while working.
+                        ZStack {
+                            if assistant.processing {
+                                AuroraActivity(active: true, subdued: true).frame(width: 28, height: 20)
+                                    .transition(.opacity)
+                            } else {
+                                AuroraMark().frame(width: 22, height: 22).transition(.opacity)
+                            }
+                        }
+                        .frame(width: 28, height: 22)
+                        .animation(Motion.content(reduceMotion: reduceMotion), value: assistant.processing)
                         Text("Aurora").font(.headline)
                     }
                     .accessibilityElement(children: .ignore).accessibilityLabel("Aurora")
@@ -305,37 +317,33 @@ struct AssistantView: View {
     }
     /// Scrolls past the column's edges, but its first action starts in line
     /// with the cards and composer.
+    /// Four everyday actions as equal tiles that fit without scrolling;
+    /// everything else is in Settings, the history button, or a request.
     private var quickActions: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Metrics.xs) {
-                quickAction("Log caffeine", symbol: "cup.and.saucer")
-                quickAction("Log sleep", symbol: "moon")
-                quickAction("Connect Apple Health", symbol: "heart.text.square") {
-                    composerFocused = false
-                    showHealthConnection = true
-                }
-                quickAction("How is my energy?", symbol: "sparkle")
-                quickAction("Show my energy curve", symbol: "chart.xyaxis.line")
-                quickAction("Check in my energy", symbol: "hand.raised")
-                quickAction("Cutoff scenario", symbol: "moon.zzz")
-                quickAction("Show this week", symbol: "chart.bar")
-                quickAction("Review calendar", symbol: "calendar")
-                quickAction("Morning briefing", symbol: "sun.horizon")
-                quickAction("Reaction test", symbol: "hand.tap")
-                quickAction("History", symbol: "clock.arrow.circlepath")
-                quickAction("Export records", symbol: "square.and.arrow.up")
-                quickAction("Reminders", symbol: "bell")
-            }
+        // Always one row: wrapping at large text would grow the fixed bottom
+        // area and squeeze the conversation. Labels shrink a little instead.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4), spacing: Metrics.xs) {
+            quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
+            quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
+            quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
+            quickAction("Reaction test", short: "Reaction", symbol: "hand.tap")
         }
-        .contentMargins(.horizontal, Metrics.columnInset(containerWidth: composerWidth), for: .scrollContent)
+        .padding(.horizontal, Metrics.columnInset(containerWidth: composerWidth))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assistant-quick-actions")
     }
-    private func quickAction(_ text: String, symbol: String, action: (() -> Void)? = nil) -> some View {
-        Button { if let action { action() } else { assistant.send(text, app: app) } } label: {
-            Label(text, systemImage: symbol).font(.caption.weight(.medium))
-                .padding(.horizontal, Metrics.sm).frame(minHeight: Metrics.minimumTouchTarget)
+    private func quickAction(_ text: String, short: String, symbol: String) -> some View {
+        Button { assistant.send(text, app: app) } label: {
+            VStack(spacing: Metrics.xxs) {
+                Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
+                Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
         }
-        .buttonStyle(CapsuleActionStyle()).disabled(assistant.processing).accessibilityIdentifier("assistant-quick-\(text)")
+        .buttonStyle(TileActionStyle())
+        .disabled(assistant.processing)
+        .accessibilityLabel(text)
+        .accessibilityIdentifier("assistant-quick-\(text)")
     }
     private func send() {
         guard !assistant.processing else { return }
@@ -372,8 +380,27 @@ private struct CapsuleActionBody: View {
             .background(Palette.card, in: Capsule())
             .overlay(Capsule().strokeBorder(Palette.cardBorder))
             .contentShape(Capsule())
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
+            .pressFeedback(configuration.isPressed)
+    }
+}
+
+/// Quick action tiles: a card surface with the shared press feedback.
+private struct TileActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { TileActionBody(configuration: configuration) }
+}
+
+private struct TileActionBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius + 2, style: .continuous)
+        configuration.label
+            .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.primaryButtonDisabledText)
+            .background(Palette.card, in: shape)
+            .overlay(shape.strokeBorder(Palette.cardBorder))
+            .contentShape(shape)
+            .pressFeedback(configuration.isPressed)
     }
 }
 
@@ -429,8 +456,8 @@ struct AssistantToolsView: View {
                 else {
                     List {
                         NavigationLink("Caffeine history", destination: CaffeineHistoryView())
-                        NavigationLink("Sleep history", destination: SleepHistoryView())
-                        NavigationLink("Sleep trends and Health", destination: SleepView())
+                        // Sleep's own "All sleep entries" holds the full list.
+                        NavigationLink("Sleep", destination: SleepView())
                         NavigationLink("Recorded insights", destination: InsightsView())
                         NavigationLink("Records, exports, and privacy", destination: SettingsView())
                     }.navigationTitle("Your records")
