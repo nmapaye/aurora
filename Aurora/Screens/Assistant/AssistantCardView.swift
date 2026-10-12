@@ -608,7 +608,7 @@ struct AssistantCardView: View {
         if card.state == .loading {
             Card { Label(card.title, systemImage: "calendar").font(.headline); ProgressView("Reading selected commitments…"); Text("No changes have been made.").font(.caption) }
         } else {
-            CalendarReviewCard(service: assistant.calendars, snapshot: card.commitments, editable: active, snapshotMessage: card.state == .failed ? card.summary : nil, onOutcome: { text, updated in
+            CalendarReviewCard(service: assistant.calendars, snapshot: card.commitments, editable: active, snapshotMessage: card.state == .failed ? card.summary : nil, capturedAt: Date(timeIntervalSince1970: card.capturedAt / 1000), onOutcome: { text, updated in
                 var receipt = AssistantCard(kind: .receipt, capturedAt: app.now, title: updated == nil ? "Calendar change not confirmed" : "Calendar updated", summary: text)
                 receipt.state = updated == nil ? .failed : .saved
                 if let updated { receipt.commitments = [updated] }

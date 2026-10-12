@@ -84,6 +84,53 @@ public enum CalendarActionValidator {
 
 /// One copy of each event when Apple and Google both deliver it (for
 /// example a Google calendar also added to the iPhone's Calendar app).
+/// What the calendar card lists: what's left of today, without sleep and
+/// routine blocks, which aren't commitments to plan around.
+public enum CalendarAgenda {
+    /// A title word starting with one of these marks a sleep or routine
+    /// block ("In Bed and Asleep", "Stop Naps", "Morning Pills"). Matching
+    /// word starts keeps "Snapshot review" visible.
+    public static let routineWords = ["asleep", "sleep", "bed", "nap", "routine", "pills", "meds"]
+
+    public static func isRoutine(_ title: String) -> Bool {
+        let words = title.lowercased().split { !$0.isLetter }
+        return words.contains { word in routineWords.contains { word.hasPrefix($0) } }
+    }
+
+    /// Events not yet ended that start before tomorrow, routines left out,
+    /// earliest first.
+    public static func restOfToday(_ events: [Commitment], now: Date, calendar: Calendar) -> [Commitment] {
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        return events
+            .filter { $0.end > now && $0.start < tomorrow && !isRoutine($0.title) }
+            .sorted { $0.start != $1.start ? $0.start < $1.start : $0.end < $1.end }
+    }
+
+    /// Identities of timed events that overlap another timed event in
+    /// `events`. Only these offer a later slot.
+    public static func clashing(_ events: [Commitment]) -> Set<String> {
+        let timed = events.filter { $0.allDay != true }
+        var result = Set<String>()
+        for (index, event) in timed.enumerated() {
+            for other in timed[(index + 1)...] where other.start < event.end && event.start < other.end {
+                result.insert(event.identity)
+                result.insert(other.identity)
+            }
+        }
+        return result
+    }
+
+    /// Source labels only help when the list mixes providers.
+    public static func showsSource(_ events: [Commitment]) -> Bool {
+        Set(events.map(\.provider)).count > 1
+    }
+
+    /// A timed event that ends on a later calendar day than it starts.
+    public static func endsNextDay(_ event: Commitment, calendar: Calendar) -> Bool {
+        event.allDay != true && !calendar.isDate(event.start, inSameDayAs: event.end.addingTimeInterval(-1))
+    }
+}
+
 public enum CalendarMerge {
     /// Events from different providers with the same title (ignoring case and
     /// spacing), start and end are the same event; the most recently changed
