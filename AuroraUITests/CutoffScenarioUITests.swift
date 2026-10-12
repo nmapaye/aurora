@@ -68,7 +68,13 @@ final class CutoffScenarioUITests: XCTestCase {
         let field = app.textFields[id]
         reveal(field)
         field.tap(); field.typeText(text)
-        tapWhenReady(app.buttons["cutoff-keyboard-done"])
+        // iPhone shows the toolbar Done above the decimal pad; iPad's keyboard
+        // has its own hide key and a return key instead.
+        let done = app.buttons["cutoff-keyboard-done"]
+        let hide = app.keyboards.buttons["Hide keyboard"]
+        if done.waitForExistence(timeout: 2) && done.isHittable { done.tap() }
+        else if hide.exists && hide.isHittable { hide.tap() }
+        else { field.typeText("\n") }
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
     }
 
