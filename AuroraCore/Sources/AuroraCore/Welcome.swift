@@ -65,22 +65,27 @@ public enum Welcome {
 
     public static let sleepWindowMs: Millis = 6 * hourMs
 
-    /// First match wins: sleep (not a nap) that ended in the last six hours,
-    /// then caffeine recorded so far today. Nil when neither exists, so a
-    /// missing record is never shown as zero.
+    /// First match wins: a night of sleep (not a nap) that ended in the last
+    /// six hours, then caffeine recorded so far today. Nil when neither
+    /// exists, so a missing record is never shown as zero. A night is every
+    /// sleep record less than 90 minutes apart, overlaps counted once, as the
+    /// Sleep screen groups them; Health splits nights into stage samples.
     public static func evidence(state: AppState, now: Millis, clock: LocalClock, text: DateText) -> Evidence? {
         func when(_ ms: Millis) -> String {
             clock.startOfDay(ms) == clock.startOfDay(now) ? "today, \(text.clockTime(ms))" : "\(text.shortDate(ms)), \(text.clockTime(ms))"
         }
-        if let sleep = state.sleeps
-            .filter({ $0.type == .sleep && $0.end <= now && $0.end > now - sleepWindowMs && $0.end > $0.start })
-            .max(by: { $0.end < $1.end }) {
+        if let night = SleepModel.episodes(state.sleeps.filter { $0.type == .sleep }, now: now)
+            .filter({ $0.wakeTime > now - sleepWindowMs })
+            .max(by: { $0.wakeTime < $1.wakeTime }) {
+            let order = ["Health", "Manual", "Sample Data"]
+            let sources = Set(night.sessions.map { SleepModel.sourceLabel(id: $0.id) })
+                .sorted { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }
             return Evidence(
                 kind: .lastSleep,
-                text: "\(formatHoursMinutes(durationMs: sleep.end - sleep.start)) of recorded sleep",
-                date: "Ended \(when(sleep.end))",
-                source: SleepModel.sourceLabel(id: sleep.id),
-                sample: RecordID.isSample(sleep.id),
+                text: "\(formatHoursMinutes(durationMs: night.durationMs)) of recorded sleep",
+                date: "Ended \(when(night.wakeTime))",
+                source: sources.joined(separator: " · "),
+                sample: night.sessions.contains { RecordID.isSample($0.id) },
                 symbol: "moon.stars"
             )
         }
