@@ -42,6 +42,19 @@ struct CalendarAgendaTests {
         #expect(shown == ["Zone 2 Cardio", "Stop Caffeine", "ECON 136: confirm meeting", "Dinner"])
     }
 
+    @Test func briefingListsTheNextFewWithoutRoutines() {
+        let now = at(9)
+        let events = [
+            event("Morning Pills", at(9, 30), at(9, 40)),
+            event("Route 20 to campus", at(10, 20), at(11, 15)),
+            event("ECON 136 study", at(11, 20), at(13)),
+            event("Lunch", at(13, 30), at(14, 15)),
+            event("Zone 2 Cardio", at(14, 15), at(15)),
+        ]
+        let titles = CalendarAgenda.briefing(events, now: now, calendar: calendar).map(\.title)
+        #expect(titles == ["Route 20 to campus", "ECON 136 study", "Lunch"])
+    }
+
     @Test func routineWordsMatchWordStartsOnly() {
         for title in ["In Bed and Asleep", "Stop Naps", "Morning Pills", "Morning Routine v5", "Bedtime", "Meds", "sleep window"] {
             #expect(CalendarAgenda.isRoutine(title), "\(title)")

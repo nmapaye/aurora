@@ -106,6 +106,13 @@ public enum CalendarAgenda {
             .sorted { $0.start != $1.start ? $0.start < $1.start : $0.end < $1.end }
     }
 
+    /// The briefing's short list: the first few of `restOfToday`.
+    public static let briefingLimit = 3
+
+    public static func briefing(_ events: [Commitment], now: Date, calendar: Calendar) -> [Commitment] {
+        Array(restOfToday(events, now: now, calendar: calendar).prefix(briefingLimit))
+    }
+
     /// Identities of timed events that overlap another timed event in
     /// `events`. Only these offer a later slot.
     public static func clashing(_ events: [Commitment]) -> Set<String> {
