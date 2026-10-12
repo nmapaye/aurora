@@ -13,10 +13,15 @@ struct CutoffReminderPreview: Equatable {
 /// a result on the card; nothing is recorded, and a notification is written
 /// only by an explicit Save of a current preview.
 extension AssistantModel {
+    /// The zone scenarios use right now. `AppModel.clock` keeps the launch
+    /// zone; scenarios follow `cutoffZone`, which tracks the system zone.
+    var cutoffClock: LocalClock { LocalClock(timeZone: cutoffZone()) }
+    var cutoffText: DateText { .localized(timeZone: cutoffZone()) }
+
     func openCutoff(input: CutoffScenario.Input = .init(), app: AppModel) {
         expireDraft()
         pendingCutoff = input
-        pendingMessageID = appendCard(AssistantCards.cutoffScenario(input: input, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .cutoffScenario)
+        pendingMessageID = appendCard(AssistantCards.cutoffScenario(input: input, state: app.state, now: app.now, clock: cutoffClock, text: cutoffText), intent: .cutoffScenario)
     }
 
     /// Refresh is a new snapshot with the earlier inputs, calculated from
@@ -45,18 +50,19 @@ extension AssistantModel {
     func calculateCutoff(app: AppModel) {
         guard let id = pendingMessageID, let card = openCutoffCard(id), let input = pendingCutoff, !savingCutoffReminder else { return }
         app.tick()
-        guard card.timeZone == app.clock.timeZone.identifier else {
+        let zone = cutoffZone()
+        guard card.timeZone == zone.identifier else {
             failure = "Your time zone changed. Start a new scenario."
             expireDraft(); return
         }
         failure = nil; cutoffPreview = nil
-        let snapshot = CutoffScenario.evaluate(input: input, doses: app.state.doses, halfLifeHours: app.state.prefs.halfLife, now: app.now, timeZone: app.clock.timeZone)
+        let snapshot = CutoffScenario.evaluate(input: input, doses: app.state.doses, halfLifeHours: app.state.prefs.halfLife, now: app.now, timeZone: zone)
         // The card's capture line shows when this result was frozen.
         updateCard(id) { $0.cutoff = snapshot; $0.capturedAt = snapshot.capturedAt; $0.timeZone = snapshot.timeZone }
     }
 
     private func revalidate(_ snapshot: CutoffScenario.Snapshot, input: CutoffScenario.Input, app: AppModel) -> CutoffScenario.Revalidation {
-        CutoffScenario.revalidate(snapshot, input: input, doses: app.state.doses, halfLifeHours: app.state.prefs.halfLife, now: app.now, timeZone: app.clock.timeZone, text: app.text)
+        CutoffScenario.revalidate(snapshot, input: input, doses: app.state.doses, halfLifeHours: app.state.prefs.halfLife, now: app.now, timeZone: cutoffZone(), text: cutoffText)
     }
 
     func previewCutoffReminder(app: AppModel) {
@@ -117,9 +123,9 @@ extension AssistantModel {
             updateCard(preview.messageID) { $0.cutoff?.reminder = .scheduled(fireAt: content.fireAt, savedAt: app.now) }
             var receipt = AssistantCard(kind: .receipt, capturedAt: app.now, title: "Scenario reminder scheduled")
             receipt.state = .saved
-            receipt.timeZone = app.clock.timeZone.identifier
+            receipt.timeZone = preview.snapshot.timeZone
             receipt.summary = "One reminder on this device. Your daily cutoff reminder is unchanged. A user-defined scenario, not a safety limit."
-            receipt.metrics = [.init(id: "reminder", label: "Reminder", value: app.text.fullDateTime(content.fireAt), source: preview.snapshot.timeZone)]
+            receipt.metrics = [.init(id: "reminder", label: "Reminder", value: DateText.localized(timeZone: TimeZone(identifier: preview.snapshot.timeZone) ?? cutoffZone()).fullDateTime(content.fireAt), source: preview.snapshot.timeZone)]
             appendCard(receipt)
         case .notAllowed:
             failure = Self.notAllowedMessage

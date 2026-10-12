@@ -23,6 +23,8 @@ final class AssistantModel {
     /// scenario clears it, so a late result can't act on newer state.
     var cutoffSaveOperation: UUID?
     /// Tests and the Design Gallery replace this; nil uses the app's ReminderService.
+    /// Production follows the system zone as it changes; tests pin it.
+    @ObservationIgnored var cutoffZone: () -> TimeZone = { TimeZone(identifier: TimeZone.autoupdatingCurrent.identifier) ?? .current }
     @ObservationIgnored var scheduleCutoffReminder: (@MainActor (CutoffScenario.ReminderContent) async -> ReminderService.ScenarioOutcome)?
     var activeCards: Set<UUID> = []
     var savedDose: Dose?
