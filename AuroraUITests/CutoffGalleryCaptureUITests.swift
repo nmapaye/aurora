@@ -15,27 +15,16 @@ final class CutoffGalleryCaptureUITests: XCTestCase {
         add(shot)
     }
 
-    private func choose(_ pickerID: String, _ option: String) {
-        let picker = app.buttons[pickerID]
-        XCTAssertTrue(picker.waitForExistence(timeout: 10))
-        for _ in 0..<8 where !picker.isHittable { app.swipeDown() }
-        picker.tap()
-        let item = app.buttons[option].firstMatch
-        // At the largest text the menu scrolls; later options start off screen.
-        _ = item.waitForExistence(timeout: 3)
-        for _ in 0..<10 where !(item.exists && item.isHittable) { app.swipeUp() }
-        XCTAssertTrue(item.waitForExistence(timeout: 5), option)
-        item.tap()
-    }
+    private static let fixtures = ["Empty inputs", "Time ahead", "Invalid inputs", "Sample Data", "Reminder preview", "Saved (fixture)", "Notifications off", "Records at threshold"]
 
+    /// One launch per fixture, preselected by launch argument, so no menu has
+    /// to be driven at the largest text.
     private func run(_ arguments: [String], label: String) {
-        app = XCUIApplication()
-        app.launchArguments = ["-AuroraDesignGallery"] + arguments
-        app.launch()
-        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 15))
-        choose("gallery-experience", "cutoffScenario")
-        for fixture in ["Empty inputs", "Time ahead", "Invalid inputs", "Sample Data", "Reminder preview", "Saved (fixture)", "Notifications off", "Records at threshold"] {
-            choose("gallery-cutoff-variant", fixture)
+        for fixture in Self.fixtures {
+            app = XCUIApplication()
+            app.launchArguments = ["-AuroraDesignGallery", "-AuroraGalleryExperience", "cutoffScenario", "-AuroraGalleryCutoff", fixture] + arguments
+            app.launch()
+            XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 15))
             let title = app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch
             XCTAssertTrue(title.waitForExistence(timeout: 10), fixture)
             // Card start, then one screen further for the result and actions.
@@ -43,7 +32,7 @@ final class CutoffGalleryCaptureUITests: XCTestCase {
             capture("\(label) · \(fixture) · start")
             app.swipeUp()
             capture("\(label) · \(fixture) · result")
-            for _ in 0..<12 where !app.buttons["gallery-cutoff-variant"].isHittable { app.swipeDown() }
+            app.terminate()
         }
     }
 

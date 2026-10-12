@@ -60,6 +60,16 @@ struct DesignGalleryView: View {
         let fixture = GalleryFixture.make()
         _fixtureApp = State(initialValue: fixture.app)
         _fixtureAssistant = State(initialValue: fixture.assistant)
+        // UI captures preselect with `-AuroraGalleryExperience <kind>` and
+        // `-AuroraGalleryCutoff <fixture>`, since a menu that scrolls at the
+        // largest text can't be driven reliably.
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: "AuroraGalleryExperience"), let kind = AssistantCard.Kind(rawValue: raw) {
+            _kind = State(initialValue: kind)
+        }
+        if let raw = defaults.string(forKey: "AuroraGalleryCutoff"), let fixture = CutoffFixture(rawValue: raw) {
+            _cutoffFixture = State(initialValue: fixture)
+        }
     }
 
     var body: some View {
