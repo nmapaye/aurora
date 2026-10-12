@@ -40,6 +40,22 @@ All with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 `CutoffScenarioUITests`, any simulator launch, gallery visual inspection, and
 VoiceOver/Dynamic Type/Reduce Motion review. No pass is claimed for these.
 
+## Round 2 corrections (2026-10-12, Claude-only night)
+
+| Commit | Finding |
+|---|---|
+| `4ab67da` | P1: erase generation captured at enqueue, checked before any notification I/O; `NotificationBackend` injection; `ReminderServiceTests` (gated backend) |
+| `9224704` | P2: `AssistantModel.cutoffZone` follows the live system zone (pinned in tests) |
+| `92c5740` | P2: entered precision (`0.4 mg`); half-life error shows saved value + Open Settings; P3: header states the real reminder outcome |
+
+Actual checks (Claude ran them):
+- Focused native run on disposable "Aurora Night QA iPhone" (iPhone 17,
+  iOS 27, `E7D5FEBF…`): `ReminderServiceTests`, `CutoffScenarioAppTests`, and
+  `LocalDataDeletionTests` gave **27 tests (31 runs) passed, 0 failed**
+  (`build/logs/focused-r2.xcresult`). Most of the 13 minutes went to waiting
+  for the new simulator to boot (booted manually with `simctl boot`).
+- Core 239/239 in UTC and America/Los_Angeles after `92c5740`.
+
 ## Round 1 corrections
 
 1. **Resumed erase:** `LocalDataDeletion.notificationIdentifiers` now includes
