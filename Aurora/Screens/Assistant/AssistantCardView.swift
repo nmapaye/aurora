@@ -32,65 +32,95 @@ struct AssistantCardView: View {
         card.kind == .energyCheckIn && draftActive && assistant.pendingCheckIn != nil && card.summary == EnergyCheckIn.kindLabel
     }
 
+    /// The card's own summary line; energy and briefing cards say it in their
+    /// content, and an open check-in editor already states it.
+    private var showsSummary: Bool {
+        !card.summary.isEmpty && ![.energy, .briefing, .energyProjection].contains(card.kind) && !repeatsCheckInLabel
+    }
+
+    // The body is split into members so each is type-checked on its own;
+    // Xcode 26.6 gave up on it as one expression.
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            if card.kind == .calendar {
-                calendar
-            } else {
-                Card {
-                    header
-                    if !card.summary.isEmpty && ![.energy, .briefing, .energyProjection].contains(card.kind) && !repeatsCheckInLabel {
-                        Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
-                    }
-                    content
-                }
-                // Draft → saved and saved → removed change the card in place;
-                // the conversation never re-animates a card's entrance.
-                .animation(Motion.stateChange(reduceMotion: reduceMotion), value: card.state)
-                .animation(Motion.stateChange(reduceMotion: reduceMotion), value: draftActive)
-            }
-            if card.kind != .clarification {
-                ViewThatFits(in: .horizontal) {
-                    HStack { captureLabel; Spacer(); refreshButton }
-                    VStack(alignment: .leading, spacing: Metrics.xs) { captureLabel; refreshButton }
-                }
-            }
+            cardContent
+            if card.kind != .clarification { captureRow }
         }
-        .onChange(of: card.state) { old, new in justSaved = old == .ready && new == .saved }
+        .onChange(of: card.state, stateChanged)
         // Save or Discard removes the focused field, which clears focus too.
-        .onChange(of: field) { _, value in assistant.cardFocus(message.id, focused: value != nil) }
+        .onChange(of: field, focusChanged)
         .onDisappear { assistant.cardFocus(message.id, focused: false) }
-        .sheet(item: $editingDose) { mode in
-            if case .edit(let original) = mode {
-                DoseEntrySheet(mode: mode, draft: CaffeineLog.editDraft(for: original)) { result in
-                    guard app.state.doses.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before editing."; return }
-                    switch result {
-                    case .saved(let draft):
-                        app.correctDose(id: original.id, with: draft)
-                        if app.mutationFailure == nil { assistant.receipt(recordID: original.id, kind: "caffeine", app: app, title: "Caffeine updated") }
-                        else { assistant.failure = app.mutationFailure }
-                    case .deleted:
-                        app.deleteDose(id: original.id)
-                        if app.mutationFailure == nil { assistant.appendRemoval("Caffeine entry deleted on this device.", doseID: original.id, app: app) }
-                        else { assistant.failure = app.mutationFailure }
-                    case .cancelled: break
-                    }
+        .sheet(item: $editingDose, content: doseEditor)
+        .sheet(item: $editingSleep, content: sleepEditor)
+    }
+
+    private func stateChanged(from old: AssistantCard.State, to new: AssistantCard.State) {
+        justSaved = old == AssistantCard.State.ready && new == AssistantCard.State.saved
+    }
+
+    private func focusChanged(from _: CardField?, to value: CardField?) {
+        assistant.cardFocus(message.id, focused: value != nil)
+    }
+
+    @ViewBuilder private var cardContent: some View {
+        if card.kind == .calendar {
+            calendar
+        } else {
+            Card {
+                header
+                if showsSummary {
+                    Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
                 }
+                content
+            }
+            // Draft → saved and saved → removed change the card in place;
+            // the conversation never re-animates a card's entrance.
+            .animation(Motion.stateChange(reduceMotion: reduceMotion), value: card.state)
+            .animation(Motion.stateChange(reduceMotion: reduceMotion), value: draftActive)
+        }
+    }
+
+    private var captureRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack { captureLabel; Spacer(); refreshButton }
+            VStack(alignment: .leading, spacing: Metrics.xs) { captureLabel; refreshButton }
+        }
+    }
+
+    @ViewBuilder private func doseEditor(_ mode: DoseSheet) -> some View {
+        if case .edit(let original) = mode {
+            DoseEntrySheet(mode: mode, draft: CaffeineLog.editDraft(for: original)) { result in
+                finishDoseEdit(original, result)
             }
         }
-        .sheet(item: $editingSleep) { mode in
-            if case .edit(let original) = mode {
-                SleepEntrySheet(mode: mode) { draft in
-                    guard app.state.sleeps.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before editing."; return }
-                    app.correctManualSleep(id: original.id, with: draft)
-                    if app.mutationFailure == nil { assistant.receipt(recordID: original.id, kind: "sleep", app: app, title: "Sleep updated") }
-                    else { assistant.failure = app.mutationFailure }
-                } onDelete: {
-                    guard app.state.sleeps.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before deleting."; return }
-                    app.deleteManualSleep(id: original.id)
-                    if app.mutationFailure == nil { assistant.append("Sleep entry deleted.") }
-                    else { assistant.failure = app.mutationFailure }
-                }
+    }
+
+    private func finishDoseEdit(_ original: Dose, _ result: DoseEntrySheet.Result) {
+        guard app.state.doses.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before editing."; return }
+        switch result {
+        case .saved(let draft):
+            app.correctDose(id: original.id, with: draft)
+            if app.mutationFailure == nil { assistant.receipt(recordID: original.id, kind: "caffeine", app: app, title: "Caffeine updated") }
+            else { assistant.failure = app.mutationFailure }
+        case .deleted:
+            app.deleteDose(id: original.id)
+            if app.mutationFailure == nil { assistant.appendRemoval("Caffeine entry deleted on this device.", doseID: original.id, app: app) }
+            else { assistant.failure = app.mutationFailure }
+        case .cancelled: break
+        }
+    }
+
+    @ViewBuilder private func sleepEditor(_ mode: SleepSheet) -> some View {
+        if case .edit(let original) = mode {
+            SleepEntrySheet(mode: mode) { draft in
+                guard app.state.sleeps.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before editing."; return }
+                app.correctManualSleep(id: original.id, with: draft)
+                if app.mutationFailure == nil { assistant.receipt(recordID: original.id, kind: "sleep", app: app, title: "Sleep updated") }
+                else { assistant.failure = app.mutationFailure }
+            } onDelete: {
+                guard app.state.sleeps.first(where: { $0.id == original.id }) == original else { assistant.failure = "This record changed. Refresh history before deleting."; return }
+                app.deleteManualSleep(id: original.id)
+                if app.mutationFailure == nil { assistant.append("Sleep entry deleted.") }
+                else { assistant.failure = app.mutationFailure }
             }
         }
     }
