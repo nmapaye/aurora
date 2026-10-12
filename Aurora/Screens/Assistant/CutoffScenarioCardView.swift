@@ -113,9 +113,19 @@ struct CutoffScenarioCardView: View {
     }
 
     private var assumptionRow: some View {
-        VStack(alignment: .leading, spacing: Metrics.xxs) {
-            valueRow("Half-life", "\(numberText(app.state.prefs.halfLife)) h", spoken: "\(numberText(app.state.prefs.halfLife)) hours")
+        let halfLife = app.state.prefs.halfLife
+        let problem = S.halfLifeProblem(halfLife)
+        return VStack(alignment: .leading, spacing: Metrics.xxs) {
+            valueRow("Half-life", problem == nil ? "\(numberText(halfLife)) h" : "Can’t be used", spoken: problem == nil ? "\(numberText(halfLife)) hours" : "can’t be used")
             Text(S.assumption).font(Typography.source).foregroundStyle(Palette.textSecondary)
+            if let problem {
+                // The setting itself is wrong; there's nothing to enter on this card.
+                Label(problem, systemImage: StatusTone.error.symbol)
+                    .font(.footnote).foregroundStyle(Palette.destructive)
+                    .accessibilityIdentifier("cutoff-halflife-problem")
+                Button("Open Settings") { assistant.historySheet = .settings }
+                    .font(.subheadline.weight(.medium)).frame(minHeight: Metrics.minimumTouchTarget)
+            }
         }
     }
 
@@ -218,9 +228,9 @@ struct CutoffScenarioCardView: View {
             }
             if r.amountMg != nil {
                 if let hypothetical = r.hypotheticalMg, let drinkAt = r.drinkAt {
-                    metric("Hypothetical drink at bedtime", mg(hypothetical), source: "\(mg(r.amountMg!)) at \(text.fullDateTime(drinkAt)) · not recorded")
+                    metric("Hypothetical drink at bedtime", mg(hypothetical), source: "\(S.enteredMg(r.amountMg!)) at \(text.fullDateTime(drinkAt)) · not recorded")
                     if let combined = r.combinedMg, let threshold = r.thresholdMg {
-                        metric("Combined at bedtime", mg(combined), source: "Your threshold: \(mg(threshold))")
+                        metric("Combined at bedtime", mg(combined), source: "Your threshold: \(S.enteredMg(threshold))")
                         let within = combined <= threshold
                         StatusBadge(text: within ? "At or under your threshold" : "Above your threshold", tone: within ? .success : .warning)
                     }
@@ -248,22 +258,32 @@ struct CutoffScenarioCardView: View {
         .accessibilityElement(children: .contain)
     }
 
+    /// The reminder outcome is the card header's badge; only "preview
+    /// again" belongs to the result itself.
     @ViewBuilder private var resultBadge: some View {
-        switch snapshot?.reminder {
-        case .scheduled(let fireAt, _): StatusBadge(text: "Reminder set · \(text.clockTime(fireAt))", tone: .success)
-        case .notAllowed: StatusBadge(text: "Reminder not scheduled", tone: .error)
-        case .failed: StatusBadge(text: "Reminder not scheduled", tone: .error)
-        case .needsNewPreview: StatusBadge(text: "Changed · preview again", tone: .warning)
-        case nil: EmptyView()
+        if snapshot?.reminder == .needsNewPreview { StatusBadge(text: "Changed · preview again", tone: .warning) }
+    }
+
+    /// The card header's badge: what actually happened to this scenario.
+    static func header(state: AssistantCard.State, active: Bool, reminder: CutoffScenario.ReminderOutcome?, text: DateText) -> (text: String, tone: StatusTone) {
+        switch reminder {
+        case .scheduled(let fireAt, _): return ("Reminder scheduled · \(text.clockTime(fireAt))", .success)
+        case .notAllowed, .failed: return ("Reminder not scheduled", .error)
+        case .needsNewPreview, nil: break
+        }
+        switch state {
+        case .expired: return ("Expired", .warning)
+        case .ready where active: return ("Scenario", .info)
+        default: return ("Closed", .neutral)
         }
     }
 
     @ViewBuilder private func latest(_ r: S.Result) -> some View {
-        let amount = r.amountMg.map(mg) ?? ""
-        let threshold = r.thresholdMg.map(mg) ?? ""
+        let amount = r.amountMg.map(S.enteredMg) ?? ""
+        let threshold = r.thresholdMg.map(S.enteredMg) ?? ""
         switch r.latest {
         case .unavailable:
-            metric("Latest hypothetical time", "Needs inputs", source: "Enter a bedtime and a threshold, then Calculate.")
+            metric("Latest hypothetical time", r.problems.contains(.invalidHalfLife) ? "Can’t calculate" : "Needs inputs", source: S.latestUnavailableText(r.problems))
         case .needsAmount:
             metric("Latest hypothetical time", "No amount entered", source: "Enter a hypothetical amount to see a time.")
         case .feasible(let time):

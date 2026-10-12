@@ -234,6 +234,29 @@ import Testing
         #expect(check(at: time + minuteMs) != .current(content))
     }
 
+    @Test func subMilligramAmountsKeepTheirEnteredPrecision() throws {
+        let snapshot = run(input(threshold: "0.5", amount: "0.4"))
+        #expect(snapshot.result.amountMg == 0.4)
+        let content = try #require(S.reminder(for: snapshot, now: now, text: text))
+        #expect(content.body.contains("for 0.4 mg") && content.body.contains("with 0.5 mg"))
+        #expect(!content.body.contains("for 0 mg"))
+        #expect(S.enteredMg(0.4) == "0.4 mg" && S.enteredMg(120) == "120 mg")
+    }
+
+    @Test(arguments: [0, -1, Double.nan, Double.infinity]) func invalidHalfLifePointsAtSettings(value: Double) throws {
+        let problem = try #require(S.halfLifeProblem(value))
+        #expect(problem.contains("Settings") && problem.contains("Saved value"))
+        #expect(!problem.contains("Enter"))
+        let result = run(input(amount: "50"), halfLife: value).result
+        #expect(S.latestUnavailableText(result.problems).contains("Change Caffeine half-life in Settings"))
+        #expect(CopyRules.violations(in: problem).isEmpty)
+    }
+
+    @Test func validHalfLifeHasNoProblemAndMissingInputsSayWhatToEnter() {
+        #expect(S.halfLifeProblem(5) == nil)
+        #expect(S.latestUnavailableText([.missingBedtime, .missingThreshold]).hasPrefix("Enter a bedtime"))
+    }
+
     @Test func plannerRoutesScenarioWithoutAdvice() {
         #expect(AssistantPlanner.explicitIntent("Cutoff scenario") == .cutoffScenario)
         #expect(AssistantPlanner.explicitIntent("show my caffeine cutoff what if") == .cutoffScenario)

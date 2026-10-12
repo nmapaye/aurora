@@ -26,14 +26,69 @@ import Testing
             await Task.yield()
             return scheduler.outcome
         }
+        // Pinned, independent of the machine running the tests.
+        assistant.cutoffZone = { Self.losAngeles }
         return (app, assistant, scheduler)
     }
 
+    static let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+    static let newYork = TimeZone(identifier: "America/New_York")!
+
     /// A bedtime ten hours ahead, 50 mg threshold and a 100 mg hypothetical:
     /// the latest time is five hours before bedtime, still in the future.
-    private func scenario(_ app: AppModel) -> CutoffScenario.Input {
+    private func scenario(_ app: AppModel, zone: TimeZone = losAngeles) -> CutoffScenario.Input {
         app.tick()
-        return .init(bedtime: .init(app.now + 10 * hourMs, timeZone: app.clock.timeZone), bedtimeOccurrence: .first, thresholdMg: "50", drinkMg: "100")
+        return .init(bedtime: .init(app.now + 10 * hourMs, timeZone: zone), bedtimeOccurrence: .first, thresholdMg: "50", drinkMg: "100")
+    }
+
+    @Test func zoneChangeAfterPreviewNeedsANewScenario() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, scheduler) = setup(directory)
+        assistant.openCutoff(input: scenario(app), app: app)
+        let id = assistant.pendingMessageID
+        assistant.calculateCutoff(app: app)
+        assistant.previewCutoffReminder(app: app)
+        #expect(assistant.cutoffPreview != nil)
+        // The person travels: the live zone changes; AppModel.clock doesn't.
+        assistant.cutoffZone = { Self.newYork }
+        await assistant.saveCutoffReminder(app: app)
+        #expect(scheduler.calls.isEmpty && assistant.cutoffPreview == nil)
+        #expect(card(assistant, id)?.cutoff?.reminder == .needsNewPreview)
+        // Calculate in the old card can't continue in the new zone.
+        assistant.calculateCutoff(app: app)
+        #expect(assistant.failure?.contains("time zone") == true && card(assistant, id)?.state == .expired)
+    }
+
+    @Test func freshScenarioResultAndReceiptUseTheLiveZone() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let (app, assistant, _) = setup(directory)
+        assistant.cutoffZone = { Self.newYork }
+        assistant.openCutoff(input: scenario(app, zone: Self.newYork), app: app)
+        let id = assistant.pendingMessageID
+        #expect(card(assistant, id)?.timeZone == Self.newYork.identifier)
+        assistant.calculateCutoff(app: app)
+        #expect(card(assistant, id)?.cutoff?.timeZone == Self.newYork.identifier)
+        assistant.previewCutoffReminder(app: app)
+        await assistant.saveCutoffReminder(app: app)
+        let receipt = try #require(assistant.conversation.messages.last?.card)
+        #expect(receipt.kind == .receipt && receipt.timeZone == Self.newYork.identifier)
+        #expect(receipt.metrics.first?.source == Self.newYork.identifier)
+    }
+
+    @Test func headerStatesWhatActuallyHappened() {
+        let text = DateText.localized(locale: Locale(identifier: "en_US"), timeZone: Self.losAngeles)
+        typealias V = CutoffScenarioCardView
+        #expect(V.header(state: .ready, active: true, reminder: nil, text: text).text == "Scenario")
+        #expect(V.header(state: .ready, active: true, reminder: .scheduled(fireAt: 0, savedAt: 0), text: text).text.hasPrefix("Reminder scheduled"))
+        #expect(V.header(state: .discarded, active: false, reminder: .scheduled(fireAt: 0, savedAt: 0), text: text).tone == .success)
+        #expect(V.header(state: .ready, active: true, reminder: .failed, text: text).text == "Reminder not scheduled")
+        #expect(V.header(state: .ready, active: true, reminder: .notAllowed, text: text).tone == .error)
+        #expect(V.header(state: .expired, active: false, reminder: .needsNewPreview, text: text).text == "Expired")
+        for state in [AssistantCard.State.ready, .expired, .discarded] {
+            for reminder: CutoffScenario.ReminderOutcome? in [nil, .scheduled(fireAt: 0, savedAt: 0), .failed] {
+                #expect(!V.header(state: state, active: state == .ready, reminder: reminder, text: text).text.contains("nothing saved"))
+            }
+        }
     }
 
     private func card(_ assistant: AssistantModel, _ id: UUID?) -> AssistantCard? {

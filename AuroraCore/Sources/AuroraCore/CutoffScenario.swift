@@ -109,7 +109,7 @@ public enum CutoffScenario {
             case .drinkTimeInvalid: "That drink time isn’t a valid date."
             case .drinkTimeBeforeCapture: "A hypothetical drink has to be later than now. Record past drinks with Log caffeine."
             case .drinkTimeAfterBedtime: "The hypothetical drink has to be at or before bedtime."
-            case .invalidHalfLife: "Your half-life setting must be a number of hours above 0. Check Settings."
+            case .invalidHalfLife: "Your caffeine half-life setting can’t be used: it must be a number of hours above 0. Change Caffeine half-life in Settings."
             }
         }
     }
@@ -179,6 +179,24 @@ public enum CutoffScenario {
         /// Records, inputs, time or zone changed after the preview.
         case needsNewPreview
     }
+
+    /// The Settings value as stored, and what's wrong with it, if anything.
+    /// Shown beside the assumption, never as a missing input.
+    public static func halfLifeProblem(_ halfLifeHours: Double) -> String? {
+        guard !(halfLifeHours.isFinite && halfLifeHours > 0) else { return nil }
+        let stored = halfLifeHours.isFinite ? "\(numberText(halfLifeHours))h" : "not a number"
+        return "Saved value: \(stored). " + Problem.invalidHalfLife.message(timeZone: "")
+    }
+
+    /// Why there's no latest time, pointing at the actual cause.
+    public static func latestUnavailableText(_ problems: [Problem]) -> String {
+        if problems.contains(.invalidHalfLife) { return Problem.invalidHalfLife.message(timeZone: "") }
+        if problems.contains(.invalidAmount) { return Problem.invalidAmount.message(timeZone: "") }
+        return "Enter a bedtime and a threshold, then Calculate."
+    }
+
+    /// An entered quantity as typed, never rounded away ("0.4 mg").
+    public static func enteredMg(_ value: Double) -> String { "\(numberText(value)) mg" }
 
     // MARK: Evaluation
 
@@ -292,7 +310,7 @@ public enum CutoffScenario {
               let bedtime = snapshot.result.bedtime, let threshold = snapshot.result.thresholdMg, let amount = snapshot.result.amountMg else { return nil }
         return ReminderContent(
             title: "Your cutoff scenario",
-            body: "The latest time in your scenario for \(numberText(jsRound(amount))) mg, with \(numberText(threshold)) mg at \(text.clockTime(bedtime)) bedtime. A user-defined scenario, not a safety limit.",
+            body: "The latest time in your scenario for \(enteredMg(amount)), with \(enteredMg(threshold)) at \(text.clockTime(bedtime)) bedtime. A user-defined scenario, not a safety limit.",
             fireAt: time
         )
     }

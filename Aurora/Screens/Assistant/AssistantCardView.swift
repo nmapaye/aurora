@@ -109,11 +109,8 @@ struct AssistantCardView: View {
             StatusBadge(text: "Earlier snapshot · Refresh for current", tone: .warning)
         }
         if card.kind == .cutoffScenario {
-            switch card.state {
-            case .ready: draftActive ? StatusBadge(text: "Scenario · nothing saved", tone: .info) : StatusBadge(text: "Closed")
-            case .expired: StatusBadge(text: "Expired", tone: .warning)
-            default: StatusBadge(text: "Closed")
-            }
+            let header = CutoffScenarioCardView.header(state: card.state, active: draftActive, reminder: card.cutoff?.reminder, text: snapshotText)
+            StatusBadge(text: header.text, tone: header.tone)
         }
         if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
