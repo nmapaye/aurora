@@ -21,6 +21,8 @@ struct GalleryFixture {
         defaults.removePersistentDomain(forName: defaultsSuite)
         let app = AppModel(health: GalleryHealth(), makeStore: { StateStore(directory: directory) }, legacy: { nil })
         let assistant = AssistantModel(calendars: CalendarService(providers: [], defaults: defaults), makeStore: { ConversationStore(directory: directory) })
+        // Scenario reminders never reach the notification center here.
+        assistant.scheduleCutoffReminder = { _ in .notAllowed }
         return GalleryFixture(app: app, assistant: assistant, directory: directory)
     }
 

@@ -20,8 +20,9 @@ struct DesignGalleryView: View {
     @State private var receiptHealth = ReceiptHealth.none
     @State private var showSetup = false
     @State private var welcome: WelcomeFixture?
+    @State private var cutoffFixture = CutoffFixture.feasible
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
+    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
     private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
 
     /// Synthetic energy states. Populated and stale use made-up manual
@@ -77,6 +78,11 @@ struct DesignGalleryView: View {
                             ForEach(EnergyVariant.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
                         .accessibilityIdentifier("gallery-energy-variant")
+                    } else if kind == .cutoffScenario {
+                        Picker("Cutoff fixture", selection: $cutoffFixture) {
+                            ForEach(CutoffFixture.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .accessibilityIdentifier("gallery-cutoff-variant")
                     } else if kind == .receipt {
                         Picker("Apple Health row", selection: $receiptHealth) {
                             ForEach(ReceiptHealth.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -137,6 +143,7 @@ struct DesignGalleryView: View {
         .onChange(of: earlier) { _, _ in Task { await showExperience() } }
         .onChange(of: receiptHealth) { _, _ in Task { await showExperience() } }
         .onChange(of: energyVariant) { _, _ in Task { await showExperience() } }
+        .onChange(of: cutoffFixture) { _, _ in Task { await showExperience() } }
         .onChange(of: populated) { _, value in
             if value { fixtureApp.loadSampleData() } else { fixtureApp.deleteAllData() }
             Task { await showExperience() }
@@ -216,6 +223,8 @@ struct DesignGalleryView: View {
         firstMessage = fixtureAssistant.conversation.messages.count
         if energyKinds.contains(kind) {
             await showEnergy()
+        } else if kind == .cutoffScenario {
+            await cutoffFixture.show(app: fixtureApp, assistant: fixtureAssistant)
         } else if kind == .receipt {
             var card = AssistantCard(kind: .receipt, capturedAt: fixtureApp.now, title: "Sample receipt", summary: "Fixture only · no personal record saved")
             card.state = .saved

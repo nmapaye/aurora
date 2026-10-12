@@ -113,6 +113,22 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 - No rainbow Siri rim, purple-blue backdrop, unnecessary card nesting, or perpetual
   movement around readable evidence.
 
+### Cutoff scenario
+
+- Every input starts empty: bedtime and drink time are added with a button that
+  starts at the current local time, never a proposed one. The half-life is the
+  Settings value, shown with its assumption label. Times show their zone.
+- Date and time are separate native pickers so a repeated or skipped wall time
+  can be chosen; a repeated time needs a First/Second choice with zone
+  abbreviations, and a skipped time is an inline error, never shifted.
+- Calculate (primary) freezes the result; edited inputs say "Calculate to
+  update". The result lists bedtime, existing modeled caffeine with provenance
+  (Sample Data badge, later-dated entries not included), the hypothetical and
+  combined values with a symbol badge, and one latest-time row for each outcome.
+- A future latest time offers a secondary "Preview a one-time reminder"; the
+  preview sits on `cardMuted` with Save as the only primary. Outcomes show as a
+  badge on the result; only a scheduled reminder gets a receipt.
+
 ### Welcome and first run
 
 - The welcome is decoration over an already-loaded conversation, once per cold launch
@@ -152,7 +168,9 @@ device switches are disabled there. States: populated/missing/Sample Data/earlie
 energy and card snapshots, interaction states (loading, saved, removed, expired,
 failed, discarded), receipt Apple Health rows (pending, not exported, added,
 unconfirmed), setup with failing then working saves, welcome evidence (recorded,
-Sample Data, none) and processing light (rest, working, stopped, failed, static).
+Sample Data, none), processing light (rest, working, stopped, failed, static) and
+cutoff scenarios (each outcome, repeated/skipped time, reminder preview, not allowed,
+failed, saved, earlier snapshot) with a scheduler that never reaches notifications.
 Use the Debug Design Gallery with synthetic records, plus actual simulator captures
 and device recordings. Reference the existing Aurora palette and user-approved
 flowing identity; study native Apple interaction conventions without copying branding.

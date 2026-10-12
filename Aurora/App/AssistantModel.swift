@@ -15,6 +15,17 @@ final class AssistantModel {
     var pendingSleep: ManualSleep.Draft?
     /// An open check-in review. Its id is fixed when the review opens.
     var pendingCheckIn: EnergyCheckInDraft?
+    /// An open cutoff scenario's inputs, apart from its card's frozen result.
+    var pendingCutoff: CutoffScenario.Input?
+    /// A scenario reminder shown for review; nothing is scheduled until Save.
+    var cutoffPreview: CutoffReminderPreview?
+    /// The scenario reminder Save in flight. Closing or replacing the
+    /// scenario clears it, so a late result can't act on newer state.
+    var cutoffSaveOperation: UUID?
+    /// Tests and the Design Gallery replace this; nil uses the app's ReminderService.
+    /// Production follows the system zone as it changes; tests pin it.
+    @ObservationIgnored var cutoffZone: () -> TimeZone = { TimeZone(identifier: TimeZone.autoupdatingCurrent.identifier) ?? .current }
+    @ObservationIgnored var scheduleCutoffReminder: (@MainActor (CutoffScenario.ReminderContent) async -> ReminderService.ScenarioOutcome)?
     var activeCards: Set<UUID> = []
     var savedDose: Dose?
     var showSleepEntry = false
@@ -52,6 +63,9 @@ final class AssistantModel {
         // the Google credential lookup run synchronously here.
         self.calendars = calendars ?? Signposts.measure("Launch.CalendarServiceInit") { CalendarService() }
         self.makeConversationStore = makeStore
+        #if DEBUG
+        scheduleCutoffReminder = Self.uiTestCutoffScheduler()
+        #endif
     }
 
     var intelligenceName: String {
@@ -78,7 +92,7 @@ final class AssistantModel {
                     if card.state == .loading {
                         conversation.messages[index].card?.state = .failed
                         conversation.messages[index].card?.summary = "This request didn't finish. Refresh for a current result."
-                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind), card.state == .ready {
+                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn, .cutoffScenario].contains(card.kind), card.state == .ready {
                         conversation.messages[index].card?.state = .expired
                     }
                 }
@@ -113,6 +127,7 @@ final class AssistantModel {
         do { try store?.save(cleared) }
         catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return }
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
+        closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil
         releaseWarmResources()
         do { try store?.removeMigrationSource() }
@@ -122,6 +137,7 @@ final class AssistantModel {
     func resetAfterErase() {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
+        closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
         releaseWarmResources(); calendars.resetAfterErase()
@@ -271,6 +287,8 @@ final class AssistantModel {
             pendingCheckIn = .new(now: app.now, rating: AssistantPlanner.statedSelfRating(input))
             pendingMessageID = appendCard(AssistantCards.make(.energyCheckIn, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
             captureDraft(app: app)
+        case .cutoffScenario:
+            openCutoff(app: app)
         case .settings: showAssistantSettings = true
         case .unsupported:
             appendCard(AssistantCards.make(.clarification, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
@@ -291,6 +309,7 @@ final class AssistantModel {
     func expireDraft() {
         updateCard(pendingMessageID) { $0.state = .expired }
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
+        closeCutoff()
     }
     func captureDraft(app: AppModel) {
         if let draft = pendingDraft {
@@ -314,9 +333,11 @@ final class AssistantModel {
     func discardDraft() {
         updateCard(pendingMessageID) { $0.state = .discarded }
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
+        closeCutoff()
     }
     func refresh(_ card: AssistantCard, app: AppModel) {
         guard let intent = card.refreshIntent, !processing else { return }
+        if card.kind == .cutoffScenario { refreshCutoff(card, app: app); return }
         let prompt: String = switch intent {
         case .logCaffeine: "Log caffeine"
         case .logSleep: "Log sleep"
