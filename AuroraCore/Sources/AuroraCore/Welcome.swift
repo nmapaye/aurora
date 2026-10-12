@@ -240,6 +240,17 @@ public enum SetupTranscript {
         return entries
     }
 
+    /// "a", "a and b", "a, b, and c", as US English `ListFormatter` writes
+    /// them, on every platform: Linux Foundation has no `ListFormatter`.
+    static func englishList(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return items.dropLast().joined(separator: ", ") + ", and " + items[items.count - 1]
+        }
+    }
+
     static func reply(_ step: SetupStep, _ outcome: SetupOutcome, state: AppState, healthAvailable: Bool, calendarsChosen: Bool) -> Reply? {
         let target = OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).spoken
         switch (step, outcome) {
@@ -250,7 +261,7 @@ public enum SetupTranscript {
         case (.calendar, .answered): return .person(calendarsChosen ? "Calendars chosen" : "No calendars chosen")
         case (.wakeReminders, .answered):
             guard let settings = state.prefs.wakeReminders?.normalized(), settings.enabled, !settings.offsetsMinutes.isEmpty else { return .person("Not now") }
-            return .person(ListFormatter.localizedString(byJoining: settings.offsetsMinutes.map(WakeReminders.offsetText)) + " after waking")
+            return .person(englishList(settings.offsetsMinutes.map(WakeReminders.offsetText)) + " after waking")
         case (_, .skipped): return .person("Not now")
         case (.finish, _): return nil
         }

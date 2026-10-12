@@ -137,6 +137,13 @@ struct WakeReminderTests {
         #expect(!String(decoding: try JSONEncoder().encode(Prefs.defaults), as: UTF8.self).contains("wakeReminders"))
     }
 
+    @Test func reminderTimesJoinTheSameOnEveryPlatform() {
+        #expect(SetupTranscript.englishList([]) == "")
+        #expect(SetupTranscript.englishList(["1h"]) == "1h")
+        #expect(SetupTranscript.englishList(["1h", "5h"]) == "1h and 5h")
+        #expect(SetupTranscript.englishList(["1h", "3h", "5h"]) == "1h, 3h, and 5h")
+    }
+
     @Test func setupAsksAfterCalendarAndRecordsTheRealChoice() {
         #expect(SetupStep.calendar.next == .wakeReminders)
         #expect(SetupStep.wakeReminders.next == .finish)
