@@ -18,13 +18,12 @@ Until those variables are set, the website intentionally shows setup labels inst
 
 ## Canonical Xcode Organizer Workflow
 
-1. Install and select stable Xcode 26.6, switch to Node 24, and run
-   `npm run ios:bootstrap -- --deployment`.
-2. Configure automatic signing on the `AURORA` target with the Apple Developer
+1. Install and select stable Xcode 26.6 or newer, then open `Aurora.xcodeproj`.
+2. Configure automatic signing on the `Aurora` target with the Apple Developer
    team that owns `com.nmapaye.aurora`.
 3. Confirm the marketing version in Xcode and increment the build number before
    every upload.
-4. Select the shared `AURORA` scheme and a generic iOS device destination, then
+4. Select the shared `Aurora` scheme and a generic iOS device destination, then
    choose Product → Archive.
 5. In Organizer, choose Validate App. Resolve all signing, entitlement,
    privacy, and metadata findings before proceeding.
@@ -42,10 +41,9 @@ validation and upload remain blocked.
 - Set app pricing in App Store Connect for the paid v0.1.0 release.
 - Add the production privacy policy URL: `https://nmapaye.github.io/aurora/privacy.html`.
 - Add the production support URL: `https://nmapaye.github.io/aurora/support.html`.
-- Follow the Organizer workflow above; do not use EAS as the normal build or
-  upload path.
+- Follow the Organizer workflow above.
 - Inspect the signed archive for the HealthKit entitlement, absence of an APNs
-  entitlement, embedded privacy manifest, Ionicons, launch assets, and all app
+  entitlement, embedded privacy manifest, launch assets, and all app
   icon appearances.
 - Use `docs/app-store-metadata.md` for App Store description, review notes, privacy notes, and known limits.
 
@@ -66,14 +64,6 @@ validation and upload remain blocked.
 - Start with internal testers, then create an external tester group.
 - Use a public TestFlight link only for free beta testing.
 - Use `docs/testflight-beta-metadata.md` for App Store Connect beta description, reviewer notes, privacy notes, and known demo limits.
-
-## Temporary EAS Rollback
-
-`eas.json` remains only until the first signed Organizer archive validates. It
-uses local Xcode version values and must not auto-increment or override the
-Xcode build number. After validation passes, delete `eas.json` and every
-remaining EAS build/submit instruction in a dedicated cleanup commit. Internal
-TestFlight processing remains a separate release gate.
 
 ## Smoke Test
 
@@ -160,22 +150,17 @@ Record the release-candidate result before submission:
 
 ## Release Checks
 
-Run these exact local checks from the repo root (`/Users/nmapaye/Documents/Local Coding Projects/aurora`) before sharing an App Store, Gumroad, or TestFlight link:
+CI runs these on every pull request (`.github/workflows/ios-app-ci.yml` and
+`core-ci.yml`). To repeat them locally from the repo root:
 
 ```sh
-npm run ios:bootstrap -- --deployment
-npx expo-doctor
-npm run type-check
-npm run lint
-npm test -- --runInBand
-npm run site:type-check
-npm run site:build
-npx expo export --platform ios
-npm run ios:build:debug
-npm run ios:build:release
-git diff --exit-code -- ios
+(cd AuroraCore && swift test)
+xcodebuild test -project Aurora.xcodeproj -scheme Aurora \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+xcodebuild build -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+(cd website && npm ci && npm run type-check && npm run build)
 ```
 
-All Expo Doctor checks must pass; do not suppress a new incompatibility. Finish
-with the physical iPhone/iPad, accessibility, signed-archive, and internal
-TestFlight gates above.
+Finish with the physical iPhone/iPad, accessibility, signed-archive, and
+internal TestFlight gates above.
