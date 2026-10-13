@@ -107,26 +107,7 @@ struct AssistantView: View {
                 .onChange(of: composerHeight) { old, new in
                     if new > old && visibility.end && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
                 }
-                .onChange(of: assistant.conversation.messages.count) { old, _ in
-                    let messages = assistant.conversation.messages
-                    let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
-                    switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
-                    case .none:
-                        if messages.isEmpty { heldMessage = nil }
-                    case .end:
-                        heldMessage = nil
-                        reveal(proxy, "bottom", anchor: .bottom)
-                    case .start(let id):
-                        heldMessage = nil
-                        reveal(proxy, id, anchor: .top)
-                    case .hold(let id):
-                        // Keep the earliest unseen message; reading resumes there.
-                        if heldMessage == nil {
-                            heldMessage = id
-                            UIAccessibility.post(notification: .announcement, argument: "New message below")
-                        }
-                    }
-                }
+                .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
             .background(Palette.screen)
             // A solid bar: on iOS 26 the default only fades, and scrolled
@@ -169,46 +150,32 @@ struct AssistantView: View {
             .overlay { AuroraEdgeGlow(active: assistant.processing).allowsHitTesting(false).accessibilityHidden(true).ignoresSafeArea() }
         }
         .task { await assistant.start(app: app) }
-        // Becoming active refreshes through AppModel's shared scheduler.
-        .onChange(of: phase) { _, value in
-            if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.clearCardFocus() }
+        .modifier(ConversationObservers(assistant: assistant, router: router, app: app, dictation: dictation,
+                                        input: $input, keyboardOverlap: $keyboardOverlap, composerFocused: composerFocused))
+        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: runRequestedErase))
+    }
+
+    /// A message was added or removed: reveal it, or hold it below while
+    /// earlier messages are being read.
+    private func messagesChanged(from old: Int, _ proxy: ScrollViewProxy) {
+        let messages = assistant.conversation.messages
+        let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
+        switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
+        case .none:
+            if messages.isEmpty { heldMessage = nil }
+        case .end:
+            heldMessage = nil
+            reveal(proxy, "bottom", anchor: .bottom)
+        case .start(let id):
+            heldMessage = nil
+            reveal(proxy, id, anchor: .top)
+        case .hold(let id):
+            // Keep the earliest unseen message; reading resumes there.
+            if heldMessage == nil {
+                heldMessage = id
+                UIAccessibility.post(notification: .announcement, argument: "New message below")
+            }
         }
-        .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
-        .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }
-        .onChange(of: app.state.vigilanceSessions) { old, new in
-            if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
-        }
-        .onChange(of: app.state.sleeps) { old, _ in assistant.sleepChanged(app: app, before: old) }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-            keyboardOverlap = Self.keyboardOverlap(note)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardOverlap = 0 }
-        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-            Task { await assistant.calendars.refreshCalendars(); await assistant.foreground(app: app) }
-        }
-        .onChange(of: composerFocused) { _, focused in
-            if focused { assistant.prepareForInput() }
-        }
-        .onChange(of: dictation.transcript) { _, text in input = text }
-        .onChange(of: router.showSettings) { _, value in if value { assistant.showAssistantSettings = true; router.showSettings = false } }
-        .onChange(of: router.sleepPath) { _, path in if !path.isEmpty { assistant.historySheet = .logSleep; router.sleepPath = [] } }
-        .onChange(of: router.logPath) { _, path in if !path.isEmpty { assistant.historySheet = .logCaffeine; router.logPath = [] } }
-        .sheet(isPresented: $assistant.showSleepEntry) {
-            SleepEntrySheet(mode: .new) { draft in
-                app.addManualSleep(draft)
-                if app.mutationFailure == nil { assistant.append("Sleep session saved.") }
-                else { assistant.failure = app.mutationFailure }
-            } onDelete: {}
-        }
-        .sheet(isPresented: $assistant.showAssistantSettings, onDismiss: runRequestedErase) { AssistantSettingsView(assistant: assistant) }
-        .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
-        .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
-        .sheet(item: $assistant.historySheet, onDismiss: runRequestedErase) { intent in
-            if intent == .reactionTest { ReactionTestView() }
-            else if intent == .settings { SettingsView() }
-            else { AssistantToolsView(destination: intent) }
-        }
-        .fullScreenCover(isPresented: $router.showReactionTest) { ReactionTestView() }
     }
 
     @ViewBuilder private var identity: some View {
@@ -291,7 +258,7 @@ struct AssistantView: View {
 
     /// The keyboard's end frame against its screen. A hardware keyboard's
     /// offscreen frame gives zero.
-    private static func keyboardOverlap(_ note: Notification) -> CGFloat {
+    fileprivate static func keyboardOverlap(_ note: Notification) -> CGFloat {
         guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return 0 }
         guard let screen = note.object as? UIScreen else { return frame.height }
         return max(0, screen.bounds.maxY - frame.minY)
@@ -351,9 +318,6 @@ struct AssistantView: View {
         }
         .padding(.vertical, Metrics.xs).background(.regularMaterial)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
-        // A drink logged today can answer a follow-up still ahead. Here, not
-        // on the body's long modifier chain, which is slow to type-check.
-        .onChange(of: app.state.doses) { _, _ in Task { await assistant.syncRepeatDrinkNotifications(app: app) } }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
         // conversation a sliver of the screen. Messages and cards still scale fully.
@@ -618,4 +582,78 @@ private extension View {
 private struct ConversationEnd: Equatable {
     var end: Bool
     var nearEnd: Bool
+}
+
+/// The conversation's sheets. A modifier of its own: chained on the body
+/// they made it too slow to type-check for CI's Xcode 26.6.
+private struct ConversationSheets: ViewModifier {
+    @Bindable var assistant: AssistantModel
+    @Bindable var router: Router
+    let app: AppModel
+    @Binding var showHealthConnection: Bool
+    let onDismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $assistant.showSleepEntry) {
+                SleepEntrySheet(mode: .new) { draft in
+                    app.addManualSleep(draft)
+                    if app.mutationFailure == nil { assistant.append("Sleep session saved.") }
+                    else { assistant.failure = app.mutationFailure }
+                } onDelete: {}
+            }
+            .sheet(isPresented: $assistant.showAssistantSettings, onDismiss: onDismiss) { AssistantSettingsView(assistant: assistant) }
+            .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
+            .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
+            .sheet(item: $assistant.historySheet, onDismiss: onDismiss) { intent in
+                if intent == .reactionTest { ReactionTestView() }
+                else if intent == .settings { SettingsView() }
+                else { AssistantToolsView(destination: intent) }
+            }
+            .fullScreenCover(isPresented: $router.showReactionTest) { ReactionTestView() }
+    }
+}
+
+/// What the conversation reacts to: scene changes, drafts, records, the
+/// keyboard, calendars and routing. A modifier of its own for the same
+/// type-checking reason as `ConversationSheets`.
+private struct ConversationObservers: ViewModifier {
+    let assistant: AssistantModel
+    let router: Router
+    let app: AppModel
+    let dictation: OnDeviceDictation
+    @Binding var input: String
+    @Binding var keyboardOverlap: CGFloat
+    let composerFocused: Bool
+    @Environment(\.scenePhase) private var phase
+
+    func body(content: Content) -> some View {
+        content
+            // Becoming active refreshes through AppModel's shared scheduler.
+            .onChange(of: phase) { _, value in
+                if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.clearCardFocus() }
+            }
+            .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
+            .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }
+            .onChange(of: app.state.vigilanceSessions) { old, new in
+                if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
+            }
+            .onChange(of: app.state.sleeps) { old, _ in assistant.sleepChanged(app: app, before: old) }
+            // A drink logged today can answer a follow-up still ahead.
+            .onChange(of: app.state.doses) { _, _ in Task { await assistant.syncRepeatDrinkNotifications(app: app) } }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                keyboardOverlap = AssistantView.keyboardOverlap(note)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardOverlap = 0 }
+            .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+                Task { await assistant.calendars.refreshCalendars(); await assistant.foreground(app: app) }
+            }
+            .onChange(of: composerFocused) { _, focused in
+                if focused { assistant.prepareForInput() }
+            }
+            .onChange(of: dictation.transcript) { _, text in input = text }
+            .onChange(of: router.showSettings) { _, value in if value { assistant.showAssistantSettings = true; router.showSettings = false } }
+            .onChange(of: router.sleepPath) { _, path in if !path.isEmpty { assistant.historySheet = .logSleep; router.sleepPath = [] } }
+            .onChange(of: router.logPath) { _, path in if !path.isEmpty { assistant.historySheet = .logCaffeine; router.logPath = [] } }
+    }
 }
