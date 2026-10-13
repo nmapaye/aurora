@@ -58,7 +58,7 @@ struct AssistantSettingsView: View {
                 }
                 #endif
                 Section("Records") {
-                    NavigationLink("Your records, exports and privacy", destination: SettingsView())
+                    NavigationLink("Your records, exports and privacy", destination: SettingsView(pushed: true))
                         .accessibilityIdentifier("assistant-record-settings")
                     Button("Clear conversation", role: .destructive) { clearConversation = true }
                     Text("Your records are kept.").font(.footnote)

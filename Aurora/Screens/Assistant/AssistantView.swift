@@ -169,10 +169,10 @@ struct AssistantView: View {
                 else { assistant.failure = app.mutationFailure }
             } onDelete: {}
         }
-        .sheet(isPresented: $assistant.showAssistantSettings) { AssistantSettingsView(assistant: assistant) }
+        .sheet(isPresented: $assistant.showAssistantSettings, onDismiss: runRequestedErase) { AssistantSettingsView(assistant: assistant) }
         .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
         .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
-        .sheet(item: $assistant.historySheet) { intent in
+        .sheet(item: $assistant.historySheet, onDismiss: runRequestedErase) { intent in
             if intent == .reactionTest { ReactionTestView() }
             else if intent == .settings { SettingsView() }
             else { AssistantToolsView(destination: intent) }
@@ -222,6 +222,12 @@ struct AssistantView: View {
 
     /// Runs after this update, so a message added in it has been laid out.
     /// Short and interruptible; instant under Reduce Motion.
+    /// The erase confirmed in a sheet, once that sheet has closed.
+    private func runRequestedErase() {
+        guard assistant.takeEraseRequest() else { return }
+        if !app.eraseAllLocalData(assistant: assistant) { assistant.failure = app.mutationFailure }
+    }
+
     private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
         Task { @MainActor in
             withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
@@ -462,7 +468,7 @@ struct AssistantToolsView: View {
                         // Sleep's own "All sleep entries" holds the full list.
                         NavigationLink("Sleep", destination: SleepView())
                         NavigationLink("Recorded insights", destination: InsightsView())
-                        NavigationLink("Records, exports, and privacy", destination: SettingsView())
+                        NavigationLink("Records, exports, and privacy", destination: SettingsView(pushed: true))
                     }.navigationTitle("Your records")
                 }
             }
