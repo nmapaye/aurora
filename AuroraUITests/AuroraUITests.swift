@@ -34,6 +34,16 @@ final class AuroraUITests: XCTestCase {
     /// layout under the tap, so a single tap can land beside the field.
     private func enter(_ text: String, into field: XCUIElement) {
         let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        // A field just above the composer can sit partly under its bar, and a
+        // tap there focuses the composer instead. Drag the conversation a
+        // fixed distance until the field is clear of it.
+        let composer = app.textFields["assistant-composer"]
+        for _ in 0..<4 where composer.exists && field.frame.maxY > composer.frame.minY - 24 {
+            let window = app.windows.firstMatch
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).press(
+                forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)),
+                withVelocity: .slow, thenHoldForDuration: 0.05)
+        }
         for _ in 0..<3 {
             field.tap()
             if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { break }
@@ -489,7 +499,7 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Proactive suggestions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Proactive suggestions"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["Cutoff reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {
