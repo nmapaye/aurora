@@ -29,6 +29,17 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: timeout), .completed)
         element.tap()
     }
+    /// Taps a field and types once it really has keyboard focus. On a large
+    /// iPad the keyboard appearing and the quick actions hiding move the
+    /// layout under the tap, so a single tap can land beside the field.
+    private func enter(_ text: String, into field: XCUIElement) {
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<3 {
+            field.tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { break }
+        }
+        field.typeText(text)
+    }
     private func tapQuick(_ label: String) {
         let button = app.buttons["assistant-quick-" + label]
         // Only four quick actions remain; others are the same request typed.
@@ -324,9 +335,9 @@ final class AuroraUITests: XCTestCase {
         let save = app.buttons["assistant-dose-save"]
         tapWhenReady(save)
         XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 5))
-        amount.tap(); amount.typeText("120")
+        enter("120", into: amount)
         let source = app.textFields["assistant-dose-source"]
-        source.tap(); source.typeText("Tea")
+        enter("Tea", into: source)
         // The whole-app swipe can hit the fixed quick-action strip while the
         // keyboard is open. Finish editing before tapping the reviewed draft.
         // A simulator with a connected hardware keyboard can expose an
@@ -348,9 +359,9 @@ final class AuroraUITests: XCTestCase {
         let amount = app.textFields["assistant-dose-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         let source = app.textFields["assistant-dose-source"]
-        source.tap(); source.typeText("Tea")
+        enter("Tea", into: source)
         // End on the numeric pad, which has no Return key to dismiss it.
-        amount.tap(); amount.typeText("80")
+        enter("80", into: amount)
         let keyboard = app.keyboards.firstMatch
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         XCTAssertTrue(keyboard.keys["8"].exists || keyboard.buttons["8"].exists, "Expected the numeric pad")
@@ -565,7 +576,7 @@ final class AuroraUITests: XCTestCase {
         let save = app.buttons["assistant-dose-save"]
         for _ in 0..<16 where !amount.isHittable { app.swipeDown() }
         XCTAssertTrue(amount.isHittable)
-        amount.tap(); amount.typeText("80")
+        enter("80", into: amount)
         // Same fixed-distance drags as the keyboard test, until Save is clear
         // of the composer and the number pad.
         let keyboard = app.keyboards.firstMatch
