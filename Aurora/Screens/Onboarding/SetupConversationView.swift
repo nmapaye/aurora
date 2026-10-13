@@ -42,7 +42,10 @@ struct SetupConversationView: View {
                 .opacity(0.55)
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: Metrics.md) {
+                    // A plain stack: the transcript has at most one entry per
+                    // setup step. Lazy, with a bottom scroll anchor, it kept
+                    // re-laying out on iOS 26.5 at the largest text size.
+                    VStack(alignment: .leading, spacing: Metrics.md) {
                         HStack {
                             AuroraMark().frame(width: 40, height: 40)
                             Spacer()
@@ -65,7 +68,6 @@ struct SetupConversationView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .defaultScrollAnchor(.bottom)
                 // Keeps scrolled-to content, such as a question's first line,
                 // below the fade rather than inside it.
                 .safeAreaPadding(.top, Metrics.xl)

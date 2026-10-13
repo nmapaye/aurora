@@ -32,6 +32,23 @@ final class AssistantModel {
     var showCalendarSettings = false
     var showAssistantSettings = false
     var historySheet: AssistantIntent?
+    /// Set when erase is confirmed in a sheet. The sheet closes first and the
+    /// erase runs once it's gone: erasing swaps the conversation for setup,
+    /// and tearing down a sheet's presenter while it's still up crashed
+    /// iPadOS 26's focus system.
+    private(set) var eraseRequested = false
+
+    func requestErase() {
+        eraseRequested = true
+        historySheet = nil
+        showAssistantSettings = false
+    }
+
+    /// Runs a requested erase; false when there was none to run.
+    func takeEraseRequest() -> Bool {
+        defer { eraseRequested = false }
+        return eraseRequested
+    }
     /// Messages whose card has a text field with keyboard focus. Each card
     /// releases only its own entry, so a card losing focus after another
     /// gained it can't clear the other's. Interaction state, never saved.
