@@ -331,16 +331,22 @@ struct AssistantView: View {
         // Always one row: wrapping at large text would grow the fixed bottom
         // area and squeeze the conversation. Labels shrink a little instead.
         // While typing, the same row offers what matches the words so far,
-        // so a request never depends on knowing its exact wording.
+        // so a request never depends on knowing its exact wording. The tiles'
+        // labels stay laid out underneath, hidden, so the row keeps its
+        // height: at the largest text a taller row shrinking as a message was
+        // sent left the conversation scrolled onto empty space.
         let typed = Capabilities.matching(input)
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4), spacing: Metrics.xs) {
-            if typed.isEmpty {
-                quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
-                quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
-                quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
-                quickAction("Reaction test", short: "Reaction", symbol: "hand.tap")
-            } else {
-                ForEach(typed) { suggestion($0) }
+        let columns = Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4)
+        let tiles = [("Morning briefing", "Briefing", "sun.horizon"), ("Log caffeine", "Caffeine", "cup.and.saucer"),
+                     ("How is my energy?", "Energy", "sparkle"), ("Reaction test", "Reaction", "hand.tap")]
+        return LazyVGrid(columns: columns, spacing: Metrics.xs) {
+            ForEach(tiles, id: \.0) { text, short, symbol in
+                if typed.isEmpty { quickAction(text, short: short, symbol: symbol) } else { tileLabel(short, symbol: symbol).hidden() }
+            }
+        }
+        .overlay {
+            if !typed.isEmpty {
+                LazyVGrid(columns: columns, spacing: Metrics.xs) { ForEach(typed) { suggestion($0) } }
             }
         }
         .padding(.horizontal, Metrics.columnInset(containerWidth: composerWidth))
@@ -371,7 +377,7 @@ struct AssistantView: View {
                 Image(systemName: capability.symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
                 Text(capability.title).font(.caption.weight(.semibold)).lineLimit(2).minimumScaleFactor(0.7).multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .frame(maxWidth: .infinity, minHeight: 56, maxHeight: .infinity)
         }
         .buttonStyle(TileActionStyle())
         .disabled(assistant.processing)
@@ -407,14 +413,15 @@ struct AssistantView: View {
         .disabled(assistant.processing)
         .accessibilityIdentifier("assistant-follow-up-\(capability.intent.rawValue)")
     }
-    private func quickAction(_ text: String, short: String, symbol: String) -> some View {
-        Button { assistant.send(text, app: app) } label: {
-            VStack(spacing: Metrics.xxs) {
-                Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
-                Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
-            }
-            .frame(maxWidth: .infinity, minHeight: 56)
+    private func tileLabel(_ short: String, symbol: String) -> some View {
+        VStack(spacing: Metrics.xxs) {
+            Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
+            Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
         }
+        .frame(maxWidth: .infinity, minHeight: 56)
+    }
+    private func quickAction(_ text: String, short: String, symbol: String) -> some View {
+        Button { assistant.send(text, app: app) } label: { tileLabel(short, symbol: symbol) }
         .buttonStyle(TileActionStyle())
         .disabled(assistant.processing)
         .accessibilityLabel(text)
