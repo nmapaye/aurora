@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import AuroraCore
 
-/// Loads the JSON files that `tests/fixtures/exportCoreFixtures.spec.ts`
-/// wrote from the TypeScript originals.
+/// Loads the JSON files the TypeScript originals wrote before the React
+/// Native build was removed (`tests/fixtures/exportCoreFixtures.spec.ts`,
+/// still in git history).
 enum Fixture {
     static func load(_ name: String) throws -> JSONValue {
         let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))

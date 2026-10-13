@@ -8,21 +8,39 @@ import UniformTypeIdentifiers
 /// stored caffeine reference is never framed as a safe amount or a goal.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AssistantModel.self) private var assistant
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var confirmDelete = false
+    @State private var confirmErase = false
     @State private var reminderBusy = false
     @State private var deletedCount = 0
 
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
 
+    /// True when pushed onto another screen's NavigationStack. A second
+    /// stack nested inside it crashed iPadOS 26's focus system as soon as
+    /// an alert appeared.
+    var pushed = false
+
     var body: some View {
+        if pushed {
+            settings
+        } else {
+            NavigationStack { settings }
+        }
+    }
+
+    // A plain scrolling stack, not a Form: on iPadOS 26.5 with a keyboard
+    // attached, any alert presented over a scrolled Form crashed UIKit's
+    // focus system on the Form's lazily built rows.
+    private var settings: some View {
         let state = model.state
         let prefs = state.prefs
-        NavigationStack {
-            Form {
-                Section("Appearance") {
+        return ScrollView {
+            VStack(alignment: .leading, spacing: Metrics.lg) {
+                group("Appearance") {
                     Picker("Appearance", selection: Binding(get: { state.appearanceMode }, set: { model.setAppearance($0) })) {
                         Text("System").tag(AppearanceMode.system)
                         Text("Light").tag(AppearanceMode.light)
@@ -31,34 +49,30 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section {
+                group("Estimates and References") {
                     stepper("Caffeine half-life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
                         model.setPrefs { $0.halfLife = v }
                     }
-                } footer: { Text("Used to estimate active caffeine.") }
-
-                Section {
+                    footnote("Used to estimate active caffeine.")
+                    Divider()
                     stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
                         model.setPrefs { $0.targetSleep = v }
                     }
-                } footer: { Text("Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.") }
-
-                Section {
+                    footnote("Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.")
+                    Divider()
                     stepper("Personal caffeine reference", value: prefs.dailyLimitMg, in: 0...1000, step: 20, text: { "\(numberText($0)) mg" }) { v in
                         model.setPrefs { $0.dailyLimitMg = v }
                     }
-                } footer: { Text("A daily amount you choose for your own reference. It is not a recommended or safe amount.") }
-
-                Section {
+                    footnote("A daily amount you choose for your own reference. It is not a recommended or safe amount.")
+                    Divider()
                     stepper("Cutoff hour", value: jsRound(prefs.cutoffHour), in: 0...23, step: 1, text: { model.text.clockHour($0, clock: model.clock) }) { v in
                         model.setPrefs { $0.cutoffHour = v }
                         Task { await model.resyncReminder() }
                     }
-                } header: {
-                    Text("Estimates and References")
-                } footer: { Text("The time you choose for the cutoff marker and optional reminder.") }
+                    footnote("The time you choose for the cutoff marker and optional reminder.")
+                }
 
-                Section("Notifications") {
+                group("Notifications") {
                     Toggle(isOn: Binding(get: { prefs.notifyCutoff }, set: { enabled in
                         Task {
                             reminderBusy = true
@@ -73,75 +87,119 @@ struct SettingsView: View {
                                 .foregroundStyle(Palette.textSecondary)
                         }
                     }
+                    Divider()
                     reminderStatusRow(enabled: prefs.notifyCutoff)
                 }
 
-                Section("About") {
-                    Button { openURL(Self.privacyPolicyURL) } label: {
-                        row("Privacy Policy", detail: "Read-only Health sleep access, local storage, exports, and deletion.")
-                    }
-                    Button { openURL(Self.supportURL) } label: {
-                        row("Support", detail: "Get help, report issues, and avoid sharing private Health data.")
-                    }
+                group("About") {
+                    linkRow("Privacy Policy", detail: "Separate Health sleep and caffeine reads, optional caffeine writes, local storage, exports, and deletion.") { openURL(Self.privacyPolicyURL) }
+                    Divider()
+                    linkRow("Support", detail: "Get help, report issues, and avoid sharing private Health data.") { openURL(Self.supportURL) }
+                    Divider()
                     row("Medical disclaimer", detail: "Aurora is informational only and does not diagnose, treat, cure, or prevent any disease or condition.")
+                    Divider()
                     LabeledContent("Version", value: Self.version)
                 }
 
-                Section {
+                group("Data") {
                     row("Stored on this device", detail: "Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health.")
+                    Divider()
                     ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv") { [doses = state.doses, clock = model.clock] in
                         Export.doseEntriesCSV(doses, clock: clock)
                     },
                               preview: SharePreview("Caffeine entries")) {
-                        row("Export Caffeine Entries", detail: "CSV of every recorded entry (\(state.doses.count)), with its source.")
+                        row("Export Caffeine Entries", detail: "CSV of every recorded entry (\(state.doses.count)), with its source.", tinted: true)
                     }
+                    Divider()
                     ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv") { [doses = state.doses, now = model.now, clock = model.clock] in
                         Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: now, clock: clock))
                     },
                               preview: SharePreview("Daily caffeine totals")) {
-                        row("Export Daily Caffeine Totals", detail: "CSV by day. Days without entries are marked “no record”, not 0 mg.")
+                        row("Export Daily Caffeine Totals", detail: "CSV by day. Days without entries are marked “no record”, not 0 mg.", tinted: true)
                     }
+                    Divider()
                     ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv") { [sessions = state.vigilanceSessions] in
                         Export.vigilanceSessionsCSV(sessions)
                     },
                               preview: SharePreview("Reaction Tests")) {
-                        row("Export Reaction Tests", detail: "CSV of every Reaction Test (\(state.vigilanceSessions.count)), with its source.")
+                        row("Export Reaction Tests", detail: "CSV of every Reaction Test (\(state.vigilanceSessions.count)), with its source.", tinted: true)
                     }
-                    Button("Delete All Data", role: .destructive) { confirmDelete = true }
-                        .accessibilityIdentifier("delete-all-data")
-                    if let result = model.deletionResult {
-                        Text(result == .completed
-                             ? "All Aurora data was deleted from this device."
-                             : "Some Aurora files couldn’t be removed. Try Delete All Data again.")
-                            .font(.footnote)
-                            .foregroundStyle(result == .completed ? Palette.textSecondary : StatusTone.error.foreground)
-                            .accessibilityIdentifier("delete-all-result")
-                    }
-                } header: {
-                    Text("Data")
+                    Divider()
+                    destructiveButton("Delete recorded data", id: "delete-all-data") { confirmDelete = true }
+                        .alert("Delete recorded data?", isPresented: $confirmDelete) {
+                            Button("Cancel", role: .cancel) {}
+                            Button("Delete", role: .destructive) {
+                                deletedCount += 1
+                                model.deleteAllData()
+                            }
+                        } message: {
+                            Text("This clears current caffeine, sleep, and reaction records. Settings, conversation snapshots, and recovery copies remain. Apple Health data is not changed.")
+                        }
+                    footnote("Record-only deletion keeps settings and conversation snapshots. Use Erase all local data to remove retained copies too.")
+                    destructiveButton("Erase all local data", id: "erase-all-local-data") { confirmErase = true }
+                        .alert("Erase all local Aurora data?", isPresented: $confirmErase) {
+                            Button("Erase all local data", role: .destructive) {
+                                assistant.requestErase()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("This permanently removes records, conversation, recovery and migration copies, preferences, local calendar connections, and Aurora reminders. Apple Health and external calendar events are not deleted. Export anything you want to keep first.")
+                        }
+                    if let failure = model.mutationFailure { Text(failure).foregroundStyle(Palette.destructive) }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Palette.modalBackground)
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .frame(maxWidth: Metrics.contentMaxWidth)
+            .frame(maxWidth: .infinity)
+            .padding(Metrics.md)
+        }
+        .background(Palette.modalBackground)
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !pushed {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
-            .alert("Delete all Aurora data?", isPresented: $confirmDelete) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    deletedCount += 1
-                    model.deleteAllData()
-                }
-            } message: {
-                Text("This removes every caffeine entry, sleep session, and reaction test stored in Aurora, along with copies of unreadable files, the previous version’s data, and exported CSV files. Your Apple Health data is not changed.")
-            }
-            .sensoryFeedback(.warning, trigger: deletedCount)
-            .task { await model.resyncReminder() }
         }
+        .sensoryFeedback(.warning, trigger: deletedCount)
+        .task { await model.resyncReminder() }
+    }
+
+    private func group<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        let rows = content()
+        return VStack(alignment: .leading, spacing: Metrics.xs) {
+            SectionLabel(text: label).padding(.horizontal, Metrics.xxs)
+            Card { rows }
+        }
+    }
+
+    private func footnote(_ text: String) -> some View {
+        Text(text).font(.footnote).foregroundStyle(Palette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func linkRow(_ title: String, detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline) {
+                row(title, detail: detail, tinted: true)
+                Spacer(minLength: Metrics.xs)
+                Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isLink)
+    }
+
+    private func destructiveButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(role: .destructive, action: action) {
+            Text(title).foregroundStyle(Palette.destructive)
+                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 
     static var version: String {
@@ -152,7 +210,7 @@ struct SettingsView: View {
     }
 
     private func hoursText(_ value: Double) -> String {
-        "\(OnboardingCopy.formatSleepTarget(value).value) h"
+        "\(OnboardingCopy.formatSleepTarget(value).value)h"
     }
 
     private func stepper(
@@ -195,11 +253,14 @@ struct SettingsView: View {
         }
     }
 
-    private func row(_ title: String, detail: String) -> some View {
+    private func row(_ title: String, detail: String, tinted: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).foregroundStyle(Palette.textPrimary)
+            Text(title).foregroundStyle(tinted ? Palette.tint : Palette.textPrimary)
             Text(detail).font(.footnote).foregroundStyle(Palette.textSecondary)
         }
+        // Share link labels center wrapped text by default.
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }

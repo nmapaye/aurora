@@ -1,302 +1,176 @@
-import { useMemo, useState, type ReactNode } from 'react';
-
-import {
-  demoScenarios,
-  siteSections,
-  type DemoMode,
-  type DemoScenario,
-} from './demoData';
-
-type DemoScreen = 'home' | 'sleep' | 'insights' | 'vigilance';
+import { useState } from 'react';
 
 const githubUrl = 'https://github.com/nmapaye/aurora';
-const appStoreUrl = getConfiguredUrl('VITE_AURORA_APP_STORE_URL');
-const gumroadUrl = getConfiguredUrl('VITE_AURORA_GUMROAD_URL');
-const testFlightUrl = getConfiguredUrl('VITE_AURORA_TESTFLIGHT_URL');
 
-function getConfiguredUrl(key: string) {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-  const value = env?.[key]?.trim();
+const features = [
+  {
+    title: 'Log with Save and Undo',
+    body: 'Caffeine and manual sleep entries are drafts until you tap Save, and a saved entry can be undone from its receipt.',
+  },
+  {
+    title: 'Evidence, not guesses',
+    body: 'Cards separate missing records from estimates. No record is never shown as zero, and estimates say they are estimates.',
+  },
+  {
+    title: 'Apple Health, your choice',
+    body: 'Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice. Imported records stay read-only.',
+  },
+  {
+    title: 'Calendar edits you approve',
+    body: 'Review selected Apple and Google calendars. Each change needs your fresh, explicit approval before it is made.',
+  },
+  {
+    title: 'Reaction test',
+    body: 'A short on-device reaction test gives a measured result alongside your records.',
+  },
+  {
+    title: 'Exports and reminders',
+    body: 'Export your records when you want them. Reminders are off until you opt in.',
+  },
+];
 
-  return value && value.length > 0 ? value : undefined;
-}
+type SleepState = 'missing' | 'recorded';
+type CaffeineState = 'missing' | 'recorded';
 
 export default function App() {
-  const [mode, setMode] = useState<DemoMode>('healthkit');
-  const [screen, setScreen] = useState<DemoScreen>('home');
-  const [vigilanceStep, setVigilanceStep] = useState(0);
-
-  const scenario = demoScenarios[mode];
-  const vigilanceTimeline = useMemo(
-    () => [
-      'Get ready. Wait for the screen to change, then respond as quickly as you can.',
-      'The cue appears and the user taps the active area right away.',
-      `Aurora saves the result as ${scenario.latestVigilance.score} ${scenario.latestVigilance.rating}, with a median reaction time of ${scenario.latestVigilance.medianReactionMs} ms.`,
-    ],
-    [scenario]
-  );
+  const [sleep, setSleep] = useState<SleepState>('missing');
+  const [caffeine, setCaffeine] = useState<CaffeineState>('missing');
 
   return (
     <div className="site-shell">
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+
       <header className="topbar">
         <a className="brand" href="#top">
           <img className="brand-mark" src="aurora-mark.svg" alt="" aria-hidden="true" />
           <span className="brand-copy">
             <strong>Aurora</strong>
-            <span>sleep-aware caffeine guidance</span>
+            <span>Energy and daily rhythm</span>
           </span>
         </a>
-        <nav className="topnav">
-          <a href="#capabilities">What it does</a>
-          <a href="#demo">Demo</a>
-          <a href="#access">Access</a>
-          <a href="#proof">Proof</a>
+        <nav className="topnav" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#preview">Preview</a>
+          <a href="#release">Release</a>
           <a href="privacy.html">Privacy</a>
           <a className="nav-cta" href={githubUrl} target="_blank" rel="noreferrer">
-            View on GitHub
+            GitHub
           </a>
         </nav>
       </header>
 
-      <main id="top">
-        <section className="hero section">
+      <main id="main">
+        <section id="top" className="hero section">
           <div className="hero-copy">
-            <div className="eyebrow">Sleep-aware caffeine guidance</div>
-            <h1>Track caffeine, protect sleep, and check alertness.</h1>
+            <div className="hero-identity" aria-hidden="true" />
+            <p className="eyebrow">Coming soon for iPhone and iPad</p>
+            <h1>Understand your energy, one honest record at a time.</h1>
             <p className="hero-text">
-              Aurora keeps caffeine logging fast, sleep guidance clear, and alertness checks private.
+              Aurora is a native assistant for recording sleep and caffeine, reviewing clearly labelled
+              estimates and measured reaction tests, and keeping selected commitments in view.
             </p>
             <div className="hero-actions">
-              <a className="button button-primary" href="#demo">
-                Try the interactive preview
+              <a className="button button-primary" href="#preview">
+                Try the synthetic preview
               </a>
-              <a className="button button-secondary" href={githubUrl} target="_blank" rel="noreferrer">
-                Explore the project
-              </a>
-              <a className="button button-secondary" href="#access">
-                Release access
+              <a className="button button-secondary" href="#release">
+                Release status
               </a>
             </div>
-            <div className="hero-points">
-              <span>Health-backed sleep timing</span>
-              <span>Quick manual logging</span>
-              <span>On-device vigilance testing</span>
-            </div>
-          </div>
-
-          <div className="hero-preview">
-            <div className="device-frame">
-              <DemoPhone
-                scenario={scenario}
-                screen={screen}
-                vigilanceStep={vigilanceStep}
-                vigilanceTimeline={vigilanceTimeline}
-              />
-            </div>
+            <p className="hero-note">
+              Aurora does not diagnose fatigue or prescribe caffeine or sleep schedules.
+            </p>
           </div>
         </section>
 
-        <section id="capabilities" className="section">
+        <section id="features" className="section" aria-labelledby="features-title">
           <div className="section-heading">
-            <div className="eyebrow">What it does</div>
-            <h2>Simple tools for caffeine, sleep, and alertness.</h2>
+            <p className="eyebrow">In the app</p>
+            <h2 id="features-title">Finite cards. Clear evidence. You stay in control.</h2>
           </div>
-          <div className="capability-grid">
-            {siteSections.map((item) => (
-              <article key={item.title} className="capability-card">
+          <ul className="feature-grid">
+            {features.map((item) => (
+              <li key={item.title} className="card feature-card">
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
-              </article>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
 
-        <section id="demo" className="section demo-section">
+        <section id="preview" className="section" aria-labelledby="preview-title">
           <div className="section-heading">
-            <div className="eyebrow">Interactive preview</div>
-            <h2>Preview the main flow.</h2>
+            <p className="eyebrow">Synthetic preview</p>
+            <h2 id="preview-title">See how an energy card treats missing records.</h2>
             <p>
-              Compare a Health-connected view with a manual setup.
+              This is an illustration built for this page. It uses made-up values held only in your
+              browser tab, sends nothing anywhere, and does not run Aurora's model.
             </p>
           </div>
 
-          <div className="demo-layout">
-            <aside className="demo-controls">
-              <div className="control-group">
-                <span className="control-label">View</span>
-                <div className="segmented">
-                  {(['healthkit', 'manual'] as DemoMode[]).map((nextMode) => (
-                    <button
-                      key={nextMode}
-                      type="button"
-                      className={nextMode === mode ? 'segmented-button active' : 'segmented-button'}
-                      onClick={() => {
-                        setMode(nextMode);
-                        setScreen('home');
-                        setVigilanceStep(0);
-                      }}
-                    >
-                      {demoScenarios[nextMode].modeLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <div className="preview-layout">
+            <fieldset className="card preview-controls">
+              <legend>Synthetic records</legend>
+              <ToggleRow
+                label="Last night's sleep"
+                checked={sleep === 'recorded'}
+                onChange={(on) => setSleep(on ? 'recorded' : 'missing')}
+                onText="7 h 10 m"
+              />
+              <ToggleRow
+                label="Coffee this morning"
+                checked={caffeine === 'recorded'}
+                onChange={(on) => setCaffeine(on ? 'recorded' : 'missing')}
+                onText="95 mg"
+              />
+              <button
+                type="button"
+                className="button button-quiet full-width"
+                onClick={() => {
+                  setSleep('missing');
+                  setCaffeine('missing');
+                }}
+              >
+                Clear preview
+              </button>
+            </fieldset>
 
-              <div className="control-group">
-                <span className="control-label">Screens</span>
-                <div className="screen-list">
-                  {([
-                    ['home', 'Home / Today'],
-                    ['sleep', 'Sleep'],
-                    ['insights', 'Insights'],
-                    ['vigilance', 'Vigilance'],
-                  ] as Array<[DemoScreen, string]>).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={key === screen ? 'screen-link active' : 'screen-link'}
-                      onClick={() => setScreen(key)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="control-group callout">
-                <span className="control-label">Selected view</span>
-                <strong>{scenario.modeLabel}</strong>
-                <p>{scenario.heroLine}</p>
-              </div>
-
-              {screen === 'vigilance' ? (
-                <div className="control-group">
-                  <span className="control-label">Reaction flow</span>
-                  <div className="screen-list">
-                    {vigilanceTimeline.map((label, index) => (
-                      <button
-                        key={label}
-                        type="button"
-                        className={index === vigilanceStep ? 'screen-link active' : 'screen-link'}
-                        onClick={() => setVigilanceStep(index)}
-                      >
-                        Step {index + 1}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="small-copy">{vigilanceTimeline[vigilanceStep]}</p>
-                </div>
-              ) : null}
-            </aside>
-
-            <div className="demo-stage">
-              <div className="device-frame large">
-                <DemoPhone
-                  scenario={scenario}
-                  screen={screen}
-                  vigilanceStep={vigilanceStep}
-                  vigilanceTimeline={vigilanceTimeline}
-                />
-              </div>
-            </div>
+            <EnergyCard sleep={sleep} caffeine={caffeine} />
           </div>
         </section>
 
-        <section id="proof" className="section">
+        <section id="release" className="section" aria-labelledby="release-title">
           <div className="section-heading">
-            <div className="eyebrow">Product context</div>
-            <h2>Current app scope.</h2>
+            <p className="eyebrow">Release status</p>
+            <h2 id="release-title">Not released yet.</h2>
           </div>
-          <div className="proof-grid">
-            <article className="proof-card">
-              <h3>Included</h3>
+          <div className="release-grid">
+            <article className="card release-card">
+              <h3>Planned</h3>
               <ul>
-                <li>iPhone and iPad app with Health-backed sleep import</li>
-                <li>Fast caffeine logging with quick-add and custom entries</li>
-                <li>On-device vigilance testing with saved insights</li>
+                <li>Paid upfront, US$4.99, on the App Store</li>
+                <li>iPhone and iPad, iOS 17 or later</li>
+                <li>A free TestFlight beta before release</li>
               </ul>
             </article>
-            <article className="proof-card">
-              <h3>Not included</h3>
-              <ul>
-                <li>No cloud sync</li>
-                <li>No Apple Watch companion app</li>
-                <li>No unavailable release promises</li>
-              </ul>
-            </article>
-            <article className="proof-card">
-              <h3>Source</h3>
+            <article className="card release-card">
+              <h3>Not open yet</h3>
               <p>
-                View the current code, release scope, and implementation notes.
+                TestFlight and the App Store listing are not available. There is no download or
+                sign-up on this page.
               </p>
-              <a className="button button-secondary full-width" href={githubUrl} target="_blank" rel="noreferrer">
-                Open Aurora on GitHub
+            </article>
+            <article className="card release-card">
+              <h3>Private by design</h3>
+              <p>
+                Aurora classifies requests on device. No cloud inference, AI keys, analytics SDK, or
+                cross-device health and conversation sync.
+              </p>
+              <a className="text-link" href="privacy.html">
+                Read the privacy policy
               </a>
-            </article>
-          </div>
-        </section>
-
-        <section id="access" className="section access-section">
-          <div className="section-heading">
-            <div className="eyebrow">App Store + TestFlight</div>
-            <h2>Buy through the App Store. Test through free TestFlight.</h2>
-            <p>
-              Aurora is prepared for paid App Store distribution. TestFlight is for unpaid beta testing, and Gumroad is only a companion guide and support package.
-            </p>
-          </div>
-          <div className="proof-grid">
-            <article id="release-links" className="proof-card">
-              <h3>Paid app release</h3>
-              <p>
-                App access is sold through Apple commerce when the App Store listing is approved.
-              </p>
-              <ConfiguredLink
-                className="button button-primary full-width"
-                fallbackHref="#release-links"
-                placeholderLabel="Set VITE_AURORA_APP_STORE_URL"
-                url={appStoreUrl}
-              >
-                Open App Store listing
-              </ConfiguredLink>
-            </article>
-            <article className="proof-card">
-              <h3>Companion guide</h3>
-              <p>
-                Gumroad may include the walkthrough, changelog, support path, and release notes. It does not unlock the app or gate TestFlight access.
-              </p>
-              <ConfiguredLink
-                className="button button-secondary full-width"
-                fallbackHref="#release-links"
-                placeholderLabel="Set VITE_AURORA_GUMROAD_URL"
-                url={gumroadUrl}
-              >
-                Open Gumroad guide
-              </ConfiguredLink>
-            </article>
-            <article className="proof-card">
-              <h3>Free beta testing</h3>
-              <p>
-                TestFlight is used only for uncompensated beta testing before the paid App Store release.
-              </p>
-              <ul>
-                <li>Health sleep import with a manual path</li>
-                <li>Sample data for sleep, caffeine, and alertness</li>
-                <li>Caffeine logging, attentiveness testing, insights, and CSV export</li>
-              </ul>
-            </article>
-            <article className="proof-card">
-              <h3>Privacy and support</h3>
-              <p>
-                Health access is optional and read-only. Aurora stores demo records on device and is not medical advice.
-              </p>
-              <ConfiguredLink
-                className="button button-secondary full-width"
-                fallbackHref="#release-links"
-                placeholderLabel="Set VITE_AURORA_TESTFLIGHT_URL"
-                url={testFlightUrl}
-              >
-                Open free TestFlight invite
-              </ConfiguredLink>
             </article>
           </div>
         </section>
@@ -305,296 +179,93 @@ export default function App() {
       <footer className="site-footer">
         <a href="privacy.html">Privacy Policy</a>
         <a href="support.html">Support</a>
-        <a href={githubUrl} target="_blank" rel="noreferrer">GitHub</a>
+        <a href={githubUrl} target="_blank" rel="noreferrer">
+          GitHub
+        </a>
       </footer>
     </div>
   );
 }
 
-function ConfiguredLink({
-  children,
-  className,
-  fallbackHref,
-  placeholderLabel,
-  url,
-}: {
-  children: ReactNode;
-  className: string;
-  fallbackHref: string;
-  placeholderLabel: string;
-  url?: string;
-}) {
-  if (!url) {
-    return (
-      <a className={className} href={fallbackHref} aria-label={placeholderLabel}>
-        {placeholderLabel}
-      </a>
-    );
-  }
-
-  return (
-    <a className={className} href={url} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  );
-}
-
-function DemoPhone({
-  scenario,
-  screen,
-  vigilanceStep,
-  vigilanceTimeline,
-}: {
-  scenario: DemoScenario;
-  screen: DemoScreen;
-  vigilanceStep: number;
-  vigilanceTimeline: string[];
-}) {
-  return (
-    <div className="phone">
-      <div className="phone-header">
-        <div>
-          <p className="phone-title">
-            {screen === 'home'
-              ? 'Today'
-              : screen === 'sleep'
-              ? 'Sleep'
-              : screen === 'insights'
-              ? 'Insights'
-              : 'Vigilance'}
-          </p>
-          <p className="phone-subtitle">{scenario.modeLabel}</p>
-        </div>
-        <span className="status-pill">{scenario.sleepStatus}</span>
-      </div>
-
-      {screen === 'home' ? <HomePreview scenario={scenario} /> : null}
-      {screen === 'sleep' ? <SleepPreview scenario={scenario} /> : null}
-      {screen === 'insights' ? <InsightsPreview scenario={scenario} /> : null}
-      {screen === 'vigilance' ? (
-        <VigilancePreview
-          scenario={scenario}
-          vigilanceStep={vigilanceStep}
-          vigilanceTimeline={vigilanceTimeline}
-        />
-      ) : null}
-
-      <div className="tabbar">
-        {['Home', 'Log', 'Sleep', 'Insights'].map((label) => (
-          <span key={label} className={label.toLowerCase() === screen ? 'tab active' : 'tab'}>
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function HomePreview({ scenario }: { scenario: DemoScenario }) {
-  return (
-    <div className="phone-content">
-      <div className="stats-grid">
-        <MetricCard label="Caffeine" value={`${scenario.todayCaffeineMg} mg`} detail="today total" />
-        <MetricCard label="Active now" value={`${scenario.activeCaffeineMg} mg`} detail={`alertness ${scenario.alertnessScore}`} />
-      </div>
-
-      <ScreenCard title="Quick add">
-        <div className="pill-row">
-          {scenario.doses.map((dose) => (
-            <span key={dose.label} className="demo-pill">
-              {dose.label.split(' ')[0]} {dose.mg}mg
-            </span>
-          ))}
-        </div>
-      </ScreenCard>
-
-      <ScreenCard title="Vigilance">
-        <div className="row between">
-          <strong>
-            {scenario.latestVigilance.score} {scenario.latestVigilance.rating}
-          </strong>
-          <span>{scenario.latestVigilance.completedAt}</span>
-        </div>
-        <p>Latest median reaction time: {scenario.latestVigilance.medianReactionMs} ms.</p>
-      </ScreenCard>
-
-      <ScreenCard title="Recommendations">
-        <KeyValue label="Daily cutoff" value={scenario.cutoffTime} />
-        <KeyValue label="Suggested bedtime" value={scenario.bedtime} />
-        <KeyValue label="Suggested wake" value={scenario.wakeTime} />
-      </ScreenCard>
-    </div>
-  );
-}
-
-function SleepPreview({ scenario }: { scenario: DemoScenario }) {
-  return (
-    <div className="phone-content">
-      <ScreenCard title="Connection">
-        <p>{scenario.sleepSummary}</p>
-        <span className="inline-status">{scenario.sleepStatus}</span>
-      </ScreenCard>
-
-      <div className="stats-grid">
-        <MetricCard label="Cutoff" value={scenario.cutoffTime} detail="sleep-aware" />
-        <MetricCard label="Bedtime" value={scenario.bedtime} detail={scenario.sleepDetail} />
-      </div>
-
-      <ScreenCard title="Suggested plan">
-        {scenario.plan.map((item) => (
-          <KeyValue key={item.label} label={item.label} value={`${item.mg} mg at ${item.time}`} />
-        ))}
-      </ScreenCard>
-    </div>
-  );
-}
-
-function InsightsPreview({ scenario }: { scenario: DemoScenario }) {
-  return (
-    <div className="phone-content">
-      <ScreenCard title="Trend">
-        <MiniChart values={scenario.trend} />
-      </ScreenCard>
-
-      <ScreenCard title="Daypart mix">
-        {scenario.daypartMix.map((item) => (
-          <BarRow key={item.label} label={item.label} value={item.pct} detail={`${item.mg} mg`} />
-        ))}
-      </ScreenCard>
-
-      <ScreenCard title="Source mix">
-        {scenario.sourceMix.map((item) => (
-          <BarRow key={item.label} label={item.label} value={item.pct} detail={`${item.mg} mg`} />
-        ))}
-      </ScreenCard>
-
-      <ScreenCard title="History">
-        {scenario.history.map((row) => (
-          <div key={row.title + row.detail} className="history-row">
-            <div>
-              <strong>{row.title}</strong>
-              <p>{row.subtitle}</p>
-            </div>
-            <span>{row.detail}</span>
-          </div>
-        ))}
-      </ScreenCard>
-    </div>
-  );
-}
-
-function VigilancePreview({
-  scenario,
-  vigilanceStep,
-  vigilanceTimeline,
-}: {
-  scenario: DemoScenario;
-  vigilanceStep: number;
-  vigilanceTimeline: string[];
-}) {
-  return (
-    <div className="phone-content">
-      <ScreenCard title="Test area" emphasis={vigilanceStep === 1}>
-        <div className={vigilanceStep === 1 ? 'reaction-zone active' : 'reaction-zone'}>
-          <span>{vigilanceStep === 1 ? 'Tap now' : vigilanceStep === 2 ? 'Result saved' : 'Wait for the cue'}</span>
-        </div>
-        <p>{vigilanceTimeline[vigilanceStep]}</p>
-      </ScreenCard>
-
-      <ScreenCard title="Saved result">
-        <div className="stats-grid single">
-          <MetricCard
-            label="Latest"
-            value={`${scenario.latestVigilance.score} ${scenario.latestVigilance.rating}`}
-            detail={scenario.latestVigilance.completedAt}
-          />
-        </div>
-        <KeyValue label="Median reaction" value={`${scenario.latestVigilance.medianReactionMs} ms`} />
-        <KeyValue label="Lapses / false starts" value={`${scenario.latestVigilance.lapseCount} / ${scenario.latestVigilance.falseStartCount}`} />
-        <KeyValue label="Valid taps" value={scenario.latestVigilance.validTaps} />
-      </ScreenCard>
-    </div>
-  );
-}
-
-function ScreenCard({
-  title,
-  children,
-  emphasis = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  emphasis?: boolean;
-}) {
-  return (
-    <section className={emphasis ? 'screen-card emphasis' : 'screen-card'}>
-      <div className="screen-card-title">{title}</div>
-      {children}
-    </section>
-  );
-}
-
-function MetricCard({
+function ToggleRow({
   label,
-  value,
-  detail,
+  checked,
+  onChange,
+  onText,
 }: {
   label: string;
-  value: string;
-  detail: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  onText: string;
 }) {
   return (
-    <div className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
-  );
-}
-
-function KeyValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="kv-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function BarRow({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <div className="bar-row">
-      <div className="bar-row-label">
+    <label className="toggle-row">
+      <span className="toggle-copy">
         <span>{label}</span>
-        <small>{detail}</small>
-      </div>
-      <div className="bar-track">
-        <div className="bar-fill" style={{ width: `${value}%` }} />
-      </div>
-    </div>
+        <small>{checked ? `Synthetic: ${onText}` : 'No record'}</small>
+      </span>
+      <input
+        type="checkbox"
+        aria-label={label}
+        role="switch"
+        className="toggle"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
   );
 }
 
-function MiniChart({ values }: { values: number[] }) {
-  const points = values
-    .map((value, index) => {
-      const x = (index / Math.max(1, values.length - 1)) * 100;
-      const y = 100 - ((value - Math.min(...values)) / Math.max(1, Math.max(...values) - Math.min(...values))) * 60 - 20;
-      return `${x},${y}`;
-    })
-    .join(' ');
+function EnergyCard({ sleep, caffeine }: { sleep: SleepState; caffeine: CaffeineState }) {
+  const hasSleep = sleep === 'recorded';
+  const hasCaffeine = caffeine === 'recorded';
+  const illustrativeScore = hasCaffeine ? 74 : 68;
 
   return (
-    <svg viewBox="0 0 100 100" className="mini-chart" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={points} />
-    </svg>
+    <article className="card energy-card" aria-labelledby="energy-card-title" aria-live="polite">
+      <div className="energy-card-header">
+        <h3 id="energy-card-title">Energy</h3>
+        <span className="badge">
+          <span aria-hidden="true">◆</span> Synthetic preview
+        </span>
+      </div>
+
+      <div className="energy-lead">
+        <span className="metric-label">Estimated alertness</span>
+        {hasSleep ? (
+          <>
+            <strong className="hero-value">
+              {illustrativeScore}
+              <span className="unit"> / 100</span>
+            </strong>
+            <p className="evidence">
+              Illustrative number for this page. In Aurora, this is an estimate, not a measurement.
+            </p>
+          </>
+        ) : (
+          <>
+            <strong className="hero-value muted">Unavailable</strong>
+            <p className="evidence">No sleep is recorded in the last 24 hours.</p>
+          </>
+        )}
+      </div>
+
+      <dl className="metric-list">
+        <div className="metric-row">
+          <dt>Sleep, last 24 h</dt>
+          <dd className={hasSleep ? undefined : 'muted'}>{hasSleep ? '7 h 10 m' : 'No record'}</dd>
+        </div>
+        <div className="metric-row">
+          <dt>Caffeine today</dt>
+          <dd className={hasCaffeine ? undefined : 'muted'}>{hasCaffeine ? '95 mg' : 'No record'}</dd>
+        </div>
+      </dl>
+
+      <p className="source">
+        {hasSleep || hasCaffeine
+          ? 'Source: synthetic values on this page only.'
+          : 'Missing records are shown as missing, never as zero.'}
+      </p>
+    </article>
   );
 }

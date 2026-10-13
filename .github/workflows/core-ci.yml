@@ -28,7 +28,7 @@ jobs:
       relevant: ${{ steps.diff.outputs.relevant }}
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
 
@@ -61,7 +61,7 @@ jobs:
     container: swift:6.2
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build
         working-directory: AuroraCore
@@ -72,8 +72,12 @@ jobs:
         shell: bash
         run: |
           set +e
-          swift test 2>&1 | tee ../swift-test.log
-          status=${PIPESTATUS[0]}
+          status=0
+          # Day keys and exports depend on the time zone, so run in both.
+          for tz in UTC America/Los_Angeles; do
+            TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 
@@ -85,15 +89,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Test
         working-directory: AuroraCore
         shell: bash
         run: |
           set +e
-          swift test 2>&1 | tee ../swift-test.log
-          status=${PIPESTATUS[0]}
+          status=0
+          # Day keys and exports depend on the time zone, so run in both.
+          for tz in UTC America/Los_Angeles; do
+            TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 

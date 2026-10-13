@@ -39,7 +39,7 @@ struct SleepView: View {
             sleepData(state)
         }
         .refreshable {
-            guard state.onboarding.permissionStatus == .granted, !state.demoMode else { return }
+            guard state.healthChoices.readSleep, !state.demoMode else { return }
             await model.importHealth()
         }
         .sensoryFeedback(.success, trigger: savedCount)
@@ -75,7 +75,7 @@ struct SleepView: View {
             reference: (target, "\(OnboardingCopy.formatSleepTarget(target).value)h target"),
             defaultIndex: days.lastIndex { $0.value != nil },
             accessibilitySummary: presentation.accessibilitySummary,
-            emptyMessage: "No sleep recorded in this range. Add a night or connect Health in Sleep Data."
+            emptyMessage: "No sleep recorded in this range. Add a night or connect Apple Health in Sleep Data."
         )
     }
 
@@ -87,7 +87,7 @@ struct SleepView: View {
             if signal.status == .empty {
                 editing = .new
             } else {
-                router.push(.sleep, on: .sleep)
+                router.sleepPath.append(.sleep)
             }
         }
     }
@@ -158,7 +158,7 @@ struct SleepView: View {
                 .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                 .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.auroraPress)
             .accessibilityLabel("Sleep Data, \(status.state)")
             .accessibilityHint(showSources ? "Hides Health, manual, and sample data controls" : "Shows Health, manual, and sample data controls")
             .accessibilityIdentifier("sleep-data")
@@ -167,11 +167,8 @@ struct SleepView: View {
                 Card {
                     Text(status.state).font(.headline).foregroundStyle(Palette.textPrimary)
                     Text(status.detail).font(.subheadline).foregroundStyle(Palette.textSecondary)
-                    Text("Health access is read-only. Imported: \(sync.importedCount) \(sync.importedCount == 1 ? "night" : "nights")")
+                    Text("\(sync.importedCount) \(sync.importedCount == 1 ? "night" : "nights") from Apple Health · read-only\(sync.lastSyncedAt.map { " · synced \(model.text.clockTime($0))" } ?? "")")
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
-                    if let last = sync.lastSyncedAt {
-                        Text("Last sync: \(model.text.clockTime(last))").font(.footnote).foregroundStyle(Palette.textSecondary)
-                    }
                     if let message = sync.lastMessage {
                         Text(message).font(.footnote).foregroundStyle(Palette.textSecondary)
                     }
@@ -182,28 +179,46 @@ struct SleepView: View {
                             loading = false
                         }
                     } label: {
-                        if loading { ProgressView() } else { Text(state.onboarding.permissionStatus == .granted ? "Refresh Sleep" : "Connect to Health") }
+                        if loading { ProgressView() } else { Text(state.onboarding.permissionStatus == .granted ? "Refresh from Apple Health" : "Connect Apple Health") }
                     }
                     .buttonStyle(.auroraPrimary)
                     .disabled(loading || !model.healthAvailable)
-                    HStack(spacing: Metrics.sm) {
-                        Button("Add Sleep Manually") { editing = .new }
-                            .buttonStyle(.auroraSecondary)
-                        Button("Show All Data") { router.push(.sleep, on: .sleep) }
-                            .buttonStyle(.auroraSecondary)
-                            .accessibilityLabel("Show All Data, \(state.sleeps.count) \(state.sleeps.count == 1 ? "session" : "sessions")")
+                    // One tidy list instead of mismatched side-by-side buttons.
+                    VStack(spacing: 0) {
+                        dataRow("Add sleep manually", symbol: "plus.circle") { editing = .new }
+                        Divider()
+                        dataRow("All sleep entries", symbol: "list.bullet", value: "\(state.sleeps.count)") { router.sleepPath.append(.sleep) }
+                        Divider()
+                        dataRow(state.demoMode ? "Refresh Sample Data" : "Load Sample Data", symbol: "sparkles") { model.loadSampleData() }
+                        if state.demoMode {
+                            Divider()
+                            dataRow("Clear Sample Data", symbol: "trash", destructive: true) { model.clearSampleData() }
+                        }
                     }
-                    HStack(spacing: Metrics.sm) {
-                        Button(state.demoMode ? "Refresh Sample Data" : "Load Sample Data") { model.loadSampleData() }
-                            .buttonStyle(.auroraSecondary)
-                        Button("Clear Samples", role: .destructive) { model.clearSampleData() }
-                            .disabled(!state.demoMode)
-                    }
+                    .background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
                 }
-                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("sleep-data-panel")
             }
         }
+    }
+}
+
+extension SleepView {
+    /// A full-width row: icon, title, optional value, chevron.
+    func dataRow(_ title: String, symbol: String, value: String? = nil, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Metrics.sm) {
+                Image(systemName: symbol).frame(width: 24).foregroundStyle(destructive ? Palette.destructive : Palette.tint)
+                Text(title).foregroundStyle(destructive ? Palette.destructive : Palette.textPrimary)
+                Spacer(minLength: Metrics.xs)
+                if let value { Text(value).monospacedDigit().foregroundStyle(Palette.textSecondary) }
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary)
+            }
+            .font(Typography.evidence)
+            .padding(.horizontal, Metrics.md)
+            .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget + 4)
+        }
+        .buttonStyle(.auroraPress)
     }
 }
 
@@ -290,7 +305,7 @@ struct SleepEntrySheet: View {
             guard !loaded else { return }
             loaded = true
             switch mode {
-            case .new: draft = ManualSleep.newDraft(now: AppModel.currentMillis())
+            case .new: draft = AssistantPlanner.usualNight(model.state.sleeps, now: AppModel.currentMillis(), clock: model.clock) ?? ManualSleep.newDraft(now: AppModel.currentMillis())
             case .edit(let session): draft = ManualSleep.Draft(start: session.start, end: session.end, note: session.note ?? "")
             }
         }
@@ -356,7 +371,7 @@ struct SleepHistoryView: View {
         return Group {
             if manual {
                 Button { editing = .edit(session) } label: { content }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .swipeActions {
                         Button("Delete", role: .destructive) { model.deleteManualSleep(id: session.id) }
                         Button("Edit") { editing = .edit(session) }.tint(Palette.tint)

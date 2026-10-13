@@ -79,9 +79,9 @@ struct InsightsView: View {
     private func reaction(_ p: InsightsPresentation) -> some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             SignalCard(model: p.reaction.signal, symbol: "speedometer", accent: Palette.vigilanceAccent) {
-                router.presentReactionTest()
+                router.showReactionTest = true
             }
-            Button("Take Reaction Test") { router.presentReactionTest() }
+            Button("Take Reaction Test") { router.showReactionTest = true }
                 .buttonStyle(.auroraSecondary)
         }
     }
@@ -100,7 +100,7 @@ struct InsightsView: View {
                 .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                 .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.auroraPress)
             .accessibilityHint(showDetails ? "Hides time of day and drinks" : "Shows time of day and drinks")
 
             if showDetails {
@@ -118,14 +118,15 @@ struct InsightsView: View {
                     ForEach(p.drinkMix, id: \.label) { item in
                         row(item.label, value: "\(numberText(jsRound(item.mg))) mg · \(item.pct)%")
                     }
-                    if let source = p.source, source != .manual {
+                    if let source = p.source, source.includesSample {
                         Text("Includes \(source == .sample ? "only " : "")Sample Data.")
                             .font(.caption)
                             .foregroundStyle(StatusTone.warning.foreground)
                     }
                 }
                 Button("Show All Caffeine Data") {
-                    router.open(.caffeineHistory)
+                    router.tab = .log
+                    router.logPath = [.caffeine]
                 }
                 .font(.subheadline.weight(.semibold))
             }

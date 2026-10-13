@@ -39,9 +39,9 @@ AURORA_FIXTURE_OUT=AuroraCore/Tests/AuroraCoreTests/Fixtures TZ=UTC npx jest tes
 AURORA_FIXTURE_OUT=AuroraCore/Tests/AuroraCoreTests/Fixtures TZ=America/Los_Angeles npx jest tests/fixtures
 ```
 
-That spec, and the TypeScript it calls, are removed when the React Native
-app is. To regenerate the fixtures after that, check out the last commit
-that has `tests/fixtures/exportCoreFixtures.spec.ts`, then run
+The React Native build, that spec and the TypeScript it calls have been
+removed. To regenerate these fixtures, check out commit `0013c38`, the
+last one with `tests/fixtures/exportCoreFixtures.spec.ts`, then run
 `npm ci` and the commands above.
 
 **`mmkv/`** holds files written by MMKV Core v2.0.0, the version that

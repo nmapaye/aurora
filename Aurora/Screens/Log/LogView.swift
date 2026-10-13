@@ -76,16 +76,26 @@ struct LogView: View {
                         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
                         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .accessibilityLabel("Log \(preset.label), \(numberText(preset.mg)) mg")
                     .accessibilityIdentifier("quick-add-\(preset.id)")
                 }
             }
             if let confirmation {
                 HStack(spacing: Metrics.sm) {
-                    Text(confirmation.text)
-                        .font(.footnote)
-                        .foregroundStyle(StatusTone.success.foreground)
+                    VStack(alignment: .leading, spacing: Metrics.xxs) {
+                        Text(confirmation.text)
+                            .font(.footnote)
+                            .foregroundStyle(StatusTone.success.foreground)
+                        // Health's part is reported apart from the local save.
+                        let health = model.healthStatus(forDoseID: confirmation.dose.id)
+                        if let value = health.value {
+                            Text("Apple Health · \(value)")
+                                .font(.footnote)
+                                .foregroundStyle(health.needsAttention ? StatusTone.warning.foreground : Palette.textSecondary)
+                                .accessibilityIdentifier("quick-add-health")
+                        }
+                    }
                     Spacer(minLength: 0)
                     Button("Undo") { undo(confirmation) }
                         .font(.footnote.weight(.semibold))
@@ -94,7 +104,6 @@ struct LogView: View {
                 .padding(Metrics.sm)
                 .background(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).fill(StatusTone.success.background))
                 .transition(.opacity)
-                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("quick-add-confirmation")
             }
             Button {
@@ -123,7 +132,7 @@ struct LogView: View {
                     }
                 }
             }
-            Button("Show All Caffeine Data") { router.push(.caffeine, on: .log) }
+            Button("Show All Caffeine Data") { router.logPath.append(.caffeine) }
                 .font(.subheadline.weight(.semibold))
                 .padding(.top, Metrics.xxs)
         }
@@ -141,7 +150,8 @@ struct LogView: View {
         model.undo(confirmation.dose)
         withAnimation { self.confirmation = nil }
         let what = confirmation.dose.source.map { "\($0), \(numberText(confirmation.dose.mg)) mg" } ?? "\(numberText(confirmation.dose.mg)) mg"
-        UIAccessibility.post(notification: .announcement, argument: "Removed \(what).")
+        let health = model.healthStatus(forDoseID: confirmation.dose.id).value.map { " Apple Health: \($0)." } ?? ""
+        UIAccessibility.post(notification: .announcement, argument: "Removed \(what).\(health)")
     }
 
     private func draft(for sheet: DoseSheet) -> CustomDoseDraft {
@@ -192,6 +202,8 @@ struct DoseRow: View {
 
     var body: some View {
         let editable = CaffeineLog.isEditable(dose)
+        let sample = RecordID.isSample(dose.id)
+        let health = editable ? model.healthStatus(forDoseID: dose.id) : .notExported
         let content = HStack(alignment: .top, spacing: Metrics.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(CaffeineLog.title(dose))
@@ -203,11 +215,19 @@ struct DoseRow: View {
                 if let note = CaffeineLog.displayNote(dose) {
                     Text(note).font(.footnote).foregroundStyle(Palette.textSecondary)
                 }
+                if CaffeineLog.isEarlierAuroraCopy(dose) {
+                    Text(CaffeineLog.earlierAuroraCopyNote).font(.footnote).foregroundStyle(Palette.textSecondary)
+                }
+                if let value = health.value {
+                    Text("Apple Health · \(value)")
+                        .font(.footnote)
+                        .foregroundStyle(health.needsAttention ? StatusTone.warning.foreground : Palette.textSecondary)
+                }
             }
             Spacer(minLength: 0)
-            Text(editable ? "Manual" : "Sample Data")
+            Text(CaffeineLog.sourceLabel(dose))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(editable ? Palette.textSecondary : StatusTone.warning.foreground)
+                .foregroundStyle(sample ? StatusTone.warning.foreground : Palette.textSecondary)
             if editable {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -221,14 +241,14 @@ struct DoseRow: View {
         Group {
             if editable {
                 Button(action: onEdit) { content }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.auroraPress)
                     .accessibilityHint("Edit or delete this entry")
             } else {
                 content
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(CaffeineLog.describe(dose, formatDateTime: model.text.fullDateTime))
+        .accessibilityLabel(CaffeineLog.describe(dose, formatDateTime: model.text.fullDateTime) + (health.value.map { ", Apple Health: \($0)" } ?? ""))
         .accessibilityAddTraits(editable ? .isButton : [])
     }
 }

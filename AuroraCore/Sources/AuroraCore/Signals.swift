@@ -69,15 +69,34 @@ public func formatSignalDay(_ ts: Millis, now: Millis, clock: LocalClock, text: 
     return text.shortDate(ts)
 }
 
+/// Where a set of records came from. Health caffeine is named as Health,
+/// never folded into Manual.
 public enum RecordSource: String, Equatable, Sendable {
     case manual = "Manual"
+    case health = "Health"
+    case manualAndHealth = "Manual and Health"
     case sample = "Sample Data"
     case mixed = "Manual and Sample Data"
+    case healthAndSample = "Health and Sample Data"
+    case allSources = "Manual, Health and Sample Data"
+
+    public var includesSample: Bool {
+        [.sample, .mixed, .healthAndSample, .allSources].contains(self)
+    }
 
     public static func of(ids: [String]) -> RecordSource? {
         guard !ids.isEmpty else { return nil }
-        let sample = ids.filter(RecordID.isSample).count
-        if sample == 0 { return .manual }
-        return sample == ids.count ? .sample : .mixed
+        let sample = ids.contains(where: RecordID.isSample)
+        let health = ids.contains { RecordID.isHealthCaffeine($0) || RecordID.isHealthSleep($0) }
+        let manual = ids.contains { !RecordID.isSample($0) && !RecordID.isHealthCaffeine($0) && !RecordID.isHealthSleep($0) }
+        switch (manual, health, sample) {
+        case (true, false, false): return .manual
+        case (false, true, false): return .health
+        case (true, true, false): return .manualAndHealth
+        case (false, false, true): return .sample
+        case (true, false, true): return .mixed
+        case (false, true, true): return .healthAndSample
+        default: return .allSources
+        }
     }
 }

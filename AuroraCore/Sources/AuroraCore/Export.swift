@@ -114,6 +114,13 @@ public enum Export {
         return (["id,local_date,timestamp,datetime,mg,drink,note,data_source"] + lines).joined(separator: "\n")
     }
 
+    public static func sleepSessionsCSV(_ sessions: [SleepSession], clock: LocalClock) -> String {
+        let rows = sessions.sorted { $0.start < $1.start }.map { session in
+            row([session.id, clock.isoDay(session.end), isoTimestamp(session.start), isoTimestamp(session.end), numberText((session.end - session.start) / hourMs), session.type.rawValue, SleepModel.sourceLabel(id: session.id), session.note ?? ""])
+        }
+        return (["id,wake_local_date,start,end,duration_hours,type,data_source,note"] + rows).joined(separator: "\n")
+    }
+
     public static func vigilanceSessionsCSV(_ sessions: [VigilanceSession]) -> String {
         let header = [
             "id", "started_at", "completed_at", "duration_ms", "trial_count", "valid_reaction_count",

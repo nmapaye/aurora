@@ -12,9 +12,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(Router.self) private var router
-    /// During the walkthrough the screen's controls are unavailable; the
-    /// scroll view stays scrollable and the coach sits outside it.
-    @Environment(\.walkthroughLocked) private var walkthroughLocked
 
     var body: some View {
         GeometryReader { proxy in
@@ -23,7 +20,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 VStack(alignment: .leading, spacing: Metrics.xl) {
                     header
                     content()
-                        .disabled(walkthroughLocked)
                 }
                 .frame(maxWidth: wide ? Metrics.wideContentMaxWidth : Metrics.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, wide ? Metrics.lg : Metrics.md)
@@ -44,7 +40,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                     .font(.largeTitle.bold())
                     .foregroundStyle(Palette.textPrimary)
                     .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("screen-title-\(title)")
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
@@ -53,10 +48,9 @@ struct AppScreen<Content: View, Trailing: View>: View {
             }
             Spacer(minLength: Metrics.sm)
             trailing()
-                .disabled(walkthroughLocked)
             if showsSettings {
                 Button {
-                    router.presentSettings()
+                    router.showSettings = true
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.title3)
@@ -66,8 +60,6 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 }
                 .foregroundStyle(Palette.tint)
                 .accessibilityLabel("Open settings")
-                .accessibilityIdentifier("open-settings")
-                .disabled(walkthroughLocked)
             }
         }
         .padding(.top, Metrics.md)
@@ -140,9 +132,18 @@ struct StatusText: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PrimaryButtonBody(configuration: configuration)
+    }
+}
+
+/// Reads `isEnabled` inside a view so it stays correct when the style is
+/// wrapped by `AnyButtonStyle`, which calls `makeBody` directly.
+private struct PrimaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
@@ -152,20 +153,76 @@ struct PrimaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
                     .fill(isEnabled ? Palette.primaryButton : Palette.primaryButtonDisabled)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .pressFeedback(configuration.isPressed)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        SecondaryButtonBody(configuration: configuration)
+    }
+}
+
+private struct SecondaryButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
             .padding(.horizontal, Metrics.md)
-            .foregroundStyle(Palette.secondaryButtonText)
-            .background(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).fill(Palette.secondaryButton))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous).strokeBorder(Palette.secondaryButtonBorder))
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .foregroundStyle(isEnabled ? Palette.secondaryButtonText : Palette.primaryButtonDisabledText)
+            .background(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .fill(isEnabled ? Palette.secondaryButton : Palette.primaryButtonDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                    .strokeBorder(isEnabled ? Palette.secondaryButtonBorder : Palette.neutralButtonBorder)
+            )
+            .pressFeedback(configuration.isPressed)
+    }
+}
+
+/// A compact state label: symbol plus text on a tone capsule, so state is
+/// never carried by color alone.
+struct StatusBadge: View {
+    let text: String
+    var tone: StatusTone = .neutral
+
+    var body: some View {
+        Label(text, systemImage: tone.symbol)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, Metrics.sm)
+            .padding(.vertical, Metrics.xxs)
+            .background(Capsule().fill(tone.background))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A form field with its label above and an optional trailing unit, sharing
+/// one field surface so labels, values and units align down a card.
+struct LabeledField<Field: View>: View {
+    let label: String
+    var unit: String?
+    @ViewBuilder var field: () -> Field
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+            HStack(spacing: Metrics.xs) {
+                field()
+                if let unit {
+                    Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, Metrics.sm)
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+        }
     }
 }
 
@@ -175,4 +232,57 @@ extension ButtonStyle where Self == PrimaryButtonStyle {
 
 extension ButtonStyle where Self == SecondaryButtonStyle {
     static var auroraSecondary: SecondaryButtonStyle { SecondaryButtonStyle() }
+}
+
+/// "Saved", with a check that draws itself in and a success tap when the
+/// save just happened in front of the person. Already-saved cards render
+/// still. Reduce Motion shows the finished check without drawing.
+struct SavedBadge: View {
+    var text = "Saved"
+    let celebrate: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 1
+    @State private var pop = false
+
+    var body: some View {
+        HStack(spacing: Metrics.xxs) {
+            CheckMark(progress: progress)
+                .stroke(StatusTone.success.foreground, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .frame(width: 12, height: 12)
+                .padding(3)
+                .background(Circle().fill(StatusTone.success.foreground.opacity(0.15)))
+            Text(text)
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(StatusTone.success.foreground)
+        .padding(.horizontal, Metrics.sm)
+        .padding(.vertical, Metrics.xxs)
+        .background(StatusTone.success.background, in: Capsule())
+        .scaleEffect(pop ? 1.08 : 1)
+        .accessibilityElement(children: .combine)
+        .sensoryFeedback(.success, trigger: celebrate) { _, now in now }
+        .onChange(of: celebrate, initial: true) { _, now in
+            guard now, !reduceMotion else { return }
+            progress = 0
+            withAnimation(.easeOut(duration: 0.32).delay(0.05)) { progress = 1 }
+            withAnimation(Motion.pressSpring) { pop = true }
+            withAnimation(Motion.pressSpring.delay(0.18)) { pop = false }
+        }
+    }
+}
+
+private struct CheckMark: Shape {
+    var progress: CGFloat
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.maxY - rect.height * 0.1))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.1))
+        return path.trimmedPath(from: 0, to: progress)
+    }
 }

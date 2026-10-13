@@ -106,6 +106,8 @@ public enum OnboardingCopy {
                 : "Finish setup to log sleep manually, or check sleep records and access in Health."
         case .importing:
             return "Health access requested. Importing your sleep…"
+        case .partial:
+            return "Finish setup. Aurora imported part of your sleep and continues at the next refresh."
         case .failed:
             return "Health access requested. The sleep import needs a retry."
         case .idle:

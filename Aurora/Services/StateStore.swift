@@ -9,6 +9,12 @@ struct StateStore {
     enum Failure: Error {
         case notDirectory
         case backupExclusionNotConfirmed
+        case invalidState
+        /// Written by a newer build. The file is left as it is.
+        case unsupportedVersion
+        case verificationFailed
+        /// Something other than a file sits where `state.json` belongs.
+        case stateIsNotAFile
     }
 
     let directory: URL
@@ -47,43 +53,45 @@ struct StateStore {
         }
     }
 
-    enum LoadResult {
-        /// Nothing saved yet.
-        case missing
-        case loaded(AppState)
-        /// The file exists but couldn't be read, for example while the
-        /// device is locked before its first unlock. Nothing is changed.
-        case unreadable
-        /// The file was read but doesn't decode, or holds records with no
-        /// calendar date and no copy of it could be kept. It stays in place,
-        /// and a copy is kept beside it when the copy succeeds.
-        case corrupt(backup: URL?)
-    }
+    static let protectedFiles = StateMigration.Files(
+        read: { try Data(contentsOf: $0) },
+        write: { try $0.write(to: $1, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) },
+        exists: { FileManager.default.fileExists(atPath: $0.path) }
+    )
 
-    enum SaveFailure: Error, Equatable {
-        /// The file written back doesn't decode to the state that was saved.
-        case verificationFailed
-    }
-
-    var backupPrefix: String { "state.corrupt." }
+    static let backupPrefix = "state.corrupt."
     /// Temporary saves. One is left behind only if Aurora stops mid-save, and
-    /// it can hold a full copy of the records.
-    var savingPrefix: String { "state.json.saving-" }
+    /// it can hold a full copy of the records. Erase removes them.
+    static let savingPrefix = "state.json.saving-"
 
-    func load(now: Date = .now) -> LoadResult {
-        let manager = FileManager.default
-        guard manager.fileExists(atPath: fileURL.path) else { return .missing }
-        guard let data = try? Data(contentsOf: fileURL) else { return .unreadable }
-        if let state = try? JSONDecoder().decode(AppState.self, from: data) {
-            // A hand-edited file can hold times with no calendar date, which
-            // the screens and exports can't use. Those records are dropped,
-            // but only once the file as found has a copy kept beside it;
-            // without one, nothing is written until the person decides.
-            let cleaned = state.droppingInvalidTimes()
-            guard cleaned != state else { return .loaded(state) }
-            return keepCopy(of: data, now: now) == nil ? .corrupt(backup: nil) : .loaded(cleaned)
+    /// `nil` when nothing has been saved yet. An older schema is migrated with
+    /// its original kept as `state.v1-source.json`. A file that no longer
+    /// decodes is copied aside, never overwritten; a file from a newer build
+    /// and a migration that can't be verified leave the original in place.
+    /// Records with no calendar date are dropped only once the file as found
+    /// has a copy kept beside it; without one, loading fails and nothing is
+    /// written.
+    func load(now: Date = .now) throws -> AppState? {
+        let loaded: StateMigration.Loaded?
+        do {
+            loaded = try StateMigration.load(directory: directory, files: Self.protectedFiles)
+        } catch StateMigration.Failure.undecodable {
+            if let data = try? Data(contentsOf: fileURL) { _ = keepCopy(of: data, now: now) }
+            throw Failure.invalidState
+        } catch StateMigration.Failure.unsupportedVersion {
+            throw Failure.unsupportedVersion
+        } catch {
+            throw Failure.verificationFailed
         }
-        return .corrupt(backup: keepCopy(of: data, now: now))
+        guard let loaded else { return nil }
+        let snapshot = directory.appendingPathComponent("state.pre-assistant.json")
+        if !FileManager.default.fileExists(atPath: snapshot.path) {
+            try loaded.original.write(to: snapshot, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        let cleaned = loaded.state.droppingInvalidTimes()
+        guard cleaned != loaded.state else { return loaded.state }
+        guard keepCopy(of: loaded.original, now: now) != nil else { throw Failure.invalidState }
+        return cleaned
     }
 
     /// Copies `data` (the current state.json) aside, reusing an identical
@@ -93,9 +101,9 @@ struct StateStore {
             return existing
         }
         let stamp = Int(now.timeIntervalSince1970 * 1000)
-        let backup = directory.appendingPathComponent("\(backupPrefix)\(stamp).json")
+        let backup = directory.appendingPathComponent("\(Self.backupPrefix)\(stamp).json")
         do {
-            try FileManager.default.copyItem(at: fileURL, to: backup)
+            try data.write(to: backup, options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
             return backup
         } catch {
             return nil
@@ -108,19 +116,20 @@ struct StateStore {
     /// previous `state.json` exactly as it was. The read-back checks what the
     /// file system returns; it does not force the bytes to storage (no fsync).
     func save(_ state: AppState) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(state)
+        let data = try StateMigration.encode(state)
         let manager = FileManager.default
-        let temporary = directory.appendingPathComponent("\(savingPrefix)\(UUID().uuidString)")
+        let temporary = directory.appendingPathComponent("\(Self.savingPrefix)\(UUID().uuidString)")
         defer { try? manager.removeItem(at: temporary) }
         try data.write(to: temporary, options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
         try afterTemporaryWrite(temporary)
         let written = try Data(contentsOf: temporary)
-        guard written == data, (try? JSONDecoder().decode(AppState.self, from: written)) == state else {
-            throw SaveFailure.verificationFailed
+        guard written == data, (try? StateMigration.decode(written)) == state else {
+            throw Failure.verificationFailed
         }
-        if manager.fileExists(atPath: fileURL.path) {
+        var isDirectory: ObjCBool = false
+        if manager.fileExists(atPath: fileURL.path, isDirectory: &isDirectory) {
+            // Never swap a file in over something that isn't one.
+            guard !isDirectory.boolValue else { throw Failure.stateIsNotAFile }
             _ = try manager.replaceItemAt(fileURL, withItemAt: temporary)
         } else {
             try manager.moveItem(at: temporary, to: fileURL)
@@ -129,29 +138,18 @@ struct StateStore {
 
     /// Copies kept aside from files that didn't decode.
     func corruptBackups() -> [URL] {
-        files(withPrefix: backupPrefix)
+        files(withPrefix: Self.backupPrefix)
     }
 
     /// Temporary saves left by a save that never finished. Loading leaves
-    /// them alone; only Delete All Data removes them.
+    /// them alone; only erase removes them.
     func orphanedSaves() -> [URL] {
-        files(withPrefix: savingPrefix)
+        files(withPrefix: Self.savingPrefix)
     }
 
     private func files(withPrefix prefix: String) -> [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.filter { $0.hasPrefix(prefix) }.sorted().map { directory.appendingPathComponent($0) }
-    }
-
-    /// Removes every kept copy and unfinished save, and the saved state too
-    /// when asked. Used only
-    /// by Delete All Data, after the person confirms, and by the DEBUG
-    /// UI-test reset.
-    func purge(includingState: Bool) throws {
-        let manager = FileManager.default
-        for url in corruptBackups() + orphanedSaves() + (includingState ? [fileURL] : []) where manager.fileExists(atPath: url.path) {
-            try manager.removeItem(at: url)
-        }
     }
 }
 

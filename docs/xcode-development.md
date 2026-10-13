@@ -1,146 +1,103 @@
 # Xcode Development
 
-Aurora is an iPhone and iPad React Native application with a manually owned
-native iOS project. Xcode is the authoritative environment for native
-configuration, builds, debugging, profiling, signing, and archives. Expo
-continues to provide the JavaScript runtime, Metro, and native modules.
+Aurora is a native SwiftUI app for iPhone and iPad. `Aurora.xcodeproj` is the
+only project. It builds the `Aurora` app target on top of the local
+`AuroraCore` Swift package.
 
 ## Requirements
 
-- Stable Xcode 26.6 or 27.x with the iOS 26.4 SDK or newer. Expo SDK 57
-  requires Xcode 26.4 or newer. Never use a beta Xcode for release work.
-  Last verified 2026-09-27 with Xcode 27.0 (27A266a) and the iOS 27.0 SDK:
-  unsigned Debug and Release simulator builds, iPhone 18 Pro and iPad Pro
-  13-inch launches.
-- Native tabs (`createNativeBottomTabNavigator` from
-  `@react-navigation/bottom-tabs/unstable`) need React Native 0.79+ and
-  `react-native-screens` 4.25+. The tab bar floats over content: tab screens
-  mount their own `SafeAreaProvider` so bottom overlays clear it.
-- Unsigned simulator builds log `ERR_NOTIFICATIONS_KEYCHAIN_ACCESS` (-34018)
-  from expo-notifications because they carry no entitlements. An ad-hoc
-  signed simulator build does not; it is not an app defect. HealthKit also
-  needs a signed build: unsigned simulator builds report Health unavailable.
-- Node.js 24 and npm 11.6 or newer.
-- CocoaPods 1.16.2, matching `ios/Podfile.lock`.
-
-Run the bootstrap after cloning, changing Node installations, or changing a
-native dependency:
-
-```sh
-npm run ios:bootstrap
-```
-
-The bootstrap validates the toolchain, writes the ignored
-`ios/.xcode.env.local` with the active Node binary, and installs pods.
+- Stable Xcode 26.6 or 27.x. Never use a beta Xcode for release work.
+- Deployment target iOS 17.0, iPhone and iPad.
 
 ## Daily Workflow
 
-Start Metro in one terminal:
-
 ```sh
-npm start
+open Aurora.xcodeproj
 ```
 
-Open the CocoaPods workspace:
+Select the shared `Aurora` scheme and a simulator or registered device, then
+Run. SwiftUI previews work for any screen that gets an `AppModel` and a
+`Router` in its environment.
+
+Logic that doesn't need UIKit belongs in `AuroraCore`, where `swift test` runs
+it in seconds on macOS or Linux:
 
 ```sh
-npm run ios
+cd AuroraCore
+swift test
 ```
 
-In Xcode, select the shared `AURORA` scheme and a simulator or registered
-device, then Run. Use React Native DevTools and Fast Refresh for TypeScript;
-use Xcode's console, LLDB, and Instruments for native behavior.
+## Project Structure
 
-Never open `ios/AURORA.xcodeproj` directly. It does not include the CocoaPods
-workspace dependencies.
+The project uses folder-synchronized groups (project format 77). Every file
+under `Aurora/`, `AuroraTests/` and `AuroraUITests/` belongs to its folder's
+target automatically, so adding a Swift file needs no project change. Two
+files in `Aurora/` are excluded from the app's resources in the project file:
+`Info.plist` and `Aurora.entitlements`.
 
-## Native Ownership
+These are edited and reviewed directly:
 
-The following files are edited and reviewed directly:
+- `Aurora.xcodeproj/project.pbxproj` and the shared `Aurora` scheme.
+- `Aurora/Info.plist`: URL schemes `aurora` and `com.nmapaye.aurora`, the
+  HealthKit usage strings, and the launch screen color. The build also
+  generates keys from `INFOPLIST_KEY_*` settings.
+- `Aurora/Aurora.entitlements`: HealthKit only, with no APNs.
+- `Aurora/PrivacyInfo.xcprivacy`: no tracking, no collected data, and no
+  required-reason APIs.
+- `Aurora/Assets.xcassets`: the app icon (light, dark and tinted), the accent
+  color, and the launch background.
 
-- `ios/AURORA.xcodeproj/project.pbxproj` and the shared scheme.
-- `ios/AURORA/Info.plist`, `AURORA/Supporting/Expo.plist`,
-  `AURORA.entitlements`, and `PrivacyInfo.xcprivacy`.
-- App icons, launch assets, `AppDelegate.swift`, the Podfile, and
-  `Podfile.properties.json`.
-- `ios/Podfile.lock`, after a deliberate dependency change.
-
-Machine-local files remain untracked: `.xcode.env.local`, `xcuserdata`,
-DerivedData, certificates, provisioning profiles, and simulator data.
-
-Do not run `expo prebuild`. It can replace the manually maintained Xcode
-project, plist values, capabilities, resources, and schemes. Expo SDK upgrades
-must use the native-project upgrade helper and a reviewed Xcode diff.
-
-After adding or removing an npm package with native iOS code, run:
-
-```sh
-npm install
-npm run ios:pods
-```
-
-Future Swift bridges should be local Expo modules under `modules/` and linked
-through CocoaPods. Do not place reusable feature logic in `AppDelegate.swift`.
+Machine-local files stay untracked: `xcuserdata`, DerivedData, `.swiftpm`,
+certificates and provisioning profiles.
 
 ## Build Checks
 
-Unsigned simulator builds are available from the repository root:
-
 ```sh
-npm run ios:build:debug
-npm run ios:build:release
+xcodebuild test -project Aurora.xcodeproj -scheme Aurora \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+xcodebuild build -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
 ```
 
-The deployment target is iOS 16.4, and the app targets both iPhone and
-iPad. Do not accept Xcode's complete “recommended settings” migration as one
-bulk change; review each proposed setting after both build configurations are
-green.
+The iOS App workflow runs the tests on an iPhone and an iPad simulator, and a
+Release build. Don't accept Xcode's "recommended settings" migration as one
+bulk change; review each setting after both configurations are green.
 
 ## Signing and Versions
 
-The bundle identifier is `com.nmapaye.aurora`. Select the Apple Developer team
-that owns that identifier and use automatic signing for device and archive
-builds. Simulator builds do not require a team.
+The bundle identifier is `com.nmapaye.aurora`, the same as the React Native
+build, so the new app reads that build's container and imports its records.
+Select the Apple Developer team that owns the identifier and use automatic
+signing for device and archive builds. Simulator builds don't need a team, but
+HealthKit only works in a signed build.
 
 Xcode owns release numbering:
 
 - Marketing version: `0.1.0`
 - Build number: `1`, incremented before every App Store Connect upload
 
-The App Store Connect record and a valid Apple Developer team are prerequisites
-for Organizer validation and upload.
-
 ## Archive and Distribute
 
-Xcode Organizer is the canonical release path:
+Xcode Organizer is the release path:
 
-1. Run the complete release checks in `docs/demo-release.md`.
-2. In the `AURORA` target, confirm `Version` is the intended marketing version
-   and increment `Build` before every upload. `Info.plist` reads these values
-   from `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
-3. Select the shared `AURORA` scheme and a generic iOS device destination, then
-   choose Product → Archive.
+1. Run the release checks in `docs/demo-release.md`.
+2. In the `Aurora` target, confirm `Version` and increment `Build`.
+3. Select the `Aurora` scheme and a generic iOS device, then Product →
+   Archive.
 4. In Organizer, choose Validate App and resolve every signing, entitlement,
-   privacy, or metadata error.
-5. Choose Distribute App → App Store Connect and upload the validated archive.
-6. Wait for the build to process, then assign it to the internal TestFlight
-   group before expanding beta access.
+   privacy or metadata error.
+5. Choose Distribute App → App Store Connect and upload.
+6. Once the build has processed, assign it to the internal TestFlight group
+   before expanding beta access.
 
-Before distribution, inspect the signed archive and confirm:
+Before distribution, inspect the signed archive:
 
 - Bundle identifier `com.nmapaye.aurora`.
-- HealthKit entitlement is present and no APNs entitlement is present.
-- `PrivacyInfo.xcprivacy`, Ionicons, icon appearances, and launch assets are
-  embedded.
-- The marketing version targets the intended App Store version, and the build
-  number is unused and greater than every prior upload for that version.
+- HealthKit entitlement present, no APNs entitlement.
+- `PrivacyInfo.xcprivacy` and all three icon appearances embedded.
+- The build number is unused and greater than every earlier upload for that
+  version.
 
-Signing certificates, provisioning profiles, the Apple Developer team, and the
-App Store Connect record are external prerequisites. If any is unavailable,
-simulator and CI work may land, but Organizer upload remains blocked.
-
-`eas.json` is retained only as an emergency rollback while the first signed
-Organizer archive is unverified. It uses local version values and must not
-override Xcode's build number. Delete `eas.json` and all EAS release
-instructions immediately after the first signed Organizer archive validates.
-Internal TestFlight processing remains a separate release gate.
+Signing certificates, provisioning profiles, the Apple Developer team and the
+App Store Connect record are external prerequisites. Without them, simulator
+and CI work can land, but Organizer upload stays blocked.
