@@ -619,6 +619,69 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [receipt], timeout: 3), .completed)
     }
 
+    // MARK: Discovery
+
+    /// "help" answers with everything Aurora can do, not a clarification,
+    /// and each row sends its own request.
+    func testHelpShowsCapabilitiesAndARowSendsItsRequest() {
+        finishSetup(); request("help")
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        XCTAssertFalse(cardTitle("clarification").exists)
+        let cutoff = app.buttons["capability-cutoffScenario"].firstMatch
+        for _ in 0..<6 where !cutoff.isHittable { app.swipeUp() }
+        cutoff.tap()
+        XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
+    }
+
+    /// While typing, the quick tiles become what matches the words so far.
+    func testTypingOffersMatchingActionsInPlaceOfTiles() {
+        finishSetup()
+        XCTAssertTrue(app.buttons["assistant-quick-Morning briefing"].exists)
+        let input = app.textFields["assistant-composer"]
+        input.tap(); input.typeText("cut")
+        let suggestion = app.buttons["assistant-suggest-cutoffScenario"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["assistant-quick-Morning briefing"].exists)
+        attachScreenshot("Composer suggestions")
+        suggestion.tap()
+        XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
+        XCTAssertNotEqual(input.value as? String, "cut")
+    }
+
+    /// Next steps sit under the newest answer and send their request.
+    func testFollowUpChipsUnderAnEnergyAnswer() {
+        finishSetup()
+        tapQuick("How is my energy?")
+        XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
+        let curve = app.buttons["assistant-follow-up-energyProjection"]
+        XCTAssertTrue(curve.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["assistant-follow-up-energyCheckIn"].exists)
+        attachScreenshot("Follow-up chips")
+        for _ in 0..<4 where !curve.isHittable { app.swipeUp() }
+        curve.tap()
+        XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
+        // Only the newest answer has next steps; the curve's never offer itself.
+        XCTAssertTrue(app.descendants(matching: .any)["assistant-follow-ups"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["assistant-follow-up-energyProjection"].exists)
+    }
+
+    /// The drink follow-up card from synthetic fixtures, for visual review.
+    func testGalleryRepeatDrinkFixture() {
+        app.terminate()
+        app.launchArguments = ["-AuroraDesignGallery", "-AuroraGalleryExperience", "repeatDrink"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
+        let title = cardTitle("repeatDrink")
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let review = app.buttons["repeat-drink-review"]
+        for _ in 0..<12 where !review.isHittable { app.swipeUp() }
+        XCTAssertTrue(review.isHittable)
+        XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)
+        let question = NSPredicate(format: "label BEGINSWITH 'Had your ' AND label ENDSWITH ' Drip today?'")
+        XCTAssertTrue(app.staticTexts.matching(question).firstMatch.exists)
+        attachScreenshot("Drink follow-up")
+    }
+
     private func window() -> XCUIElement { app.windows.firstMatch }
 
     private func openGallery() {
