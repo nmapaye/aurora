@@ -47,13 +47,13 @@ final class AuroraUITests: XCTestCase {
         }
         button.tap()
     }
-    /// A relaunch shows the welcome; a tap on it only skips it, so tap it
-    /// away before using the conversation, as a person would.
+    /// A relaunch shows the welcome, which ends by itself after a few
+    /// seconds. Wait it out rather than tapping it: on a slow runner it can
+    /// end between being found and being tapped. Tap-to-skip has its own test.
     private func dismissWelcome() {
         let welcome = app.descendants(matching: .any)["welcome"]
         if welcome.waitForExistence(timeout: 5) {
-            welcome.tap()
-            XCTAssertTrue(welcome.waitForNonExistence(timeout: 5))
+            XCTAssertTrue(welcome.waitForNonExistence(timeout: 15))
         }
     }
     /// Apple Health lives in Aurora settings, not the quick actions.
@@ -322,8 +322,8 @@ final class AuroraUITests: XCTestCase {
         let amount = app.textFields["assistant-dose-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         let save = app.buttons["assistant-dose-save"]
-        save.tap()
-        XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 3))
+        tapWhenReady(save)
+        XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 5))
         amount.tap(); amount.typeText("120")
         let source = app.textFields["assistant-dose-source"]
         source.tap(); source.typeText("Tea")
