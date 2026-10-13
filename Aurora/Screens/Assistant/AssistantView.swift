@@ -16,8 +16,23 @@ struct AssistantView: View {
     /// How far the software keyboard reaches up from the screen's bottom.
     @State private var keyboardOverlap: CGFloat = 0
     /// Messages at least partly on screen, and whether the end is.
-    @State private var visibleMessages: Set<UUID> = []
-    @State private var endVisible = true
+    /// Which messages, and whether the end, are on screen. Held by
+    /// reference, not as view state: they change on every scroll and are
+    /// only read when a message arrives. As state, each change re-ran the
+    /// conversation's layout, and on iOS 26.5 at the largest text that
+    /// flipped them again, so the main thread never went idle.
+    @State private var visibility = Visibility()
+    fileprivate final class Visibility {
+        var messages: Set<UUID> = []
+        var end = true
+        /// Within most of a screen of the end (iOS 18 and later only).
+        var nearEnd = true
+        /// The person is dragging or flinging the conversation (iOS 18 and
+        /// later). Only their own scrolling changes where they are reading;
+        /// Aurora revealing a long card's start doesn't move them away from
+        /// the latest message.
+        var userScrolling = false
+    }
     @State private var viewportHeight: CGFloat = 0
     /// The first message added while earlier messages were being read.
     @State private var heldMessage: UUID?
@@ -35,11 +50,11 @@ struct AssistantView: View {
                         identity
                         ForEach(assistant.conversation.messages) { message in
                             messageView(message).id(message.id)
-                                .onGeometryChange(for: Bool.self, of: onScreen) { visible in
-                                    if visible { visibleMessages.insert(message.id) } else { visibleMessages.remove(message.id) }
+                                .trackingVisibility(onScreen) { visible in
+                                    if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
                                     if visible && heldMessage == message.id { heldMessage = nil }
                                 }
-                                .onDisappear { visibleMessages.remove(message.id) }
+                                .onDisappear { visibility.messages.remove(message.id) }
                         }
                         // Stop lives in the composer, so it stays reachable
                         // while earlier messages are being read.
@@ -56,11 +71,11 @@ struct AssistantView: View {
                                 .accessibilityIdentifier("assistant-error")
                         }
                         Color.clear.frame(height: 1).id("bottom")
-                            .onGeometryChange(for: Bool.self, of: onScreen) { visible in
-                                endVisible = visible
-                                if visible { heldMessage = nil }
+                            .trackingVisibility(onScreen) { visible in
+                                visibility.end = visible
+                                if visible && heldMessage != nil { heldMessage = nil }
                             }
-                            .onDisappear { endVisible = false }
+                            .onDisappear { visibility.end = false }
                         // QA showed the conversation could not scroll a card's
                         // Save above the composer while the number pad was up:
                         // its extent stopped short by about the keyboard. While
@@ -74,15 +89,26 @@ struct AssistantView: View {
                     .padding(Metrics.lg)
                 }
                 // Opens at the latest message, including right after the welcome.
-                .defaultScrollAnchor(.bottom)
+                // Scrolled once rather than with defaultScrollAnchor(.bottom): on
+                // iOS 26.5 that anchor, with the lazy stack's estimated heights,
+                // kept the conversation re-laying out so the main thread never
+                // went idle.
+                .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
                 .coordinateSpace(.named(Self.viewport))
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+                .trackingConversationEnd(visibility) { end, nearEnd in
+                    if visibility.userScrolling || end {
+                        visibility.end = end
+                        visibility.nearEnd = nearEnd || end
+                    }
+                    if end && heldMessage != nil { heldMessage = nil }
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
                 .onChange(of: assistant.conversation.messages.count) { old, _ in
                     let messages = assistant.conversation.messages
-                    let readingLatest = endVisible || (old > 0 && old <= messages.count && visibleMessages.contains(messages[old - 1].id))
+                    let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
                     switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
                     case .none:
                         if messages.isEmpty { heldMessage = nil }
@@ -475,4 +501,45 @@ struct AssistantToolsView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
     }
+}
+
+private extension View {
+    /// Per-message visibility, used only before iOS 18. On iOS 26.5 a
+    /// visibility observer on every message kept the lazy conversation
+    /// laying out forever (the main thread never went idle), whether it was
+    /// onGeometryChange or onScrollVisibilityChange.
+    @ViewBuilder
+    func trackingVisibility(_ onScreen: @escaping (GeometryProxy) -> Bool, action: @escaping (Bool) -> Void) -> some View {
+        if #available(iOS 18, *) {
+            self
+        } else {
+            onGeometryChange(for: Bool.self, of: onScreen, action: action)
+        }
+    }
+
+    /// On iOS 18 and later, one observer on the scroll view says whether the
+    /// end of the conversation is on screen, and whether it is within most of
+    /// a screen of it (still reading the latest message).
+    @ViewBuilder
+    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
+        if #available(iOS 18, *) {
+            onScrollPhaseChange { _, phase in
+                visibility.userScrolling = phase == .interacting || phase == .decelerating
+            }
+            .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
+                let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height
+                let gap = max(0, maxOffset - geometry.contentOffset.y - geometry.contentInsets.top)
+                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75)
+            } action: { _, now in
+                action(now.end, now.nearEnd)
+            }
+        } else {
+            self
+        }
+    }
+}
+
+private struct ConversationEnd: Equatable {
+    var end: Bool
+    var nearEnd: Bool
 }
