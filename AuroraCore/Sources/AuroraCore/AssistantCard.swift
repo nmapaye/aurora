@@ -7,6 +7,10 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case caffeineDraft, sleepDraft, energy, trends, calendar, reaction, history, exports, briefing, reminders, clarification, receipt
         case energyProjection, energyCheckIn
         case cutoffScenario
+        /// Everything Aurora can do, by group.
+        case capabilities
+        /// A next-day follow-up on yesterday's drink.
+        case repeatDrink
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -51,6 +55,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     /// A cutoff scenario's latest calculation. Optional so older saved
     /// conversations decode unchanged.
     public var cutoff: CutoffScenario.Snapshot?
+    /// A next-day follow-up's drink. Optional so older saved conversations
+    /// decode unchanged.
+    public var repeatDrink: RepeatDrinks.Prompt?
     public struct CheckIn: Codable, Equatable, Sendable {
         /// Receipt: the check-in as saved.
         public var saved: EnergyCheckIn?
@@ -80,7 +87,8 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .exports: .exports
         case .briefing: .briefing
         case .reminders: .reminders
-        case .clarification, .receipt: nil
+        case .capabilities: .help
+        case .clarification, .receipt, .repeatDrink: nil
         }
     }
 }
@@ -103,6 +111,8 @@ public enum AssistantCards {
         case .reminders: "Your reminders"
         case .clarification: "What would you like to do?"
         case .receipt: "Saved"
+        case .capabilities: "What Aurora can do"
+        case .repeatDrink: "Yesterday’s drink"
         }
         var card = AssistantCard(kind: kind, capturedAt: now, title: title)
         card.timeZone = clock.timeZone.identifier
@@ -189,6 +199,9 @@ public enum AssistantCards {
             card.summary = CutoffScenario.disclaimer
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
         case .receipt: break
+        case .capabilities: card.summary = "Tap one, or ask in your own words."
+        // Built by the follow-up itself, from the prompt it carries.
+        case .repeatDrink: break
         }
         return card
     }
