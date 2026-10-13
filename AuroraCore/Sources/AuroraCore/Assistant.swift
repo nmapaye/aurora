@@ -264,7 +264,8 @@ public enum ProactivePolicy {
         let hour = clock.calendar.component(.hour, from: Date(timeIntervalSince1970: now / 1000))
         guard !isQuiet(hour: hour, preferences: state.preferences) else { return false }
         let start = clock.startOfDay(now), end = clock.addingDays(1, to: start)
-        return state.deliveredSuggestions.values.filter { $0 >= start && $0 < end }.count < 2
+        // Drink follow-ups have their own opt-in and daily limit.
+        return state.deliveredSuggestions.filter { !$0.key.hasPrefix(RepeatDrinks.keyPrefix) && $0.value >= start && $0.value < end }.count < 2
     }
 }
 

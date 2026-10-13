@@ -51,14 +51,7 @@ struct AssistantView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 22) {
                         identity
-                        ForEach(assistant.conversation.messages) { message in
-                            messageView(message).id(message.id)
-                                .trackingVisibility(onScreen) { visible in
-                                    if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
-                                    if visible && heldMessage == message.id { heldMessage = nil }
-                                }
-                                .onDisappear { visibility.messages.remove(message.id) }
-                        }
+                        ForEach(assistant.conversation.messages) { message in conversationRow(message) }
                         // Stop lives in the composer, so it stays reachable
                         // while earlier messages are being read.
                         if assistant.processing {
@@ -358,6 +351,9 @@ struct AssistantView: View {
         }
         .padding(.vertical, Metrics.xs).background(.regularMaterial)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
+        // A drink logged today can answer a follow-up still ahead. Here, not
+        // on the body's long modifier chain, which is slow to type-check.
+        .onChange(of: app.state.doses) { _, _ in Task { await assistant.syncRepeatDrinkNotifications(app: app) } }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
         // conversation a sliver of the screen. Messages and cards still scale fully.
@@ -370,15 +366,82 @@ struct AssistantView: View {
     private var quickActions: some View {
         // Always one row: wrapping at large text would grow the fixed bottom
         // area and squeeze the conversation. Labels shrink a little instead.
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4), spacing: Metrics.xs) {
-            quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
-            quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
-            quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
-            quickAction("Reaction test", short: "Reaction", symbol: "hand.tap")
+        // While typing, the same row offers what matches the words so far,
+        // so a request never depends on knowing its exact wording.
+        let typed = Capabilities.matching(input)
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4), spacing: Metrics.xs) {
+            if typed.isEmpty {
+                quickAction("Morning briefing", short: "Briefing", symbol: "sun.horizon")
+                quickAction("Log caffeine", short: "Caffeine", symbol: "cup.and.saucer")
+                quickAction("How is my energy?", short: "Energy", symbol: "sparkle")
+                quickAction("Reaction test", short: "Reaction", symbol: "hand.tap")
+            } else {
+                ForEach(typed) { suggestion($0) }
+            }
         }
         .padding(.horizontal, Metrics.columnInset(containerWidth: composerWidth))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assistant-quick-actions")
+    }
+    /// One message with any next steps under it. Its own member so the
+    /// conversation's body stays quick to type-check (Xcode 26.6 in CI).
+    private func conversationRow(_ message: ConversationMessage) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.sm) {
+            messageView(message)
+            followUps(after: message)
+        }
+        .id(message.id)
+        .trackingVisibility(onScreen) { visible in
+            if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
+            if visible && heldMessage == message.id { heldMessage = nil }
+        }
+        .onDisappear { visibility.messages.remove(message.id) }
+    }
+    /// A matching action while typing: sends its request in place of the text.
+    private func suggestion(_ capability: Capability) -> some View {
+        Button {
+            input = ""
+            assistant.send(capability.phrase, app: app)
+        } label: {
+            VStack(spacing: Metrics.xxs) {
+                Image(systemName: capability.symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
+                Text(capability.title).font(.caption.weight(.semibold)).lineLimit(2).minimumScaleFactor(0.7).multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
+        }
+        .buttonStyle(TileActionStyle())
+        .disabled(assistant.processing)
+        .accessibilityLabel(capability.title)
+        .accessibilityHint("Suggested from what you typed.")
+        .accessibilityIdentifier("assistant-suggest-\(capability.intent.rawValue)")
+    }
+    /// Next steps under the newest answer. Derived each time, never saved.
+    @ViewBuilder private func followUps(after message: ConversationMessage) -> some View {
+        if message.id == assistant.conversation.messages.last?.id, !message.isUser, let card = message.card,
+           !assistant.processing, assistant.pendingMessageID == nil {
+            let next = FollowUps.after(card, now: app.now, clock: app.clock)
+            if !next.isEmpty {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Metrics.xs) { ForEach(next) { followUpChip($0) } }
+                    VStack(alignment: .leading, spacing: Metrics.xs) { ForEach(next) { followUpChip($0) } }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Next steps")
+                .accessibilityIdentifier("assistant-follow-ups")
+            }
+        }
+    }
+    private func followUpChip(_ capability: Capability) -> some View {
+        Button { assistant.send(capability.phrase, app: app) } label: {
+            Label(capability.title, systemImage: capability.symbol)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .padding(.horizontal, Metrics.md)
+                .frame(minHeight: Metrics.minimumTouchTarget)
+        }
+        .buttonStyle(CapsuleActionStyle())
+        .disabled(assistant.processing)
+        .accessibilityIdentifier("assistant-follow-up-\(capability.intent.rawValue)")
     }
     private func quickAction(_ text: String, short: String, symbol: String) -> some View {
         Button { assistant.send(text, app: app) } label: {

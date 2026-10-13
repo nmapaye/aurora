@@ -99,6 +99,16 @@ struct RepeatDrinksTests {
         #expect(RepeatDrinks.upcoming(planned, conversation: open, now: at + minuteMs, clock: clock).isEmpty)
     }
 
+    @Test func followUpsDontUseTheSuggestionAllowance() {
+        let clock = clock("UTC")
+        let now = clock.setTime(Self.base, hour: 12)
+        var state = open; state.preferences.proactive = true
+        state.deliveredSuggestions = ["repeat:a": now - hourMs, "repeat:b": now - 2 * hourMs, "repeat:c": now - 3 * hourMs]
+        #expect(ProactivePolicy.canDeliver(key: "brief:today", state: state, now: now, clock: clock))
+        state.deliveredSuggestions["calendar:x"] = now - hourMs; state.deliveredSuggestions["sleep:y"] = now - hourMs
+        #expect(!ProactivePolicy.canDeliver(key: "brief:today", state: state, now: now, clock: clock))
+    }
+
     @Test func prefsFromOlderBuildsDecodeWithFollowUpsOff() throws {
         let data = try JSONEncoder().encode(Prefs.defaults)
         let decoded = try JSONDecoder().decode(Prefs.self, from: data)

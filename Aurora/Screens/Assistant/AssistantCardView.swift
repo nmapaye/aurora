@@ -167,6 +167,21 @@ struct AssistantCardView: View {
             }
         }
     }
+    /// One capability as a tappable row; it sends the capability's request.
+    private func capabilityRow(_ capability: Capability, showsSymbol: Bool = false) -> some View {
+        Button { assistant.send(capability.phrase, app: app) } label: {
+            HStack(spacing: Metrics.sm) {
+                if showsSymbol { Image(systemName: capability.symbol).frame(width: 24).accessibilityHidden(true) }
+                Text(capability.intent == .help && !showsSymbol ? "See everything I can do" : capability.title)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote).accessibilityHidden(true)
+            }
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.auroraPress).foregroundStyle(Palette.tint).disabled(assistant.processing)
+        .accessibilityIdentifier("capability-\(capability.intent.rawValue)")
+    }
     /// The person's caffeine reminders after waking, with the next one.
     @ViewBuilder private var wakeReminderRow: some View {
         let settings = app.state.prefs.wakeReminders?.normalized()
@@ -230,6 +245,8 @@ struct AssistantCardView: View {
         case .briefing: "sun.horizon"
         case .reminders: "bell"
         case .clarification: "sparkle"
+        case .capabilities: "questionmark.circle"
+        case .repeatDrink: "cup.and.saucer"
         case .energyProjection: "chart.xyaxis.line"
         case .energyCheckIn: "hand.raised"
         case .cutoffScenario: "moon.zzz"
@@ -264,6 +281,7 @@ struct AssistantCardView: View {
         case .reminders:
             // Each setting appears once, as its own control.
             wakeReminderRow
+            DrinkFollowUpControls()
             Toggle("Proactive suggestions", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: enabled) }
@@ -279,9 +297,24 @@ struct AssistantCardView: View {
             Button("Manage reminders") { assistant.showAssistantSettings = true }.buttonStyle(.auroraPrimary)
             Button("Cutoff reminder settings") { assistant.historySheet = .settings }.buttonStyle(.auroraSecondary)
         case .clarification:
-            ForEach([("Record caffeine", "Log caffeine"), ("Record sleep", "Log sleep"), ("Understand my energy", "How is my energy?"), ("See my modeled day", "Show my energy curve"), ("Check in my energy", "Check in my energy"), ("Explore trends", "Show this week"), ("Review my day", "Review calendar")], id: \.0) { label, prompt in
-                Button { assistant.send(prompt, app: app) } label: { HStack { Text(label); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: Metrics.minimumTouchTarget) }
-                    .buttonStyle(.auroraPress).foregroundStyle(Palette.tint).disabled(assistant.processing)
+            ForEach([AssistantIntent.logCaffeine, .logSleep, .explainEnergy, .energyProjection, .energyCheckIn, .weeklyTrends, .calendar, .help].compactMap(Capabilities.capability)) { capability in
+                capabilityRow(capability)
+            }
+        case .capabilities:
+            ForEach(Capability.Group.allCases.filter { $0 != .help }, id: \.self) { group in
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionLabel(text: group.rawValue)
+                    ForEach(Capabilities.all.filter { $0.group == group }) { capabilityRow($0, showsSymbol: true) }
+                }
+            }
+        case .repeatDrink:
+            if card.state == .ready {
+                Button("Review entry") { assistant.reviewRepeatDrink(message, app: app) }
+                    .buttonStyle(.auroraPrimary).disabled(assistant.processing)
+                    .accessibilityIdentifier("repeat-drink-review")
+                Button("Not today") { assistant.dismissRepeatDrink(message, app: app) }
+                    .buttonStyle(.auroraSecondary)
+                    .accessibilityIdentifier("repeat-drink-dismiss")
             }
         case .receipt where card.recordKind == "checkin":
             checkInReceipt

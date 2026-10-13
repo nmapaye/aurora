@@ -131,7 +131,7 @@ final class AssistantModel {
                 }
             }
             if conversation.messages.isEmpty {
-                appendCard(AssistantCards.make(.clarification, state: app.state, now: app.now, clock: app.clock, text: app.text))
+                appendCard(AssistantCards.make(.capabilities, state: app.state, now: app.now, clock: app.clock, text: app.text))
             }
             if app.state.isWalkthroughPending { app.completeWalkthrough() }
             await Signposts.measureAsync("Assistant.CalendarListRefresh") { await calendars.refreshCalendars() }
@@ -323,6 +323,8 @@ final class AssistantModel {
         case .cutoffScenario:
             openCutoff(app: app)
         case .settings: showAssistantSettings = true
+        case .help:
+            appendCard(AssistantCards.make(.capabilities, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
         case .unsupported:
             appendCard(AssistantCards.make(.clarification, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
         }
@@ -371,21 +373,7 @@ final class AssistantModel {
     func refresh(_ card: AssistantCard, app: AppModel) {
         guard let intent = card.refreshIntent, !processing else { return }
         if card.kind == .cutoffScenario { refreshCutoff(card, app: app); return }
-        let prompt: String = switch intent {
-        case .logCaffeine: "Log caffeine"
-        case .logSleep: "Log sleep"
-        case .weeklyTrends: "Show this week"
-        case .calendar: "Review calendar"
-        case .reactionTest: "Reaction test"
-        case .history: "History"
-        case .exports: "Export records"
-        case .briefing: "Morning briefing"
-        case .reminders: "Reminders"
-        case .energyProjection: "Show my energy curve"
-        case .energyCheckIn: "Check in my energy"
-        default: "How is my energy?"
-        }
-        send(prompt, app: app)
+        send(Capabilities.capability(intent)?.phrase ?? "How is my energy?", app: app)
     }
     func reminderMetrics(app: AppModel) -> [AssistantCard.Metric] {
         let p = conversation.preferences
@@ -554,6 +542,70 @@ final class AssistantModel {
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         savedDose = nil; appendRemoval("Removed that caffeine entry.", doseID: dose.id, app: app)
     }
+    // MARK: Drink follow-ups
+
+    /// Whether follow-up notifications could be scheduled; shown in settings.
+    private(set) var repeatDrinkStatus: ReminderService.RepeatDrinkStatus = .off
+
+    private func repeatDrinksOn(_ app: AppModel) -> RepeatDrinkSettings? {
+        guard let settings = app.state.prefs.repeatDrinks, settings.enabled, !app.state.demoMode else { return nil }
+        return settings
+    }
+
+    /// Shows yesterday's-drink follow-ups whose time has come. Their own
+    /// opt-in, not proactive suggestions'; once each; never in quiet hours.
+    func deliverRepeatDrinks(app: AppModel) {
+        guard started, app.phase == .ready, repeatDrinksOn(app) != nil else { return }
+        app.tick()
+        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock)
+        let due = RepeatDrinks.due(planned, conversation: conversation, now: app.now, clock: app.clock)
+        guard !due.isEmpty else { return }
+        for prompt in due {
+            conversation.deliveredSuggestions[prompt.id] = app.now
+            var card = AssistantCard(kind: .repeatDrink, capturedAt: app.now, title: RepeatDrinks.question(prompt, text: app.text), summary: RepeatDrinks.detail(prompt))
+            card.timeZone = app.clock.timeZone.identifier
+            card.repeatDrink = prompt
+            let message = ConversationMessage(text: card.title, intent: .logCaffeine, suggestionKey: prompt.id, card: card)
+            conversation.messages.append(message)
+            activeCards.insert(message.id)
+        }
+        save()
+    }
+
+    /// "Review entry": a caffeine draft with yesterday's drink, timed now.
+    func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
+        guard let prompt = message.card?.repeatDrink, !processing else { return }
+        app.tick()
+        expireDraft()
+        updateCard(message.id) { $0.state = .saved; $0.summary = "Review it below before saving." }
+        activeCards.remove(message.id)
+        pendingDraft = RepeatDrinks.draft(prompt, now: app.now)
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+    }
+
+    /// "Not today": not asked again for that drink.
+    func dismissRepeatDrink(_ message: ConversationMessage, app: AppModel) {
+        guard let key = message.suggestionKey else { return }
+        conversation.dismissedSuggestions.insert(key)
+        updateCard(message.id) { $0.state = .discarded; $0.summary = "Not asked again for this drink." }
+        activeCards.remove(message.id)
+        save()
+        Task { await syncRepeatDrinkNotifications(app: app) }
+    }
+
+    /// Schedules notifications for today's follow-ups still ahead, when the
+    /// person asked for them. Permission is asked only when they turn
+    /// notifications on.
+    func syncRepeatDrinkNotifications(app: AppModel, prompt: Bool = false) async {
+        guard started, app.phase == .ready else { return }
+        app.tick()
+        let settings = repeatDrinksOn(app)
+        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock)
+        let upcoming = RepeatDrinks.upcoming(planned, conversation: conversation, now: app.now, clock: app.clock)
+        repeatDrinkStatus = await app.reminders.syncRepeatDrinks(upcoming, enabled: settings?.notify == true, prompt: prompt, text: app.text)
+    }
+
     func dismissSuggestion(_ message: ConversationMessage) {
         if let key = message.suggestionKey { conversation.dismissedSuggestions.insert(key) }
         conversation.messages.removeAll { $0.id == message.id }
@@ -564,6 +616,10 @@ final class AssistantModel {
     /// dismissals.
     func foreground(app: AppModel, steps: Set<RefreshPolicy.Step> = [.calendars, .suggestions]) async {
         refreshModelAvailability()
+        if steps.contains(.suggestions) {
+            deliverRepeatDrinks(app: app)
+            await syncRepeatDrinkNotifications(app: app)
+        }
         guard started, conversation.preferences.proactive else { return }
         let generation = cacheGeneration
         if steps.contains(.calendars) { await calendars.refresh() }

@@ -36,6 +36,9 @@ public enum RepeatDrinks {
         public var yesterdayAt: Millis
         /// The same local wall-clock time today.
         public var dueAt: Millis
+        public init(doseID: String, source: String?, mg: Double, yesterdayAt: Millis, dueAt: Millis) {
+            self.doseID = doseID; self.source = source; self.mg = mg; self.yesterdayAt = yesterdayAt; self.dueAt = dueAt
+        }
         public var id: String { RepeatDrinks.key(doseID: doseID) }
         public var expiresAt: Millis { dueAt + RepeatDrinks.windowMs }
         public var notificationID: String { RepeatDrinks.notificationPrefix + doseID }

@@ -26,7 +26,7 @@ struct LocalDataDeletion {
     /// saved cutoff scenario reminder, and the morning briefing.
     static let notificationIdentifiers = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier, "aurora.assistant.briefing"]
     /// Wake reminders carry one id per day and offset, so they go by prefix.
-    static let notificationPrefixes = [WakeReminders.identifierPrefix]
+    static let notificationPrefixes = [WakeReminders.identifierPrefix, RepeatDrinks.notificationPrefix]
     /// Queues the removals on the notification queue and calls `done` once
     /// they have run. Removal is a synchronous XPC call that stalled the main
     /// thread for minutes on a fresh simulator, so nothing here waits on it.

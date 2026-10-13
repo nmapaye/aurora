@@ -51,7 +51,7 @@ final class ReminderService {
         let ids = [CutoffReminder.identifier, CutoffScenario.reminderIdentifier]
         center.removePending(ids)
         center.removeDelivered(ids)
-        Task { await removeWake(delivered: true) }
+        Task { await removeWake(delivered: true); await removeRepeatDrinks(delivered: true) }
         defaults.removeObject(forKey: Self.wakeScheduleKey)
     }
 
@@ -180,6 +180,62 @@ final class ReminderService {
         if !pending.isEmpty { center.removePending(pending) }
         if delivered {
             let shown = await center.deliveredIdentifiers().filter { $0.hasPrefix(WakeReminders.identifierPrefix) }
+            if !shown.isEmpty { center.removeDelivered(shown) }
+        }
+    }
+
+    // MARK: Drink follow-ups
+
+    enum RepeatDrinkStatus: Equatable {
+        case off
+        case scheduled(count: Int)
+        case denied
+    }
+
+    private var repeatGeneration = 0
+
+    /// Replaces every pending follow-up notification with `prompts`, each at
+    /// its own time today. Never prompts for permission unless `prompt` is
+    /// set (only when the person turns notifications on).
+    func syncRepeatDrinks(_ prompts: [RepeatDrinks.Prompt], enabled: Bool, prompt: Bool, text: DateText) async -> RepeatDrinkStatus {
+        repeatGeneration += 1
+        let current = repeatGeneration
+        await removeRepeatDrinks(delivered: false)
+        guard enabled else { return .off }
+        var status = await center.authorizationStatus()
+        if status == .notDetermined && prompt {
+            await center.requestAuthorization()
+            status = await center.authorizationStatus()
+        }
+        guard current == repeatGeneration else { return .off }
+        guard [.authorized, .provisional, .ephemeral].contains(status) else { return .denied }
+        var scheduled = 0
+        for item in prompts {
+            let content = UNMutableNotificationContent()
+            content.title = RepeatDrinks.question(item, text: text)
+            content.body = RepeatDrinks.detail(item)
+            content.sound = .default
+            let date = Date(timeIntervalSince1970: item.dueAt / 1000)
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date), repeats: false
+            )
+            do {
+                try await center.add(UNNotificationRequest(identifier: item.notificationID, content: content, trigger: trigger))
+                scheduled += 1
+            } catch { continue }
+            guard current == repeatGeneration else {
+                await removeRepeatDrinks(delivered: false)
+                return .off
+            }
+        }
+        return .scheduled(count: scheduled)
+    }
+
+    private func removeRepeatDrinks(delivered: Bool) async {
+        let pending = await center.pendingIdentifiers().filter { $0.hasPrefix(RepeatDrinks.notificationPrefix) }
+        if !pending.isEmpty { center.removePending(pending) }
+        if delivered {
+            let shown = await center.deliveredIdentifiers().filter { $0.hasPrefix(RepeatDrinks.notificationPrefix) }
             if !shown.isEmpty { center.removeDelivered(shown) }
         }
     }

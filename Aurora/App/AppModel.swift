@@ -503,6 +503,12 @@ final class AppModel {
 
     /// Saves the person's wake reminder settings, then schedules them. Saving
     /// with reminders on is the only place that asks for permission.
+    /// Next-day follow-ups on yesterday's drinks.
+    @discardableResult
+    func setRepeatDrinks(_ settings: RepeatDrinkSettings) -> Bool {
+        update { $0.prefs.repeatDrinks = settings }
+    }
+
     func saveWakeReminders(_ settings: WakeReminderSettings) async {
         update { $0.prefs.wakeReminders = settings.normalized() }
         await syncWakeReminders(prompt: settings.enabled)
