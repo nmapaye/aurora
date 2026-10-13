@@ -132,8 +132,11 @@ struct AssistantView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+            // Inside the NavigationStack: placed over it, the glow's full-window
+            // host took every accessibility hit on iPadOS 26, so nothing under
+            // it was reachable by VoiceOver or UI tests.
+            .overlay { AuroraEdgeGlow(active: assistant.processing).allowsHitTesting(false).accessibilityHidden(true).ignoresSafeArea() }
         }
-        .overlay { AuroraEdgeGlow(active: assistant.processing).allowsHitTesting(false).accessibilityHidden(true).ignoresSafeArea() }
         .task { await assistant.start(app: app) }
         // Becoming active refreshes through AppModel's shared scheduler.
         .onChange(of: phase) { _, value in
