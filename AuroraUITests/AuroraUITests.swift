@@ -106,7 +106,11 @@ final class AuroraUITests: XCTestCase {
             XCTAssertEqual(control.label, titles[choice])
             func reachable() -> Bool {
                 if control.isEnabled { return control.isHittable }
-                return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
+                // The switch's label carries its description, so at the
+                // largest text one row can be taller than the screen. A
+                // disabled row counts once it shows below the bar.
+                let shown = app.frame.insetBy(dx: 0, dy: 100)
+                return control.frame.intersects(shown) && control.frame.minY < shown.maxY - 44
             }
             // Short drags toward the switch: on iPad the sheet is small at the
             // largest text, and a full swipe scrolled past it to the end.
