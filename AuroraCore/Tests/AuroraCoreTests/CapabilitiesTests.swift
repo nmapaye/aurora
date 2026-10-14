@@ -63,4 +63,53 @@ struct CapabilitiesTests {
             #expect(!follow.contains { $0.intent == card(kind).refreshIntent && kind != .receipt })
         }
     }
+
+    @Test func everydayTilesKeepTheirRequestsAndShortLabels() {
+        let tiles = Capabilities.tiles.compactMap(Capabilities.capability)
+        // UI tests find these by `assistant-quick-<phrase>`.
+        #expect(tiles.map(\.phrase) == ["Morning briefing", "Log caffeine", "How is my energy?", "Reaction test"])
+        #expect(tiles.map(\.shortTitle) == ["Briefing", "Caffeine", "Energy", "Reaction"])
+        // One caption line in a tile about 84 pt wide, and never an amount or a time.
+        for capability in Capabilities.all {
+            #expect(!capability.shortTitle.isEmpty && capability.shortTitle.count <= 9, "\(capability.shortTitle)")
+            #expect(!capability.shortTitle.contains { $0.isNumber }, "\(capability.shortTitle)")
+        }
+    }
+
+    @Test func bottomRowIsTheNewestAnswersNextStepsThenTheTiles() {
+        let utc = LocalClock(timeZone: TimeZone(identifier: "UTC")!)
+        func row(_ card: AssistantCard?, clock: LocalClock = utc) -> [AssistantIntent] { Capabilities.bottomRow(after: card, clock: clock).map(\.id) }
+        let tiles = Capabilities.tiles
+        #expect(row(nil) == tiles)
+        #expect(Capabilities.bottomRow(after: nil, clock: utc).allSatisfy { !$0.isNextStep })
+        #expect(row(card(.energy)) == [.energyProjection, .energyCheckIn, .briefing, .logCaffeine])
+        #expect(Capabilities.bottomRow(after: card(.energy), clock: utc).map(\.isNextStep) == [true, true, false, false])
+        // A next step that is also a tile shows once, as the next step.
+        #expect(row(card(.reaction)) == [.weeklyTrends, .explainEnergy, .briefing, .logCaffeine])
+        #expect(row(card(.calendar)) == [.briefing, .energyProjection, .logCaffeine, .explainEnergy])
+        #expect(Capabilities.bottomRow(after: card(.calendar), clock: utc).map(\.isNextStep) == [true, true, false, false])
+        // No next steps: the everyday tiles.
+        #expect(row(card(.caffeineDraft)) == tiles)
+        #expect(row(card(.receipt, state: .undone, record: "caffeine")) == tiles)
+        for kind in AssistantCard.Kind.allCases {
+            let intents = row(card(kind, state: .saved, record: "caffeine"))
+            #expect(intents.count == 4 && Set(intents).count == 4, "\(kind)")
+        }
+    }
+
+    @Test func bottomRowIsTimedByTheCardNotTheReading() {
+        let utc = LocalClock(timeZone: TimeZone(identifier: "UTC")!)
+        let pacific = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)
+        func curve(at capturedAt: Millis) -> AssistantCard {
+            var card = AssistantCard(kind: .energyProjection, capturedAt: capturedAt, title: "")
+            card.state = .ready
+            return card
+        }
+        let morning: Millis = 1_791_460_800_000 - 3 * hourMs   // 09:00 UTC
+        let afternoon: Millis = 1_791_460_800_000 + 3 * hourMs // 15:00 UTC, 08:00 in Los Angeles
+        #expect(Capabilities.bottomRow(after: curve(at: afternoon), clock: utc).map(\.id) == [.cutoffScenario, .energyCheckIn, .briefing, .logCaffeine])
+        #expect(Capabilities.bottomRow(after: curve(at: morning), clock: utc).map(\.id) == [.energyCheckIn, .weeklyTrends, .briefing, .logCaffeine])
+        // The person's own clock decides which part of the day the card is from.
+        #expect(Capabilities.bottomRow(after: curve(at: afternoon), clock: pacific).map(\.id) == [.energyCheckIn, .weeklyTrends, .briefing, .logCaffeine])
+    }
 }

@@ -1,8 +1,8 @@
 import Foundation
 
 /// One thing Aurora can do, and the request that does it. The same list
-/// drives the quick tiles, the "What can you do?" card, follow-up chips,
-/// composer suggestions and a card's refresh, so a capability is never
+/// drives the quick tiles and next steps above the composer, the "What can
+/// you do?" card, composer suggestions and a card's refresh, so a capability is never
 /// reachable only by guessing its wording.
 public struct Capability: Equatable, Identifiable, Sendable {
     public enum Group: String, CaseIterable, Sendable {
@@ -11,6 +11,9 @@ public struct Capability: Equatable, Identifiable, Sendable {
 
     public var intent: AssistantIntent
     public var title: String
+    /// One line on a tile about 84 pt wide at caption weight. The full
+    /// title stays its accessibility label.
+    public var shortTitle: String
     /// Sent as if typed. `AssistantPlanner.explicitIntent` routes it without
     /// a model, so tapping always does what the title says.
     public var phrase: String
@@ -25,21 +28,21 @@ public struct Capability: Equatable, Identifiable, Sendable {
 
 public enum Capabilities {
     public static let all: [Capability] = [
-        .init(intent: .logCaffeine, title: "Log caffeine", phrase: "Log caffeine", group: .log, symbol: "cup.and.saucer", keywords: ["coffee", "drink", "espresso", "tea", "matcha", "add"]),
-        .init(intent: .logSleep, title: "Log sleep", phrase: "Log sleep", group: .log, symbol: "moon", keywords: ["slept", "night", "bed", "nap"]),
-        .init(intent: .energyCheckIn, title: "Check in my energy", phrase: "Check in my energy", group: .log, symbol: "hand.raised", keywords: ["rate", "feel", "feeling", "tired"]),
-        .init(intent: .explainEnergy, title: "How is my energy?", phrase: "How is my energy?", group: .understand, symbol: "sparkle", keywords: ["energy", "alertness", "tired", "now"]),
-        .init(intent: .energyProjection, title: "Show my energy curve", phrase: "Show my energy curve", group: .understand, symbol: "chart.xyaxis.line", keywords: ["curve", "later", "tonight", "projection", "24 hours"]),
-        .init(intent: .weeklyTrends, title: "Show this week", phrase: "Show this week", group: .understand, symbol: "chart.bar", keywords: ["trends", "week", "month", "patterns"]),
-        .init(intent: .reactionTest, title: "Reaction test", phrase: "Reaction test", group: .understand, symbol: "hand.tap", keywords: ["reaction", "speed", "test", "focus"]),
-        .init(intent: .briefing, title: "Morning briefing", phrase: "Morning briefing", group: .plan, symbol: "sun.horizon", keywords: ["today", "day", "summary", "morning"]),
-        .init(intent: .calendar, title: "Review my day", phrase: "Review calendar", group: .plan, symbol: "calendar", keywords: ["calendar", "schedule", "commitments", "events", "meetings"]),
-        .init(intent: .cutoffScenario, title: "Cutoff scenario", phrase: "Cutoff scenario", group: .plan, symbol: "moon.zzz", keywords: ["cutoff", "bedtime", "what if", "scenario", "last coffee"]),
-        .init(intent: .history, title: "History", phrase: "History", group: .records, symbol: "clock.arrow.circlepath", keywords: ["past", "entries", "records", "edit"]),
-        .init(intent: .exports, title: "Export records", phrase: "Export records", group: .records, symbol: "square.and.arrow.up", keywords: ["export", "csv", "share", "download"]),
-        .init(intent: .reminders, title: "Reminders", phrase: "Reminders", group: .records, symbol: "bell", keywords: ["reminder", "notification", "alert", "wake", "follow up"]),
-        .init(intent: .settings, title: "Settings", phrase: "settings", group: .records, symbol: "slider.horizontal.3", keywords: ["preferences", "health", "apple health", "appearance", "privacy"]),
-        .init(intent: .help, title: "What can you do?", phrase: "What can you do?", group: .help, symbol: "questionmark.circle", keywords: ["help", "features", "options", "everything"]),
+        .init(intent: .logCaffeine, title: "Log caffeine", shortTitle: "Caffeine", phrase: "Log caffeine", group: .log, symbol: "cup.and.saucer", keywords: ["coffee", "drink", "espresso", "tea", "matcha", "add"]),
+        .init(intent: .logSleep, title: "Log sleep", shortTitle: "Sleep", phrase: "Log sleep", group: .log, symbol: "moon", keywords: ["slept", "night", "bed", "nap"]),
+        .init(intent: .energyCheckIn, title: "Check in my energy", shortTitle: "Check in", phrase: "Check in my energy", group: .log, symbol: "hand.raised", keywords: ["rate", "feel", "feeling", "tired"]),
+        .init(intent: .explainEnergy, title: "How is my energy?", shortTitle: "Energy", phrase: "How is my energy?", group: .understand, symbol: "sparkle", keywords: ["energy", "alertness", "tired", "now"]),
+        .init(intent: .energyProjection, title: "Show my energy curve", shortTitle: "Curve", phrase: "Show my energy curve", group: .understand, symbol: "chart.xyaxis.line", keywords: ["curve", "later", "tonight", "projection", "24 hours"]),
+        .init(intent: .weeklyTrends, title: "Show this week", shortTitle: "This week", phrase: "Show this week", group: .understand, symbol: "chart.bar", keywords: ["trends", "week", "month", "patterns"]),
+        .init(intent: .reactionTest, title: "Reaction test", shortTitle: "Reaction", phrase: "Reaction test", group: .understand, symbol: "hand.tap", keywords: ["reaction", "speed", "test", "focus"]),
+        .init(intent: .briefing, title: "Morning briefing", shortTitle: "Briefing", phrase: "Morning briefing", group: .plan, symbol: "sun.horizon", keywords: ["today", "day", "summary", "morning"]),
+        .init(intent: .calendar, title: "Review my day", shortTitle: "My day", phrase: "Review calendar", group: .plan, symbol: "calendar", keywords: ["calendar", "schedule", "commitments", "events", "meetings"]),
+        .init(intent: .cutoffScenario, title: "Cutoff scenario", shortTitle: "Cutoff", phrase: "Cutoff scenario", group: .plan, symbol: "moon.zzz", keywords: ["cutoff", "bedtime", "what if", "scenario", "last coffee"]),
+        .init(intent: .history, title: "History", shortTitle: "History", phrase: "History", group: .records, symbol: "clock.arrow.circlepath", keywords: ["past", "entries", "records", "edit"]),
+        .init(intent: .exports, title: "Export records", shortTitle: "Export", phrase: "Export records", group: .records, symbol: "square.and.arrow.up", keywords: ["export", "csv", "share", "download"]),
+        .init(intent: .reminders, title: "Reminders", shortTitle: "Reminders", phrase: "Reminders", group: .records, symbol: "bell", keywords: ["reminder", "notification", "alert", "wake", "follow up"]),
+        .init(intent: .settings, title: "Settings", shortTitle: "Settings", phrase: "settings", group: .records, symbol: "slider.horizontal.3", keywords: ["preferences", "health", "apple health", "appearance", "privacy"]),
+        .init(intent: .help, title: "What can you do?", shortTitle: "Help", phrase: "What can you do?", group: .help, symbol: "questionmark.circle", keywords: ["help", "features", "options", "everything"]),
     ]
 
     public static func capability(_ intent: AssistantIntent) -> Capability? {
@@ -48,6 +51,28 @@ public enum Capabilities {
 
     /// The four everyday actions on the quick tiles.
     public static let tiles: [AssistantIntent] = [.briefing, .logCaffeine, .explainEnergy, .reactionTest]
+
+    /// One of the four places in the fixed row above the composer.
+    public struct RowTile: Equatable, Identifiable, Sendable {
+        public var capability: Capability
+        /// Offered after the newest answer, not one of the everyday tiles.
+        public var isNextStep: Bool
+        public var id: AssistantIntent { capability.intent }
+    }
+
+    /// The fixed row above the composer, always four: the newest answer's
+    /// next steps first, then the everyday tiles not already there. Next
+    /// steps live here, not under the answer: moving them between lazy
+    /// conversation rows changed two rows' heights off screen, and the
+    /// conversation never stopped laying out (iOS 26.5). Timed by the card's
+    /// capture, so the steps don't change while it's being read.
+    public static func bottomRow(after card: AssistantCard?, clock: LocalClock) -> [RowTile] {
+        let next = card.map { FollowUps.after($0, now: $0.capturedAt, clock: clock) } ?? []
+        let steps = next.prefix(tiles.count).map { RowTile(capability: $0, isNextStep: true) }
+        let everyday = tiles.filter { intent in !steps.contains { $0.id == intent } }
+            .compactMap(capability).map { RowTile(capability: $0, isNextStep: false) }
+        return Array((steps + everyday).prefix(tiles.count))
+    }
 
     public static let matchLimit = 3
 
