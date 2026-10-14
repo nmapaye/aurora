@@ -409,12 +409,19 @@ struct AssistantView: View {
                              dictation: dictation, editingCard: editingCard)
     }
 
-    /// The keyboard's end frame against its screen. A hardware keyboard's
-    /// offscreen frame gives zero.
+    /// How far the keyboard's end frame reaches up into Aurora's window. The
+    /// frame is in screen coordinates; measured against the screen, a
+    /// Stage Manager or Slide Over window that doesn't reach the screen's
+    /// bottom got the wrong overlap. A hardware keyboard's offscreen frame
+    /// gives zero.
     fileprivate static func keyboardOverlap(_ note: Notification) -> CGFloat {
         guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return 0 }
-        guard let screen = note.object as? UIScreen else { return frame.height }
-        return max(0, screen.bounds.maxY - frame.minY)
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        guard let window = windows.first(where: \.isKeyWindow) ?? windows.first,
+              let screen = (note.object as? UIScreen) ?? window.windowScene?.screen else { return frame.height }
+        let local = window.convert(frame, from: screen.coordinateSpace)
+        guard local.intersects(window.bounds) else { return 0 }
+        return max(0, window.bounds.maxY - local.minY)
     }
 
     /// One message. Its own member so the conversation's body stays quick to
@@ -439,6 +446,12 @@ private extension View {
     /// from the edges, matching the message list.
     func conversationColumn() -> some View {
         frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity).padding(.horizontal, Metrics.lg)
+    }
+
+    /// The bottom area is capped at the first accessibility size, so a long
+    /// press shows a control's name and symbol in the large content viewer.
+    func largeContent(_ title: String, symbol: String) -> some View {
+        accessibilityShowsLargeContentViewer { Label(title, systemImage: symbol) }
     }
 }
 
@@ -699,6 +712,7 @@ private struct ConversationComposer: View {
     @Environment(AppModel.self) private var app
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.verticalSizeClass) private var verticalSize
     @Binding var input: String
     var focused: FocusState<Bool>.Binding
     @Binding var composerWidth: CGFloat
@@ -712,15 +726,20 @@ private struct ConversationComposer: View {
     /// Hint, quick actions and composer share the conversation column, so on
     /// iPad they line up with the cards instead of spanning the window.
     var body: some View {
+        let typed = Capabilities.matching(input)
+        // iPhone landscape with the keyboard up left the conversation a
+        // sliver; while typing there, only the field stays, unless the row
+        // is offering what the words so far match.
+        let roomy = verticalSize != .compact || !focused.wrappedValue || !typed.isEmpty
         VStack(spacing: Metrics.xs) {
-            if !editingCard, !typeSize.isAccessibilitySize, !assistant.conversation.messages.hasUserMessages(atLeast: 3) {
+            if showsHint && roomy {
                 Text("Start with a quick action, or ask in your own words.")
                     .font(.caption).foregroundStyle(Palette.textSecondary)
                     .padding(.horizontal, Metrics.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .conversationColumn()
             }
-            if !editingCard { quickActions }
+            if !editingCard && roomy { quickActions(typed) }
             field
         }
         .padding(.vertical, Metrics.xs)
@@ -735,6 +754,13 @@ private struct ConversationComposer: View {
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 
+    /// Only before the person's first message, and never beside an open
+    /// draft, which already says what to do next.
+    private var showsHint: Bool {
+        !editingCard && !typeSize.isAccessibilitySize && assistant.pendingMessageID == nil
+            && !assistant.conversation.messages.hasUserMessages(atLeast: 1)
+    }
+
     private var field: some View {
         HStack(alignment: .bottom, spacing: Metrics.sm) {
             TextField("", text: $input, axis: .vertical)
@@ -743,8 +769,9 @@ private struct ConversationComposer: View {
                 .frame(minHeight: Metrics.minimumTouchTarget)
             Button {
                 if dictation.recording { dictation.stop() } else { Task { await dictation.start() } }
-            } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.system(size: 20)).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget) }
+            } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.title3).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget) }
                 .accessibilityLabel(dictation.recording ? "Stop local dictation" : "Dictate on device")
+                .largeContent(dictation.recording ? "Stop local dictation" : "Dictate on device", symbol: dictation.recording ? "stop.circle.fill" : "mic")
             sendOrStop
         }
         .padding(.horizontal, Metrics.md).padding(.vertical, Metrics.xs)
@@ -760,44 +787,44 @@ private struct ConversationComposer: View {
     @ViewBuilder private var sendOrStop: some View {
         if assistant.processing {
             Button { assistant.cancel() } label: {
-                Image(systemName: "stop.fill").font(.system(size: 20, weight: .semibold))
+                Image(systemName: "stop.fill").font(.title3.weight(.semibold))
                     .frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
                     .background(Palette.secondaryButton, in: Circle())
                     .foregroundStyle(Palette.secondaryButtonText)
             }
             .accessibilityLabel("Stop").accessibilityHint("Ends this request. Nothing is saved.")
+            .largeContent("Stop", symbol: "stop.fill")
             .accessibilityIdentifier("assistant-stop")
         } else {
             Button(action: send) {
-                Image(systemName: "arrow.up").font(.system(size: 20, weight: .semibold))
+                Image(systemName: "arrow.up").font(.title3.weight(.semibold))
                     .frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
                     .background(inputEmpty ? Palette.primaryButtonDisabled : Palette.tint, in: Circle())
                     .foregroundStyle(inputEmpty ? Palette.primaryButtonDisabledText : Palette.primaryButtonText)
             }
             .disabled(inputEmpty)
-            .accessibilityLabel("Send to Aurora").accessibilityIdentifier("assistant-send")
+            .accessibilityLabel("Send to Aurora").largeContent("Send to Aurora", symbol: "arrow.up")
+            .accessibilityIdentifier("assistant-send")
         }
     }
 
-    /// Scrolls past the column's edges, but its first action starts in line
-    /// with the cards and composer.
     /// Four equal tiles that fit without scrolling: the newest answer's next
     /// steps, then everyday actions. Everything else is in Settings, the
-    /// history button, or a request.
-    private var quickActions: some View {
-        // Always one row: wrapping at large text would grow the fixed bottom
-        // area and squeeze the conversation. Labels shrink a little instead.
-        // While typing, the same row offers what matches the words so far,
-        // so a request never depends on knowing its exact wording. The tiles'
-        // labels stay laid out underneath, hidden, so the row keeps its
-        // height: at the largest text a taller row shrinking as a message was
-        // sent left the conversation scrolled onto empty space.
-        let typed = Capabilities.matching(input)
+    /// history button, or a request. The first tile starts in line with the
+    /// cards and composer.
+    private func quickActions(_ typed: [Capability]) -> some View {
+        // Always one row of one height: wrapping or growing at large text
+        // would grow the fixed bottom area and squeeze the conversation, and
+        // a row that resized as next steps replaced the tiles scrolled a new
+        // card's title away. While typing, the same row offers what matches
+        // the words so far, so a request never depends on knowing its exact
+        // wording; the tiles stay laid out underneath, hidden, to hold the
+        // height.
         let columns = Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4)
         let tiles = Capabilities.bottomRow(after: nextStepCard, clock: app.clock)
         return LazyVGrid(columns: columns, spacing: Metrics.xs) {
             ForEach(tiles) { tile in
-                if typed.isEmpty { rowTile(tile.capability, isNextStep: tile.isNextStep) } else { tileLabel(tile.capability.shortTitle, symbol: tile.capability.symbol).hidden() }
+                if typed.isEmpty { rowTile(tile.capability, isNextStep: tile.isNextStep) } else { tileLabel(tile.capability).hidden() }
             }
         }
         .overlay {
@@ -809,22 +836,20 @@ private struct ConversationComposer: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assistant-quick-actions")
     }
-    /// A matching action while typing: sends its request in place of the text.
+    /// A matching action while typing: sends its request in place of the
+    /// text. Drawn exactly like a tile, so it fits the tile it covers.
     private func suggestion(_ capability: Capability) -> some View {
         Button {
             input = ""
             assistant.send(capability.phrase, app: app)
         } label: {
-            VStack(spacing: Metrics.xxs) {
-                Image(systemName: capability.symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
-                Text(capability.title).font(.caption.weight(.semibold)).lineLimit(2).minimumScaleFactor(0.7).multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity, minHeight: 56, maxHeight: .infinity)
+            tileLabel(capability)
         }
         .buttonStyle(TileActionStyle())
         .disabled(assistant.processing)
         .accessibilityLabel(capability.title)
         .accessibilityHint("Suggested from what you typed.")
+        .largeContent(capability.title, symbol: capability.symbol)
         .accessibilityIdentifier("assistant-suggest-\(capability.intent.rawValue)")
     }
     /// The newest answer's card while its next steps can be offered: nothing
@@ -835,32 +860,33 @@ private struct ConversationComposer: View {
         return card
     }
     /// Every tile is the same height whatever its symbol: the icon sits over
-    /// one reserved line of body text. Symbols differ in height, so a row
-    /// that resized as next steps replaced the tiles re-anchored the
-    /// conversation to its end and scrolled a new card's title away.
-    private func tileLabel(_ short: String, symbol: String) -> some View {
+    /// one reserved line of body text, then one line of label that may
+    /// shrink a little and then truncates, never spilling past the tile. At
+    /// accessibility sizes the label doesn't fit at all, so tiles show only
+    /// their icon; the label stays the accessibility label and the large
+    /// content viewer shows it on a long press.
+    private func tileLabel(_ capability: Capability) -> some View {
         VStack(spacing: Metrics.xxs) {
             Text(verbatim: " ").font(.body.weight(.semibold)).hidden()
-                .overlay { Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint) }
-            Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
-        }
-        .frame(maxWidth: .infinity, minHeight: 56)
-    }
-    /// One tile in the bottom row. A next step's label takes the tint, so it
-    /// reads as following the latest answer without a new colour. Next steps
-    /// show only while nothing is in progress, so they are never disabled.
-    private func rowTile(_ capability: Capability, isNextStep: Bool) -> some View {
-        Button { assistant.send(capability.phrase, app: app) } label: {
-            if isNextStep {
-                tileLabel(capability.shortTitle, symbol: capability.symbol).foregroundStyle(Palette.tint)
-            } else {
-                tileLabel(capability.shortTitle, symbol: capability.symbol)
+                .overlay { Image(systemName: capability.symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint) }
+            if !typeSize.isAccessibilitySize {
+                Text(capability.shortTitle).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
             }
         }
+        .padding(.horizontal, Metrics.xxs)
+        .frame(maxWidth: .infinity, minHeight: 56)
+    }
+    /// One tile in the bottom row. Next steps and everyday tiles share one
+    /// label colour; next steps come first, and VoiceOver hears that they
+    /// follow the latest answer. They show only while nothing is in
+    /// progress, so they are never disabled.
+    private func rowTile(_ capability: Capability, isNextStep: Bool) -> some View {
+        Button { assistant.send(capability.phrase, app: app) } label: { tileLabel(capability) }
         .buttonStyle(TileActionStyle())
         .disabled(assistant.processing)
         .accessibilityLabel(capability.title)
         .accessibilityHint(isNextStep ? "Next step after the latest answer." : "")
+        .largeContent(capability.title, symbol: capability.symbol)
         .accessibilityIdentifier(isNextStep ? "assistant-follow-up-\(capability.intent.rawValue)" : "assistant-quick-\(capability.phrase)")
     }
     /// Reads the field's value as Send is tapped; nothing is debounced.

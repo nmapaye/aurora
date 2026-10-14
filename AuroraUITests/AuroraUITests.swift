@@ -551,7 +551,16 @@ final class AuroraUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
-        finishSetup(); request("Morning briefing")
+        finishSetup()
+        // Tiles go icon-only rather than clip, keep their names, and stay
+        // inside one row above the composer.
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        let caffeine = app.buttons["assistant-quick-Log caffeine"]
+        XCTAssertTrue(caffeine.waitForExistence(timeout: 5) && caffeine.isHittable)
+        XCTAssertEqual(caffeine.label, "Log caffeine")
+        XCTAssertTrue(row.frame.insetBy(dx: -1, dy: -1).contains(caffeine.frame), "tile \(caffeine.frame) row \(row.frame)")
+        XCTAssertLessThanOrEqual(row.frame.maxY, app.textFields["assistant-composer"].frame.minY)
+        request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
         XCTAssertTrue(app.buttons["assistant-send"].exists)
@@ -728,9 +737,13 @@ final class AuroraUITests: XCTestCase {
         for chip in ["logCaffeine", "logSleep", "help"] {
             XCTAssertTrue(app.buttons["welcome-" + chip].exists, chip)
         }
+        let hint = app.staticTexts["Start with a quick action, or ask in your own words."]
+        XCTAssertTrue(hint.exists)
         attachScreenshot("New conversation welcome")
         tapWhenReady(app.buttons["welcome-help"])
         XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        // The hint is for an empty conversation only.
+        XCTAssertTrue(hint.waitForNonExistence(timeout: 3))
     }
 
     /// "help" answers with everything Aurora can do, not a clarification,
@@ -756,6 +769,9 @@ final class AuroraUITests: XCTestCase {
         let suggestion = app.buttons["assistant-suggest-cutoffScenario"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["assistant-quick-Morning briefing"].exists)
+        // A suggestion covers a tile exactly; nothing spills onto the composer.
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        XCTAssertTrue(row.frame.insetBy(dx: -1, dy: -1).contains(suggestion.frame), "suggestion \(suggestion.frame) row \(row.frame)")
         attachScreenshot("Composer suggestions")
         suggestion.tap()
         XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
@@ -766,11 +782,15 @@ final class AuroraUITests: XCTestCase {
     /// and send their request; the everyday tiles fill the rest.
     func testNextStepsLeadTheBottomRowAfterAnEnergyAnswer() {
         finishSetup()
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let height = row.frame.height
         tapQuick("How is my energy?")
         XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
-        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
         let curve = row.buttons["assistant-follow-up-energyProjection"]
         XCTAssertTrue(curve.waitForExistence(timeout: 5))
+        // Next steps replace tiles without changing the row's height.
+        XCTAssertEqual(row.frame.height, height, accuracy: 1)
         XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].exists)
         XCTAssertTrue(row.buttons["assistant-quick-Morning briefing"].exists)
         XCTAssertTrue(row.buttons["assistant-quick-Log caffeine"].exists)
