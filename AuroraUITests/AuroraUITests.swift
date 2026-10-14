@@ -287,7 +287,12 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
         tapQuick("How is my energy?")
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Unavailable"].exists)
+        // No score: the card leads with the missing record, not "Unavailable".
+        let missing = app.descendants(matching: .any)["assistant-energy-missing"].firstMatch
+        XCTAssertTrue(missing.waitForExistence(timeout: 5))
+        XCTAssertTrue(missing.label.contains("No sleep recorded in the last 24 hours."), missing.label)
+        XCTAssertFalse(app.staticTexts["Unavailable"].exists)
+        XCTAssertTrue(app.buttons["Record sleep"].exists)
     }
     func testEnergyCurveShowsModeledLabelsWithoutRecords() {
         finishSetup()

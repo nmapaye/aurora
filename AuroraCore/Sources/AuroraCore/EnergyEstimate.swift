@@ -292,4 +292,16 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         return "\(Self.title) \(modeledScore) of 100, modeled from sleep, caffeine and time of day."
             + (includesSample ? " Includes Sample Data." : "")
     }
+
+    /// The scale beside a score. The title already says it's modeled.
+    public static let scaleLabel = "Scale 0–100"
+
+    /// What's missing when there is no score: the day the last recorded
+    /// sleep known at `now` ended, or the 24-hour window when none is known
+    /// before it. Only records finished by `now` count.
+    public static func missingSleepText(sleeps: [SleepSession], at now: Millis, text: DateText) -> String {
+        let lastEnd = sleeps.filter { $0.end <= now }.map(\.end).max()
+        guard let lastEnd, lastEnd <= now - dayMs else { return "No sleep recorded in the last 24 hours." }
+        return "No sleep recorded since \(text.weekdayDate(lastEnd))."
+    }
 }

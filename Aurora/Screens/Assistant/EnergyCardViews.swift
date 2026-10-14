@@ -79,6 +79,58 @@ struct EnergyEvidenceSections: View {
     }
 }
 
+/// One energy or briefing metric. A value is a hero quantity with its
+/// source; alertness with no score leads with the record that's missing
+/// instead, with no scale for a value that doesn't exist.
+struct EnergyMetricHero: View {
+    let item: AssistantCard.Metric
+
+    /// Cards captured before the missing line existed say "Modeled · 0–100"
+    /// there; no score always means no sleep in the 24 hours before.
+    private var missingLine: String {
+        item.source.hasPrefix("No ") ? item.source : "No sleep recorded in the last 24 hours."
+    }
+
+    var body: some View {
+        if item.id == "alertness" && item.missing {
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                Label(missingLine, systemImage: StatusTone.warning.symbol)
+                    .font(Typography.evidence.weight(.semibold)).foregroundStyle(Palette.textPrimary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("assistant-energy-missing")
+        } else {
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                Text(item.value).font(Typography.heroValue).monospacedDigit()
+                if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+/// A way to add each missing record. Sleep is the primary action when its
+/// absence is what keeps alertness from being modeled; otherwise every
+/// action is secondary.
+struct EnergyRecordActions: View {
+    let metrics: [AssistantCard.Metric]
+    /// "sleep" or "caffeine".
+    let record: (String) -> Void
+
+    var body: some View {
+        let unscored = metrics.contains { $0.id == "alertness" && $0.missing }
+        ForEach(metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
+            if item.id == "sleep" && unscored {
+                Button("Record sleep") { record("sleep") }.buttonStyle(.auroraPrimary)
+            } else {
+                Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { record(item.id) }.buttonStyle(.auroraSecondary)
+            }
+        }
+    }
+}
+
 /// Ratings and Reaction Tests captured with the card. Listed as recorded,
 /// never plotted against or compared with the model.
 struct EnergyRecordedByYou: View {

@@ -391,18 +391,15 @@ struct AssistantCardView: View {
             }
             // The overview: the headline number, then what it means for the day.
             ForEach(card.metrics.filter { $0.id == "alertness" || card.kind != .energy }) { item in
-                metricHero(item)
+                EnergyMetricHero(item: item)
             }
             if let outlook = card.energy?.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
             // Missing inputs stay visible, with a way to add them.
-            ForEach(card.metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
-                Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }
-                    .buttonStyle(.auroraSecondary)
-            }
+            EnergyRecordActions(metrics: card.metrics) { kind in assistant.send(kind == "sleep" ? "Log sleep" : "Log caffeine", app: app) }
             // Everything else only when asked for.
             if card.kind == .energy {
                 DisclosureGroup("What’s recorded") {
-                    ForEach(card.metrics.filter { $0.id != "alertness" }) { metricHero($0) }
+                    ForEach(card.metrics.filter { $0.id != "alertness" }) { EnergyMetricHero(item: $0) }
                 }
                 if let energy = card.energy {
                     DisclosureGroup("What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
@@ -412,13 +409,6 @@ struct AssistantCardView: View {
                 Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-    private func metricHero(_ item: AssistantCard.Metric) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.xxs) {
-            Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-            Text(item.value).font(Typography.heroValue).monospacedDigit()
-            if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
-        }.accessibilityElement(children: .combine)
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
