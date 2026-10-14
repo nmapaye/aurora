@@ -197,7 +197,8 @@ public enum AssistantCards {
             card.summary = "Share your records as CSV."
         case .reminders:
             card.summary = "Reminders at times you choose."
-        case .caffeineDraft: card.summary = "Check the details, then save."
+        // The "Review before saving" badge already says it.
+        case .caffeineDraft: card.summary = ""
         case .sleepDraft: card.summary = "Set when you slept."
         case .calendar: card.summary = ""
         case .clarification: card.summary = "Choose one, or tell me a little more."

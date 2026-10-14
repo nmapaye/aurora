@@ -195,6 +195,25 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(ManualSleep.validate(start: 0, end: 30, now: 20).message == "End time cannot be in the future.")
     }
 
+    @Test func manualSleepEntryStartsEmptyAndNeedsBothTimes() throws {
+        let empty = ManualSleep.Entry()
+        #expect(empty.start == nil && empty.end == nil && empty.note.isEmpty)
+        #expect(empty.draft == nil)
+        #expect(empty.validate(now: 20).message == ManualSleep.missingTimes)
+        #expect(ManualSleep.Entry(start: 0).validate(now: 20).message == ManualSleep.missingTimes)
+        #expect(ManualSleep.Entry(end: 10).validate(now: 20).message == ManualSleep.missingTimes)
+        let full = ManualSleep.Entry(start: 0, end: 10, note: "n")
+        #expect(full.validate(now: 20) == .valid)
+        #expect(full.draft == ManualSleep.Draft(start: 0, end: 10, note: "n"))
+        #expect(ManualSleep.Entry(try #require(full.draft)) == full)
+        #expect(ManualSleep.Entry(start: 10, end: 10).validate(now: 20).message == "Start time must be before end time.")
+    }
+
+    @Test func addedSleepTimeIsTheCurrentMinute() {
+        #expect(ManualSleep.addedTime(now: 5 * minuteMs + 59_999) == 5 * minuteMs)
+        #expect(ManualSleep.addedTime(now: 5 * minuteMs) == 5 * minuteMs)
+    }
+
     @Test func sampleEntriesAreReadOnly() {
         let sample = Dose(id: "demo:dose:1", timestamp: 0, mg: 95, note: "Sample data")
         #expect(!CaffeineLog.isEditable(sample))
