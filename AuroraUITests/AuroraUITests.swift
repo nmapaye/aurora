@@ -607,6 +607,25 @@ final class AuroraUITests: XCTestCase {
         attachScreenshot("Long card start after insertion")
     }
 
+    /// A draft asked for while typing takes the letter keyboard down and
+    /// shows from its title, with no "New message below" over it.
+    func testDraftFromATileWhileTypingDropsTheKeyboardAndShowsItsTitle() {
+        finishSetup()
+        let composer = app.textFields["assistant-composer"]
+        composer.tap()
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["assistant-quick-Log caffeine"])
+        let title = cardTitle("caffeineDraft")
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        XCTAssertGreaterThanOrEqual(title.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1, "Title \(title.frame)")
+        XCTAssertLessThanOrEqual(title.frame.maxY, composer.frame.minY)
+        XCTAssertFalse(app.buttons["assistant-new-below"].waitForExistence(timeout: 2))
+        attachScreenshot("Draft from a tile while typing")
+    }
+
     /// Saving an earlier draft while reading it adds a receipt at the end
     /// without moving the page; "New message below" then shows the receipt.
     func testReplyWhileReadingEarlierMessagesKeepsThePlace() {
@@ -695,10 +714,31 @@ final class AuroraUITests: XCTestCase {
 
     // MARK: Discovery
 
+    /// A new conversation opens on the short welcome, read from its top;
+    /// the full list of capabilities is one chip away, not the first card.
+    func testNewConversationOpensOnTheWelcomeFromItsTop() {
+        finishSetup()
+        let welcome = cardTitle("welcome")
+        XCTAssertTrue(welcome.waitForExistence(timeout: 5))
+        XCTAssertEqual(welcome.label, "Ready when you are.")
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: welcome)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        XCTAssertGreaterThanOrEqual(welcome.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1)
+        XCTAssertFalse(cardTitle("capabilities").exists)
+        for chip in ["logCaffeine", "logSleep", "help"] {
+            XCTAssertTrue(app.buttons["welcome-" + chip].exists, chip)
+        }
+        attachScreenshot("New conversation welcome")
+        tapWhenReady(app.buttons["welcome-help"])
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+    }
+
     /// "help" answers with everything Aurora can do, not a clarification,
-    /// and each row sends its own request.
+    /// and each row sends its own request. The welcome came first.
     func testHelpShowsCapabilitiesAndARowSendsItsRequest() {
-        finishSetup(); request("help")
+        finishSetup()
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        request("help")
         XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
         XCTAssertFalse(cardTitle("clarification").exists)
         let cutoff = app.buttons["capability-cutoffScenario"].firstMatch

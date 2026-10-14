@@ -9,6 +9,8 @@ enum ConversationReveal: Equatable {
     case none
     /// The opened conversation, or the person's own message: show the end.
     case end
+    /// A new conversation opening on its welcome: show it from the top.
+    case top
     /// Scroll so this message's top is visible.
     case start(UUID)
     /// Stay put and offer this message below.
@@ -19,11 +21,23 @@ enum ConversationReveal: Equatable {
     static func after(_ messages: [ConversationMessage], previousCount: Int, readingLatest: Bool) -> ConversationReveal {
         guard messages.count > previousCount else { return .none }
         // Opening the stored conversation adds everything at once.
-        if previousCount == 0 { return .end }
+        if previousCount == 0 { return opensAtWelcome(messages) ? .top : .end }
         let added = messages[previousCount...]
-        if added.contains(where: \.isUser) { return .end }
+        if let own = added.lastIndex(where: \.isUser) {
+            // The person's message and the reply can land in one update (a
+            // tile's request answers at once). Showing the end then scrolled
+            // a tall draft past its title, so show the reply's start.
+            let reply = messages.index(after: own)
+            return reply < messages.endIndex ? .start(messages[reply].id) : .end
+        }
         guard let first = added.first else { return .none }
         return readingLatest ? .start(first.id) : .hold(first.id)
+    }
+
+    /// Only the welcome and Aurora's own cards so far: the opened
+    /// conversation is read from its top, not its end.
+    static func opensAtWelcome(_ messages: [ConversationMessage]) -> Bool {
+        messages.first?.card?.kind == .welcome && !messages.hasUserMessages(atLeast: 1)
     }
 }
 

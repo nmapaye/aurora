@@ -27,6 +27,22 @@ import Testing
         #expect(ConversationReveal.after(messages(6), previousCount: 0, readingLatest: false) == .end)
     }
 
+    /// A new conversation is read from its welcome's top; one with the
+    /// person's messages opens at the end as before.
+    @Test func aNewConversationOpensAtItsWelcomeFromTheTop() {
+        let welcome = ConversationMessage(text: "Ready when you are.", card: .init(kind: .welcome, capturedAt: 0, title: "Ready when you are."))
+        #expect(ConversationReveal.after([welcome], previousCount: 0, readingLatest: false) == .top)
+        #expect(ConversationReveal.after([welcome] + messages(2), previousCount: 0, readingLatest: false) == .top)
+        #expect(ConversationReveal.after([welcome] + messages(2, userAt: [1]), previousCount: 0, readingLatest: false) == .end)
+    }
+
+    /// A tile's request can be answered in the same update as the person's
+    /// message; the reply is shown from its start, never scrolled past it.
+    @Test func theOwnMessageAndItsReplyTogetherShowTheReplysStart() {
+        let list = messages(5, userAt: [3])
+        #expect(ConversationReveal.after(list, previousCount: 3, readingLatest: false) == .start(list[4].id))
+    }
+
     @Test func removalsAndClearsMoveNothing() {
         let list = messages(2)
         #expect(ConversationReveal.after(list, previousCount: 2, readingLatest: true) == .none)

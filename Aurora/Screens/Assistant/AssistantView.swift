@@ -26,15 +26,33 @@ struct AssistantView: View {
         var end = true
         /// Within most of a screen of the end (iOS 18 and later only).
         var nearEnd = true
+        /// Whether the end really is on screen now. `end` stays true while
+        /// Aurora shows a long reply's start; this one doesn't, so a taller
+        /// bottom area can't pull the page to the end past that start.
+        var endOnScreen = true
+        /// The person's own message just showed the end and they haven't
+        /// scrolled since, so the reply is what they are waiting to read,
+        /// even if the scroll to the end hasn't finished when it arrives.
+        var awaitingReply = false
         /// The person is dragging or flinging the conversation (iOS 18 and
         /// later). Only their own scrolling changes where they are reading;
         /// Aurora revealing a long card's start doesn't move them away from
         /// the latest message.
-        var userScrolling = false
+        var userScrolling = false {
+            didSet { if userScrolling { awaitingReply = false } }
+        }
     }
     @State private var viewportHeight: CGFloat = 0
+    /// Where the visible part of the conversation ends, in its own
+    /// coordinates: above the bottom area's inset (iOS 18 and later; nil
+    /// uses the viewport's height).
+    @State private var visibleBottom: CGFloat?
     /// The first message added while earlier messages were being read.
     @State private var heldMessage: UUID?
+    /// The held message's top is below the visible area. Measured, so "New
+    /// message below" never shows while the message is on screen.
+    @State private var heldBelow = false
+    private static let top = "top"
     /// The first message shown (`ConversationWindow`); nil shows the latest.
     @State private var windowStart: Int?
     @State private var composerWidth: CGFloat = 0
@@ -69,10 +87,10 @@ struct AssistantView: View {
                         }
                         Color.clear.frame(height: 1).id("bottom")
                             .trackingVisibility(onScreen) { visible in
-                                visibility.end = visible
+                                visibility.end = visible; visibility.endOnScreen = visible
                                 if visible && heldMessage != nil { heldMessage = nil }
                             }
-                            .onDisappear { visibility.end = false }
+                            .onDisappear { visibility.end = false; visibility.endOnScreen = false }
                         // QA showed the conversation could not scroll a card's
                         // Save above the composer while the number pad was up:
                         // its extent stopped short by about the keyboard. While
@@ -85,28 +103,24 @@ struct AssistantView: View {
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(Metrics.lg)
                 }
-                // Opens at the latest message, including right after the welcome.
-                // Scrolled once rather than with defaultScrollAnchor(.bottom): on
-                // iOS 26.5 that anchor, with the lazy stack's estimated heights,
-                // kept the conversation re-laying out so the main thread never
-                // went idle.
-                .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
+                // Opens at the latest message, including right after the
+                // launch welcome; a new conversation opens on its welcome card,
+                // read from the top. Scrolled once rather than with
+                // defaultScrollAnchor(.bottom): on iOS 26.5 that anchor, with
+                // the lazy stack's estimated heights, kept the conversation
+                // re-laying out so the main thread never went idle.
+                .onAppear { if !ConversationReveal.opensAtWelcome(assistant.conversation.messages) { proxy.scrollTo("bottom", anchor: .bottom) } }
                 .coordinateSpace(.named(Self.viewport))
-                .trackingConversationEnd(visibility) { end, nearEnd in
-                    if visibility.userScrolling || end {
-                        visibility.end = end
-                        visibility.nearEnd = nearEnd || end
-                    }
-                    if end && heldMessage != nil { heldMessage = nil }
-                }
+                .trackingConversationEnd(visibility, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
-                .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
+                .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)
                 // A taller bottom area would otherwise cover the end the person
-                // was reading; keep the end above it.
+                // was reading; keep the end above it. Only when the end really
+                // is on screen, never past a reply's start.
                 .onChange(of: composerHeight) { old, new in
-                    if new > old && visibility.end && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
+                    if new > old && visibility.endOnScreen && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
                 }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
@@ -160,26 +174,64 @@ struct AssistantView: View {
     /// earlier messages are being read.
     private func messagesChanged(from old: Int, _ proxy: ScrollViewProxy) {
         let messages = assistant.conversation.messages
-        let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
+        let previous = old > 0 && old <= messages.count ? messages[old - 1] : nil
+        let readingLatest = visibility.end || visibility.nearEnd || (previous?.isUser == true && visibility.awaitingReply)
+            || previous.map { visibility.messages.contains($0.id) } == true
         windowStart = ConversationWindow.start(windowStart, count: messages.count, previousCount: old)
-        switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
+        let reveal = ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest)
+        switch reveal {
         case .none:
             if messages.isEmpty { heldMessage = nil }
         case .end:
             // Going to the end anyway: drop revealed earlier messages so
             // the plain stack doesn't grow without bound.
             heldMessage = nil; windowStart = nil
-            reveal(proxy, "bottom", anchor: .bottom)
-        case .start(let id):
+            visibility.awaitingReply = old > 0
+            self.reveal(proxy, "bottom", anchor: .bottom)
+        case .top:
             heldMessage = nil
-            reveal(proxy, id, anchor: .top)
+            Task { @MainActor in proxy.scrollTo(Self.top, anchor: .top) }
+        case .start(let id):
+            heldMessage = nil; visibility.awaitingReply = false
+            self.reveal(proxy, id, anchor: .top)
         case .hold(let id):
-            // Keep the earliest unseen message; reading resumes there.
-            if heldMessage == nil {
-                heldMessage = id
-                UIAccessibility.post(notification: .announcement, argument: "New message below")
-            }
+            // Keep the earliest unseen message; reading resumes there. The
+            // capsule and its announcement wait for its measured position.
+            if heldMessage == nil { heldMessage = id; heldBelow = false }
         }
+        // A held reply is announced by its capsule instead.
+        var held = false
+        if case .hold = reveal { held = true }
+        if old > 0, messages.count > old { repliesArrived(messages[old...], announce: !held) }
+    }
+
+    /// Aurora's reply arrived. A new draft takes the keyboard down so the
+    /// card shows from its title, not cut off above a letter keyboard it
+    /// doesn't use. VoiceOver hears the reply's title; focus stays put.
+    private func repliesArrived(_ added: ArraySlice<ConversationMessage>, announce: Bool) {
+        guard let reply = added.first(where: { !$0.isUser }) else { return }
+        let drafts: Set<AssistantCard.Kind> = [.caffeineDraft, .sleepDraft, .energyCheckIn]
+        if added.contains(where: { $0.card.map { drafts.contains($0.kind) } == true }) { composerFocused = false }
+        if announce { Self.announce(reply.card?.title ?? reply.text) }
+    }
+
+    /// Spoken at high priority so the keyboard leaving or a layout change
+    /// doesn't cut it off.
+    static func announce(_ text: String) {
+        var message = AttributedString(text)
+        message.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    /// From the scroll view's geometry (iOS 18 and later).
+    private func conversationEndChanged(_ now: ConversationEnd) {
+        visibility.endOnScreen = now.end
+        if visibility.userScrolling || now.end {
+            visibility.end = now.end
+            visibility.nearEnd = now.nearEnd || now.end
+        }
+        if now.end && heldMessage != nil { heldMessage = nil }
+        if visibleBottom != now.visibleBottom { visibleBottom = now.visibleBottom }
     }
 
     /// The welcome, then the control for messages left out of the stack.
@@ -251,6 +303,8 @@ struct AssistantView: View {
                 Text(assistant.intelligenceName).font(.caption).foregroundStyle(Palette.textSecondary)
                 if app.state.demoMode { Text("Sample Data · for exploration").font(.caption).foregroundStyle(Palette.caffeineAccent) }
             }.padding(.vertical, 6)
+            // A new conversation opens here, with its welcome card below.
+            .id(Self.top)
         }
     }
     /// `startsGroup` comes from `ConversationWindow.rows`, worked out in one
@@ -296,10 +350,35 @@ struct AssistantView: View {
         }
     }
 
+    private var showsNewBelow: Bool { heldMessage != nil && heldBelow }
+
+    /// Only on the held message's row, so one row is measured, not every
+    /// row (a geometry observer per row kept iOS 26.5 laying out forever).
+    /// In a background, so adding it doesn't change the row's identity.
+    @ViewBuilder private func heldTracker(_ id: UUID) -> some View {
+        if id == heldMessage {
+            let edge = visibleBottom ?? viewportHeight
+            let space = Self.viewport
+            Color.clear.onGeometryChange(for: Bool.self) { proxy in
+                proxy.frame(in: .named(space)).minY >= edge
+            } action: { below in heldMoved(below: below) }
+        }
+    }
+
+    /// The capsule shows only while the held message starts below the
+    /// visible area, so it never covers the message's own time row or its
+    /// controls. Once its top is in view, it has been seen.
+    private func heldMoved(below: Bool) {
+        if !below { heldMessage = nil; heldBelow = false; return }
+        guard !heldBelow else { return }
+        heldBelow = true
+        Self.announce("New message below")
+    }
+
     @ViewBuilder private func newMessageBelow(_ proxy: ScrollViewProxy) -> some View {
-        if let held = heldMessage {
+        if let held = heldMessage, heldBelow {
             Button {
-                heldMessage = nil
+                heldMessage = nil; heldBelow = false
                 reveal(proxy, held, anchor: .top)
             } label: {
                 Label("New message below", systemImage: "arrow.down")
@@ -346,6 +425,7 @@ struct AssistantView: View {
         let message = row.message
         return messageView(message, startsGroup: row.startsGroup)
         .id(message.id)
+        .background { heldTracker(message.id) }
         .trackingVisibility(onScreen) { visible in
             if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
             if visible && heldMessage == message.id { heldMessage = nil }
@@ -509,10 +589,11 @@ private extension View {
     }
 
     /// On iOS 18 and later, one observer on the scroll view says whether the
-    /// end of the conversation is on screen, and whether it is within most of
-    /// a screen of it (still reading the latest message).
+    /// end of the conversation is on screen, whether it is within most of a
+    /// screen of it (still reading the latest message), and where the
+    /// visible area ends above the bottom inset.
     @ViewBuilder
-    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
+    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (ConversationEnd) -> Void) -> some View {
         if #available(iOS 18, *) {
             onScrollPhaseChange { _, phase in
                 visibility.userScrolling = phase == .interacting || phase == .decelerating
@@ -520,9 +601,10 @@ private extension View {
             .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
                 let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height
                 let gap = max(0, maxOffset - geometry.contentOffset.y - geometry.contentInsets.top)
-                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75)
+                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75,
+                                       visibleBottom: geometry.containerSize.height - geometry.contentInsets.bottom)
             } action: { _, now in
-                action(now.end, now.nearEnd)
+                action(now)
             }
         } else {
             self
@@ -533,6 +615,8 @@ private extension View {
 private struct ConversationEnd: Equatable {
     var end: Bool
     var nearEnd: Bool
+    /// The visible area's bottom edge in the scroll view's own space.
+    var visibleBottom: CGFloat
 }
 
 /// The conversation's sheets. A modifier of its own: chained on the body
