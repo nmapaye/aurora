@@ -52,7 +52,7 @@ struct AssistantView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         top(proxy)
-                        ForEach(shownMessages) { message in conversationRow(message) }
+                        messageList(proxy)
                         // Stop lives in the composer, so it stays reachable
                         // while earlier messages are being read.
                         if assistant.processing {
@@ -182,13 +182,6 @@ struct AssistantView: View {
         }
     }
 
-    /// The messages the stack renders: the latest, plus any earlier batches
-    /// the person asked for. Every reveal target is among the newest.
-    private var shownMessages: ArraySlice<ConversationMessage> {
-        let messages = assistant.conversation.messages
-        return messages[ConversationWindow.first(windowStart, count: messages.count)...]
-    }
-
     /// The welcome, then the control for messages left out of the stack.
     /// One member, so the body stays quick to type-check.
     @ViewBuilder private func top(_ proxy: ScrollViewProxy) -> some View {
@@ -217,8 +210,42 @@ struct AssistantView: View {
         Task { @MainActor in proxy.scrollTo(top, anchor: .top) }
     }
 
+    /// The rendered messages, with the control for any the cap left out.
+    /// One member, so the body stays quick to type-check.
+    private func messageList(_ proxy: ScrollViewProxy) -> some View {
+        ForEach(ConversationWindow.rows(assistant.conversation.messages, start: windowStart)) { row in
+            if row.afterGap { showLaterButton(proxy) }
+            conversationRow(row)
+        }
+    }
+
+    /// Where the cap left messages out, above the latest.
+    private func showLaterButton(_ proxy: ScrollViewProxy) -> some View {
+        Button { showLaterMessages(proxy) } label: {
+            Label("Show later messages", systemImage: "arrow.down")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, Metrics.md)
+                .frame(minHeight: Metrics.minimumTouchTarget)
+        }
+        .buttonStyle(CapsuleActionStyle())
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("assistant-show-later")
+    }
+
+    /// Brings back one left-out batch below the earlier messages and keeps
+    /// the place: the message just above the control stays where it was.
+    private func showLaterMessages(_ proxy: ScrollViewProxy) {
+        let messages = assistant.conversation.messages
+        let shown = ConversationWindow.shown(windowStart, count: messages.count)
+        guard shown.count > 1, let last = shown.first?.last else { return }
+        let anchor = messages[last].id
+        windowStart = ConversationWindow.later(windowStart, count: messages.count)
+        Task { @MainActor in proxy.scrollTo(anchor, anchor: .bottom) }
+    }
+
     @ViewBuilder private var identity: some View {
-        if !assistant.conversation.messages.contains(where: \.isUser) {
+        // Stops at the first of the person's messages, near the start.
+        if !assistant.conversation.messages.hasUserMessages(atLeast: 1) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("A little clarity for your day.").font(.title2.weight(.medium))
                 Text(assistant.intelligenceName).font(.caption).foregroundStyle(Palette.textSecondary)
@@ -226,13 +253,11 @@ struct AssistantView: View {
             }.padding(.vertical, 6)
         }
     }
-    private func startsGroup(_ message: ConversationMessage) -> Bool {
-        guard let index = assistant.conversation.messages.firstIndex(where: { $0.id == message.id }), index > 0 else { return true }
-        return message.createdAt.timeIntervalSince(assistant.conversation.messages[index - 1].createdAt) > 300
-    }
-    @ViewBuilder private func messageView(_ message: ConversationMessage) -> some View {
+    /// `startsGroup` comes from `ConversationWindow.rows`, worked out in one
+    /// pass rather than by finding each message in the whole history.
+    @ViewBuilder private func messageView(_ message: ConversationMessage, startsGroup: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if startsGroup(message) {
+            if startsGroup {
                 Text(message.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2).foregroundStyle(Palette.textSecondary)
             }
@@ -317,8 +342,9 @@ struct AssistantView: View {
     /// type-check (Xcode 26.6 in CI). Next steps are in the bottom row, never
     /// here: a row changing height off screen as a reply arrived kept the
     /// lazy conversation laying out forever.
-    private func conversationRow(_ message: ConversationMessage) -> some View {
-        messageView(message)
+    private func conversationRow(_ row: ConversationRow) -> some View {
+        let message = row.message
+        return messageView(message, startsGroup: row.startsGroup)
         .id(message.id)
         .trackingVisibility(onScreen) { visible in
             if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
@@ -575,7 +601,7 @@ private struct ConversationComposer: View {
     /// iPad they line up with the cards instead of spanning the window.
     var body: some View {
         VStack(spacing: Metrics.xs) {
-            if !editingCard, !typeSize.isAccessibilitySize, assistant.conversation.messages.filter({ $0.isUser }).count < 3 {
+            if !editingCard, !typeSize.isAccessibilitySize, !assistant.conversation.messages.hasUserMessages(atLeast: 3) {
                 Text("Start with a quick action, or ask in your own words.")
                     .font(.caption).foregroundStyle(Palette.textSecondary)
                     .padding(.horizontal, Metrics.md)
