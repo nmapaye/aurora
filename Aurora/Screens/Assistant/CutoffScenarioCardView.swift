@@ -147,13 +147,15 @@ struct CutoffScenarioCardView: View {
         if let value = assistant.pendingCutoff?[keyPath: key] {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                // Each picker is named once, by its own hidden label; a
+                // second `accessibilityLabel` made VoiceOver read it twice.
                 pickerRow("Date") {
                     DatePicker("\(label) date", selection: dayBinding(key), displayedComponents: .date)
-                        .labelsHidden().accessibilityLabel("\(label) date").accessibilityIdentifier("cutoff-\(id)-date")
+                        .labelsHidden().accessibilityIdentifier("cutoff-\(id)-date")
                 }
                 pickerRow("Time") {
                     DatePicker("\(label) time", selection: timeBinding(key), displayedComponents: .hourAndMinute)
-                        .labelsHidden().accessibilityLabel("\(label) time").accessibilityIdentifier("cutoff-\(id)-time")
+                        .labelsHidden().accessibilityIdentifier("cutoff-\(id)-time")
                 }
                 if case .repeated(let first, let second) = S.resolve(value, in: zone) {
                     Picker("Which \(text.clockTime(first))?", selection: Binding(
@@ -183,14 +185,16 @@ struct CutoffScenarioCardView: View {
     /// longer fits both; the section label above already names the field.
     private func pickerRow<Control: View>(_ title: String, @ViewBuilder picker: () -> Control) -> some View {
         let picker = picker()
+        // The picker already says "Bedtime date"; the short visible label
+        // isn't read again.
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: Metrics.sm) {
-                Text(title).font(Typography.evidence)
+                Text(title).font(Typography.evidence).accessibilityHidden(true)
                 Spacer(minLength: 0)
                 picker
             }
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                Text(title).font(Typography.evidence)
+                Text(title).font(Typography.evidence).accessibilityHidden(true)
                 picker
             }
         }
@@ -253,7 +257,7 @@ struct CutoffScenarioCardView: View {
             if let existing = r.existing {
                 metric("Modeled caffeine at bedtime · existing records", mg(existing.totalMg), source: provenance(existing))
                 if existing.includesSample {
-                    StatusBadge(text: "Includes Sample Data · \(mg(existing.sampleMg))", tone: .info)
+                    SampleDataBadge(detail: mg(existing.sampleMg))
                 }
             }
             if r.amountMg != nil {

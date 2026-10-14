@@ -23,7 +23,7 @@ struct EnergyEvidenceSections: View {
     @ViewBuilder private var status: some View {
         if snapshot.includesSample || !estimate.missingInputs.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                if snapshot.includesSample { StatusBadge(text: "Includes Sample Data", tone: .info) }
+                if snapshot.includesSample { SampleDataBadge() }
                 ForEach(estimate.missingInputs, id: \.self) { missing in
                     Label(missing.text, systemImage: StatusTone.warning.symbol)
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
@@ -431,12 +431,13 @@ struct EnergyOutlookView: View {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 Text("Your day").font(Typography.label).foregroundStyle(Palette.textSecondary)
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                    Label(line, systemImage: symbol(index, line))
+                    // The line says highest or lowest; the arrow is decoration.
+                    Label { Text(line) } icon: { Image(systemName: symbol(index, line)).accessibilityHidden(true) }
                         .font(Typography.evidence.monospacedDigit())
                         .foregroundStyle(Palette.textPrimary)
                 }
                 if outlook.includesSample {
-                    Text("Includes Sample Data").font(Typography.source).foregroundStyle(Palette.caffeineAccent)
+                    SampleDataBadge()
                 }
             }
             .accessibilityElement(children: .combine)

@@ -315,7 +315,7 @@ struct AssistantView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("A little clarity for your day.").font(.title2.weight(.medium))
                 Text(assistant.intelligenceName).font(.caption).foregroundStyle(Palette.textSecondary)
-                if app.state.demoMode { Text("Sample Data · for exploration").font(.caption).foregroundStyle(Palette.caffeineAccent) }
+                if app.state.demoMode { SampleDataBadge() }
             }.padding(.vertical, 6)
             // A new conversation opens here, with its welcome card below.
             .id(Self.top)
@@ -334,7 +334,7 @@ struct AssistantView: View {
             } else {
                 Text(message.text).textSelection(.enabled)
                     .foregroundStyle(Palette.textPrimary).padding(16)
-                    .background(message.isUser ? Palette.selectionFill : Palette.card, in: RoundedRectangle(cornerRadius: 22))
+                    .background(message.isUser ? Palette.selectionFill : Palette.card, in: RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))
                     .frame(maxWidth: .infinity, alignment: message.isUser ? .trailing : .leading)
                     .accessibilityLabel("\(message.isUser ? "You" : "Aurora"): \(message.text)")
                 // Legacy text remains as originally shown. Do not attach live

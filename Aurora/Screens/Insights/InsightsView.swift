@@ -58,9 +58,13 @@ struct InsightsView: View {
                         .foregroundStyle(p.source == .sample ? Palette.textSecondary : Palette.textPrimary)
                     Text(p.period).font(.footnote).foregroundStyle(Palette.textSecondary)
                     if let source = p.source {
-                        Text(source.rawValue)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(source == .manual ? Palette.textSecondary : StatusTone.warning.foreground)
+                        // Every source is named; Sample Data always by its badge.
+                        if source != .sample {
+                            Text(source.rawValue)
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Palette.textSecondary)
+                        }
+                        if source.includesSample { SampleDataBadge() }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -127,9 +131,7 @@ struct InsightsView: View {
                         row(item.label, value: "\(numberText(jsRound(item.mg))) mg · \(item.pct)%")
                     }
                     if let source = p.source, source.includesSample {
-                        Text("Includes \(source == .sample ? "only " : "")Sample Data.")
-                            .font(.caption)
-                            .foregroundStyle(StatusTone.warning.foreground)
+                        SampleDataBadge()
                     }
                 }
                 Button("Show All Caffeine Data") { showCaffeineHistory = true }

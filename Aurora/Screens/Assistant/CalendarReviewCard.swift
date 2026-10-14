@@ -215,7 +215,7 @@ private struct GoogleEventRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Metrics.sm)
         .padding(.vertical, Metrics.xs)
-        .background(Color(calendarHex: hex) ?? .blue, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Color(calendarHex: hex) ?? .blue, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
         .overlay(alignment: .topTrailing) { if showsSource { SourceTag(text: "Google", color: ink).padding(6) } }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.title), \(time)\(event.location.map { ", \($0)" } ?? ""), Google Calendar")
@@ -245,7 +245,7 @@ private struct AppleEventRow: View {
         }
         .padding(.vertical, Metrics.xs)
         .padding(.trailing, Metrics.xs)
-        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.title), \(time)\(event.location.map { ", \($0)" } ?? ""), Apple Calendar")
     }
