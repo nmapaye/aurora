@@ -108,7 +108,15 @@ final class AuroraUITests: XCTestCase {
                 if control.isEnabled { return control.isHittable }
                 return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
             }
-            for _ in 0..<12 where !reachable() { app.swipeUp() }
+            // Short drags toward the switch: on iPad the sheet is small at the
+            // largest text, and a full swipe scrolled past it to the end.
+            let window = app.windows.firstMatch
+            for _ in 0..<24 where !reachable() {
+                let up = control.frame.midY > window.frame.midY
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.6 : 0.4)).press(
+                    forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.45 : 0.55)),
+                    withVelocity: .slow, thenHoldForDuration: 0.05)
+            }
             XCTAssertTrue(reachable(), choice + " must be reachable by scrolling")
             XCTAssertEqual(control.value as? String, "0", "Inspection must not enable Health access")
         }
@@ -617,6 +625,109 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5))
         let receipt = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: undo)
         XCTAssertEqual(XCTWaiter.wait(for: [receipt], timeout: 3), .completed)
+    }
+
+    /// A long conversation renders its latest messages; earlier ones come a
+    /// batch at a time, and the message that was first stays at the top.
+    func testShowEarlierMessagesRevealsABatchAndKeepsThePlace() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestLongConversation"]
+        app.launch()
+        finishSetup()
+        func message(_ number: Int) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", ": Earlier message \(number)")).firstMatch
+        }
+        // 70 messages: the latest 40 (31 to 70) are shown.
+        XCTAssertTrue(message(70).waitForExistence(timeout: 10))
+        XCTAssertFalse(message(30).exists)
+        let earlier = app.buttons["assistant-show-earlier"]
+        for _ in 0..<20 where !earlier.isHittable { app.swipeDown() }
+        XCTAssertTrue(earlier.isHittable)
+        earlier.tap()
+        XCTAssertTrue(message(11).waitForExistence(timeout: 5))
+        XCTAssertFalse(message(10).exists)
+        // The message that was first is at the top, with the batch above it.
+        let top = message(31)
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: top)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        let bar = app.navigationBars.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(top.frame.minY, bar.maxY - 1, "Message \(top.frame) under the bar \(bar)")
+        XCTAssertLessThanOrEqual(top.frame.minY, bar.maxY + 120, "The page jumped: \(top.frame)")
+        XCTAssertLessThan(message(30).frame.maxY, top.frame.minY)
+        attachScreenshot("Earlier messages shown above the place")
+        // The last batch reaches the first message and the control goes.
+        for _ in 0..<20 where !earlier.isHittable { app.swipeDown() }
+        earlier.tap()
+        XCTAssertTrue(message(1).waitForExistence(timeout: 5))
+        XCTAssertTrue(earlier.waitForNonExistence(timeout: 5))
+    }
+
+    // MARK: Discovery
+
+    /// "help" answers with everything Aurora can do, not a clarification,
+    /// and each row sends its own request.
+    func testHelpShowsCapabilitiesAndARowSendsItsRequest() {
+        finishSetup(); request("help")
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        XCTAssertFalse(cardTitle("clarification").exists)
+        let cutoff = app.buttons["capability-cutoffScenario"].firstMatch
+        for _ in 0..<6 where !cutoff.isHittable { app.swipeUp() }
+        cutoff.tap()
+        XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
+    }
+
+    /// While typing, the quick tiles become what matches the words so far.
+    func testTypingOffersMatchingActionsInPlaceOfTiles() {
+        finishSetup()
+        XCTAssertTrue(app.buttons["assistant-quick-Morning briefing"].exists)
+        let input = app.textFields["assistant-composer"]
+        input.tap(); input.typeText("cut")
+        let suggestion = app.buttons["assistant-suggest-cutoffScenario"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["assistant-quick-Morning briefing"].exists)
+        attachScreenshot("Composer suggestions")
+        suggestion.tap()
+        XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
+        XCTAssertNotEqual(input.value as? String, "cut")
+    }
+
+    /// The newest answer's next steps lead the fixed row above the composer
+    /// and send their request; the everyday tiles fill the rest.
+    func testNextStepsLeadTheBottomRowAfterAnEnergyAnswer() {
+        finishSetup()
+        tapQuick("How is my energy?")
+        XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        let curve = row.buttons["assistant-follow-up-energyProjection"]
+        XCTAssertTrue(curve.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].exists)
+        XCTAssertTrue(row.buttons["assistant-quick-Morning briefing"].exists)
+        XCTAssertTrue(row.buttons["assistant-quick-Log caffeine"].exists)
+        XCTAssertFalse(row.buttons["assistant-quick-How is my energy?"].exists)
+        attachScreenshot("Next steps in the bottom row")
+        curve.tap()
+        XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
+        // The curve's own next steps replace the energy answer's; never itself.
+        XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].waitForExistence(timeout: 5))
+        XCTAssertFalse(row.buttons["assistant-follow-up-energyProjection"].exists)
+        XCTAssertEqual(row.buttons.count, 4)
+    }
+
+    /// The drink follow-up card from synthetic fixtures, for visual review.
+    func testGalleryRepeatDrinkFixture() {
+        app.terminate()
+        app.launchArguments = ["-AuroraDesignGallery", "-AuroraGalleryExperience", "repeatDrink"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
+        let title = cardTitle("repeatDrink")
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let review = app.buttons["repeat-drink-review"]
+        for _ in 0..<12 where !review.isHittable { app.swipeUp() }
+        XCTAssertTrue(review.isHittable)
+        XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)
+        let question = NSPredicate(format: "label BEGINSWITH 'Had your ' AND label ENDSWITH ' Drip today?'")
+        XCTAssertTrue(app.staticTexts.matching(question).firstMatch.exists)
+        attachScreenshot("Drink follow-up")
     }
 
     private func window() -> XCUIElement { app.windows.firstMatch }

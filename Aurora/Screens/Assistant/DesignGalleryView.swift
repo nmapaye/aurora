@@ -22,7 +22,7 @@ struct DesignGalleryView: View {
     @State private var welcome: WelcomeFixture?
     @State private var cutoffFixture = CutoffFixture.feasible
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .receipt]
+    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .capabilities, .repeatDrink, .receipt]
     private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
 
     /// Synthetic energy states. Populated and stale use made-up manual
@@ -242,6 +242,17 @@ struct DesignGalleryView: View {
             card.timeZone = fixtureApp.clock.timeZone.identifier
             card.commitments = CalendarMerge.newestCopies(Self.calendarFixtures(now: Date(timeIntervalSince1970: fixtureApp.now / 1000)))
             fixtureAssistant.conversation.messages.append(.init(text: card.title, card: card))
+        } else if kind == .repeatDrink {
+            // A made-up Drip at 9:30 yesterday; nothing reads personal records.
+            fixtureApp.tick()
+            let yesterday = fixtureApp.clock.addingDays(-1, to: fixtureApp.clock.setTime(fixtureApp.now, hour: 9, minute: 30))
+            let prompt = RepeatDrinks.Prompt(doseID: "gallery-fixture", source: "Drip", mg: 95, yesterdayAt: yesterday, dueAt: fixtureApp.clock.addingDays(1, to: yesterday))
+            var card = AssistantCard(kind: .repeatDrink, capturedAt: fixtureApp.now, title: RepeatDrinks.question(prompt, text: fixtureApp.text), summary: RepeatDrinks.detail(prompt))
+            card.timeZone = fixtureApp.clock.timeZone.identifier
+            card.repeatDrink = prompt
+            let message = ConversationMessage(text: card.title, intent: .logCaffeine, suggestionKey: prompt.id, card: card)
+            fixtureAssistant.conversation.messages.append(message)
+            fixtureAssistant.activeCards.insert(message.id)
         } else if kind == .receipt {
             var card = AssistantCard(kind: .receipt, capturedAt: fixtureApp.now, title: "Sample receipt", summary: "Fixture only · no personal record saved")
             card.state = .saved

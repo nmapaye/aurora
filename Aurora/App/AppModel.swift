@@ -501,6 +501,12 @@ final class AppModel {
         reminderStatus = await reminders.sync(enabled: state.prefs.notifyCutoff, cutoffHour: state.prefs.cutoffHour, prompt: false)
     }
 
+    /// Next-day follow-ups on yesterday's drinks.
+    @discardableResult
+    func setRepeatDrinks(_ settings: RepeatDrinkSettings) -> Bool {
+        update { $0.prefs.repeatDrinks = settings }
+    }
+
     /// Saves the person's wake reminder settings, then schedules them. Saving
     /// with reminders on is the only place that asks for permission.
     func saveWakeReminders(_ settings: WakeReminderSettings) async {

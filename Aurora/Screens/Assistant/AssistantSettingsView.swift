@@ -41,6 +41,7 @@ struct AssistantSettingsView: View {
                         LabeledContent("After waking", value: wakeSummary)
                     }
                     .accessibilityIdentifier("assistant-wake-reminders")
+                    DrinkFollowUpControls()
                 }
                 Section("Proactive suggestions") {
                     Toggle("Offer useful updates", isOn: $assistant.conversation.preferences.proactive)

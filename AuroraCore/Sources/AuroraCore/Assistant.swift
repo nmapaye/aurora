@@ -5,6 +5,8 @@ public enum AssistantIntent: String, Codable, CaseIterable, Identifiable, Sendab
     /// Added after the first release; older conversations never contain them.
     case energyProjection, energyCheckIn
     case cutoffScenario
+    /// "What can you do?": the capabilities card.
+    case help
     public var id: String { rawValue }
 }
 
@@ -46,7 +48,8 @@ public struct ConversationState: Codable, Equatable, Sendable {
 public enum AssistantPlanner {
     public static let modelInstructions = """
     Classify the user's request into exactly one label:
-    logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, cutoffScenario, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, unsupported.
+    logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, cutoffScenario, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, help, unsupported.
+    help means asking what Aurora can do or which features exist.
     energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means rating how energetic the user feels right now.
     cutoffScenario means exploring a what-if caffeine scenario for a bedtime and threshold the user enters; it never recommends an amount, time or bedtime.
     logCaffeine means recording a drink already consumed. Questions about amounts to drink are unsupported.
@@ -64,6 +67,10 @@ public enum AssistantPlanner {
         if text.contains("how much") || text.contains("should i drink") || text.contains("recommend a dose") { return .unsupported }
         if text.contains("don't") || text.contains("do not") || text.contains("didn't") || text.contains("cancel") || text.contains("delete") { return .unsupported }
         if text == "settings" { return .settings }
+        let helpPhrases = ["help", "what can you do", "what can aurora do", "what can i ask", "what can i do", "features", "show me everything", "what else can you do"]
+        // One-word phrases only on their own: "help me log coffee" is a log.
+        let asked = text.trimmingCharacters(in: CharacterSet(charactersIn: "?!. "))
+        if helpPhrases.contains(where: { asked == $0 || ($0.contains(" ") && asked.hasPrefix($0 + " ")) }) { return .help }
         if text.contains("reaction test") || text.contains("reaction speed") { return .reactionTest }
         if text.contains("export") { return .exports }
         if text.contains("reminder") || text.contains("notification") { return .reminders }
@@ -245,16 +252,20 @@ public enum AssistantPlanner {
 }
 
 public enum ProactivePolicy {
+    /// Inside the person's quiet hours. Equal start and end means always quiet.
+    public static func isQuiet(hour: Int, preferences p: AssistantPreferences) -> Bool {
+        p.quietStartHour == p.quietEndHour || (p.quietStartHour > p.quietEndHour
+            ? hour >= p.quietStartHour || hour < p.quietEndHour
+            : hour >= p.quietStartHour && hour < p.quietEndHour)
+    }
+
     public static func canDeliver(key: String, state: ConversationState, now: Millis, clock: LocalClock) -> Bool {
         guard state.preferences.proactive, !state.dismissedSuggestions.contains(key), state.deliveredSuggestions[key] == nil else { return false }
         let hour = clock.calendar.component(.hour, from: Date(timeIntervalSince1970: now / 1000))
-        let p = state.preferences
-        let quiet = p.quietStartHour == p.quietEndHour || (p.quietStartHour > p.quietEndHour
-            ? hour >= p.quietStartHour || hour < p.quietEndHour
-            : hour >= p.quietStartHour && hour < p.quietEndHour)
-        guard !quiet else { return false }
+        guard !isQuiet(hour: hour, preferences: state.preferences) else { return false }
         let start = clock.startOfDay(now), end = clock.addingDays(1, to: start)
-        return state.deliveredSuggestions.values.filter { $0 >= start && $0 < end }.count < 2
+        // Drink follow-ups have their own opt-in and daily limit.
+        return state.deliveredSuggestions.filter { !$0.key.hasPrefix(RepeatDrinks.keyPrefix) && $0.value >= start && $0.value < end }.count < 2
     }
 }
 

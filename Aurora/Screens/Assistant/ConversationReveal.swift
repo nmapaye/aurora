@@ -26,3 +26,32 @@ enum ConversationReveal: Equatable {
         return readingLatest ? .start(first.id) : .hold(first.id)
     }
 }
+
+/// Which messages the conversation renders. It is a plain stack, not a lazy
+/// one: on iOS 26.5 the lazy stack's estimated row heights kept the scroll
+/// view re-adjusting its offset forever (an iPad hang after saving a draft
+/// while reading earlier messages). A plain stack lays out every row, so it
+/// shows the latest messages and reveals earlier ones in batches on request.
+///
+/// `start` is the first message shown; nil shows the latest.
+enum ConversationWindow {
+    static let latest = 40
+    static let batch = 20
+
+    /// Index of the first message shown. Always includes the latest.
+    static func first(_ start: Int?, count: Int) -> Int {
+        max(0, min(start ?? count, count - latest))
+    }
+
+    /// After the count changed. Added messages join below without moving
+    /// the top; opening or clearing the conversation shows the latest again.
+    static func start(_ start: Int?, count: Int, previousCount: Int) -> Int? {
+        guard previousCount > 0, count > 0 else { return nil }
+        return count > previousCount ? first(start, count: previousCount) : start
+    }
+
+    /// One batch earlier.
+    static func earlier(_ start: Int?, count: Int) -> Int {
+        max(0, first(start, count: count) - batch)
+    }
+}
