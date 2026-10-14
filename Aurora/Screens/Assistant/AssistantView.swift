@@ -35,6 +35,8 @@ struct AssistantView: View {
     @State private var viewportHeight: CGFloat = 0
     /// The first message added while earlier messages were being read.
     @State private var heldMessage: UUID?
+    /// The first message shown (`ConversationWindow`); nil shows the latest.
+    @State private var windowStart: Int?
     @State private var composerWidth: CGFloat = 0
     /// The fixed bottom area's height; it changes when quick actions hide
     /// for card editing and come back.
@@ -48,9 +50,9 @@ struct AssistantView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 22) {
-                        identity
-                        ForEach(assistant.conversation.messages) { message in conversationRow(message) }
+                    VStack(alignment: .leading, spacing: 22) {
+                        top(proxy)
+                        ForEach(shownMessages) { message in conversationRow(message) }
                         // Stop lives in the composer, so it stays reachable
                         // while earlier messages are being read.
                         if assistant.processing {
@@ -159,11 +161,14 @@ struct AssistantView: View {
     private func messagesChanged(from old: Int, _ proxy: ScrollViewProxy) {
         let messages = assistant.conversation.messages
         let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
+        windowStart = ConversationWindow.start(windowStart, count: messages.count, previousCount: old)
         switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
         case .none:
             if messages.isEmpty { heldMessage = nil }
         case .end:
-            heldMessage = nil
+            // Going to the end anyway: drop revealed earlier messages so
+            // the plain stack doesn't grow without bound.
+            heldMessage = nil; windowStart = nil
             reveal(proxy, "bottom", anchor: .bottom)
         case .start(let id):
             heldMessage = nil
@@ -175,6 +180,41 @@ struct AssistantView: View {
                 UIAccessibility.post(notification: .announcement, argument: "New message below")
             }
         }
+    }
+
+    /// The messages the stack renders: the latest, plus any earlier batches
+    /// the person asked for. Every reveal target is among the newest.
+    private var shownMessages: ArraySlice<ConversationMessage> {
+        let messages = assistant.conversation.messages
+        return messages[ConversationWindow.first(windowStart, count: messages.count)...]
+    }
+
+    /// The welcome, then the control for messages left out of the stack.
+    /// One member, so the body stays quick to type-check.
+    @ViewBuilder private func top(_ proxy: ScrollViewProxy) -> some View {
+        identity
+        if ConversationWindow.first(windowStart, count: assistant.conversation.messages.count) > 0 {
+            Button { showEarlierMessages(proxy) } label: {
+                Label("Show earlier messages", systemImage: "arrow.up")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, Metrics.md)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+            }
+            .buttonStyle(CapsuleActionStyle())
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("assistant-show-earlier")
+        }
+    }
+
+    /// Adds one batch above and keeps the place: the message that was first
+    /// is put back at the top once the batch is laid out.
+    private func showEarlierMessages(_ proxy: ScrollViewProxy) {
+        let messages = assistant.conversation.messages
+        let first = ConversationWindow.first(windowStart, count: messages.count)
+        guard first > 0 else { return }
+        let top = messages[first].id
+        windowStart = ConversationWindow.earlier(windowStart, count: messages.count)
+        Task { @MainActor in proxy.scrollTo(top, anchor: .top) }
     }
 
     @ViewBuilder private var identity: some View {

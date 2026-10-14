@@ -117,7 +117,7 @@ final class AssistantModel {
             let store = try makeConversationStore()
             self.store = store
             conversation = try Signposts.measure("Assistant.ConversationLoad") {
-                AppModel.launchedForUITestReset ? ConversationState() : try store.load()
+                AppModel.launchedForUITestReset ? Self.uiTestConversation() : try store.load()
             }
             storageReady = true
             for index in conversation.messages.indices {
@@ -152,6 +152,18 @@ final class AssistantModel {
         appleModel.releasePreparedSession()
         intentCache.clear()
         cacheGeneration += 1
+    }
+
+    /// Empty for UI tests, or with `-AuroraUITestLongConversation` more
+    /// messages than the conversation shows at first. Empty in Release.
+    static func uiTestConversation(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> ConversationState {
+        var state = ConversationState()
+        #if DEBUG
+        if arguments.contains("-AuroraUITestLongConversation") {
+            state.messages = (1...70).map { ConversationMessage(text: "Earlier message \($0)", isUser: $0.isMultiple(of: 2)) }
+        }
+        #endif
+        return state
     }
 
     func clearConversation() {

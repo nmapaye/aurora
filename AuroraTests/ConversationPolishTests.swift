@@ -34,6 +34,41 @@ import Testing
         #expect(ConversationReveal.after([], previousCount: 3, readingLatest: true) == .none)
     }
 
+    @Test func theWindowShowsTheLatestAndKeepsItsTopAsMessagesArrive() {
+        #expect(ConversationWindow.first(nil, count: 0) == 0)
+        #expect(ConversationWindow.first(nil, count: 12) == 0)
+        #expect(ConversationWindow.first(nil, count: 100) == 60)
+        // A reply joins below; the top message stays the same.
+        let start = ConversationWindow.start(nil, count: 101, previousCount: 100)
+        #expect(start == 60)
+        #expect(ConversationWindow.first(start, count: 101) == 60)
+        #expect(ConversationWindow.start(25, count: 103, previousCount: 101) == 25)
+    }
+
+    @Test func showingEarlierAddsABatchUntilTheFirstMessage() {
+        let once = ConversationWindow.earlier(nil, count: 100)
+        #expect(once == 40)
+        let twice = ConversationWindow.earlier(once, count: 100)
+        #expect(twice == 20)
+        #expect(ConversationWindow.earlier(ConversationWindow.earlier(twice, count: 100), count: 100) == 0)
+    }
+
+    @Test func openingClearingOrRemovingKeepsTheLatestShown() {
+        // Opening the stored conversation, and clearing it, show the latest.
+        #expect(ConversationWindow.start(10, count: 100, previousCount: 0) == nil)
+        #expect(ConversationWindow.start(10, count: 0, previousCount: 100) == nil)
+        // A removal keeps the revealed batches; the latest are always shown.
+        #expect(ConversationWindow.start(10, count: 99, previousCount: 100) == 10)
+        #expect(ConversationWindow.first(70, count: 50) == 10)
+        #expect(ConversationWindow.first(70, count: 1) == 0)
+    }
+
+    @Test func theLongConversationFixtureNeedsItsArgument() {
+        #expect(AssistantModel.uiTestConversation([]).messages.isEmpty)
+        let long = AssistantModel.uiTestConversation(["-AuroraUITestLongConversation"]).messages
+        #expect(long.count > ConversationWindow.latest + ConversationWindow.batch)
+    }
+
     /// The same column as the message list: `contentMaxWidth`, centered,
     /// at least `lg` from each edge.
     @Test func columnInsetMatchesTheConversationColumn() {

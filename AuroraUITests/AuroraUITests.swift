@@ -619,6 +619,41 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [receipt], timeout: 3), .completed)
     }
 
+    /// A long conversation renders its latest messages; earlier ones come a
+    /// batch at a time, and the message that was first stays at the top.
+    func testShowEarlierMessagesRevealsABatchAndKeepsThePlace() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestLongConversation"]
+        app.launch()
+        finishSetup()
+        func message(_ number: Int) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", ": Earlier message \(number)")).firstMatch
+        }
+        // 70 messages: the latest 40 (31 to 70) are shown.
+        XCTAssertTrue(message(70).waitForExistence(timeout: 10))
+        XCTAssertFalse(message(30).exists)
+        let earlier = app.buttons["assistant-show-earlier"]
+        for _ in 0..<20 where !earlier.isHittable { app.swipeDown() }
+        XCTAssertTrue(earlier.isHittable)
+        earlier.tap()
+        XCTAssertTrue(message(11).waitForExistence(timeout: 5))
+        XCTAssertFalse(message(10).exists)
+        // The message that was first is at the top, with the batch above it.
+        let top = message(31)
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: top)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        let bar = app.navigationBars.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(top.frame.minY, bar.maxY - 1, "Message \(top.frame) under the bar \(bar)")
+        XCTAssertLessThanOrEqual(top.frame.minY, bar.maxY + 120, "The page jumped: \(top.frame)")
+        XCTAssertLessThan(message(30).frame.maxY, top.frame.minY)
+        attachScreenshot("Earlier messages shown above the place")
+        // The last batch reaches the first message and the control goes.
+        for _ in 0..<20 where !earlier.isHittable { app.swipeDown() }
+        earlier.tap()
+        XCTAssertTrue(message(1).waitForExistence(timeout: 5))
+        XCTAssertTrue(earlier.waitForNonExistence(timeout: 5))
+    }
+
     // MARK: Discovery
 
     /// "help" answers with everything Aurora can do, not a clarification,
