@@ -153,6 +153,9 @@ struct AssistantCardView: View {
         Label { Text(card.title) } icon: { Image(systemName: symbol).accessibilityHidden(true) }
             .font(Typography.cardTitle)
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            // One element: automation still finds the hidden symbol, and it
+            // took the card's identifier ahead of the title.
+            .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
     }
     /// A ready energy snapshot can turn earlier; other cards never change with time.
