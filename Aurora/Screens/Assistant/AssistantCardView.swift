@@ -43,7 +43,7 @@ struct AssistantCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             cardContent
-            if card.kind != .clarification { captureRow }
+            if card.kind != .clarification && card.kind != .welcome { captureRow }
         }
         .onChange(of: card.state, stateChanged)
         // Save or Discard removes the focused field, which clears focus too.
@@ -271,6 +271,7 @@ struct AssistantCardView: View {
         case .clarification: "sparkle"
         case .capabilities: "questionmark.circle"
         case .repeatDrink: "cup.and.saucer"
+        case .welcome: "hand.wave"
         case .energyProjection: "chart.xyaxis.line"
         case .energyCheckIn: "hand.raised"
         case .cutoffScenario: "moon.zzz"
@@ -331,6 +332,7 @@ struct AssistantCardView: View {
                     ForEach(Capabilities.all.filter { $0.group == group }) { capabilityRow($0, showsSymbol: true) }
                 }
             }
+        case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
                 Button("Review entry") { assistant.reviewRepeatDrink(message, app: app) }

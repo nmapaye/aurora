@@ -130,8 +130,10 @@ final class AssistantModel {
                     }
                 }
             }
+            // A new conversation opens on a short welcome, not the full list
+            // of capabilities: that stays one "What can you do?" away.
             if conversation.messages.isEmpty {
-                appendCard(AssistantCards.make(.capabilities, state: app.state, now: app.now, clock: app.clock, text: app.text))
+                appendCard(AssistantCards.make(.welcome, state: app.state, now: app.now, clock: app.clock, text: app.text))
             }
             if app.state.isWalkthroughPending { app.completeWalkthrough() }
             await Signposts.measureAsync("Assistant.CalendarListRefresh") { await calendars.refreshCalendars() }

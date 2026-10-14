@@ -22,7 +22,7 @@ struct DesignGalleryView: View {
     @State private var welcome: WelcomeFixture?
     @State private var cutoffFixture = CutoffFixture.feasible
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .capabilities, .repeatDrink, .receipt]
+    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .welcome, .capabilities, .repeatDrink, .receipt]
     private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
 
     /// Synthetic energy states. Populated and stale use made-up manual

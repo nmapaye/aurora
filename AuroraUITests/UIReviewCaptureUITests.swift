@@ -37,7 +37,7 @@ final class UIReviewCaptureUITests: XCTestCase {
 
     // MARK: Cards
 
-    private static let kinds = ["capabilities", "clarification", "caffeineDraft", "sleepDraft", "energy", "energyProjection", "energyCheckIn",
+    private static let kinds = ["welcome", "capabilities", "clarification", "caffeineDraft", "sleepDraft", "energy", "energyProjection", "energyCheckIn",
                                 "cutoffScenario", "trends", "calendar", "reaction", "history", "exports", "briefing", "reminders",
                                 "repeatDrink", "receipt"]
 

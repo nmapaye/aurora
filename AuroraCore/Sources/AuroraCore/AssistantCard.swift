@@ -11,6 +11,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case capabilities
         /// A next-day follow-up on yesterday's drink.
         case repeatDrink
+        /// A new conversation's first card: one line and three starting
+        /// points. The full list stays one "What can you do?" away.
+        case welcome
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -88,7 +91,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .briefing: .briefing
         case .reminders: .reminders
         case .capabilities: .help
-        case .clarification, .receipt, .repeatDrink: nil
+        case .clarification, .receipt, .repeatDrink, .welcome: nil
         }
     }
 }
@@ -113,6 +116,7 @@ public enum AssistantCards {
         case .receipt: "Saved"
         case .capabilities: "What Aurora can do"
         case .repeatDrink: "Yesterday’s drink"
+        case .welcome: "Ready when you are."
         }
         var card = AssistantCard(kind: kind, capturedAt: now, title: title)
         card.timeZone = clock.timeZone.identifier
@@ -201,7 +205,7 @@ public enum AssistantCards {
             // The "Scenario" badge labels it; the disclaimer sits under Assumptions.
             card.summary = ""
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
-        case .receipt: break
+        case .receipt, .welcome: break
         case .capabilities: card.summary = "Tap one, or ask in your own words."
         // Built by the follow-up itself, from the prompt it carries.
         case .repeatDrink: break

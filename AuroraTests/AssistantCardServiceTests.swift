@@ -176,6 +176,19 @@ import Testing
         #expect(assistant.conversation.messages.last?.card?.commitments.first?.title == "Updated commitment")
         #expect(fixture.reads == 2 && fixture.writes == 0)
     }
+    /// A new conversation opens on the short welcome; the full capabilities
+    /// card waits for "What can you do?".
+    @Test func aNewConversationOpensOnTheWelcome() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ConversationStore(directory: directory)
+        let app = app(directory.appendingPathComponent("records"))
+        let assistant = AssistantModel(calendars: calendars(), makeStore: { store })
+        await assistant.start(app: app)
+        #expect(assistant.conversation.messages.first?.card?.kind == .welcome)
+        #expect(assistant.conversation.messages.first?.card?.title == "Ready when you are.")
+        #expect(!assistant.conversation.messages.contains { $0.card?.kind == .capabilities })
+        #expect(try store.load().messages.first?.card?.kind == .welcome)
+    }
     @Test func interruptedReadBecomesRefreshableFailureAfterRelaunch() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let store = ConversationStore(directory: directory)
