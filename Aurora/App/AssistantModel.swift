@@ -354,31 +354,63 @@ final class AssistantModel {
         change(&card); conversation.messages[index].card = card; save()
     }
     func expireDraft() {
-        updateCard(pendingMessageID) { $0.state = .expired }
+        closeDraftCard(.expired)
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
         closeCutoff()
     }
+    /// How the open draft's times are written into its card. Set when the
+    /// draft opens, so Discard and Expire, which have no app, can still write
+    /// its final values.
+    @ObservationIgnored private var draftFormat: (text: DateText, zone: String)?
+
+    /// Writes the open draft's values into its card's rows. Called when a
+    /// draft opens and when the app goes inactive, never per edit: while the
+    /// draft is open its card shows the live `pending*` values, and each
+    /// write re-encodes the whole conversation and redraws every message.
+    /// The inactive write keeps a relaunch's expired card showing what was
+    /// last entered.
     func captureDraft(app: AppModel) {
-        if let draft = pendingDraft {
-            updateCard(pendingMessageID) { $0.metrics = [
-                .init(id: "amount", label: "Proposed amount", value: draft.mg.isEmpty ? "Not specified" : draft.mg + " mg", source: "User review required"),
-                .init(id: "source", label: "Source", value: draft.source.isEmpty ? "Not specified" : draft.source, source: "Proposed entry"),
-                .init(id: "time", label: "Time", value: app.text.fullDateTime(draft.timestamp), source: app.clock.timeZone.identifier)
-            ] }
-        } else if let draft = pendingSleep {
-            updateCard(pendingMessageID) { $0.metrics = [
-                .init(id: "start", label: "Start", value: app.text.fullDateTime(draft.start), source: "Manual · local time"),
-                .init(id: "end", label: "End", value: app.text.fullDateTime(draft.end), source: "Manual · local time")
-            ] }
-        } else if let draft = pendingCheckIn {
-            updateCard(pendingMessageID) { $0.metrics = [
-                .init(id: "rating", label: "Your rating", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "Not chosen", source: EnergyCheckIn.sourceLabel, missing: draft.rating == nil),
-                .init(id: "time", label: "Time", value: app.text.fullDateTime(draft.recordedAt), source: app.clock.timeZone.identifier)
-            ] }
+        draftFormat = (app.text, app.clock.timeZone.identifier)
+        guard let metrics = draftMetrics(),
+              let id = pendingMessageID, conversation.messages.first(where: { $0.id == id })?.card?.metrics != metrics else { return }
+        updateCard(id) { $0.metrics = metrics }
+    }
+
+    /// Ends the open draft's card with its final values and new state in
+    /// one write.
+    private func closeDraftCard(_ state: AssistantCard.State) {
+        let metrics = draftMetrics()
+        updateCard(pendingMessageID) { card in
+            if let metrics { card.metrics = metrics }
+            card.state = state
         }
     }
+
+    /// The open draft's values as card rows; nil when no draft is open.
+    private func draftMetrics() -> [AssistantCard.Metric]? {
+        guard let format = draftFormat else { return nil }
+        let text = format.text, zone = format.zone
+        if let draft = pendingDraft {
+            return [
+                .init(id: "amount", label: "Proposed amount", value: draft.mg.isEmpty ? "Not specified" : draft.mg + " mg", source: "User review required"),
+                .init(id: "source", label: "Source", value: draft.source.isEmpty ? "Not specified" : draft.source, source: "Proposed entry"),
+                .init(id: "time", label: "Time", value: text.fullDateTime(draft.timestamp), source: zone)
+            ]
+        } else if let draft = pendingSleep {
+            return [
+                .init(id: "start", label: "Start", value: text.fullDateTime(draft.start), source: "Manual · local time"),
+                .init(id: "end", label: "End", value: text.fullDateTime(draft.end), source: "Manual · local time")
+            ]
+        } else if let draft = pendingCheckIn {
+            return [
+                .init(id: "rating", label: "Your rating", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "Not chosen", source: EnergyCheckIn.sourceLabel, missing: draft.rating == nil),
+                .init(id: "time", label: "Time", value: text.fullDateTime(draft.recordedAt), source: zone)
+            ]
+        }
+        return nil
+    }
     func discardDraft() {
-        updateCard(pendingMessageID) { $0.state = .discarded }
+        closeDraftCard(.discarded)
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
         closeCutoff()
     }
@@ -451,7 +483,7 @@ final class AssistantModel {
         let previous = Set(app.state.sleeps.map(\.id))
         app.addManualSleep(draft)
         guard app.mutationFailure == nil, let added = app.state.sleeps.first(where: { !previous.contains($0.id) }) else { failure = app.mutationFailure ?? "The sleep entry wasn't saved."; return }
-        updateCard(pendingMessageID) { $0.state = .saved }
+        closeDraftCard(.saved)
         pendingSleep = nil; pendingMessageID = nil
         receipt(recordID: added.id, kind: "sleep", app: app, title: "Sleep saved")
     }
@@ -486,7 +518,7 @@ final class AssistantModel {
         let saved = draft.original.map { app.replaceEnergyCheckIn(checkIn, expecting: $0) } ?? app.addEnergyCheckIn(checkIn)
         guard saved, app.mutationFailure == nil else { failure = app.mutationFailure ?? "The check-in wasn't saved."; return }
         failure = nil
-        updateCard(pendingMessageID) { $0.state = .saved }
+        closeDraftCard(.saved)
         pendingCheckIn = nil; pendingMessageID = nil
         var card = AssistantCard(kind: .receipt, capturedAt: app.now, title: draft.original == nil ? "Check-in saved" : "Check-in updated")
         card.state = .saved; card.recordID = checkIn.id; card.recordKind = "checkin"
@@ -543,7 +575,7 @@ final class AssistantModel {
         if let message = CaffeineLog.validate(draft, now: app.now).message { failure = message; return }
         let dose = app.addCustomDose(draft)
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
-        updateCard(pendingMessageID) { $0.state = .saved }
+        closeDraftCard(.saved)
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")

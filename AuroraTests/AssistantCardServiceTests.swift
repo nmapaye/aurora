@@ -48,6 +48,34 @@ import Testing
         #expect(assistant.conversation.messages.allSatisfy { $0.card?.capturedAt == 123 })
         #expect(assistant.activeCards.isEmpty && assistant.pendingDraft == nil && assistant.pendingSleep == nil)
     }
+    /// Typing in an open draft changes only the draft; its card is written
+    /// when the app goes inactive and when the draft closes.
+    @Test func draftEditsReachTheCardOnlyWhenCapturedOrClosed() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        await assistant.handle(.logCaffeine, input: "Log caffeine", app: app)
+        let id = try #require(assistant.pendingMessageID)
+        let opened = assistant.conversation
+        assistant.pendingDraft?.mg = "123"
+        assistant.pendingDraft?.source = "Tea"
+        #expect(assistant.conversation == opened)
+        func card() -> AssistantCard? { assistant.conversation.messages.first { $0.id == id }?.card }
+        func value(_ metric: String) -> String? { card()?.metrics.first { $0.id == metric }?.value }
+        // Going inactive: the open card keeps the last values for a relaunch.
+        assistant.captureDraft(app: app)
+        #expect(card()?.state == .ready && value("amount") == "123 mg" && value("source") == "Tea")
+        assistant.pendingDraft?.mg = "150"
+        assistant.discardDraft()
+        #expect(card()?.state == .discarded && value("amount") == "150 mg")
+        // A saved check-in's card shows the rating chosen, not the opening one.
+        await assistant.handle(.energyCheckIn, input: "Check in my energy", app: app)
+        let checkIn = try #require(assistant.pendingMessageID)
+        assistant.pendingCheckIn?.rating = 4
+        assistant.saveCheckIn(app: app)
+        let saved = try #require(assistant.conversation.messages.first { $0.id == checkIn }?.card)
+        #expect(saved.state == .saved && saved.metrics.first { $0.id == "rating" }?.missing == false)
+    }
     @Test func cardFocusIsReleasedOnlyByItsOwnCard() {
         let assistant = AssistantModel(calendars: calendars())
         let a = UUID(), b = UUID()

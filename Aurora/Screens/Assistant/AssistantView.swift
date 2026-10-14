@@ -527,11 +527,11 @@ private struct ConversationObservers: ViewModifier {
     func body(content: Content) -> some View {
         content
             // Becoming active refreshes through AppModel's shared scheduler.
+            // An open draft's values reach its card here, not per edit, so a
+            // relaunch's expired card shows what was last entered.
             .onChange(of: phase) { _, value in
-                if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.clearCardFocus() }
+                if value != .active { dictation.stop(); assistant.releaseWarmResources(); assistant.clearCardFocus(); assistant.captureDraft(app: app) }
             }
-            .onChange(of: assistant.pendingDraft) { _, _ in assistant.captureDraft(app: app) }
-            .onChange(of: assistant.pendingSleep) { _, _ in assistant.captureDraft(app: app) }
             .onChange(of: app.state.vigilanceSessions) { old, new in
                 if assistant.historySheet == .reactionTest, new.contains(where: { record in !RecordID.isSample(record.id) && !old.contains(where: { $0.id == record.id }) }) { assistant.reactionCompleted(app: app) }
             }
