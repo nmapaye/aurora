@@ -108,7 +108,15 @@ final class AuroraUITests: XCTestCase {
                 if control.isEnabled { return control.isHittable }
                 return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
             }
-            for _ in 0..<12 where !reachable() { app.swipeUp() }
+            // Short drags toward the switch: on iPad the sheet is small at the
+            // largest text, and a full swipe scrolled past it to the end.
+            let window = app.windows.firstMatch
+            for _ in 0..<24 where !reachable() {
+                let up = control.frame.midY > window.frame.midY
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.6 : 0.4)).press(
+                    forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.45 : 0.55)),
+                    withVelocity: .slow, thenHoldForDuration: 0.05)
+            }
             XCTAssertTrue(reachable(), choice + " must be reachable by scrolling")
             XCTAssertEqual(control.value as? String, "0", "Inspection must not enable Health access")
         }

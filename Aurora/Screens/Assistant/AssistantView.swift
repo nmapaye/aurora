@@ -696,9 +696,14 @@ private struct ConversationComposer: View {
               !assistant.processing, assistant.pendingMessageID == nil, !assistant.editingCardField else { return nil }
         return card
     }
+    /// Every tile is the same height whatever its symbol: the icon sits over
+    /// one reserved line of body text. Symbols differ in height, so a row
+    /// that resized as next steps replaced the tiles re-anchored the
+    /// conversation to its end and scrolled a new card's title away.
     private func tileLabel(_ short: String, symbol: String) -> some View {
         VStack(spacing: Metrics.xxs) {
-            Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
+            Text(verbatim: " ").font(.body.weight(.semibold)).hidden()
+                .overlay { Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint) }
             Text(short).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, minHeight: 56)
