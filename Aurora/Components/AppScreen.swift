@@ -208,6 +208,8 @@ struct LabeledField<Field: View>: View {
     let label: String
     var unit: String?
     @ViewBuilder var field: () -> Field
+    /// True while the text field inside has keyboard focus.
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
@@ -221,8 +223,19 @@ struct LabeledField<Field: View>: View {
             }
             .padding(.horizontal, Metrics.sm)
             .frame(minHeight: Metrics.minimumTouchTarget)
-            .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+            .focused($focused)
+            .fieldSurface(focused: focused)
         }
+    }
+}
+
+extension View {
+    /// The shared field surface: fill, a resting border the card can't
+    /// swallow, and a tint ring while the field has focus.
+    func fieldSurface(focused: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+        return background(Palette.fieldBackground, in: shape)
+            .overlay(shape.strokeBorder(focused ? Palette.tint : Palette.fieldBorder, lineWidth: focused ? 2 : 1))
     }
 }
 

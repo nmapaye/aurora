@@ -205,7 +205,7 @@ struct SetupConversationView: View {
                 .onSubmit(saveName)
                 .padding(.horizontal, Metrics.md)
                 .frame(minHeight: Metrics.minimumTouchTarget)
-                .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                .fieldSurface(focused: nameFocused)
                 .accessibilityLabel("First name")
                 .accessibilityIdentifier("setup-name")
             actionRow(primary: "Continue", primaryDisabled: Welcome.cleanName(name) == nil, primaryAction: saveName) {

@@ -32,6 +32,17 @@ extension Color {
                 : UIColor(hex: light, alpha: lightAlpha)
         })
     }
+
+    /// A color with stronger variants for Increase Contrast, so borders,
+    /// fields and quieter text step up with the rest of the system.
+    init(light: Int, dark: Int, highContrastLight: Int, highContrastDark: Int) {
+        self.init(uiColor: UIColor { traits in
+            let high = traits.accessibilityContrast == .high
+            return traits.userInterfaceStyle == .dark
+                ? UIColor(hex: high ? highContrastDark : dark)
+                : UIColor(hex: high ? highContrastLight : light)
+        })
+    }
 }
 
 enum Palette {
@@ -45,11 +56,13 @@ enum Palette {
     static let modalBackground = Color(light: Brand.ivory100, dark: Brand.ink850)
     static let card = Color(light: Brand.ivory50, dark: Brand.ink850)
     static let cardMuted = Color(light: Brand.ivory300, dark: Brand.ink800)
-    static let cardBorder = Color(light: Brand.ivory400, dark: Brand.ink700)
-    static let separator = Color(light: Brand.ivory400, dark: Brand.ink700)
+    // Increase Contrast: borders reach 3:1 on `card`, quieter text moves a
+    // step toward primary, and fields separate from the card.
+    static let cardBorder = Color(light: Brand.ivory400, dark: Brand.ink700, highContrastLight: Brand.ink400, highContrastDark: Brand.ink500)
+    static let separator = Color(light: Brand.ivory400, dark: Brand.ink700, highContrastLight: Brand.ink400, highContrastDark: Brand.ink500)
     static let textPrimary = Color(light: 0x1A1F24, dark: Brand.ink100)
-    static let textSecondary = Color(light: 0x5B6168, dark: Brand.ink300)
-    static let textTertiary = Color(light: 0x62676C, dark: Brand.ink400)
+    static let textSecondary = Color(light: 0x5B6168, dark: Brand.ink300, highContrastLight: Brand.ink600, highContrastDark: Brand.ivory400)
+    static let textTertiary = Color(light: 0x62676C, dark: Brand.ink400, highContrastLight: Brand.ink600, highContrastDark: Brand.ink300)
     static let tint = Color(light: Brand.sea700, dark: Brand.sea300)
     static let destructive = Color(light: 0xA8402E, dark: 0xE8806C)
     static let primaryButton = Color(light: Brand.sea700, dark: Brand.sea300)
@@ -62,7 +75,10 @@ enum Palette {
     static let neutralButton = Color(light: Brand.ivory50, dark: Brand.ink800)
     static let neutralButtonBorder = Color(light: Brand.ivory400, dark: Brand.ink600)
     static let selectionFill = Color(light: Brand.sea100, dark: Brand.sea800)
-    static let fieldBackground = Color(light: Brand.ivory100, dark: Brand.ink800)
+    static let fieldBackground = Color(light: Brand.ivory100, dark: Brand.ink800, highContrastLight: Brand.ivory300, highContrastDark: Brand.ink700)
+    /// A field's resting edge: the fill alone is about 1.05:1 on `card`, so
+    /// the border carries it (4.6:1 light, 3.8:1 dark). Focus uses `tint`.
+    static let fieldBorder = Color(light: Brand.ink500, dark: Brand.ink500, highContrastLight: Brand.ink600, highContrastDark: Brand.ink400)
 
     static let statusNeutralBackground = Color(light: Brand.ivory300, dark: Brand.ink800)
     static let statusNeutralText = Color(light: 0x5B6168, dark: 0xC3C8CD)

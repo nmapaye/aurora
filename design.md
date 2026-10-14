@@ -64,7 +64,10 @@ every `StatusTone` carries a `symbol`, and `StatusBadge` always shows both.
 - Use monospaced digits for changing quantities, units, and time comparisons.
 - Fields: `LabeledField` puts the label above one field surface (`fieldBackground`,
   control radius, 44 pt) with the unit trailing inside it, so labels, values and
-  units align down a card. Metric rows put label leading and value trailing on one
+  units align down a card. The surface has a 1 pt `fieldBorder` (ink500, at least
+  3:1 on the card) that becomes a 2 pt `tint` ring while focused (`fieldSurface`).
+  Increase Contrast strengthens `cardBorder`, `separator`, `fieldBorder`,
+  `fieldBackground` and the secondary/tertiary text roles from the same ramps. Metric rows put label leading and value trailing on one
   baseline and stack when large text no longer fits both.
 - Drafts show a `StatusBadge` beside the title (Review before saving, Saved,
   Removed, Expired, Discarded, Not saved). Receipts state outcome in the title and
