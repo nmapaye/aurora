@@ -97,8 +97,7 @@ struct CutoffScenarioCardView: View {
                     Button("Calculate") { field = nil; assistant.calculateCutoff(app: app) }
                         .buttonStyle(.auroraSecondary).accessibilityIdentifier("cutoff-calculate")
                 }
-                Button("Close") { field = nil; assistant.discardDraft() }
-                    .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                quietButton("Discard") { field = nil; assistant.discardDraft() }
                     .accessibilityIdentifier("cutoff-close")
             }
             .padding(.top, Metrics.xxs)
@@ -285,7 +284,7 @@ struct CutoffScenarioCardView: View {
 
     /// The scenario's explanation, off the main surface.
     private var assumptions: some View {
-        DisclosureGroup("Assumptions") {
+        CardDisclosure(title: "Assumptions") {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
                 Text(S.disclaimer)
                 Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
@@ -354,8 +353,7 @@ struct CutoffScenarioCardView: View {
                     }
                     .buttonStyle(.auroraPrimary).disabled(assistant.savingCutoffReminder)
                     .accessibilityIdentifier("cutoff-reminder-save")
-                    Button("Not now") { assistant.cancelCutoffPreview() }
-                        .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                    quietButton("Not now") { assistant.cancelCutoffPreview() }
                         .disabled(assistant.savingCutoffReminder)
                 }
             }
@@ -369,6 +367,18 @@ struct CutoffScenarioCardView: View {
     }
 
     // MARK: Rows
+
+    /// A full-width quiet action whose whole 44 pt row is the target.
+    private func quietButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.auroraPress)
+        .foregroundStyle(Palette.tint)
+    }
 
     private func mg(_ value: Double) -> String {
         value > 0 && value < 1 ? "under 1 mg" : "\(numberText(jsRound(value))) mg"
