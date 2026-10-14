@@ -316,7 +316,11 @@ struct AssistantView: View {
             .onTapGesture { composerFocused = true }
             .conversationColumn()
         }
-        .padding(.vertical, Metrics.xs).background(.regularMaterial)
+        .padding(.vertical, Metrics.xs)
+        // Solid like the header: the material let the next message's pill
+        // show through as a sliver above the quick actions. Extends under
+        // the home indicator.
+        .background(Palette.screen)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
