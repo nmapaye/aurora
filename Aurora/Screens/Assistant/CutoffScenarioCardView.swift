@@ -24,14 +24,23 @@ struct CutoffScenarioCardView: View {
     private var inputsChanged: Bool { input != nil && input != snapshot?.input }
     private var preview: CutoffReminderPreview? { assistant.cutoffPreview.flatMap { $0.messageID == message.id ? $0 : nil } }
 
+    /// The zone's abbreviation in the header; a time elsewhere names its own
+    /// abbreviation only when a clock change makes it differ.
+    private var headerAbbreviation: String? { zone.abbreviation(for: date(snapshot?.result.bedtime ?? AppModel.currentMillis())) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.md) {
+            // The zone, once, for every time on the card.
+            Text("Times in \([zone.identifier, headerAbbreviation].compactMap { $0 }.joined(separator: " · "))")
+                .font(Typography.source).foregroundStyle(Palette.textSecondary)
+                .accessibilityIdentifier("cutoff-zone")
             if let input {
                 editor(input)
                     .transition(Motion.stateTransition(reduceMotion: reduceMotion))
             }
             if let snapshot { result(snapshot) }
             if active { reminder }
+            assumptions
             if !active {
                 Text(card.state == .expired ? "This scenario expired. Refresh for a new snapshot with the same inputs." : "This scenario is closed. Refresh for a new snapshot with the same inputs.")
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
@@ -56,7 +65,6 @@ struct CutoffScenarioCardView: View {
         let problems = live(input).result.problems
         VStack(alignment: .leading, spacing: Metrics.md) {
             SectionLabel(text: "Your scenario")
-            Text("Times in \(zone.identifier)").font(Typography.source).foregroundStyle(Palette.textSecondary)
             localTime("Bedtime", key: \.bedtime, occurrence: \.bedtimeOccurrence, id: "bedtime", add: "Add bedtime", optional: false)
                 .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.bedtimeRepeated, .bedtimeSkipped, .bedtimeInvalid, .bedtimeNotAfterCapture])
@@ -80,8 +88,6 @@ struct CutoffScenarioCardView: View {
             localTime("Hypothetical drink time", key: \.drinkTime, occurrence: \.drinkOccurrence, id: "drink", add: "Add drink time", optional: true)
                 .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.drinkTimeRepeated, .drinkTimeSkipped, .drinkTimeInvalid, .drinkTimeBeforeCapture, .drinkTimeAfterBedtime])
-            Text("Nothing here is recorded. Log caffeine records a drink you had.")
-                .font(Typography.source).foregroundStyle(Palette.textSecondary)
             VStack(spacing: Metrics.xxs) {
                 // One primary action: Save leads while a reminder preview is open.
                 if preview == nil {
@@ -116,8 +122,10 @@ struct CutoffScenarioCardView: View {
         let halfLife = app.state.prefs.halfLife
         let problem = S.halfLifeProblem(halfLife)
         return VStack(alignment: .leading, spacing: Metrics.xxs) {
-            valueRow("Half-life", problem == nil ? "\(numberText(halfLife)) h" : "Can’t be used", spoken: problem == nil ? "\(numberText(halfLife)) hours" : "can’t be used")
-            Text(S.assumption).font(Typography.source).foregroundStyle(Palette.textSecondary)
+            valueRow("Half-life", problem == nil ? "\(numberText(halfLife)) h" : "Can’t be used", spoken: problem == nil ? "\(numberText(halfLife)) hours, modeled" : "can’t be used")
+            if problem == nil {
+                Text("Modeled").font(Typography.source).foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
+            }
             if let problem {
                 // The setting itself is wrong; there's nothing to enter on this card.
                 Label(problem, systemImage: StatusTone.error.symbol)
@@ -240,7 +248,7 @@ struct CutoffScenarioCardView: View {
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
             if let bedtime = r.bedtime {
-                metric("Bedtime", text.fullDateTime(bedtime), source: zoneLabel(bedtime))
+                metric("Bedtime", text.fullDateTime(bedtime), source: zoneNote(bedtime))
             }
             if let existing = r.existing {
                 metric("Modeled caffeine at bedtime · existing records", mg(existing.totalMg), source: provenance(existing))
@@ -250,7 +258,7 @@ struct CutoffScenarioCardView: View {
             }
             if r.amountMg != nil {
                 if let hypothetical = r.hypotheticalMg, let drinkAt = r.drinkAt {
-                    metric("Hypothetical drink at bedtime", mg(hypothetical), source: "\(S.enteredMg(r.amountMg!)) at \(text.fullDateTime(drinkAt)) · not recorded")
+                    metric("Hypothetical drink at bedtime", mg(hypothetical), source: "\(S.enteredMg(r.amountMg!)) at \(text.fullDateTime(drinkAt))\(zoneNote(drinkAt).map { " · \($0)" } ?? "")")
                     if let combined = r.combinedMg, let threshold = r.thresholdMg {
                         metric("Combined at bedtime", mg(combined), source: "Your threshold: \(S.enteredMg(threshold))")
                         let within = combined <= threshold
@@ -267,17 +275,25 @@ struct CutoffScenarioCardView: View {
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
                 }
             }
-            DisclosureGroup("Assumptions") {
-                VStack(alignment: .leading, spacing: Metrics.xxs) {
-                    Text("Half-life \(numberText(snapshot.halfLifeHours)) h. \(S.assumption)")
-                    Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
-                    Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt)) · \(snapshot.timeZone)")
-                        .foregroundStyle(Palette.textSecondary)
-                }
-                .font(.footnote).padding(.top, Metrics.xxs)
-            }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// The scenario's explanation, off the main surface.
+    private var assumptions: some View {
+        DisclosureGroup("Assumptions") {
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(S.disclaimer)
+                Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
+                Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
+                Text("Nothing here is recorded. Log caffeine records a drink you had.")
+                if let snapshot {
+                    Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt))")
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
+            .font(.footnote).padding(.top, Metrics.xxs)
+        }
     }
 
     /// The reminder outcome is the card header's badge; only "preview
@@ -309,7 +325,7 @@ struct CutoffScenarioCardView: View {
         case .needsAmount:
             metric("Latest hypothetical time", "No amount entered", source: "Enter a hypothetical amount to see a time.")
         case .feasible(let time):
-            metric("Latest hypothetical time", text.fullDateTime(time), source: "For \(amount) to keep bedtime at or under \(threshold) in this scenario · \(zoneLabel(time))")
+            metric("Latest hypothetical time", text.fullDateTime(time), source: "For \(amount) to keep bedtime at or under \(threshold) in this scenario\(zoneNote(time).map { " · \($0)" } ?? "")")
         case .passed(let time):
             metric("Latest hypothetical time", "Already passed", source: "In this scenario it was \(text.fullDateTime(time)). \(amount) from now on models above \(threshold) at bedtime.")
         case .thresholdReachedByRecords:
@@ -327,7 +343,7 @@ struct CutoffScenarioCardView: View {
                 SectionLabel(text: "Reminder preview")
                 Text(preview.content.title).font(Typography.evidence.weight(.semibold))
                 Text(preview.content.body).font(.footnote)
-                metric("Once, at", text.fullDateTime(preview.content.fireAt), source: "\(zoneLabel(preview.content.fireAt)) · your daily cutoff reminder is unchanged")
+                metric("Once, at", text.fullDateTime(preview.content.fireAt), source: [zoneNote(preview.content.fireAt), "Daily cutoff reminder unchanged"].compactMap { $0 }.joined(separator: " · "))
                 VStack(spacing: Metrics.xxs) {
                     Button(assistant.savingCutoffReminder ? "Saving…" : "Save reminder") {
                         Task { await assistant.saveCutoffReminder(app: app) }
@@ -354,8 +370,10 @@ struct CutoffScenarioCardView: View {
         value > 0 && value < 1 ? "under 1 mg" : "\(numberText(jsRound(value))) mg"
     }
 
-    private func zoneLabel(_ ms: Millis) -> String {
-        [zone.identifier, zone.abbreviation(for: date(ms))].compactMap { $0 }.joined(separator: " · ")
+    /// A time's own zone abbreviation, only when it isn't the header's.
+    private func zoneNote(_ ms: Millis) -> String? {
+        let abbreviation = zone.abbreviation(for: date(ms))
+        return abbreviation == headerAbbreviation ? nil : abbreviation
     }
 
     private func provenance(_ existing: S.Existing) -> String {
@@ -365,14 +383,18 @@ struct CutoffScenarioCardView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func metric(_ label: String, _ value: String, source: String) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.xxs) {
-            valueRow(label, value, spoken: value.replacingOccurrences(of: " mg", with: " milligrams"))
-            Text(source).font(Typography.source).foregroundStyle(Palette.textSecondary)
+    /// One result row: label, value, then its source, always stacked so
+    /// every row in the result reads the same way at any text size.
+    private func metric(_ label: String, _ value: String, source: String?) -> some View {
+        let spoken = { (text: String) in text.replacingOccurrences(of: " mg", with: " milligrams") }
+        return VStack(alignment: .leading, spacing: Metrics.xxs) {
+            Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+            Text(value).font(Typography.value).monospacedDigit()
+            if let source { Text(source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
         }
         .padding(.vertical, Metrics.xxs)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label), \(value.replacingOccurrences(of: " mg", with: " milligrams")). \(source.replacingOccurrences(of: " mg", with: " milligrams"))")
+        .accessibilityLabel("\(label), \(spoken(value))\(source.map { ". " + spoken($0) } ?? "")")
     }
 
     /// Label leading, value trailing; stacked when large text no longer fits.

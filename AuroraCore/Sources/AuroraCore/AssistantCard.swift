@@ -196,7 +196,8 @@ public enum AssistantCards {
         case .calendar: card.summary = ""
         case .clarification: card.summary = "Choose one, or tell me a little more."
         case .cutoffScenario:
-            card.summary = CutoffScenario.disclaimer
+            // The "Scenario" badge labels it; the disclaimer sits under Assumptions.
+            card.summary = ""
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
         case .receipt: break
         case .capabilities: card.summary = "Tap one, or ask in your own words."
