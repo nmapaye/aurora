@@ -116,7 +116,8 @@ extension EnvironmentValues {
     }
 }
 
-/// A raised card surface.
+/// A raised card surface. One accessibility container, so VoiceOver moves
+/// through a card's contents together and can skip past it.
 struct Card<Content: View>: View {
     var padding: CGFloat = Metrics.md
     @ViewBuilder var content: () -> Content
@@ -127,6 +128,7 @@ struct Card<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
+            .accessibilityElement(children: .contain)
     }
 }
 
@@ -220,7 +222,9 @@ struct StatusBadge: View {
     var tone: StatusTone = .neutral
 
     var body: some View {
-        Label(text, systemImage: tone.symbol)
+        // The text carries the meaning; the symbol's own name ("Selected",
+        // "Pencil") would only confuse VoiceOver.
+        Label { Text(text) } icon: { Image(systemName: tone.symbol).accessibilityHidden(true) }
             .font(.footnote.weight(.medium))
             .foregroundStyle(tone.foreground)
             .padding(.horizontal, Metrics.sm)
@@ -232,28 +236,42 @@ struct StatusBadge: View {
 
 /// A form field with its label above and an optional trailing unit, sharing
 /// one field surface so labels, values and units align down a card.
+///
+/// The field names itself for VoiceOver (with its unit, e.g. "Amount,
+/// milligrams"), so the visible label and unit aren't read a second time.
 struct LabeledField<Field: View>: View {
     let label: String
     var unit: String?
+    /// The field's own focus, from the caller's `FocusState`. A field bound
+    /// to its own `FocusState` doesn't report focus to the container, so
+    /// callers with one pass it here; without it the ring follows the
+    /// container's focus.
+    var isFocused: Bool?
     @ViewBuilder var field: () -> Field
-    /// True while the text field inside has keyboard focus.
-    @FocusState private var focused: Bool
+    @FocusState private var containerFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-            HStack(spacing: Metrics.xs) {
-                field()
-                if let unit {
-                    Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
-                        .accessibilityHidden(true)
-                }
+                .accessibilityHidden(true)
+            if let isFocused {
+                surface.fieldSurface(focused: isFocused)
+            } else {
+                surface.focused($containerFocused).fieldSurface(focused: containerFocused)
             }
-            .padding(.horizontal, Metrics.sm)
-            .frame(minHeight: Metrics.minimumTouchTarget)
-            .focused($focused)
-            .fieldSurface(focused: focused)
         }
+    }
+
+    private var surface: some View {
+        HStack(spacing: Metrics.xs) {
+            field()
+            if let unit {
+                Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, Metrics.sm)
+        .frame(minHeight: Metrics.minimumTouchTarget)
     }
 }
 
