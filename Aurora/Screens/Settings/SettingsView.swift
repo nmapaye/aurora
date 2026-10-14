@@ -233,23 +233,31 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func reminderStatusRow(enabled: Bool) -> some View {
+        let denied = !reminderBusy && model.reminderStatus == .denied
         let status: (text: String, failed: Bool) = {
             if reminderBusy { return ("Updating reminder…", false) }
             switch model.reminderStatus {
             case .off: return (enabled ? "Updating reminder…" : "Reminder off.", false)
             case .scheduled: return ("Reminder scheduled.", false)
-            case .denied: return ("Notification permission is off. Allow notifications in system Settings, then retry.", true)
+            case .denied: return ("", true)
             case .failed: return ("The reminder couldn’t be scheduled. Retry.", true)
             }
         }()
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Reminder status")
-            Text(status.text)
-                .font(.footnote)
-                .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+        if denied {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                NotificationsOffNotice()
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                Text(status.text)
+                    .font(.footnote)
+                    .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(status.failed ? .isStaticText : [])
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(status.failed ? .isStaticText : [])
         if status.failed {
             Button("Retry reminder") {
                 Task { await model.setReminder(enabled: true) }
