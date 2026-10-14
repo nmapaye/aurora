@@ -245,10 +245,9 @@ struct AssistantCardView: View {
             if card.kind == .briefing {
                 if card.state == .loading { ProgressView("Reading selected commitments…") }
                 if card.state == .failed { Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive) }
-                if card.state != .loading && card.commitments.isEmpty { Text("No commitments captured. Review calendars for current availability.").font(.caption).foregroundStyle(Palette.textSecondary) }
-                ForEach(card.commitments, id: \.identity) { event in
-                    Label { VStack(alignment: .leading) { Text(event.title); Text(event.start.formatted(date: .abbreviated, time: .shortened) + " · " + event.timeZone).font(.caption).foregroundStyle(Palette.textSecondary) } } icon: { Image(systemName: "calendar") }
-                }
+                let upcoming = CalendarAgenda.briefing(card.commitments, now: Date(timeIntervalSince1970: card.capturedAt / 1000), calendar: .current)
+                if card.state != .loading && upcoming.isEmpty { Text("Nothing else on your calendars today.").font(.caption).foregroundStyle(Palette.textSecondary) }
+                ForEach(upcoming, id: \.identity) { event in BriefingEventRow(event: event) }
                 Button("Review my day") { assistant.send("Review calendar", app: app) }.buttonStyle(.auroraSecondary)
             }
         case .trends: trends
@@ -608,7 +607,7 @@ struct AssistantCardView: View {
         if card.state == .loading {
             Card { Label(card.title, systemImage: "calendar").font(.headline); ProgressView("Reading selected commitments…"); Text("No changes have been made.").font(.caption) }
         } else {
-            CalendarReviewCard(service: assistant.calendars, snapshot: card.commitments, editable: active, snapshotMessage: card.state == .failed ? card.summary : nil, onOutcome: { text, updated in
+            CalendarReviewCard(service: assistant.calendars, snapshot: card.commitments, editable: active, snapshotMessage: card.state == .failed ? card.summary : nil, capturedAt: Date(timeIntervalSince1970: card.capturedAt / 1000), onOutcome: { text, updated in
                 var receipt = AssistantCard(kind: .receipt, capturedAt: app.now, title: updated == nil ? "Calendar change not confirmed" : "Calendar updated", summary: text)
                 receipt.state = updated == nil ? .failed : .saved
                 if let updated { receipt.commitments = [updated] }
@@ -622,4 +621,24 @@ enum EnergyCardTiming {
     /// An energy snapshot older than this is labeled as earlier. Its
     /// results never change; Refresh captures a new one.
     static let staleAfterMs: Millis = hourMs
+}
+
+/// One upcoming event in the briefing: its time, then its title, marked by
+/// its calendar's color.
+private struct BriefingEventRow: View {
+    let event: Commitment
+
+    private var time: String {
+        event.allDay == true ? "All day" : event.start.formatted(date: .omitted, time: .shortened)
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) {
+            Circle().fill(Color(calendarHex: event.colorHex) ?? Palette.tint).frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+            Text(time).font(.subheadline.monospacedDigit()).foregroundStyle(Palette.textSecondary)
+            Text(event.title).font(.subheadline).foregroundStyle(Palette.textPrimary)
+        }
+        .accessibilityElement(children: .combine)
+    }
 }

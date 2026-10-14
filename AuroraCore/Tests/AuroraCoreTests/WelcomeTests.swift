@@ -48,6 +48,26 @@ struct WelcomeTests {
         #expect(!evidence.sample)
     }
 
+    /// Health splits a night into stage samples and can add a short one after
+    /// waking. The line reports the whole night, not the last fragment.
+    @Test(arguments: zones) func sleepLineCoversTheWholeNightNotItsLastFragment(zone: String) throws {
+        let clock = clock(zone)
+        let now = clock.setTime(Self.base, hour: 14, minute: 30)
+        let night = clock.setTime(Self.base, hour: 2)
+        let wake = clock.setTime(Self.base, hour: 9, minute: 30)
+        let fragmentEnd = clock.setTime(Self.base, hour: 9, minute: 39)
+        var state = AppState()
+        state.sleeps = [
+            SleepSession(id: "healthkit:sleep:sample:core", start: night, end: night + 3 * hourMs),
+            SleepSession(id: "healthkit:sleep:sample:deep", start: night + 3 * hourMs, end: wake),
+            SleepSession(id: "healthkit:sleep:sample:late", start: fragmentEnd - minuteMs, end: fragmentEnd),
+        ]
+        let evidence = try #require(Welcome.evidence(state: state, now: now, clock: clock, text: fixtureText))
+        #expect(evidence.text == "7h 31m of recorded sleep")
+        #expect(evidence.date == "Ended today, \(fixtureTime(fragmentEnd))")
+        #expect(evidence.source == "Health")
+    }
+
     @Test(arguments: zones) func sleepEndingYesterdayShowsItsDate(zone: String) throws {
         let clock = clock(zone)
         let now = clock.setTime(Self.base, hour: 2)

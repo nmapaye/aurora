@@ -37,6 +37,9 @@ struct AssistantView: View {
     /// The first message added while earlier messages were being read.
     @State private var heldMessage: UUID?
     @State private var composerWidth: CGFloat = 0
+    /// The fixed bottom area's height; it changes when quick actions hide
+    /// for card editing and come back.
+    @State private var composerHeight: CGFloat = 0
     @FocusState private var composerFocused: Bool
     private static let viewport = "conversation"
 
@@ -106,6 +109,11 @@ struct AssistantView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
+                // A taller bottom area would otherwise cover the end the person
+                // was reading; keep the end above it.
+                .onChange(of: composerHeight) { old, new in
+                    if new > old && visibility.end && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
+                }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in
                     let messages = assistant.conversation.messages
                     let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
@@ -128,6 +136,10 @@ struct AssistantView: View {
                 }
             }
             .background(Palette.screen)
+            // A solid bar: on iOS 26 the default only fades, and scrolled
+            // cards stayed readable behind the title and buttons.
+            .toolbarBackground(Palette.screen, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .navigationTitle("Aurora")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -346,6 +358,7 @@ struct AssistantView: View {
         }
         .padding(.vertical, Metrics.xs).background(.regularMaterial)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
         // conversation a sliver of the screen. Messages and cards still scale fully.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)

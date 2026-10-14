@@ -6,6 +6,8 @@ struct CalendarReviewCard: View {
     var snapshot: [Commitment]? = nil
     var editable = true
     var snapshotMessage: String? = nil
+    /// When a snapshot was captured; a snapshot lists what was left of that day.
+    var capturedAt: Date? = nil
     var onOutcome: ((String, Commitment?) -> Void)? = nil
     var connect: () -> Void
     @State private var proposal: CalendarChange?
@@ -14,7 +16,12 @@ struct CalendarReviewCard: View {
     @State private var reversal: CalendarChange?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Everything loaded, hidden routines included, so a proposed move never
+    /// lands on them.
     private var events: [Commitment] { (snapshot ?? service.commitments).sorted { $0.start < $1.start } }
+    private var reference: Date { editable ? .now : (capturedAt ?? .now) }
+    /// What's left of the day, without sleep and routine blocks.
+    private var shown: [Commitment] { CalendarAgenda.restOfToday(events, now: reference, calendar: .current) }
 
     var body: some View {
         Card {
@@ -34,18 +41,21 @@ struct CalendarReviewCard: View {
             if let message = snapshotMessage ?? (snapshot == nil ? service.message : nil) {
                 Label(message, systemImage: StatusTone.error.symbol).font(.footnote).foregroundStyle(StatusTone.error.foreground)
             }
-            if events.isEmpty && snapshotMessage == nil && !service.selected.isEmpty {
-                Text("Nothing in the next 7 days.").font(.subheadline).foregroundStyle(Palette.textSecondary)
+            if shown.isEmpty && snapshotMessage == nil && !service.selected.isEmpty {
+                Text("Nothing else today.").font(.subheadline).foregroundStyle(Palette.textSecondary)
             }
+            let clashes = CalendarAgenda.clashing(shown)
+            let labelSource = CalendarAgenda.showsSource(shown)
             ForEach(days, id: \.self) { day in
                 VStack(alignment: .leading, spacing: Metrics.xs) {
                     Text(dayTitle(day)).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.textSecondary)
                         .accessibilityAddTraits(.isHeader)
-                    ForEach(events.filter { Calendar.current.isDate($0.start, inSameDayAs: day) }, id: \.identity) { event in
+                    ForEach(shown.filter { Calendar.current.isDate(max($0.start, Calendar.current.startOfDay(for: reference)), inSameDayAs: day) }, id: \.identity) { event in
                         VStack(alignment: .leading, spacing: Metrics.xxs) {
-                            if event.provider == .google { GoogleEventRow(event: event, time: time(event)) }
-                            else { AppleEventRow(event: event, time: time(event)) }
-                            if editable && event.canMove && event.start > .now && proposal?.original.identity != event.identity {
+                            if event.provider == .google { GoogleEventRow(event: event, time: time(event), showsSource: labelSource) }
+                            else { AppleEventRow(event: event, time: time(event), showsSource: labelSource) }
+                            // Only a clash needs moving.
+                            if editable && clashes.contains(event.identity) && event.canMove && event.start > .now && proposal?.original.identity != event.identity {
                                 Button("Find a later slot") { propose(event) }
                                     .font(.footnote.weight(.semibold))
                                     .buttonStyle(.auroraPress)
@@ -68,9 +78,11 @@ struct CalendarReviewCard: View {
         .animation(Motion.stateChange(reduceMotion: reduceMotion), value: proposal?.id)
     }
 
+    /// Today's heading; an event already running since yesterday counts as today.
     private var days: [Date] {
         var seen = Set<Date>()
-        return events.map { Calendar.current.startOfDay(for: $0.start) }.filter { seen.insert($0).inserted }
+        let today = Calendar.current.startOfDay(for: reference)
+        return shown.map { max(Calendar.current.startOfDay(for: $0.start), today) }.filter { seen.insert($0).inserted }
     }
 
     private func dayTitle(_ day: Date) -> String {
@@ -82,7 +94,8 @@ struct CalendarReviewCard: View {
     /// Local times; the event's own zone is named only when it differs.
     private func time(_ event: Commitment) -> String {
         if event.allDay == true { return "All day" }
-        let range = "\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
+        let ends = event.end.formatted(date: .omitted, time: .shortened)
+        let range = "\(event.start.formatted(date: .omitted, time: .shortened)) – \(ends)\(CalendarAgenda.endsNextDay(event, calendar: .current) ? " next day" : "")"
         guard let zone = TimeZone(identifier: event.timeZone), zone.secondsFromGMT(for: event.start) != TimeZone.current.secondsFromGMT(for: event.start) else { return range }
         return "\(range) · \(zone.abbreviation(for: event.start) ?? event.timeZone)"
     }
@@ -155,6 +168,7 @@ extension Color {
 private struct GoogleEventRow: View {
     let event: Commitment
     let time: String
+    var showsSource = true
     static let defaultHex = "#039BE5"
 
     var body: some View {
@@ -170,7 +184,7 @@ private struct GoogleEventRow: View {
         .padding(.horizontal, Metrics.sm)
         .padding(.vertical, Metrics.xs)
         .background(Color(calendarHex: hex) ?? .blue, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(alignment: .topTrailing) { SourceTag(text: "Google", color: ink.opacity(0.8)).padding(6) }
+        .overlay(alignment: .topTrailing) { if showsSource { SourceTag(text: "Google", color: ink.opacity(0.8)).padding(6) } }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.title), \(time)\(event.location.map { ", \($0)" } ?? ""), Google Calendar")
     }
@@ -180,6 +194,7 @@ private struct GoogleEventRow: View {
 private struct AppleEventRow: View {
     let event: Commitment
     let time: String
+    var showsSource = true
     static let defaultHex = "#007AFF"
 
     var body: some View {
@@ -194,7 +209,7 @@ private struct AppleEventRow: View {
                 }
             }
             Spacer(minLength: 0)
-            SourceTag(text: "Apple", color: Palette.textSecondary)
+            if showsSource { SourceTag(text: "Apple", color: Palette.textSecondary) }
         }
         .padding(.vertical, Metrics.xs)
         .padding(.trailing, Metrics.xs)
