@@ -140,7 +140,11 @@ struct HourPicker: View {
     private var time: Binding<Date> {
         Binding(
             get: { Date(timeIntervalSince1970: app.clock.setTime(app.now, hour: hour, minute: 0) / 1000) },
-            set: { hour = Calendar.current.component(.hour, from: $0) }
+            set: { date in
+                // A minutes-only change keeps the stored hour untouched.
+                let picked = Calendar.current.component(.hour, from: date)
+                if picked != hour { hour = picked }
+            }
         )
     }
 }

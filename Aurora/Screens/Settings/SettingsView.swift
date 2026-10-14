@@ -68,11 +68,12 @@ struct SettingsView: View {
                     }
                     footnote("A daily amount you choose for your own reference. It is not a recommended or safe amount.")
                     Divider()
-                    stepper("Cutoff hour", value: jsRound(prefs.cutoffHour), in: 0...23, step: 1, text: { model.text.clockHour($0, clock: model.clock) }) { v in
-                        model.setPrefs { $0.cutoffHour = v }
+                    HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(prefs.cutoffHour) }, set: { v in
+                        model.setPrefs { $0.cutoffHour = Double(v) }
                         Task { await model.resyncReminder() }
-                    }
-                    footnote("The time you choose for the cutoff marker and optional reminder.")
+                    }), id: "settings-cutoff-hour")
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    footnote("The time you choose for the cutoff marker and optional reminder. On the hour.")
                 }
 
                 group("Notifications") {
