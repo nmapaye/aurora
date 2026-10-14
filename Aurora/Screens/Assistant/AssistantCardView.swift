@@ -125,9 +125,12 @@ struct AssistantCardView: View {
         }
     }
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) { title; Spacer(minLength: 0); draftBadge }
-            VStack(alignment: .leading, spacing: Metrics.xs) { title; draftBadge }
+        // Redrawn once more when an energy snapshot turns earlier.
+        TimelineView(.explicit(staleMoment)) { _ in
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) { title; Spacer(minLength: 0); draftBadge }
+                VStack(alignment: .leading, spacing: Metrics.xs) { title; draftBadge }
+            }
         }
     }
     private var title: some View {
@@ -135,10 +138,20 @@ struct AssistantCardView: View {
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
     }
+    /// A ready energy snapshot can turn earlier; other cards never change with time.
+    private var canTurnEarlier: Bool {
+        (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
+    }
+    /// When a fresh energy snapshot turns earlier; empty otherwise. The badge
+    /// reads the time only then: the app's per-minute `now` redrew the whole
+    /// card, chart included, every minute.
+    private var staleMoment: [Date] {
+        let at = (card.capturedAt + EnergyCardTiming.staleAfterMs) / 1000 + 1
+        return canTurnEarlier && at > Date.now.timeIntervalSince1970 ? [Date(timeIntervalSince1970: at)] : []
+    }
     /// Drafts say where they stand; receipts already do through their title.
     @ViewBuilder private var draftBadge: some View {
-        if (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
-            && app.now - card.capturedAt > EnergyCardTiming.staleAfterMs {
+        if canTurnEarlier && Date.now.timeIntervalSince1970 * 1000 - card.capturedAt > EnergyCardTiming.staleAfterMs {
             // Old snapshots keep their results; this only says they are old.
             // The badge itself refreshes, so "Refresh" is never a riddle.
             Button { assistant.refresh(card, app: app) } label: {
@@ -206,15 +219,26 @@ struct AssistantCardView: View {
     }
     /// When the card's records were read: just the time today, the day
     /// otherwise, and the zone only if it isn't the current one.
-    private var captureText: String {
+    private func captureText(now: Date) -> String {
         let sameZone = snapshotClock.timeZone.secondsFromGMT() == TimeZone.current.secondsFromGMT()
-        let today = app.clock.dayKey(card.capturedAt) == app.clock.dayKey(app.now)
+        let today = app.clock.dayKey(card.capturedAt) == app.clock.dayKey(now.timeIntervalSince1970 * 1000)
         let when = today ? snapshotText.clockTime(card.capturedAt) : snapshotText.fullDateTime(card.capturedAt)
         return sameZone ? when : "\(when) · \(snapshotClock.timeZone.abbreviation() ?? card.timeZone)"
     }
+    /// Only the caption follows the clock, and only at the midnight that
+    /// turns today's time into a date; the app's per-minute `now` redrew
+    /// every card each minute.
     private var captureLabel: some View {
-        Text(captureText)
-            .font(.caption2).foregroundStyle(Palette.textSecondary)
+        TimelineView(.explicit(captionMidnight)) { _ in
+            Text(captureText(now: .now))
+                .font(.caption2).foregroundStyle(Palette.textSecondary)
+        }
+    }
+    /// The next midnight for a card captured today; empty for earlier days.
+    private var captionMidnight: [Date] {
+        let now = Date.now.timeIntervalSince1970 * 1000
+        guard app.clock.dayKey(card.capturedAt) == app.clock.dayKey(now) else { return [] }
+        return [Date(timeIntervalSince1970: app.clock.addingDays(1, to: app.clock.startOfDay(now)) / 1000 + 1)]
     }
     @ViewBuilder private var refreshButton: some View {
         if card.refreshIntent != nil {
@@ -602,8 +626,10 @@ struct AssistantCardView: View {
             TextField("Search records", text: $query).textFieldStyle(.roundedBorder).focused($field, equals: .search).accessibilityIdentifier("assistant-history-search")
             Picker("Date range", selection: $historyDays) { Text("7d").tag(7); Text("30d").tag(30); Text("All").tag(0) }.pickerStyle(.segmented)
             Picker("Source", selection: $source) { ForEach(["All sources", "Manual", "Health", "Sample Data", "Recorded"], id: \.self) { Text($0).tag($0) } }
-            if filteredRecords.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }
-            ForEach(Array(filteredRecords.prefix(historyLimit)), id: \.identity) { row in
+            // Filtered once per body; it scans every record in the snapshot.
+            let records = filteredRecords
+            if records.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }
+            ForEach(Array(records.prefix(historyLimit)), id: \.identity) { row in
                 Button { edit(row) } label: {
                     HStack(spacing: Metrics.sm) {
                         VStack(alignment: .leading, spacing: Metrics.xxs) {
@@ -615,7 +641,7 @@ struct AssistantCardView: View {
                     }.frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.auroraPress).disabled(!row.editable)
             }
-            if filteredRecords.count > historyLimit { Button("Show more records (\(filteredRecords.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
+            if records.count > historyLimit { Button("Show more records (\(records.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
         }
     }
     private var filteredRecords: [AssistantCard.Record] {
@@ -630,13 +656,26 @@ struct AssistantCardView: View {
         if row.kind == "caffeine", let dose = app.state.doses.first(where: { $0.id == row.id }), CaffeineLog.isEditable(dose) { editingDose = .edit(dose) }
         if row.kind == "sleep", let sleep = app.state.sleeps.first(where: { $0.id == row.id }), RecordID.isManualSleep(sleep.id) { editingSleep = .edit(sleep) }
     }
+    /// Each file is built only when shared, not on every redraw. The daily
+    /// totals end at the moment of sharing, so they don't read the app's
+    /// per-minute `now` either.
     private var exports: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv", text: Export.doseEntriesCSV(app.state.doses, clock: app.clock)), preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
-            ShareLink(item: CSVFile(name: "aurora-sleep.csv", text: Export.sleepSessionsCSV(app.state.sleeps, clock: app.clock)), preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
-            ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv", text: Export.vigilanceSessionsCSV(app.state.vigilanceSessions)), preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
-            ShareLink(item: CSVFile(name: "aurora-energy-check-ins.csv", text: Export.energyCheckInsCSV(app.state.energyCheckIns, clock: app.clock)), preview: SharePreview("Energy check-ins")) { Label("Energy check-ins CSV", systemImage: "hand.raised") }
-            ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv", text: Export.dailyTotalsCSV(Export.dailyTotalRows(app.state.doses, now: app.now, clock: app.clock))), preview: SharePreview("Daily caffeine totals")) { Label("Daily caffeine totals CSV", systemImage: "chart.bar") }
+            ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv") { [doses = app.state.doses, clock = app.clock] in
+                Export.doseEntriesCSV(doses, clock: clock)
+            }, preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
+            ShareLink(item: CSVFile(name: "aurora-sleep.csv") { [sleeps = app.state.sleeps, clock = app.clock] in
+                Export.sleepSessionsCSV(sleeps, clock: clock)
+            }, preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
+            ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv") { [sessions = app.state.vigilanceSessions] in
+                Export.vigilanceSessionsCSV(sessions)
+            }, preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
+            ShareLink(item: CSVFile(name: "aurora-energy-check-ins.csv") { [checkIns = app.state.energyCheckIns, clock = app.clock] in
+                Export.energyCheckInsCSV(checkIns, clock: clock)
+            }, preview: SharePreview("Energy check-ins")) { Label("Energy check-ins CSV", systemImage: "hand.raised") }
+            ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv") { [doses = app.state.doses, clock = app.clock] in
+                Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: (Date.now.timeIntervalSince1970 * 1000).rounded(), clock: clock))
+            }, preview: SharePreview("Daily caffeine totals")) { Label("Daily caffeine totals CSV", systemImage: "chart.bar") }
         }.buttonStyle(.auroraSecondary)
     }
     @ViewBuilder private var calendar: some View {
