@@ -508,7 +508,10 @@ struct AssistantCardView: View {
                 }
             }
         }
-        .scrollClipDisabled()
+        // Scrolls edge to edge inside the card, clipped at its border, while
+        // the first chip still lines up with the card's other content.
+        .contentMargins(.horizontal, Metrics.md, for: .scrollContent)
+        .padding(.horizontal, -Metrics.md)
     }
     @ViewBuilder private var caffeineEditor: some View {
         if draftActive, let draft = assistant.pendingDraft {
