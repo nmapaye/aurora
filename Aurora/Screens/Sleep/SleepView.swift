@@ -248,7 +248,9 @@ struct SleepEntrySheet: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State var draft = ManualSleep.Draft(start: 0, end: 0, note: "")
+    /// Both times start empty for a new entry, unless the person has a
+    /// usual night on record; nothing is proposed for them.
+    @State var draft = ManualSleep.Entry()
     @State var loaded = false
     @State var confirmDelete = false
 
@@ -258,19 +260,20 @@ struct SleepEntrySheet: View {
     }
 
     var body: some View {
-        let validation = ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis())
+        let validation = draft.validate(now: AppModel.currentMillis())
         NavigationStack {
             Form {
                 Section {
                     Text("Choose the local start and end time for this sleep session.")
                         .font(.footnote)
                         .foregroundStyle(Palette.textSecondary)
-                    DatePicker("Start", selection: binding(\.start), in: ...Date.now)
-                    DatePicker("End", selection: binding(\.end), in: ...Date.now)
+                    time("Start", key: \.start, id: "start")
+                    time("End", key: \.end, id: "end")
                     TextField("Optional note", text: $draft.note, axis: .vertical)
                         .accessibilityLabel("Sleep note")
                 }
-                if let message = validation.message {
+                // A problem only once both times are the person's own.
+                if draft.draft != nil, let message = validation.message {
                     Section {
                         Text(message).foregroundStyle(StatusTone.error.foreground)
                     }
@@ -291,7 +294,8 @@ struct SleepEntrySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(draft)
+                        guard let saved = draft.draft else { return }
+                        onSave(saved)
                         dismiss()
                     }
                     .disabled(validation != .valid)
@@ -310,15 +314,27 @@ struct SleepEntrySheet: View {
             guard !loaded else { return }
             loaded = true
             switch mode {
-            case .new: draft = AssistantPlanner.usualNight(model.state.sleeps, now: AppModel.currentMillis(), clock: model.clock) ?? ManualSleep.newDraft(now: AppModel.currentMillis())
-            case .edit(let session): draft = ManualSleep.Draft(start: session.start, end: session.end, note: session.note ?? "")
+            case .new: draft = AssistantPlanner.usualNight(model.state.sleeps, now: AppModel.currentMillis(), clock: model.clock).map(ManualSleep.Entry.init) ?? ManualSleep.Entry()
+            case .edit(let session): draft = ManualSleep.Entry(start: session.start, end: session.end, note: session.note ?? "")
             }
         }
     }
 
-    private func binding(_ key: WritableKeyPath<ManualSleep.Draft, Millis>) -> Binding<Date> {
+    /// A time once added; until then a button that adds it at the current
+    /// minute, for the person to change.
+    @ViewBuilder private func time(_ label: String, key: WritableKeyPath<ManualSleep.Entry, Millis?>, id: String) -> some View {
+        if draft[keyPath: key] != nil {
+            DatePicker(label, selection: binding(key), in: ...Date.now)
+                .accessibilityIdentifier("sleep-entry-\(id)")
+        } else {
+            Button("Add \(label.lowercased())") { draft[keyPath: key] = ManualSleep.addedTime(now: AppModel.currentMillis()) }
+                .accessibilityIdentifier("sleep-entry-add-\(id)")
+        }
+    }
+
+    private func binding(_ key: WritableKeyPath<ManualSleep.Entry, Millis?>) -> Binding<Date> {
         Binding(
-            get: { Date(timeIntervalSince1970: draft[keyPath: key] / 1000) },
+            get: { Date(timeIntervalSince1970: (draft[keyPath: key] ?? AppModel.currentMillis()) / 1000) },
             set: { draft[keyPath: key] = ($0.timeIntervalSince1970 * 1000).rounded() }
         )
     }
@@ -329,6 +345,8 @@ struct SleepEntrySheet: View {
 struct SleepHistoryView: View {
     @Environment(AppModel.self) private var model
     @State private var editing: SleepSheet?
+    /// A swipe's Delete, waiting for the same confirmation as the sheet's.
+    @State private var deleting: SleepSession?
 
     var body: some View {
         let sessions = model.state.sleeps.sorted { $0.end > $1.end }
@@ -351,6 +369,14 @@ struct SleepHistoryView: View {
                 if case .edit(let session) = sheet { model.deleteManualSleep(id: session.id) }
             }
         }
+        .alert("Delete this sleep session?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { session in
+            Button("Delete", role: .destructive) {
+                Haptics.warning()
+                model.deleteManualSleep(id: session.id)
+                deleting = nil
+            }
+            Button("Cancel", role: .cancel) { deleting = nil }
+        }
     }
 
     private func row(_ session: SleepSession) -> some View {
@@ -368,9 +394,13 @@ struct SleepHistoryView: View {
                 }
             }
             Spacer()
-            Text(source)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(source == "Sample Data" ? StatusTone.warning.foreground : Palette.textSecondary)
+            if source == "Sample Data" {
+                SampleDataBadge()
+            } else {
+                Text(source)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.textSecondary)
+            }
         }
         .contentShape(Rectangle())
         return Group {
@@ -378,7 +408,8 @@ struct SleepHistoryView: View {
                 Button { editing = .edit(session) } label: { content }
                     .buttonStyle(.auroraPress)
                     .swipeActions {
-                        Button("Delete", role: .destructive) { model.deleteManualSleep(id: session.id) }
+                        // Asks first, as the sheet's Delete does.
+                        Button("Delete", role: .destructive) { deleting = session }
                         Button("Edit") { editing = .edit(session) }.tint(Palette.tint)
                     }
                     .accessibilityHint("Edit or delete this manual sleep")

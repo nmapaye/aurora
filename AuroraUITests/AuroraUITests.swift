@@ -193,6 +193,11 @@ final class AuroraUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["setup-question-" + step].waitForExistence(timeout: 5))
         }
         XCTAssertTrue(app.staticTexts["wake-preview"].exists)
+        // Nothing is chosen for the person: no time is selected and the
+        // primary action waits for a pick.
+        XCTAssertFalse(app.buttons["wake-offset-60"].isSelected)
+        XCTAssertFalse(app.buttons["setup-next"].isEnabled)
+        tapWhenReady(app.buttons["wake-offset-60"])
         tapWhenReady(app.buttons["wake-offset-120"])
         tapWhenReady(app.buttons["setup-next"])
         // Notification permission is asked only now, after the explicit choice.
@@ -483,7 +488,29 @@ final class AuroraUITests: XCTestCase {
         request("Log sleep")
         let save = app.buttons["assistant-sleep-save"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
-        app.swipeUp()
+        // Both times start empty, so Save waits for the person's own.
+        XCTAssertFalse(save.isEnabled)
+        // End, then start, at the current minute; moving the start back a
+        // day makes a night of just under (or exactly) 24 hours.
+        tapWhenReady(app.buttons["assistant-sleep-add-end"])
+        tapWhenReady(app.buttons["assistant-sleep-add-start"])
+        let startDate = app.datePickers["assistant-sleep-start-date"]
+        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !startDate.isHittable { app.swipeUp() }
+        startDate.tap()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: .now)!
+        if !Calendar.current.isDate(yesterday, equalTo: .now, toGranularity: .month) {
+            tapWhenReady(app.buttons["Previous Month"])
+        }
+        let format = DateFormatter(); format.locale = Locale(identifier: "en_US"); format.dateFormat = "MMMM d"
+        tapWhenReady(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", format.string(from: yesterday))).firstMatch)
+        // The calendar popover covers the card until dismissed.
+        let dismiss = app.descendants(matching: .any)["PopoverDismissRegion"].firstMatch
+        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+        else { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap() }
+        XCTAssertTrue(dismiss.waitForNonExistence(timeout: 5))
+        for _ in 0..<4 where !save.isHittable { app.swipeUp() }
+        XCTAssertTrue(save.isEnabled)
         save.tap()
         XCTAssertTrue(app.staticTexts["Sleep saved"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant-undo"].exists)
@@ -538,7 +565,7 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Proactive suggestions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Offer useful updates"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["Cutoff reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {

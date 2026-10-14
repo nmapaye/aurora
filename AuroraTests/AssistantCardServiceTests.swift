@@ -202,6 +202,39 @@ import Testing
         #expect(assistant.conversation.messages.first?.card?.state == .failed)
         #expect(assistant.conversation.messages.first?.card?.refreshIntent == .briefing)
     }
+    /// With no usual night on record, nothing is proposed: both times start
+    /// empty, the card says so, and Save records nothing until both are set.
+    @Test func sleepReviewStartsEmptyAndSavesOnlyTheTimesAdded() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        await assistant.handle(.logSleep, input: "Log sleep", app: app)
+        #expect(assistant.pendingSleep == ManualSleep.Entry())
+        let id = try #require(assistant.pendingMessageID)
+        let card = try #require(assistant.conversation.messages.first { $0.id == id }?.card)
+        #expect(card.metrics.filter(\.missing).map(\.id) == ["start", "end"])
+        assistant.saveSleep(app: app)
+        #expect(app.state.sleeps.isEmpty)
+        #expect(assistant.failure == ManualSleep.missingTimes)
+        assistant.pendingSleep?.end = ManualSleep.addedTime(now: app.now)
+        assistant.pendingSleep?.start = (assistant.pendingSleep?.end ?? 0) - 7 * hourMs
+        assistant.saveSleep(app: app)
+        #expect(app.state.sleeps.count == 1)
+        #expect(app.state.sleeps.first.map { $0.end - $0.start } == 7 * hourMs)
+    }
+    @Test func reminderTimesUseTheLocaleClock() {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        assistant.conversation.preferences.proactive = true
+        assistant.conversation.preferences.morningBriefing = true
+        assistant.conversation.preferences.briefingHour = 8
+        let metrics = assistant.reminderMetrics(app: app)
+        let hour = { (value: Int) in app.text.clockHour(Double(value), clock: app.clock) }
+        #expect(metrics.first { $0.id == "briefing" }?.value == hour(8))
+        let p = assistant.conversation.preferences
+        #expect(metrics.first { $0.id == "quiet" }?.value == "\(hour(p.quietStartHour))–\(hour(p.quietEndHour))")
+    }
     @Test func invalidSleepProducesNoSuccessReceipt() async {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)

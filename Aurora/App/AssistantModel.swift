@@ -12,7 +12,8 @@ final class AssistantModel {
     var failure: String?
     var pendingDraft: CustomDoseDraft?
     var pendingMessageID: UUID?
-    var pendingSleep: ManualSleep.Draft?
+    /// An open sleep review. Its times stay empty until the person adds them.
+    var pendingSleep: ManualSleep.Entry?
     /// An open check-in review. Its id is fixed when the review opens.
     var pendingCheckIn: EnergyCheckInDraft?
     /// An open cutoff scenario's inputs, apart from its card's frozen result.
@@ -286,7 +287,9 @@ final class AssistantModel {
             captureDraft(app: app)
         case .logSleep:
             expireDraft()
-            pendingSleep = AssistantPlanner.usualNight(app.state.sleeps, now: app.now, clock: app.clock) ?? ManualSleep.newDraft(now: app.now)
+            // Only a usual night the person recorded may fill it; otherwise
+            // both times start empty.
+            pendingSleep = AssistantPlanner.usualNight(app.state.sleeps, now: app.now, clock: app.clock).map(ManualSleep.Entry.init) ?? ManualSleep.Entry()
             pendingMessageID = appendCard(AssistantCards.make(.sleepDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
             captureDraft(app: app)
         case .explainEnergy, .weeklyTrends, .reactionTest, .history, .exports, .reminders:
@@ -400,8 +403,8 @@ final class AssistantModel {
             ]
         } else if let draft = pendingSleep {
             return [
-                .init(id: "start", label: "Start", value: text.fullDateTime(draft.start), source: "Manual · local time"),
-                .init(id: "end", label: "End", value: text.fullDateTime(draft.end), source: "Manual · local time")
+                .init(id: "start", label: "Start", value: draft.start.map(text.fullDateTime) ?? "Not set", source: "Manual · local time", missing: draft.start == nil),
+                .init(id: "end", label: "End", value: draft.end.map(text.fullDateTime) ?? "Not set", source: "Manual · local time", missing: draft.end == nil)
             ]
         } else if let draft = pendingCheckIn {
             return [
@@ -423,10 +426,12 @@ final class AssistantModel {
     }
     func reminderMetrics(app: AppModel) -> [AssistantCard.Metric] {
         let p = conversation.preferences
+        // Clock times in the person's locale (8 AM or 08:00), as everywhere else.
+        let hour = { (value: Int) in app.text.clockHour(Double(value), clock: app.clock) }
         return [
             .init(id: "cutoff", label: "Cutoff reminder", value: app.state.prefs.notifyCutoff ? app.text.clockHour(app.state.prefs.cutoffHour, clock: app.clock) : "Off", source: "Your selected time"),
-            .init(id: "briefing", label: "Morning briefing", value: p.proactive && p.morningBriefing ? "\(p.briefingHour):00" : "Off", source: "Opt-in"),
-            .init(id: "quiet", label: "Quiet hours", value: "\(p.quietStartHour):00–\(p.quietEndHour):00", source: "Up to two unsolicited suggestions daily")
+            .init(id: "briefing", label: "Morning briefing", value: p.proactive && p.morningBriefing ? hour(p.briefingHour) : "Off", source: "Opt-in"),
+            .init(id: "quiet", label: "Quiet hours", value: "\(hour(p.quietStartHour))–\(hour(p.quietEndHour))", source: "Up to two unsolicited suggestions daily")
         ]
     }
     func receipt(recordID: String, kind: String, app: AppModel, title: String) {
@@ -479,9 +484,10 @@ final class AssistantModel {
         }
     }
     func saveSleep(app: AppModel) {
-        guard let draft = pendingSleep else { return }
+        guard let entry = pendingSleep else { return }
         app.tick()
-        if let error = ManualSleep.validate(start: draft.start, end: draft.end, now: app.now).message { failure = error; return }
+        if let error = entry.validate(now: app.now).message { failure = error; return }
+        guard let draft = entry.draft else { return }
         let previous = Set(app.state.sleeps.map(\.id))
         app.addManualSleep(draft)
         guard app.mutationFailure == nil, let added = app.state.sleeps.first(where: { !previous.contains($0.id) }) else { failure = app.mutationFailure ?? "The sleep entry wasn't saved."; return }
