@@ -607,7 +607,7 @@ struct AssistantCardView: View {
         if let series = card.series.first(where: { $0.metric == metric && $0.days == days }) {
             DailyBarChart(title: metric == "Caffeine" && days == 7 ? "Recorded caffeine · this week" : "Recorded \(metric.lowercased()) · \(days) days", days: series.points.map {
                 .init(date: $0.date, value: $0.value, title: snapshotText.weekdayDate($0.date), readout: $0.detail, isSample: $0.sample)
-            }, unit: series.unit, accent: metric == "Caffeine" ? Palette.caffeineAccent : Palette.tint, accessibilitySummary: series.summary, emptyMessage: "No \(metric.lowercased()) recorded in this range.").environment(\.timeZone, snapshotClock.timeZone)
+            }, unit: series.unit, accent: metric == "Caffeine" ? Palette.caffeineAccent : Palette.tint, accessibilitySummary: series.summary, emptyMessage: "No \(metric.lowercased()) recorded in this range.", framed: false).environment(\.timeZone, snapshotClock.timeZone)
             Text(series.comparison).font(.footnote).foregroundStyle(Palette.textSecondary)
         }
     }
