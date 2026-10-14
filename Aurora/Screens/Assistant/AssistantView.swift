@@ -71,20 +71,7 @@ struct AssistantView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         top(proxy)
                         messageList(proxy)
-                        // Stop lives in the composer, so it stays reachable
-                        // while earlier messages are being read.
-                        if assistant.processing {
-                            HStack(spacing: Metrics.sm) {
-                                AuroraActivity(active: true).frame(width: 54, height: 36)
-                                Text(assistant.status).font(.subheadline).foregroundStyle(Palette.textSecondary)
-                                Spacer(minLength: 0)
-                            }
-                            .accessibilityElement(children: .combine)
-                        }
-                        if let failure = assistant.failure ?? dictation.error {
-                            Text(failure).foregroundStyle(Palette.destructive).font(.footnote)
-                                .accessibilityIdentifier("assistant-error")
-                        }
+                        statusAndFailure
                         Color.clear.frame(height: 1).id("bottom")
                             .trackingVisibility(onScreen) { visible in
                                 visibility.end = visible; visibility.endOnScreen = visible
@@ -232,6 +219,33 @@ struct AssistantView: View {
         }
         if now.end && heldMessage != nil { heldMessage = nil }
         if visibleBottom != now.visibleBottom { visibleBottom = now.visibleBottom }
+    }
+
+    /// Work in progress, then any failure. Stop lives in the composer, so it
+    /// stays reachable while earlier messages are being read. The status
+    /// changes as work moves on, so VoiceOver treats it as live. A failure
+    /// carries the error symbol, not colour alone, and is announced when it
+    /// appears (`ConversationObservers`).
+    @ViewBuilder private var statusAndFailure: some View {
+        if assistant.processing {
+            HStack(spacing: Metrics.sm) {
+                AuroraActivity(active: true).frame(width: 54, height: 36)
+                Text(assistant.status).font(.subheadline).foregroundStyle(Palette.textSecondary)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.updatesFrequently)
+        }
+        if let failure = assistant.failure ?? dictation.error {
+            Label(failure, systemImage: StatusTone.error.symbol)
+                .font(.footnote)
+                .foregroundStyle(StatusTone.error.foreground)
+                .padding(.horizontal, Metrics.sm).padding(.vertical, Metrics.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(StatusTone.error.background, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("assistant-error")
+        }
     }
 
     /// The welcome, then the control for messages left out of the stack.
@@ -700,6 +714,10 @@ private struct ConversationObservers: ViewModifier {
                 if focused { assistant.prepareForInput() }
             }
             .onChange(of: dictation.transcript) { _, text in input = text }
+            // A failure is shown under the conversation, often off screen
+            // and away from VoiceOver's focus; say it when it appears.
+            .onChange(of: assistant.failure) { _, failure in if let failure { AssistantView.announce(failure) } }
+            .onChange(of: dictation.error) { _, failure in if let failure { AssistantView.announce(failure) } }
             .onChange(of: router.showSettings) { _, value in if value { assistant.showAssistantSettings = true; router.showSettings = false } }
             .onChange(of: router.sleepPath) { _, path in if !path.isEmpty { assistant.historySheet = .logSleep; router.sleepPath = [] } }
             .onChange(of: router.logPath) { _, path in if !path.isEmpty { assistant.historySheet = .logCaffeine; router.logPath = [] } }
