@@ -431,9 +431,31 @@ final class AuroraUITests: XCTestCase {
         tapQuick("Show this week")
         XCTAssertTrue(app.staticTexts["Recorded caffeine · this week"].waitForExistence(timeout: 5))
         app.buttons["assistant-history"].tap()
-        XCTAssertTrue(app.buttons["Caffeine history"].waitForExistence(timeout: 5))
-        app.buttons["Caffeine history"].tap()
+        XCTAssertTrue(app.buttons["records-caffeine"].waitForExistence(timeout: 5))
+        app.buttons["records-caffeine"].tap()
         XCTAssertTrue(app.navigationBars["Caffeine History"].waitForExistence(timeout: 5))
+    }
+    /// Screens pushed in Your records keep the system bar: sleep history
+    /// opens in the same sheet, Back returns, and Done closes the sheet.
+    func testRecordsScreensKeepBackAndDone() {
+        finishSetup()
+        app.buttons["assistant-history"].tap()
+        XCTAssertTrue(app.buttons["records-sleep"].waitForExistence(timeout: 5))
+        app.buttons["records-sleep"].tap()
+        XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
+        let data = app.buttons["sleep-data"]
+        for _ in 0..<6 where !data.isHittable { app.swipeUp() }
+        data.tap()
+        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'All sleep entries'")).firstMatch
+        for _ in 0..<6 where !all.isHittable { app.swipeUp() }
+        all.tap()
+        XCTAssertTrue(app.navigationBars["Sleep History"].waitForExistence(timeout: 5))
+        app.navigationBars["Sleep History"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
+        app.navigationBars["Sleep"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Your records"].waitForExistence(timeout: 5))
+        app.navigationBars["Your records"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
     func testCalendarNeverWritesWithoutPreviewApproval() {
         finishSetup()

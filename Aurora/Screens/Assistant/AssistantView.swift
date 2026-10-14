@@ -137,7 +137,7 @@ struct AssistantView: View {
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button { assistant.historySheet = .history } label: { Image(systemName: "clock.arrow.circlepath") }
-                        .accessibilityLabel("History and native tools").accessibilityIdentifier("assistant-history")
+                        .accessibilityLabel("Your records").accessibilityIdentifier("assistant-history")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { assistant.showAssistantSettings = true } label: { Image(systemName: "slider.horizontal.3") }
@@ -443,6 +443,9 @@ struct AuroraActivity: View {
     }
 }
 
+/// Your records. Every screen is pushed in this sheet's own stack and keeps
+/// the system bar, so Back and the edge swipe work; Done sits trailing on
+/// the root, as in every other sheet.
 struct AssistantToolsView: View {
     let destination: AssistantIntent
     @Environment(\.dismiss) private var dismiss
@@ -451,18 +454,43 @@ struct AssistantToolsView: View {
             Group {
                 if destination == .logSleep { SleepHistoryView() }
                 else if destination == .logCaffeine { CaffeineHistoryView() }
-                else {
-                    List {
-                        NavigationLink("Caffeine history", destination: CaffeineHistoryView())
-                        // Sleep's own "All sleep entries" holds the full list.
-                        NavigationLink("Sleep", destination: SleepView())
-                        NavigationLink("Recorded insights", destination: InsightsView())
-                        NavigationLink("Records, exports, and privacy", destination: SettingsView(pushed: true))
-                    }.navigationTitle("Your records")
-                }
+                else { records }
             }
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .toolbar { done }
         }
+        .pageSizedSheet()
+    }
+
+    private var records: some View {
+        List {
+            Section {
+                row("Caffeine", symbol: "cup.and.saucer", id: "records-caffeine") { CaffeineHistoryView() }
+                // Sleep's own "All sleep entries" holds the full list.
+                row("Sleep", symbol: "bed.double", id: "records-sleep") { SleepView(pushed: true) }
+                row("Insights", symbol: "chart.bar", id: "records-insights") { InsightsView(pushed: true) }
+            }
+            .auroraRows()
+            Section {
+                row(SettingsView.recordsTitle, symbol: "lock", id: "records-settings") { SettingsView(pushed: true) }
+            }
+            .auroraRows()
+        }
+        .auroraGroupedList()
+        .navigationTitle("Your records")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func row<Destination: View>(_ title: String, symbol: String, id: String, @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            Label(title, systemImage: symbol)
+        }
+        .accessibilityIdentifier(id)
+    }
+
+    private var done: some ToolbarContent {
+        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
     }
 }
 

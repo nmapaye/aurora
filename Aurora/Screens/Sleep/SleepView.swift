@@ -5,9 +5,13 @@ import SwiftUI
 /// and source, caffeine timing once 14 paired nights exist, and the Sleep
 /// Data controls. Nothing here suggests a bedtime or a dose.
 struct SleepView: View {
+    /// Pushed inside Your records: keeps the system bar (see `AppScreen`).
+    var pushed = false
     @Environment(AppModel.self) private var model
-    @Environment(Router.self) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var range: SleepRange = .week
+    /// Every entry opens in this screen's own stack, so a sheet stays put.
+    @State private var showHistory = false
     @State private var showDistribution = false
     @State private var showSources = false
     @State private var editing: SleepSheet?
@@ -20,7 +24,7 @@ struct SleepView: View {
             sessions: state.sleeps, targetSleepHours: state.prefs.targetSleep, range: range,
             now: model.now, clock: model.clock, text: model.text
         )
-        AppScreen(title: "Sleep") {
+        AppScreen(title: "Sleep", pushed: pushed) {
             Button("Add Data") { editing = .new }
                 .font(.subheadline.weight(.semibold))
                 .accessibilityIdentifier("sleep-add-data")
@@ -43,6 +47,7 @@ struct SleepView: View {
             await model.importHealth()
         }
         .sensoryFeedback(.success, trigger: savedCount)
+        .navigationDestination(isPresented: $showHistory) { SleepHistoryView() }
         .sheet(item: $editing) { sheet in
             SleepEntrySheet(mode: sheet) { draft in
                 switch sheet {
@@ -87,7 +92,7 @@ struct SleepView: View {
             if signal.status == .empty {
                 editing = .new
             } else {
-                router.sleepPath.append(.sleep)
+                showHistory = true
             }
         }
     }
@@ -144,7 +149,7 @@ struct SleepView: View {
         let sync = state.healthSync
         return VStack(alignment: .leading, spacing: Metrics.sm) {
             Button {
-                withAnimation { showSources.toggle() }
+                withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) { showSources.toggle() }
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -187,7 +192,7 @@ struct SleepView: View {
                     VStack(spacing: 0) {
                         dataRow("Add sleep manually", symbol: "plus.circle") { editing = .new }
                         Divider()
-                        dataRow("All sleep entries", symbol: "list.bullet", value: "\(state.sleeps.count)") { router.sleepPath.append(.sleep) }
+                        dataRow("All sleep entries", symbol: "list.bullet", value: "\(state.sleeps.count)") { showHistory = true }
                         Divider()
                         dataRow(state.demoMode ? "Refresh Sample Data" : "Load Sample Data", symbol: "sparkles") { model.loadSampleData() }
                         if state.demoMode {

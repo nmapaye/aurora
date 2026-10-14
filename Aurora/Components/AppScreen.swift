@@ -3,10 +3,15 @@ import SwiftUI
 /// The screen scaffold: a scrolling column on the screen color with a large
 /// title, optional subtitle, and a trailing settings button. Content is
 /// capped at a readable width and centered on wide windows.
+///
+/// Pushed (inside the Your records sheet) it keeps the system bar instead,
+/// so Back, the edge swipe and the sheet's own actions stay; the title goes
+/// in the bar, trailing actions in the toolbar, and there's no gear.
 struct AppScreen<Content: View, Trailing: View>: View {
     let title: String
     var subtitle: String?
     var showsSettings = true
+    var pushed = false
     @ViewBuilder var trailing: () -> Trailing
     @ViewBuilder var content: () -> Content
 
@@ -14,6 +19,16 @@ struct AppScreen<Content: View, Trailing: View>: View {
     @Environment(Router.self) private var router
 
     var body: some View {
+        scroll
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(pushed ? .automatic : .hidden, for: .navigationBar)
+            .toolbar {
+                if pushed { ToolbarItem(placement: .primaryAction) { trailing() } }
+            }
+    }
+
+    private var scroll: some View {
         GeometryReader { proxy in
             let wide = proxy.size.width >= Metrics.twoColumnMinWidth && sizeClass == .regular
             ScrollView {
@@ -23,6 +38,7 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 }
                 .frame(maxWidth: wide ? Metrics.wideContentMaxWidth : Metrics.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, wide ? Metrics.lg : Metrics.md)
+                .padding(.top, pushed ? Metrics.md : 0)
                 .padding(.bottom, Metrics.xxl)
                 .frame(maxWidth: .infinity)
             }
@@ -30,10 +46,21 @@ struct AppScreen<Content: View, Trailing: View>: View {
             .environment(\.isWideLayout, wide)
         }
         .background(Palette.screen.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var header: some View {
+    @ViewBuilder private var header: some View {
+        if pushed {
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+        } else {
+            rootHeader
+        }
+    }
+
+    private var rootHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
                 Text(title)
@@ -67,10 +94,11 @@ struct AppScreen<Content: View, Trailing: View>: View {
 }
 
 extension AppScreen where Trailing == EmptyView {
-    init(title: String, subtitle: String? = nil, showsSettings: Bool = true, @ViewBuilder content: @escaping () -> Content) {
+    init(title: String, subtitle: String? = nil, showsSettings: Bool = true, pushed: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.subtitle = subtitle
         self.showsSettings = showsSettings
+        self.pushed = pushed
         self.trailing = { EmptyView() }
         self.content = content
     }
@@ -230,6 +258,27 @@ struct LabeledField<Field: View>: View {
 }
 
 extension View {
+    /// Settings-shaped lists on Aurora's screen color, like the rest of the
+    /// sheets, instead of system grouped grey. Pair with `auroraRows()`.
+    func auroraGroupedList() -> some View {
+        scrollContentBackground(.hidden).background(Palette.screen)
+    }
+
+    /// Card rows for a list section.
+    func auroraRows() -> some View {
+        listRowBackground(Palette.card).listRowSeparatorTint(Palette.separator)
+    }
+
+    /// Page size on iPad, where the default form sheet cut Settings and
+    /// Your records off with most of the screen empty. No change on iPhone.
+    @ViewBuilder func pageSizedSheet() -> some View {
+        if #available(iOS 18, *) {
+            presentationSizing(.page)
+        } else {
+            self
+        }
+    }
+
     /// The shared field surface: fill, a resting border the card can't
     /// swallow, and a tint ring while the field has focus.
     func fieldSurface(focused: Bool) -> some View {

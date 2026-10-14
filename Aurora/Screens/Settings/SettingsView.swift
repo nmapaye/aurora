@@ -18,6 +18,9 @@ struct SettingsView: View {
 
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
+    /// The one name for the links into this screen from Aurora settings and
+    /// Your records.
+    static let recordsTitle = "Records, exports and privacy"
 
     /// True when pushed onto another screen's NavigationStack. A second
     /// stack nested inside it crashed iPadOS 26's focus system as soon as
@@ -28,7 +31,7 @@ struct SettingsView: View {
         if pushed {
             settings
         } else {
-            NavigationStack { settings }
+            NavigationStack { settings }.pageSizedSheet()
         }
     }
 
@@ -152,7 +155,7 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
             .padding(Metrics.md)
         }
-        .background(Palette.modalBackground)
+        .background(Palette.screen)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
