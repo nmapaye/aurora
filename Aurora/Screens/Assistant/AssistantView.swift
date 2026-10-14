@@ -273,47 +273,18 @@ struct AssistantView: View {
         return max(0, screen.bounds.maxY - frame.minY)
     }
 
-    /// One message with any next steps under it. Its own member so the
-    /// conversation's body stays quick to type-check (Xcode 26.6 in CI).
+    /// One message. Its own member so the conversation's body stays quick to
+    /// type-check (Xcode 26.6 in CI). Next steps are in the bottom row, never
+    /// here: a row changing height off screen as a reply arrived kept the
+    /// lazy conversation laying out forever.
     private func conversationRow(_ message: ConversationMessage) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.sm) {
-            messageView(message)
-            followUps(after: message)
-        }
+        messageView(message)
         .id(message.id)
         .trackingVisibility(onScreen) { visible in
             if visible { visibility.messages.insert(message.id) } else { visibility.messages.remove(message.id) }
             if visible && heldMessage == message.id { heldMessage = nil }
         }
         .onDisappear { visibility.messages.remove(message.id) }
-    }
-    /// Next steps under the newest answer. Derived each time, never saved.
-    @ViewBuilder private func followUps(after message: ConversationMessage) -> some View {
-        if message.id == assistant.conversation.messages.last?.id, !message.isUser, let card = message.card,
-           !assistant.processing, assistant.pendingMessageID == nil {
-            let next = FollowUps.after(card, now: app.now, clock: app.clock)
-            if !next.isEmpty {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: Metrics.xs) { ForEach(next) { followUpChip($0) } }
-                    VStack(alignment: .leading, spacing: Metrics.xs) { ForEach(next) { followUpChip($0) } }
-                }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Next steps")
-                .accessibilityIdentifier("assistant-follow-ups")
-            }
-        }
-    }
-    private func followUpChip(_ capability: Capability) -> some View {
-        Button { assistant.send(capability.phrase, app: app) } label: {
-            Label(capability.title, systemImage: capability.symbol)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-                .padding(.horizontal, Metrics.md)
-                .frame(minHeight: Metrics.minimumTouchTarget)
-        }
-        .buttonStyle(CapsuleActionStyle())
-        .disabled(assistant.processing)
-        .accessibilityIdentifier("assistant-follow-up-\(capability.intent.rawValue)")
     }
 }
 
@@ -632,8 +603,9 @@ private struct ConversationComposer: View {
 
     /// Scrolls past the column's edges, but its first action starts in line
     /// with the cards and composer.
-    /// Four everyday actions as equal tiles that fit without scrolling;
-    /// everything else is in Settings, the history button, or a request.
+    /// Four equal tiles that fit without scrolling: the newest answer's next
+    /// steps, then everyday actions. Everything else is in Settings, the
+    /// history button, or a request.
     private var quickActions: some View {
         // Always one row: wrapping at large text would grow the fixed bottom
         // area and squeeze the conversation. Labels shrink a little instead.
@@ -644,11 +616,10 @@ private struct ConversationComposer: View {
         // sent left the conversation scrolled onto empty space.
         let typed = Capabilities.matching(input)
         let columns = Array(repeating: GridItem(.flexible(), spacing: Metrics.xs), count: 4)
-        let tiles = [("Morning briefing", "Briefing", "sun.horizon"), ("Log caffeine", "Caffeine", "cup.and.saucer"),
-                     ("How is my energy?", "Energy", "sparkle"), ("Reaction test", "Reaction", "hand.tap")]
+        let tiles = Capabilities.bottomRow(after: nextStepCard, clock: app.clock)
         return LazyVGrid(columns: columns, spacing: Metrics.xs) {
-            ForEach(tiles, id: \.0) { text, short, symbol in
-                if typed.isEmpty { quickAction(text, short: short, symbol: symbol) } else { tileLabel(short, symbol: symbol).hidden() }
+            ForEach(tiles) { tile in
+                if typed.isEmpty { rowTile(tile.capability, isNextStep: tile.isNextStep) } else { tileLabel(tile.capability.shortTitle, symbol: tile.capability.symbol).hidden() }
             }
         }
         .overlay {
@@ -678,6 +649,13 @@ private struct ConversationComposer: View {
         .accessibilityHint("Suggested from what you typed.")
         .accessibilityIdentifier("assistant-suggest-\(capability.intent.rawValue)")
     }
+    /// The newest answer's card while its next steps can be offered: nothing
+    /// in progress and no card field being edited. Derived, never saved.
+    private var nextStepCard: AssistantCard? {
+        guard let last = assistant.conversation.messages.last, !last.isUser, let card = last.card,
+              !assistant.processing, assistant.pendingMessageID == nil, !assistant.editingCardField else { return nil }
+        return card
+    }
     private func tileLabel(_ short: String, symbol: String) -> some View {
         VStack(spacing: Metrics.xxs) {
             Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.tint)
@@ -685,12 +663,22 @@ private struct ConversationComposer: View {
         }
         .frame(maxWidth: .infinity, minHeight: 56)
     }
-    private func quickAction(_ text: String, short: String, symbol: String) -> some View {
-        Button { assistant.send(text, app: app) } label: { tileLabel(short, symbol: symbol) }
+    /// One tile in the bottom row. A next step's label takes the tint, so it
+    /// reads as following the latest answer without a new colour. Next steps
+    /// show only while nothing is in progress, so they are never disabled.
+    private func rowTile(_ capability: Capability, isNextStep: Bool) -> some View {
+        Button { assistant.send(capability.phrase, app: app) } label: {
+            if isNextStep {
+                tileLabel(capability.shortTitle, symbol: capability.symbol).foregroundStyle(Palette.tint)
+            } else {
+                tileLabel(capability.shortTitle, symbol: capability.symbol)
+            }
+        }
         .buttonStyle(TileActionStyle())
         .disabled(assistant.processing)
-        .accessibilityLabel(text)
-        .accessibilityIdentifier("assistant-quick-\(text)")
+        .accessibilityLabel(capability.title)
+        .accessibilityHint(isNextStep ? "Next step after the latest answer." : "")
+        .accessibilityIdentifier(isNextStep ? "assistant-follow-up-\(capability.intent.rawValue)" : "assistant-quick-\(capability.phrase)")
     }
     /// Reads the field's value as Send is tapped; nothing is debounced.
     private func send() {

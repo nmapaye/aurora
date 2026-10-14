@@ -648,21 +648,26 @@ final class AuroraUITests: XCTestCase {
         XCTAssertNotEqual(input.value as? String, "cut")
     }
 
-    /// Next steps sit under the newest answer and send their request.
-    func testFollowUpChipsUnderAnEnergyAnswer() {
+    /// The newest answer's next steps lead the fixed row above the composer
+    /// and send their request; the everyday tiles fill the rest.
+    func testNextStepsLeadTheBottomRowAfterAnEnergyAnswer() {
         finishSetup()
         tapQuick("How is my energy?")
         XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
-        let curve = app.buttons["assistant-follow-up-energyProjection"]
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        let curve = row.buttons["assistant-follow-up-energyProjection"]
         XCTAssertTrue(curve.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["assistant-follow-up-energyCheckIn"].exists)
-        attachScreenshot("Follow-up chips")
-        for _ in 0..<4 where !curve.isHittable { app.swipeUp() }
+        XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].exists)
+        XCTAssertTrue(row.buttons["assistant-quick-Morning briefing"].exists)
+        XCTAssertTrue(row.buttons["assistant-quick-Log caffeine"].exists)
+        XCTAssertFalse(row.buttons["assistant-quick-How is my energy?"].exists)
+        attachScreenshot("Next steps in the bottom row")
         curve.tap()
         XCTAssertTrue(app.staticTexts["Modeled alertness · 24 hours"].waitForExistence(timeout: 5))
-        // Only the newest answer has next steps; the curve's never offer itself.
-        XCTAssertTrue(app.descendants(matching: .any)["assistant-follow-ups"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["assistant-follow-up-energyProjection"].exists)
+        // The curve's own next steps replace the energy answer's; never itself.
+        XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].waitForExistence(timeout: 5))
+        XCTAssertFalse(row.buttons["assistant-follow-up-energyProjection"].exists)
+        XCTAssertEqual(row.buttons.count, 4)
     }
 
     /// The drink follow-up card from synthetic fixtures, for visual review.
