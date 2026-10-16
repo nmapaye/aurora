@@ -172,8 +172,8 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
         }
 
         // Mirrors `SleepInertia`: the latest episode that started and ended
-        // by capture, with brief awakenings joined.
-        let episode = SleepIntervals.merge(sleeps.filter { $0.start <= t }, gapMs: SleepIntervals.briefAwakeningMs)
+        // by capture, by the one 90-minute episode rule.
+        let episode = SleepEpisodes.spans(sleeps.filter { $0.start <= t })
             .filter { $0.end <= t }
             .max { $0.end < $1.end }
         let wakeApplies = SleepInertia.value(at: t, sleeps: sleeps) > 0

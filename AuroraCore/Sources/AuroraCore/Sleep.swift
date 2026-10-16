@@ -13,15 +13,6 @@ public struct SleepChartPoint: Equatable, Sendable {
     public var durationMs: Millis?
 }
 
-/// A night (or nap): samples of one type with gaps under 90 minutes.
-public struct SleepEpisode: Equatable, Sendable {
-    public var sessions: [SleepSession]
-    public var type: SleepType
-    public var sleepStart: Millis
-    public var wakeTime: Millis
-    public var durationMs: Millis
-}
-
 public struct LastNight: Equatable, Sendable {
     public var session: SleepSession
     public var sessionIDs: [String]
@@ -53,8 +44,6 @@ public struct CaffeineImpact: Equatable, Sendable {
 }
 
 public enum SleepModel {
-    /// Shorter gaps are brief awakenings; 90 minutes starts a new episode.
-    public static let episodeGapMs: Millis = 90 * minuteMs
     /// A timing number needs this many nights that each have a sleep episode
     /// and caffeine logged in the 12 hours before it.
     public static let pairedNightsRequired = 14
@@ -83,77 +72,10 @@ public enum SleepModel {
         return duration + intervalEnd - intervalStart
     }
 
-    static func episodes(_ sessions: [SleepSession], now: Millis) -> [SleepEpisode] {
-        let ordered = sessions
-            .filter { $0.start.isFinite && $0.end.isFinite && $0.end > $0.start && $0.end <= now }
-            .enumerated()
-            .sorted { lhs, rhs in
-                if lhs.element.start != rhs.element.start { return lhs.element.start < rhs.element.start }
-                if lhs.element.end != rhs.element.end { return lhs.element.end < rhs.element.end }
-                return lhs.offset < rhs.offset
-            }
-            .map(\.element)
-        // Types in order of first appearance, as a JavaScript Map keeps them.
-        var typeOrder: [SleepType] = []
-        var byType: [SleepType: [SleepSession]] = [:]
-        for session in ordered {
-            if byType[session.type] == nil { typeOrder.append(session.type) }
-            byType[session.type, default: []].append(session)
-        }
-        var groups: [[SleepSession]] = []
-        for type in typeOrder {
-            var typed: [[SleepSession]] = []
-            for session in byType[type] ?? [] {
-                if let current = typed.last,
-                   let currentEnd = current.map(\.end).max(),
-                   session.start - currentEnd < episodeGapMs {
-                    typed[typed.count - 1].append(session)
-                } else {
-                    typed.append([session])
-                }
-            }
-            groups.append(contentsOf: typed)
-        }
-        return groups.compactMap { sessions in
-            guard let first = sessions.first else { return nil }
-            return SleepEpisode(
-                sessions: sessions,
-                type: first.type,
-                sleepStart: sessions.map(\.start).min() ?? first.start,
-                wakeTime: sessions.map(\.end).max() ?? first.end,
-                durationMs: unionDuration(sessions)
-            )
-        }
-    }
-
-    static func rangeEpisodes(_ sessions: [SleepSession], range: SleepRange, now: Millis, clock: LocalClock) -> [SleepEpisode] {
+    /// Episodes whose wake day falls in the range, by the one episode rule.
+    static func rangeEpisodes(_ sessions: [SleepSession], range: SleepRange, now: Millis, clock: LocalClock) -> [SleepEpisodeV2] {
         let keys = Set(clock.dayStarts(endingAt: now, days: range.days).map(clock.dayKey))
-        return episodes(sessions, now: now).filter { keys.contains(clock.dayKey($0.wakeTime)) }
-    }
-
-    /// Episodes grouped by local wake day, in order of first appearance.
-    static func byWakeDay(_ episodes: [SleepEpisode], clock: LocalClock) -> [(key: String, episodes: [SleepEpisode])] {
-        var order: [String] = []
-        var buckets: [String: [SleepEpisode]] = [:]
-        for episode in episodes {
-            let key = clock.dayKey(episode.wakeTime)
-            if buckets[key] == nil { order.append(key) }
-            buckets[key, default: []].append(episode)
-        }
-        return order.map { ($0, buckets[$0] ?? []) }
-    }
-
-    /// The longest sleep-type episode of a day; ties go to the later wake.
-    static func primary(_ episodes: [SleepEpisode]) -> SleepEpisode? {
-        episodes
-            .filter { $0.type == .sleep }
-            .enumerated()
-            .sorted { lhs, rhs in
-                if lhs.element.durationMs != rhs.element.durationMs { return lhs.element.durationMs > rhs.element.durationMs }
-                if lhs.element.wakeTime != rhs.element.wakeTime { return lhs.element.wakeTime > rhs.element.wakeTime }
-                return lhs.offset < rhs.offset
-            }
-            .first?.element
+        return SleepEpisodes.build(sessions, now: now, clock: clock).filter { keys.contains($0.wakeDayKey) }
     }
 
     /// The middle element by rounded-down index, matching the original.
@@ -195,16 +117,16 @@ public enum SleepModel {
         now: Millis,
         clock: LocalClock
     ) -> CaffeineImpact {
-        let wakeDays = byWakeDay(rangeEpisodes(sessions, range: range, now: now, clock: clock), clock: clock)
-        let pairs: [(delta: Int, sleep: Int)] = wakeDays.compactMap { day in
-            guard let night = primary(day.episodes) else { return nil }
+        // One main sleep per wake day: naps and short sleep never pair.
+        let mains = rangeEpisodes(sessions, range: range, now: now, clock: clock).filter { $0.kind == .main }
+        let pairs: [(delta: Int, sleep: Int)] = mains.compactMap { night in
             let lastDose = doses
-                .filter { $0.timestamp <= night.sleepStart && $0.timestamp >= night.sleepStart - 12 * hourMs }
+                .filter { $0.timestamp <= night.start && $0.timestamp >= night.start - 12 * hourMs }
                 .max { $0.timestamp < $1.timestamp }
             guard let lastDose else { return nil }
             return (
-                jsRoundInt((night.sleepStart - lastDose.timestamp) / minuteMs),
-                jsRoundInt(night.durationMs / minuteMs)
+                jsRoundInt((night.start - lastDose.timestamp) / minuteMs),
+                jsRoundInt(night.asleepMs / minuteMs)
             )
         }
         let deltas = pairs.map(\.delta)
@@ -220,33 +142,33 @@ public enum SleepModel {
 
     public static func presentation(
         sessions: [SleepSession],
-        targetSleepHours: Double,
+        targetSleepHours: Double?,
         range: SleepRange,
         now: Millis,
         clock: LocalClock,
         text: DateText
     ) -> SleepPresentation {
         let days = range.days
-        let byDay = byWakeDay(rangeEpisodes(sessions, range: range, now: now, clock: clock), clock: clock)
-        let lookup = Dictionary(byDay.map { ($0.key, $0.episodes) }, uniquingKeysWith: { first, _ in first })
+        let episodes = rangeEpisodes(sessions, range: range, now: now, clock: clock)
+        // Day totals count every episode, naps and short sleep included.
+        let totals = SleepEpisodes.asleepByWakeDay(episodes)
         let points = clock.dayStarts(endingAt: now, days: days).map { date -> SleepChartPoint in
-            guard let episodes = lookup[clock.dayKey(date)] else {
-                return SleepChartPoint(date: date, durationMs: nil)
-            }
-            return SleepChartPoint(date: date, durationMs: unionDuration(episodes.flatMap(\.sessions)))
+            SleepChartPoint(date: date, durationMs: totals[clock.dayKey(date)])
         }
         let recorded = points.compactMap(\.durationMs)
         let average = recorded.isEmpty ? nil : recorded.reduce(0, +) / Double(recorded.count)
-        let latest = byDay
-            .compactMap { primary($0.episodes) }
+        // "Last night" is the latest main sleep only; a nap or a short
+        // sample is never compared with the nightly target.
+        let latest = episodes
+            .filter { $0.kind == .main }
             .enumerated()
             .sorted { lhs, rhs in
-                lhs.element.wakeTime != rhs.element.wakeTime
-                    ? lhs.element.wakeTime > rhs.element.wakeTime
+                lhs.element.end != rhs.element.end
+                    ? lhs.element.end > rhs.element.end
                     : lhs.offset < rhs.offset
             }
             .first?.element
-        let duration = latest?.durationMs ?? 0
+        let duration = latest?.asleepMs ?? 0
         let dateRange = "\(days) days ending \(text.shortDate(now))"
         let noun = recorded.count == 1 ? "night" : "nights"
         let accessibilitySummary = recorded.isEmpty
@@ -259,11 +181,11 @@ public enum SleepModel {
             }.first!.element
             return LastNight(
                 session: newest,
-                sessionIDs: night.sessions.map(\.id),
+                sessionIDs: night.sessionIDs,
                 durationMs: duration,
-                sleepStart: night.sleepStart,
-                wakeTime: night.wakeTime,
-                targetDifferenceMs: duration - targetSleepHours * hourMs
+                sleepStart: night.start,
+                wakeTime: night.end,
+                targetDifferenceMs: targetSleepHours.map { duration - $0 * hourMs }
             )
         }
 
@@ -287,7 +209,12 @@ public enum SleepModel {
         return (title, value, "\(title), \(value)")
     }
 
-    public static func describeTargetComparison(durationMs: Millis, targetSleepHours: Double) -> String {
+    public static let noTargetText = "No target set"
+
+    /// Without a target there is nothing to compare with, and no reference
+    /// is invented.
+    public static func describeTargetComparison(durationMs: Millis, targetSleepHours: Double?) -> String {
+        guard let targetSleepHours else { return noTargetText }
         let target = formatGap(durationMs: targetSleepHours * hourMs)
         let difference = durationMs - targetSleepHours * hourMs
         if abs(difference) < minuteMs { return "On your \(target) target" }
@@ -307,7 +234,7 @@ public enum SleepModel {
     /// The most recent night in the last seven days.
     public static func recentNightSignal(
         sleeps: [SleepSession],
-        targetSleepHours: Double,
+        targetSleepHours: Double?,
         now: Millis,
         clock: LocalClock,
         text: DateText

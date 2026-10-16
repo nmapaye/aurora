@@ -8,6 +8,7 @@ import Testing
 @Suite("Parity with the TypeScript build")
 struct ParityTests {
     struct Context {
+        let zone: String
         let clock: LocalClock
         let scenario: JSONValue
         let now: Millis
@@ -26,6 +27,7 @@ struct ParityTests {
             return fixture.list("scenarios").map { scenario in
                 let data = scenario["dataset"] ?? .null
                 return Context(
+                    zone: identifier,
                     clock: clock,
                     scenario: scenario,
                     now: scenario.double("now") ?? 0,
@@ -91,6 +93,29 @@ struct ParityTests {
         }
     }
 
+    /// Where the one 90-minute episode rule (docs/research/sleep-and-check-in.md
+    /// §4 R2) intentionally differs from the TypeScript build, which grouped
+    /// naps and nights separately. Every case is a manual nap less than 90
+    /// minutes before (or overlapping) the next night, so it now belongs to
+    /// that night's episode and wake day. Keyed by zone, scenario `now` and
+    /// day start; values in minutes.
+    static let oneEpisodeRuleDayTotals: [String: Double] = [
+        // Nap 21:00–22:00, night from 22:45: the nap's 60 min move a day on.
+        "UTC|1772996400000|1772755200000": 930, "UTC|1772996400000|1772841600000": 555,
+        // Nap 22:30–23:30 overlapping a night from 22:45: union 22:30–07:00.
+        "UTC|1793565000000|1793318400000": 930, "UTC|1793565000000|1793404800000": 510,
+        // Nap 22:10–23:10 overlapping a night from 22:45, Pacific time.
+        "America/Los_Angeles|1784085000000|1783839600000": 930, "America/Los_Angeles|1784085000000|1783926000000": 530,
+    ]
+
+    /// Caffeine timing measures to the start of the main episode, which now
+    /// begins with the joined nap. Keyed by zone, scenario `now` and range.
+    static let oneEpisodeRuleMedianDelta: [String: Int] = [
+        "UTC|1772996400000|impactWeek": 390, "UTC|1772996400000|impactMonth": 465,
+        "UTC|1793565000000|impactMonth": 480,
+        "America/Los_Angeles|1784085000000|impactMonth": 460,
+    ]
+
     @Test func sleepPresentations() throws {
         for context in try Self.contexts() {
             for (key, range, target) in [("sleepWeek", SleepRange.week, 8.0), ("sleepMonth", SleepRange.month, 7.5)] {
@@ -100,12 +125,16 @@ struct ParityTests {
                 let expected = context.scenario[key] ?? .null
                 let points = expected.list("points")
                 #expect(p.points.count == points.count)
+                var wanted: [Millis] = []
                 for (point, want) in zip(p.points, points) {
                     #expect(point.date == want.double("date"), "\(context.clock.timeZone.identifier) \(key)")
-                    #expect(point.durationMs == want.double("durationMs"), "\(context.clock.timeZone.identifier) \(key) day \(point.date)")
+                    let changed = Self.oneEpisodeRuleDayTotals["\(context.zone)|\(Int64(context.now))|\(Int64(point.date))"].map { $0 * minuteMs }
+                    let duration = changed ?? want.double("durationMs")
+                    if let duration { wanted.append(duration) }
+                    #expect(point.durationMs == duration, "\(context.clock.timeZone.identifier) \(key) day \(point.date)")
                 }
                 #expect(p.recordedNights == expected.int("recordedNights"))
-                #expect(approxEqual(p.averageDurationMs, expected.double("averageDurationMs")))
+                #expect(approxEqual(p.averageDurationMs, wanted.isEmpty ? nil : wanted.reduce(0, +) / Double(wanted.count)))
                 #expect(p.headline == expected.text("headline"))
                 let last = expected["lastNight"] ?? .null
                 if last.isNull {
@@ -129,7 +158,7 @@ struct ParityTests {
                 let impact = SleepModel.caffeineImpact(sessions: context.sleeps, doses: context.doses, range: range, now: context.now, clock: context.clock)
                 let expected = context.scenario[key] ?? .null
                 #expect(impact.qualifyingNights == expected.int("qualifyingNights"), "\(context.clock.timeZone.identifier) \(key)")
-                #expect(impact.medianDeltaMin == expected.int("medianDeltaMin"))
+                #expect(impact.medianDeltaMin == (Self.oneEpisodeRuleMedianDelta["\(context.zone)|\(Int64(context.now))|\(key)"] ?? expected.int("medianDeltaMin")))
                 #expect(impact.p10 == expected.int("p10"))
                 #expect(impact.p90 == expected.int("p90"))
                 #expect(impact.medianSleepMin == expected.int("medianSleepMin"))
