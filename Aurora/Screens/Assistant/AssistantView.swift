@@ -105,7 +105,7 @@ struct AssistantView: View {
                 .trackingConversationEnd(visibility, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
-                .modifier(ConversationErase(progress: erased, reduceMotion: reduceMotion))
+                .overlay { ConversationErase(progress: erased, reduceMotion: reduceMotion) }
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)
                 // A taller bottom area would otherwise cover the end the person
