@@ -216,8 +216,11 @@ import Testing
         assistant.saveSleep(app: app)
         #expect(app.state.sleeps.isEmpty)
         #expect(assistant.failure == ManualSleep.missingTimes)
-        assistant.pendingSleep?.end = ManualSleep.addedTime(now: app.now)
-        assistant.pendingSleep?.start = (assistant.pendingSleep?.end ?? 0) - 7 * hourMs
+        // Read before writing: reading pendingSleep inside its own
+        // assignment is a simultaneous access, which crashes the test host.
+        let end = ManualSleep.addedTime(now: app.now)
+        assistant.pendingSleep?.end = end
+        assistant.pendingSleep?.start = end - 7 * hourMs
         assistant.saveSleep(app: app)
         #expect(app.state.sleeps.count == 1)
         #expect(app.state.sleeps.first.map { $0.end - $0.start } == 7 * hourMs)

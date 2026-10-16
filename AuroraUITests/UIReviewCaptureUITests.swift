@@ -8,7 +8,12 @@ final class UIReviewCaptureUITests: XCTestCase {
     private var app: XCUIApplication!
     private var label = ""
 
-    override func setUpWithError() throws { continueAfterFailure = true }
+    /// Captures only when asked (`TEST_RUNNER_AURORA_UI_REVIEW_CAPTURE=1`),
+    /// so routine test runs and CI don't spend 20 minutes on screenshots.
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["AURORA_UI_REVIEW_CAPTURE"] == "1", "UI review capture runs only when requested.")
+        continueAfterFailure = true
+    }
 
     private static let largest = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
 
