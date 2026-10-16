@@ -35,7 +35,12 @@ public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
     case caffeine
     /// No sleep target is set, so the model leaves out its sleep-target term
     /// rather than measure against a reference the person never chose.
+    /// Unknown to builds before October 2026, so it is never written under
+    /// the legacy `missingInputs` key (see `EnergyEstimate`'s Codable).
     case sleepTarget
+
+    /// The cases builds before October 2026 can decode.
+    public static let legacyCases: Set<EnergyMissingInput> = [.recentSleep, .recentCaffeine, .caffeine]
 
     public var text: String {
         switch self {
@@ -208,7 +213,7 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 /// needed to explain it later without recomputing from changed records.
 /// The score is the existing alertness estimate, rounded the same way, and is
 /// present only when sleep is recorded in the 24 hours before.
-public struct EnergyEstimate: Codable, Equatable, Sendable {
+public struct EnergyEstimate: Equatable, Sendable {
     /// 2 added `evidence`, the `caffeine` missing input and the
     /// `unmeasuredFactors` limitation.
     public static let currentVersion = 2
@@ -329,5 +334,85 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         let lastEnd = sleeps.filter { $0.end <= now }.map(\.end).max()
         guard let lastEnd, lastEnd <= now - dayMs else { return "No sleep recorded in the last 24 hours." }
         return "No sleep recorded since \(text.weekdayDate(lastEnd))."
+    }
+}
+
+/// Downgrade compatibility, the same pattern as `Prefs`. Builds before
+/// October 2026 (main, claude/ui-review) decode snapshots in saved
+/// conversations with synthesized Codable: they require a number under
+/// `targetSleepHours` and only know three missing inputs, and one card they
+/// can't read fails the whole conversation. So the legacy keys are always
+/// written in their old shape, the real values live under keys older builds
+/// ignore, and `legacyPlaceholders` names the legacy keys that are only
+/// placeholders in this snapshot.
+extension EnergyEstimate: Codable {
+    /// Values written only for older builds, never read as the snapshot's.
+    public enum LegacyPlaceholder {
+        /// `targetSleepHours` when the model compared with nothing.
+        public static let targetSleepHours: Double = 8
+    }
+
+    /// The legacy keys this build writes as placeholders.
+    public static let placeholderKeys = [CodingKeys.targetSleepHours.rawValue, CodingKeys.missingInputs.rawValue]
+
+    enum CodingKeys: String, CodingKey {
+        case version, modelVersion, capturedAt, timeZoneIdentifier, halfLifeHours, usualSleep, sleepHoursLast24
+        case modeledScore, contributions, includesSample, limitations, evidence
+        /// Legacy keys older builds require, in their old shape.
+        case targetSleepHours, missingInputs
+        /// The real values, which older builds ignore.
+        case chosenTargetSleepHours, allMissingInputs
+        /// Which legacy keys in this snapshot are only placeholders.
+        case legacyPlaceholders
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let placeholders = Set(try container.decodeIfPresent([String].self, forKey: .legacyPlaceholders) ?? [])
+        version = try container.decode(Int.self, forKey: .version)
+        modelVersion = try container.decode(String.self, forKey: .modelVersion)
+        capturedAt = try container.decode(Millis.self, forKey: .capturedAt)
+        timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
+        halfLifeHours = try container.decode(Double.self, forKey: .halfLifeHours)
+        // Older snapshots' value is the target they used; this build's is a
+        // placeholder for the reference, so only the chosen key is read.
+        targetSleepHours = placeholders.contains(CodingKeys.targetSleepHours.rawValue)
+            ? try container.decodeIfPresent(Double.self, forKey: .chosenTargetSleepHours)
+            : try container.decodeIfPresent(Double.self, forKey: .targetSleepHours)
+        usualSleep = try container.decodeIfPresent(UsualSleepBaseline.self, forKey: .usualSleep)
+        sleepHoursLast24 = try container.decode(Double.self, forKey: .sleepHoursLast24)
+        modeledScore = try container.decodeIfPresent(Int.self, forKey: .modeledScore)
+        contributions = try container.decode([EnergyContribution].self, forKey: .contributions)
+        missingInputs = try container.decode(
+            [EnergyMissingInput].self,
+            forKey: placeholders.contains(CodingKeys.missingInputs.rawValue) ? .allMissingInputs : .missingInputs
+        )
+        includesSample = try container.decode(Bool.self, forKey: .includesSample)
+        limitations = try container.decode([EnergyLimitation].self, forKey: .limitations)
+        evidence = try container.decode(EnergyEvidence.self, forKey: .evidence)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(modelVersion, forKey: .modelVersion)
+        try container.encode(capturedAt, forKey: .capturedAt)
+        try container.encode(timeZoneIdentifier, forKey: .timeZoneIdentifier)
+        try container.encode(halfLifeHours, forKey: .halfLifeHours)
+        // Placeholder for older builds: the reference the model used (the
+        // target or the usual-sleep baseline), else 8.
+        try container.encode(targetSleepHours ?? usualSleep?.hours ?? LegacyPlaceholder.targetSleepHours, forKey: .targetSleepHours)
+        try container.encodeIfPresent(targetSleepHours, forKey: .chosenTargetSleepHours)
+        try container.encodeIfPresent(usualSleep, forKey: .usualSleep)
+        try container.encode(sleepHoursLast24, forKey: .sleepHoursLast24)
+        try container.encodeIfPresent(modeledScore, forKey: .modeledScore)
+        try container.encode(contributions, forKey: .contributions)
+        // Only the cases older builds know under the legacy key.
+        try container.encode(missingInputs.filter(EnergyMissingInput.legacyCases.contains), forKey: .missingInputs)
+        try container.encode(missingInputs, forKey: .allMissingInputs)
+        try container.encode(Self.placeholderKeys, forKey: .legacyPlaceholders)
+        try container.encode(includesSample, forKey: .includesSample)
+        try container.encode(limitations, forKey: .limitations)
+        try container.encode(evidence, forKey: .evidence)
     }
 }
