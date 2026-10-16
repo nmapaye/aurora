@@ -221,8 +221,11 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var capturedAt: Millis
     public var timeZoneIdentifier: String
     public var halfLifeHours: Double
-    /// Nil when no target was set; the sleep-target term was then left out.
+    /// The person's chosen target, nil when none was set.
     public var targetSleepHours: Double?
+    /// With no target: the person's usual sleep the sleep-target term used
+    /// instead. Nil with a target, below its gate, or in older snapshots.
+    public var usualSleep: UsualSleepBaseline?
     public var sleepHoursLast24: Double
     /// Rounded 0 to 100 model output. Not a percentage.
     public var modeledScore: Int?
@@ -241,8 +244,10 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         sleeps: [SleepSession],
         inputs: EstimateInputs
     ) -> EnergyEstimate {
-        let estimate = Summary.estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs)
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
+        // Resolved only when there is a score to use it.
+        let reference = sleepHours > 0 ? inputs.sleepReference(at: t, sleeps: sleeps) : nil
+        let estimate = Summary.estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs, sleepHours: sleepHours, reference: reference)
         let evidence = EnergyEvidence.capture(at: t, doses: doses, sleeps: sleeps, halfLifeHours: inputs.halfLifeHours)
 
         var missing: [EnergyMissingInput] = []
@@ -252,21 +257,22 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         } else if !evidence.hasRecentCaffeine {
             missing.append(.recentCaffeine)
         }
-        if estimate.score != nil, inputs.targetSleepHours == nil { missing.append(.sleepTarget) }
+        if estimate.score != nil, reference == nil { missing.append(.sleepTarget) }
 
         var contributions: [EnergyContribution] = []
         if estimate.score != nil {
             let circadian = Circadian.value(at: t, clock: inputs.clock)
             let effect = Caffeine.activeEffect(at: t, doses: doses, halfLifeHours: inputs.halfLifeHours)
-            let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: inputs.targetSleepHours)
+            let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: reference?.hours)
             let inertia = SleepInertia.value(at: t, sleeps: sleeps)
             contributions = [
                 EnergyContribution(kind: .baseline, term: 1, points: Alertness.baseline),
                 EnergyContribution(kind: .timeOfDay, term: circadian, points: Alertness.circadianWeight * circadian),
                 EnergyContribution(kind: .caffeine, term: effect, points: Alertness.caffeineWeight * effect),
             ]
-            // Without a target the term is left out, not shown as zero.
-            if inputs.targetSleepHours != nil {
+            // With neither a target nor enough usual sleep the term is left
+            // out, not shown as zero.
+            if reference != nil {
                 contributions.append(EnergyContribution(kind: .sleepDebt, term: debt, points: -(Alertness.sleepDebtWeight * debt)))
             }
             contributions.append(EnergyContribution(kind: .inertia, term: inertia, points: -(Alertness.inertiaWeight * inertia)))
@@ -279,6 +285,10 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
             timeZoneIdentifier: inputs.clock.timeZone.identifier,
             halfLifeHours: inputs.halfLifeHours,
             targetSleepHours: inputs.targetSleepHours,
+            usualSleep: inputs.targetSleepHours == nil && estimate.score != nil ? reference.flatMap {
+                if case .usual(let baseline) = $0 { return baseline }
+                return nil
+            } : nil,
             sleepHoursLast24: sleepHours,
             modeledScore: estimate.score,
             contributions: contributions,
@@ -294,6 +304,13 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var unroundedScore: Double? {
         guard modeledScore != nil else { return nil }
         return min(100, max(0, contributions.reduce(0) { $0 + $1.points }))
+    }
+
+    /// What recorded sleep was compared with, for the sleep-target term.
+    public var sleepReferenceText: String {
+        if let targetSleepHours { return "Your goal: \(numberText(targetSleepHours))h." }
+        if let usualSleep { return usualSleep.text }
+        return "No sleep target set."
     }
 
     public var summary: String {
