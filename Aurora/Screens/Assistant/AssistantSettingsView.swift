@@ -28,7 +28,13 @@ struct AssistantSettingsView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistant.save(); dismiss() } } }
             .onChange(of: assistant.conversation.preferences) { _, _ in
                 assistant.save()
-                Task { await assistant.syncBriefingNotification(prompt: false) }
+                // The briefing decides whether follow-ups may notify, and
+                // quiet hours shape follow-ups and usual-wake reminders.
+                Task {
+                    await assistant.syncBriefingNotification(prompt: false)
+                    await assistant.syncRepeatDrinkNotifications(app: app)
+                    await app.syncWakeReminders()
+                }
             }
             .sheet(isPresented: $showAppleHealth) { HealthConnectionView() }
             .confirmationDialog("Clear this conversation?", isPresented: $clearConversation) {
