@@ -96,10 +96,22 @@ public enum HealthImportStatus: String, Codable, Sendable {
     case partial
 }
 
-/// Files from earlier builds may still carry `dailyLimitMg`, the removed
-/// "Personal caffeine reference". Decoding ignores it and it is never written
-/// again.
-public struct Prefs: Codable, Equatable, Sendable {
+/// The person's preferences.
+///
+/// **Compatibility keys.** Builds before October 2026 require `cutoffHour`
+/// and `dailyLimitMg` (and `halfLife`, `targetSleep`, `notifyCutoff`) and
+/// set the whole file aside as corrupt without them. So every file still
+/// carries them as *legacy placeholders* that only older builds read:
+/// `cutoffHour` is the chosen hour or 16, and `dailyLimitMg` is always 400.
+/// The real value lives under a `chosen…` key (`chosenCutoffHour`), and
+/// `legacyPlaceholders` lists the legacy keys that are only placeholders in
+/// this file. When a key is listed, decoding reads only its `chosen…` key;
+/// when it isn't (a file from an older build, or one re-saved by an older
+/// build after a downgrade, which drops unknown keys), the stored legacy
+/// value is the person's. `dailyLimitMg` is never read back.
+/// `notifyCutoff` is written true only while a cutoff is chosen, so a
+/// downgraded build never starts a 4 PM reminder nobody set.
+public struct Prefs: Equatable, Sendable {
     /// Caffeine half-life in hours.
     public var halfLife: Double
     /// Nightly sleep target in hours.
@@ -162,6 +174,68 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.favoriteDrinkIDs = favoriteDrinkIDs
         self.wakeReminders = wakeReminders
         self.repeatDrinks = repeatDrinks
+    }
+}
+
+extension Prefs: Codable {
+    /// Values written only for older builds, never read as the person's.
+    public enum LegacyPlaceholder {
+        public static let cutoffHour: Double = 16
+        public static let dailyLimitMg: Double = 400
+    }
+
+    /// The legacy keys this build writes as placeholders. Another field that
+    /// moves to a `chosen…` key adds its legacy key here.
+    public static let placeholderKeys = [CodingKeys.cutoffHour.rawValue, CodingKeys.dailyLimitMg.rawValue]
+
+    enum CodingKeys: String, CodingKey {
+        case halfLife, targetSleep, tz, notifyCutoff, displayName, favoriteDrinkIDs, wakeReminders, repeatDrinks
+        /// Legacy keys older builds require.
+        case cutoffHour, dailyLimitMg
+        /// The real values, which older builds ignore.
+        case chosenCutoffHour
+        /// Which legacy keys in this file are only placeholders.
+        case legacyPlaceholders
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        halfLife = try container.decode(Double.self, forKey: .halfLife)
+        targetSleep = try container.decode(Double.self, forKey: .targetSleep)
+        tz = try container.decodeIfPresent(String.self, forKey: .tz)
+        let placeholders = Set(try container.decodeIfPresent([String].self, forKey: .legacyPlaceholders) ?? [])
+        if placeholders.contains(CodingKeys.cutoffHour.rawValue) {
+            cutoffHour = try container.decodeIfPresent(Double.self, forKey: .chosenCutoffHour)
+        } else {
+            // From an older build, or re-saved by one: its value is kept,
+            // 16 included, since an older build can't say it was a
+            // placeholder.
+            cutoffHour = try container.decodeIfPresent(Double.self, forKey: .cutoffHour)
+        }
+        // `dailyLimitMg` is never read.
+        notifyCutoff = (try container.decodeIfPresent(Bool.self, forKey: .notifyCutoff) ?? false) && cutoffHour != nil
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        favoriteDrinkIDs = try container.decodeIfPresent([String].self, forKey: .favoriteDrinkIDs)
+        wakeReminders = try container.decodeIfPresent(WakeReminderSettings.self, forKey: .wakeReminders)
+        repeatDrinks = try container.decodeIfPresent(RepeatDrinkSettings.self, forKey: .repeatDrinks)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(halfLife, forKey: .halfLife)
+        try container.encode(targetSleep, forKey: .targetSleep)
+        try container.encodeIfPresent(tz, forKey: .tz)
+        // Placeholders for older builds. Off unless a cutoff is chosen, so a
+        // downgraded build never schedules a reminder nobody set.
+        try container.encode(cutoffHour ?? LegacyPlaceholder.cutoffHour, forKey: .cutoffHour)
+        try container.encode(LegacyPlaceholder.dailyLimitMg, forKey: .dailyLimitMg)
+        try container.encode(cutoffReminderOn, forKey: .notifyCutoff)
+        try container.encodeIfPresent(cutoffHour, forKey: .chosenCutoffHour)
+        try container.encode(Self.placeholderKeys, forKey: .legacyPlaceholders)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(favoriteDrinkIDs, forKey: .favoriteDrinkIDs)
+        try container.encodeIfPresent(wakeReminders, forKey: .wakeReminders)
+        try container.encodeIfPresent(repeatDrinks, forKey: .repeatDrinks)
     }
 }
 

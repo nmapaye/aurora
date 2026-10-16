@@ -196,18 +196,22 @@ struct WelcomeTests {
         #expect(state.onboarding.completed && state.onboarding.setupStep == nil)
         #expect(state.prefs.targetSleep == 7.5)
         #expect(FirstRun(state.onboarding) == .done)
-        // The removed caffeine reference still decodes and is never written
-        // again. A stored cutoff is kept: nothing says whether it was chosen.
+        // The removed caffeine reference still decodes and is never read. A
+        // stored cutoff is kept: nothing says whether it was chosen. It is
+        // written again as the chosen time, with the legacy placeholders.
         #expect(state.prefs.cutoffHour == 16)
         let written = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
-        #expect(!written.contains("dailyLimitMg"))
-        #expect(written.contains("\"cutoffHour\":16"))
+        #expect(written.contains("\"dailyLimitMg\":400"))
+        #expect(written.contains("\"chosenCutoffHour\":16"))
+        #expect(try JSONDecoder().decode(AppState.self, from: Data(written.utf8)).prefs.cutoffHour == 16)
     }
 
     @Test func newPrefsStartWithoutACutoffOrReference() throws {
         #expect(Prefs.defaults.cutoffHour == nil && !Prefs.defaults.notifyCutoff && !Prefs.defaults.cutoffReminderOn)
+        // Only placeholders for older builds; no chosen time.
         let written = String(decoding: try JSONEncoder().encode(AppState()), as: UTF8.self)
-        #expect(!written.contains("cutoffHour") && !written.contains("dailyLimitMg"))
+        #expect(!written.contains("chosenCutoffHour"))
+        #expect(try JSONDecoder().decode(AppState.self, from: Data(written.utf8)).prefs.cutoffHour == nil)
         // A reminder switched on without a time can't be scheduled.
         var prefs = Prefs.defaults
         prefs.notifyCutoff = true

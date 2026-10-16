@@ -112,6 +112,29 @@ latest due time, titled "Log yesterday’s drinks?", with no amounts. After
 of that kind logged around the time), notifications pause until the person
 switches them on again. "Not today" records nothing.
 
+### Compatibility keys (downgrades)
+
+Builds before October 2026 require `cutoffHour` and `dailyLimitMg` in prefs and
+set a file aside as corrupt without them. `Prefs` therefore always writes them as
+**legacy placeholders**: `cutoffHour` is the chosen hour or 16, `dailyLimitMg` is
+always 400, and `notifyCutoff` is true only while a cutoff is chosen, so a
+downgraded build never starts a reminder nobody set. The real value is in
+`chosenCutoffHour`, and `legacyPlaceholders` lists which legacy keys are only
+placeholders in this file.
+
+- Key listed in `legacyPlaceholders`: read only the `chosen…` key.
+- Not listed (an older build's file, or one an older build re-saved after a
+  downgrade, which drops unknown keys): the stored legacy value is the person's.
+  This case keeps a 4 PM placeholder as their time, because the older build
+  can't say it was one.
+- `dailyLimitMg` is never read back.
+
+Another field that loses its default (for example `targetSleep`) follows the same
+pattern: keep writing the legacy key with a valid placeholder, add
+`chosen<Name>`, and add the legacy key name to `Prefs.placeholderKeys`.
+`PrefsCompatibilityTests` decodes new files with a frozen copy of the older
+shape.
+
 Conversation data uses a separate versioned protected JSON file in the
 backup-excluded Application Support folder. Core record saves roll back the
 in-memory change on failure. Native state keeps a `state.pre-assistant.json`
