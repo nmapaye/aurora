@@ -3,11 +3,18 @@ import Foundation
 /// A what-if model for a bedtime and threshold the person enters. Aurora
 /// never proposes a bedtime, threshold, amount or time: every input starts
 /// empty, and the half-life is the person's own Settings value, labeled as
-/// an assumption. Decay uses `Caffeine.activeMg` on absolute instants, so a
-/// daylight-saving change between a drink and bedtime counts real hours.
+/// an assumption. Bedtime values are `CaffeineKinetics.unclearedMg`, caffeine
+/// still being absorbed plus already in the body, on absolute instants, so a
+/// drink just before bed isn't counted as 0 mg and a daylight-saving change
+/// between a drink and bedtime counts real hours.
 public enum CutoffScenario {
-    public static let modelVersion = "cutoff-scenario-1"
-    public static let assumption = "Modeled with your half-life setting. An assumption, not measured."
+    /// 2: bedtime values include caffeine still being absorbed
+    /// (`docs/research/caffeine.md` §6.2). Snapshots keep the version they
+    /// were calculated with.
+    public static let modelVersion = "cutoff-scenario-2"
+    public static let assumption = "Modeled with your half-life setting and a typical absorption time. An assumption, not measured."
+    /// What every bedtime value on the card is.
+    public static let bedtimeValueLabel = "Modeled caffeine at bedtime, including any still being absorbed"
     public static let disclaimer = "A scenario you define. Not a recommendation or a safety limit."
 
     // MARK: Local times
@@ -114,7 +121,7 @@ public enum CutoffScenario {
         }
     }
 
-    /// Modeled caffeine at bedtime from records known at capture, with
+    /// Modeled caffeine not yet cleared at bedtime from records known at capture, with
     /// Sample Data kept apart from recorded entries.
     public struct Existing: Codable, Equatable, Sendable {
         public var recordedMg: Double
@@ -138,7 +145,7 @@ public enum CutoffScenario {
         case passed(Millis)
         /// Existing records alone are at or above the threshold at bedtime.
         case thresholdReachedByRecords
-        /// A 0 mg threshold with caffeine to model: it never decays to 0 mg
+        /// A 0 mg threshold with caffeine to model: it never clears to 0 mg
         /// in finite time.
         case unreachable
     }
@@ -150,7 +157,8 @@ public enum CutoffScenario {
         public var existing: Existing?
         public var amountMg: Double?
         public var drinkAt: Millis?
-        /// The hypothetical drink's modeled contribution at bedtime.
+        /// The hypothetical drink's modeled contribution at bedtime, including
+        /// any still being absorbed.
         public var hypotheticalMg: Double?
         /// Existing plus hypothetical, when a drink time is entered.
         public var combinedMg: Double?
@@ -240,12 +248,13 @@ public enum CutoffScenario {
         let known = doses.filter { $0.timestamp <= now }
         let basis = known.map { "\($0.id)|\(Int64($0.timestamp))|\($0.mg)" }.sorted()
         var existing: Existing?
+        let pk = CaffeinePK(halfLifeHours: halfLifeHours)
         if let bedtime, halfLifeValid {
             let recorded = known.filter { !RecordID.isSample($0.id) }
             let sample = known.filter { RecordID.isSample($0.id) }
             existing = Existing(
-                recordedMg: Caffeine.activeMg(at: bedtime, doses: recorded, halfLifeHours: halfLifeHours),
-                sampleMg: Caffeine.activeMg(at: bedtime, doses: sample, halfLifeHours: halfLifeHours),
+                recordedMg: CaffeineKinetics.unclearedMg(at: bedtime, doses: recorded, pk: pk),
+                sampleMg: CaffeineKinetics.unclearedMg(at: bedtime, doses: sample, pk: pk),
                 recordedCount: recorded.count, sampleCount: sample.count,
                 excludedFutureCount: doses.count - known.count
             )
@@ -253,13 +262,13 @@ public enum CutoffScenario {
 
         var hypothetical: Double?
         if let bedtime, let amountMg, let drinkAt, halfLifeValid {
-            hypothetical = Caffeine.activeMg(at: bedtime, doses: [Dose(id: "scenario", timestamp: drinkAt, mg: amountMg)], halfLifeHours: halfLifeHours)
+            hypothetical = CaffeineKinetics.unclearedMg(at: bedtime, doses: [Dose(id: "scenario", timestamp: drinkAt, mg: amountMg)], pk: pk)
         }
         let combined = existing.flatMap { e in hypothetical.map { e.totalMg + $0 } }
 
         let latest: Latest
         if let bedtime, let thresholdMg, let existing, problems.allSatisfy({ !$0.blocksLatest }) {
-            latest = latestTime(bedtime: bedtime, thresholdMg: thresholdMg, existingMg: existing.totalMg, amountMg: amountMg, halfLifeHours: halfLifeHours, now: now)
+            latest = latestTime(bedtime: bedtime, thresholdMg: thresholdMg, existingMg: existing.totalMg, amountMg: amountMg, pk: pk, now: now)
         } else {
             latest = .unavailable
         }
@@ -269,17 +278,40 @@ public enum CutoffScenario {
         return Snapshot(modelVersion: modelVersion, capturedAt: now, timeZone: timeZone.identifier, halfLifeHours: halfLifeHours, input: input, result: result)
     }
 
-    /// Solves `existing + amount · 0.5^(h / halfLife) ≤ threshold` for the
-    /// smallest `h` hours before bedtime, rounded to an earlier whole minute so
-    /// the condition still holds at the time shown.
-    static func latestTime(bedtime: Millis, thresholdMg: Double, existingMg: Double, amountMg: Double?, halfLifeHours: Double, now: Millis) -> Latest {
-        // Modeled caffeine halves but never reaches 0 mg in finite time.
+    /// Bisection bracket for the latest-time search: 72 hours, widened by
+    /// doubling for long half-lives or large amounts, up to `searchLimitHours`.
+    static let searchHours: Double = 72
+    static let searchLimitHours: Double = 1_000_000
+    static let searchIterations = 60
+    static let searchToleranceHours: Double = 1.0 / 3600
+
+    /// Solves `existing + amount · unclearedFraction(τ) ≤ threshold` for the
+    /// smallest `τ` hours before bedtime. Not-yet-cleared caffeine only ever
+    /// falls, so the bisection's upper end always satisfies the condition;
+    /// the time is then rounded to an earlier whole minute so it still holds
+    /// at the time shown.
+    static func latestTime(bedtime: Millis, thresholdMg: Double, existingMg: Double, amountMg: Double?, pk: CaffeinePK, now: Millis) -> Latest {
+        // Modeled caffeine falls but never reaches 0 mg in finite time.
         if thresholdMg == 0 && existingMg > 0 { return .unreachable }
         if existingMg > 0 && existingMg >= thresholdMg { return .thresholdReachedByRecords }
         guard let amountMg else { return .needsAmount }
         let headroom = thresholdMg - existingMg
         guard headroom > 0 else { return .unreachable }
-        let hoursBefore = amountMg <= headroom ? 0 : halfLifeHours * log2(amountMg / headroom)
+        var hoursBefore: Double = 0
+        if amountMg > headroom {
+            let fits = { (τ: Double) in amountMg * CaffeineKinetics.unclearedFraction(hours: τ, pk: pk) <= headroom }
+            var low: Double = 0, high = searchHours
+            while !fits(high) {
+                guard high < searchLimitHours else { return .unreachable }
+                low = high
+                high *= 2
+            }
+            for _ in 0..<searchIterations where high - low > searchToleranceHours {
+                let mid = (low + high) / 2
+                if fits(mid) { high = mid } else { low = mid }
+            }
+            hoursBefore = high
+        }
         let raw = bedtime - hoursBefore * hourMs
         guard raw.isFinite else { return .unreachable }
         let time = (raw / minuteMs).rounded(.down) * minuteMs

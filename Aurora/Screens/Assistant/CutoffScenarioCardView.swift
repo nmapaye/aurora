@@ -254,7 +254,7 @@ struct CutoffScenarioCardView: View {
                 metric("Bedtime", text.fullDateTime(bedtime), source: zoneNote(bedtime))
             }
             if let existing = r.existing {
-                metric("Modeled caffeine at bedtime · existing records", mg(existing.totalMg), source: provenance(existing))
+                metric(S.bedtimeValueLabel, mg(existing.totalMg), source: provenance(existing))
                 if existing.includesSample {
                     SampleDataBadge(detail: mg(existing.sampleMg))
                 }
@@ -334,7 +334,7 @@ struct CutoffScenarioCardView: View {
         case .thresholdReachedByRecords:
             metric("Latest hypothetical time", "None", source: "Existing records already model at or above \(threshold) at bedtime.")
         case .unreachable:
-            metric("Latest hypothetical time", "No finite time", source: "Modeled caffeine halves but never reaches 0 mg, so a 0 mg threshold can’t be met.")
+            metric("Latest hypothetical time", "No finite time", source: "Modeled caffeine keeps falling but never reaches 0 mg, so a 0 mg threshold can’t be met.")
         }
     }
 
@@ -391,7 +391,7 @@ struct CutoffScenarioCardView: View {
     }
 
     private func provenance(_ existing: S.Existing) -> String {
-        var parts = ["\(existing.recordedCount) recorded \(existing.recordedCount == 1 ? "entry" : "entries")"]
+        var parts = ["From \(existing.recordedCount) recorded \(existing.recordedCount == 1 ? "entry" : "entries")"]
         if existing.includesSample { parts.append("\(existing.sampleCount) Sample Data") }
         if existing.excludedFutureCount > 0 { parts.append("\(existing.excludedFutureCount) dated later not included") }
         return parts.joined(separator: " · ")
