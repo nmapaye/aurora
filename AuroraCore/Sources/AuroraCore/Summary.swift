@@ -84,12 +84,13 @@ public enum Summary {
     /// keeps the same local hour.
     public static func cutoffAnnotation(
         now: Millis,
-        cutoffHour: Double,
+        cutoffHour: Double?,
         doses: [Dose],
         clock: LocalClock,
         formatTime: (Millis) -> String
     ) -> CutoffAnnotation? {
-        guard cutoffHour.isFinite else { return nil }
+        // No marker until the person sets a cutoff time.
+        guard let cutoffHour, cutoffHour.isFinite else { return nil }
         let hour = Int(clamp(jsRound(cutoffHour), 0, 23))
         let at = clock.setTime(now, hour: hour)
         let isPast = now >= at

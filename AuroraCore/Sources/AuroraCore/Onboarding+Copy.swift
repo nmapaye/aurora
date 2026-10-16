@@ -126,11 +126,13 @@ public enum CutoffReminder {
         public var minute: Int
     }
 
+    /// The daily reminder at the person's own cutoff time. It states the time
+    /// they set: no directive and no prediction about sleep.
     public static func content(cutoffHour: Double, clock: LocalClock, text: DateText) -> Content {
         let hour = Int(clamp(jsRound(cutoffHour), 0, 23))
         return Content(
-            title: "Last call for caffeine",
-            body: "After \(text.clockHour(Double(hour), clock: clock)), caffeine is likely to affect tonight's sleep.",
+            title: "Your cutoff time",
+            body: "\(text.clockHour(Double(hour), clock: clock)) · the time you set.",
             hour: hour,
             minute: 0
         )
@@ -142,7 +144,7 @@ public enum CutoffReminder {
 /// universal caffeine limit. Tests run every user-facing string through this.
 public enum CopyRules {
     public static let forbiddenPattern =
-        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence)\b"#
+        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence|last call|safe (level|intake)|pvts?|psychomotor vigilance)\b"#
 
     /// Disclaimers that negate the idea are allowed.
     public static let allowedSentences = ["It is not a recommended or safe amount."]

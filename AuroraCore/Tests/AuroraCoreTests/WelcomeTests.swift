@@ -196,6 +196,24 @@ struct WelcomeTests {
         #expect(state.onboarding.completed && state.onboarding.setupStep == nil)
         #expect(state.prefs.targetSleep == 7.5)
         #expect(FirstRun(state.onboarding) == .done)
+        // The removed caffeine reference still decodes and is never written
+        // again. A stored cutoff is kept: nothing says whether it was chosen.
+        #expect(state.prefs.cutoffHour == 16)
+        let written = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
+        #expect(!written.contains("dailyLimitMg"))
+        #expect(written.contains("\"cutoffHour\":16"))
+    }
+
+    @Test func newPrefsStartWithoutACutoffOrReference() throws {
+        #expect(Prefs.defaults.cutoffHour == nil && !Prefs.defaults.notifyCutoff && !Prefs.defaults.cutoffReminderOn)
+        let written = String(decoding: try JSONEncoder().encode(AppState()), as: UTF8.self)
+        #expect(!written.contains("cutoffHour") && !written.contains("dailyLimitMg"))
+        // A reminder switched on without a time can't be scheduled.
+        var prefs = Prefs.defaults
+        prefs.notifyCutoff = true
+        #expect(!prefs.cutoffReminderOn)
+        prefs.cutoffHour = 15
+        #expect(prefs.cutoffReminderOn)
     }
 
     @Test func unsetFieldsAreNotWrittenAndSetOnesRoundTrip() throws {

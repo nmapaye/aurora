@@ -96,16 +96,22 @@ public enum HealthImportStatus: String, Codable, Sendable {
     case partial
 }
 
+/// Files from earlier builds may still carry `dailyLimitMg`, the removed
+/// "Personal caffeine reference". Decoding ignores it and it is never written
+/// again.
 public struct Prefs: Codable, Equatable, Sendable {
     /// Caffeine half-life in hours.
     public var halfLife: Double
     /// Nightly sleep target in hours.
     public var targetSleep: Double
     public var tz: String?
-    /// The user's own stored reference. It is never presented as a limit,
-    /// allowance or goal.
-    public var dailyLimitMg: Double
-    public var cutoffHour: Double
+    /// The person's own cutoff time, in hours after midnight. Nil until they
+    /// set one: Aurora never picks it. Files from earlier builds keep the
+    /// value they stored, because nothing records whether the person chose
+    /// it or left the old 4 PM default. The one exception is an import from
+    /// the React Native build that never stored a cutoff (`LegacyState`).
+    public var cutoffHour: Double?
+    /// The daily cutoff reminder. Only turned on once a cutoff time is set.
     public var notifyCutoff: Bool
     /// What Aurora calls the person in greetings. Optional, stays on device,
     /// and isn't written while unset.
@@ -123,21 +129,24 @@ public struct Prefs: Codable, Equatable, Sendable {
     public static let defaultHalfLife: Double = 5
     public static let defaultTargetSleep: Double = 8
 
+    /// No cutoff time. Builds before October 2026 started at 16:00 and
+    /// stored it in every file; those stored values are kept as they are.
     public static let defaults = Prefs(
         halfLife: defaultHalfLife,
         targetSleep: defaultTargetSleep,
         tz: nil,
-        dailyLimitMg: 400,
-        cutoffHour: 16,
+        cutoffHour: nil,
         notifyCutoff: false
     )
+
+    /// True when the daily cutoff reminder can actually be scheduled.
+    public var cutoffReminderOn: Bool { notifyCutoff && cutoffHour?.isFinite == true }
 
     public init(
         halfLife: Double,
         targetSleep: Double,
         tz: String? = nil,
-        dailyLimitMg: Double,
-        cutoffHour: Double,
+        cutoffHour: Double? = nil,
         notifyCutoff: Bool,
         displayName: String? = nil,
         favoriteDrinkIDs: [String]? = nil,
@@ -147,7 +156,6 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.halfLife = halfLife
         self.targetSleep = targetSleep
         self.tz = tz
-        self.dailyLimitMg = dailyLimitMg
         self.cutoffHour = cutoffHour
         self.notifyCutoff = notifyCutoff
         self.displayName = displayName
