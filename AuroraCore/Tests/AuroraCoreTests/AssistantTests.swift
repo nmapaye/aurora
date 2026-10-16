@@ -73,6 +73,17 @@ import Testing
         #expect(!text.contains("0 mg recorded"))
         #expect(CopyRules.violations(in: text).isEmpty)
     }
+    /// The briefing already says "Estimated" and "Modeled"; it doesn't add a
+    /// third reminder. Spoken text keeps it.
+    @Test func briefingLabelsTheEstimateOnce() {
+        var state = AppState()
+        state.sleeps = [SleepSession(id: "manual:sleep:1:a", start: now - 9 * hourMs, end: now - hourMs)]
+        let text = AssistantPlanner.energyExplanation(state: state, now: now, clock: clock)
+        #expect(text.contains("Estimated alertness") && text.contains("Modeled from"))
+        #expect(!text.contains("not a measurement"))
+        let estimate = Summary.estimateAlertness(at: now, doses: [], sleeps: state.sleeps, inputs: EstimateInputs(prefs: state.prefs, clock: clock))
+        #expect(Summary.describe(estimate).hasSuffix("This is an estimate, not a measurement."))
+    }
     @Test func localSettingsRoundTripWithoutKeys() throws {
         let state = ConversationState()
         let data = try JSONEncoder().encode(state)

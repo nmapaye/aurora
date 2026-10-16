@@ -60,12 +60,15 @@ public enum Summary {
         return .estimated(score: jsRoundInt(score), sleepHours: sleepHours, includesSample: includesSample)
     }
 
-    public static func describe(_ estimate: AlertnessEstimate) -> String {
+    /// `estimateNote` adds "This is an estimate, not a measurement." Keep it
+    /// for spoken text with no visual label; text that already says
+    /// "Estimated" and "Modeled" leaves it out (one honesty label per fact).
+    public static func describe(_ estimate: AlertnessEstimate, estimateNote: Bool = true) -> String {
         switch estimate {
         case .needsSleep:
             return "Estimated alertness unavailable. No sleep is recorded in the last 24 hours."
         case .estimated(let score, let sleepHours, let includesSample):
-            return "Estimated alertness \(score) out of 100. Modeled from \(formatSleepHours(sleepHours)) of sleep in the last 24 hours, active caffeine, and time of day.\(includesSample ? " Includes Sample Data." : "") This is an estimate, not a measurement."
+            return "Estimated alertness \(score) out of 100. Modeled from \(formatSleepHours(sleepHours)) of sleep in the last 24 hours, active caffeine, and time of day.\(includesSample ? " Includes Sample Data." : "")\(estimateNote ? " This is an estimate, not a measurement." : "")"
         }
     }
 
