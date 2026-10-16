@@ -176,3 +176,35 @@ struct RecentSleepTests {
         #expect(draft.map { G.utc.hour($0.start) } == 0)
     }
 }
+
+/// With no sleep target the model and summaries say so; nothing stands in.
+@Suite("No sleep target set")
+struct NoSleepTargetTests {
+    typealias G = SleepGolden
+
+    @Test func theModelLeavesOutTheTargetTermAndSaysSo() {
+        let night = G.health("n", G.at(-1, 23), G.at(0, 3))
+        let t = G.at(0, 12)
+        let unset = EnergyEstimate.capture(at: t, doses: [], sleeps: [night], inputs: EstimateInputs(halfLifeHours: 5, targetSleepHours: nil, clock: G.utc))
+        #expect(unset.modeledScore != nil)
+        #expect(unset.targetSleepHours == nil)
+        #expect(!unset.contributions.contains { $0.kind == .sleepDebt })
+        #expect(unset.missingInputs.contains(.sleepTarget))
+        #expect(CopyRules.violations(in: EnergyMissingInput.sleepTarget.text).isEmpty)
+        #expect(approxEqual(unset.unroundedScore, Alertness.score(at: t, doses: [], sleeps: [night], halfLifeHours: 5, targetSleepHours: nil, clock: G.utc)))
+        #expect(SleepDebt.value(at: t, sleeps: [night], targetHours: nil) == 0)
+        // Without any recent sleep there is still no score, target or not.
+        let empty = EnergyEstimate.capture(at: t, doses: [], sleeps: [], inputs: EstimateInputs(halfLifeHours: 5, targetSleepHours: nil, clock: G.utc))
+        #expect(empty.modeledScore == nil && !empty.missingInputs.contains(.sleepTarget))
+        let targeted = EnergyEstimate.capture(at: t, doses: [], sleeps: [night], inputs: EstimateInputs(halfLifeHours: 5, targetSleepHours: 8, clock: G.utc))
+        #expect(targeted.targetSleepHours == 8 && targeted.contributions.contains { $0.kind == .sleepDebt })
+    }
+
+    @Test func lastNightShowsNoTargetInsteadOfAComparison() {
+        let sessions = [G.health("n", G.at(-1, 23), G.at(0, 7))]
+        let week = SleepModel.presentation(sessions: sessions, targetSleepHours: nil, range: .week, now: G.at(0, 12), clock: G.utc, text: fixtureText)
+        #expect(week.lastNight?.targetDifferenceMs == nil)
+        let signal = SleepModel.recentNightSignal(sleeps: sessions, targetSleepHours: nil, now: G.at(0, 12), clock: G.utc, text: fixtureText)
+        #expect(signal.context.hasSuffix("No target set"))
+    }
+}

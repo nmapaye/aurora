@@ -44,6 +44,7 @@ struct EnergyOutlookTests {
         state.sleeps = nights(2, now: now, clock: clock)
         #expect(EnergyOutlook.make(state: state, now: now, clock: clock).comparison == nil)
         state.sleeps = nights(7, now: now, clock: clock)
+        state.prefs.targetSleep = 8
         let outlook = EnergyOutlook.make(state: state, now: now, clock: clock)
         #expect(outlook.comparedDays >= EnergyOutlook.minimumComparedDays)
         #expect(outlook.comparison == .similar)
@@ -54,7 +55,12 @@ struct EnergyOutlookTests {
         let now = clock.setTime(Self.base, hour: 14)
         var state = AppState()
         state.sleeps = nights(7, now: now, clock: clock).map { $0.id == "manual:sleep:0" ? SleepSession(id: $0.id, start: $0.end - 3 * hourMs, end: $0.end) : $0 }
+        state.prefs.targetSleep = 8
         #expect(EnergyOutlook.make(state: state, now: now, clock: clock).comparison == .lower)
+        // With no target set, sleep isn't compared, so no comparison is offered.
+        state.prefs.targetSleep = nil
+        let unset = EnergyOutlook.make(state: state, now: now, clock: clock)
+        #expect(unset.comparison == nil && unset.peak != nil)
     }
 
     @Test func linesDescribeTheModelAndPassCopyRules() {

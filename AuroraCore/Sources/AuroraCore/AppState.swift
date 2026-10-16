@@ -26,6 +26,10 @@ public struct AppState: Codable, Equatable, Sendable {
     /// What the person turned on, one choice per Health permission. A choice
     /// records the request, never what Health allowed.
     public var healthChoices: HealthChoices = .off
+    /// `SleepTargetMigration.currentFormat`: this file's sleep target may be
+    /// unset. Missing in files from builds that pre-selected 8 h, which
+    /// decoding migrates once (see `init(from:)`).
+    public var sleepTargetFormat: Int = SleepTargetMigration.currentFormat
 
     public init() {}
 
@@ -352,7 +356,7 @@ public struct AppState: Codable, Equatable, Sendable {
 extension AppState {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, doses, sleeps, vigilanceSessions, prefs, onboarding, healthSync, demoMode, appearanceMode
-        case energyCheckIns, healthLedger, healthChoices
+        case energyCheckIns, healthLedger, healthChoices, sleepTargetFormat
     }
 
     /// Missing keys fall back to defaults, so a file written by an older
@@ -375,5 +379,14 @@ extension AppState {
         // Health choice, so it carries over as reading sleep.
         healthChoices = try container.decodeIfPresent(HealthChoices.self, forKey: .healthChoices)
             ?? HealthChoices(readSleep: onboarding.permissionStatus == .granted)
+        // Once, for files from builds that pre-selected 8 h: a target kept
+        // by "Not now" at setup was never chosen, so it goes back to unset.
+        // The format is written from then on, so a target the person later
+        // sets to 8 h is never cleared.
+        if try container.decodeIfPresent(Int.self, forKey: .sleepTargetFormat) == nil,
+           SleepTargetMigration.clearsTarget(prefs: prefs, onboarding: onboarding) {
+            prefs.targetSleep = nil
+        }
+        sleepTargetFormat = SleepTargetMigration.currentFormat
     }
 }

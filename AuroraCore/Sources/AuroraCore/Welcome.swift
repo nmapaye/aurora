@@ -258,11 +258,12 @@ public enum SetupTranscript {
     }
 
     static func reply(_ step: SetupStep, _ outcome: SetupOutcome, state: AppState, healthAvailable: Bool, calendarsChosen: Bool) -> Reply? {
-        let target = OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).spoken
+        let target = state.prefs.targetSleep.map { OnboardingCopy.formatSleepTarget($0).spoken }
         switch (step, outcome) {
         case (.name, .answered): return state.prefs.displayName.map(Reply.person)
-        case (.sleepTarget, .answered): return .person(target)
-        case (.sleepTarget, .skipped): return .retained("Sleep target stays at \(target). You can change it in Settings.")
+        case (.sleepTarget, .answered): return .person(target ?? "Not now")
+        case (.sleepTarget, .skipped):
+            return .retained(target.map { "Sleep target stays at \($0). You can change it in Settings." } ?? OnboardingCopy.noSleepTargetNote)
         case (.health, .answered): return .person(SetupCopy.healthAnswer(state.healthChoices, healthAvailable: healthAvailable))
         case (.calendar, .answered): return .person(calendarsChosen ? "Calendars chosen" : "No calendars chosen")
         case (.wakeReminders, .answered):

@@ -4,9 +4,17 @@ import Foundation
 /// does not reveal read decisions.
 public enum OnboardingCopy {
     public static let stepCount = 3
-    public static let sleepTargetRange: ClosedRange<Double> = 5...10
+    /// 5–11 h: the NSF "may be appropriate" bands reach 6–11 h for adults
+    /// under 65 and about 5 h from 65 (Hirshkowitz 2015).
+    public static let sleepTargetRange: ClosedRange<Double> = 5...11
     public static let sleepTargetStep: Double = 0.5
+    /// Offered with none selected: the person chooses.
     public static let sleepTargetPresets: [Double] = [7, 8, 9]
+    /// Context only, never a pre-selected value (AASM/SRS, Watson 2015;
+    /// National Sleep Foundation, Hirshkowitz 2015).
+    public static let sleepTargetContext = "Sleep experts recommend 7 or more hours for most adults; 7–9 h is the usual adult range."
+    public static let sleepTargetContextSource = "AASM and National Sleep Foundation"
+    public static let noSleepTargetNote = "No sleep target set. You can choose one in Settings."
     /// Two columns need this much width, and text no larger than this scale.
     public static let splitLayoutMinWidth: Double = 800
     public static let splitLayoutMaxFontScale: Double = 1.35

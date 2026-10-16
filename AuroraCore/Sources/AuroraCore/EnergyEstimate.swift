@@ -33,12 +33,16 @@ public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
     case recentCaffeine
     /// No entry adds any active caffeine at this time. The model counts none.
     case caffeine
+    /// No sleep target is set, so the model leaves out its sleep-target term
+    /// rather than measure against a reference the person never chose.
+    case sleepTarget
 
     public var text: String {
         switch self {
         case .recentSleep: "No sleep is recorded in the 24 hours before this time, so there is no modeled alertness."
         case .recentCaffeine: "No caffeine is recorded in the 24 hours before this time. Earlier entries still add a modeled amount as they fade."
         case .caffeine: "No caffeine is recorded by this time. The model counts none."
+        case .sleepTarget: "No sleep target is set, so recorded sleep isn’t compared with one. Set a target in Settings."
         }
     }
 }
@@ -217,7 +221,8 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var capturedAt: Millis
     public var timeZoneIdentifier: String
     public var halfLifeHours: Double
-    public var targetSleepHours: Double
+    /// Nil when no target was set; the sleep-target term was then left out.
+    public var targetSleepHours: Double?
     public var sleepHoursLast24: Double
     /// Rounded 0 to 100 model output. Not a percentage.
     public var modeledScore: Int?
@@ -247,6 +252,7 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         } else if !evidence.hasRecentCaffeine {
             missing.append(.recentCaffeine)
         }
+        if estimate.score != nil, inputs.targetSleepHours == nil { missing.append(.sleepTarget) }
 
         var contributions: [EnergyContribution] = []
         if estimate.score != nil {
@@ -258,9 +264,12 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
                 EnergyContribution(kind: .baseline, term: 1, points: Alertness.baseline),
                 EnergyContribution(kind: .timeOfDay, term: circadian, points: Alertness.circadianWeight * circadian),
                 EnergyContribution(kind: .caffeine, term: effect, points: Alertness.caffeineWeight * effect),
-                EnergyContribution(kind: .sleepDebt, term: debt, points: -(Alertness.sleepDebtWeight * debt)),
-                EnergyContribution(kind: .inertia, term: inertia, points: -(Alertness.inertiaWeight * inertia)),
             ]
+            // Without a target the term is left out, not shown as zero.
+            if inputs.targetSleepHours != nil {
+                contributions.append(EnergyContribution(kind: .sleepDebt, term: debt, points: -(Alertness.sleepDebtWeight * debt)))
+            }
+            contributions.append(EnergyContribution(kind: .inertia, term: inertia, points: -(Alertness.inertiaWeight * inertia)))
         }
 
         return EnergyEstimate(

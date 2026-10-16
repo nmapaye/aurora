@@ -516,7 +516,7 @@ private func localMillis(_ clock: LocalClock, _ year: Int, _ month: Int, _ day: 
         _ = Export.dailyTotalsCSV(rows)
         _ = Export.doseEntriesCSV(state.doses, clock: utc)
         _ = Export.vigilanceSessionsCSV(state.vigilanceSessions)
-        #expect(OnboardingCopy.formatSleepTarget(state.prefs.targetSleep).value == String(Int.max))
+        #expect(OnboardingCopy.formatSleepTarget(try #require(state.prefs.targetSleep)).value == String(Int.max))
         #expect(formatHoursMinutes(durationMs: 1e300).hasSuffix("m"))
         #expect(formatHoursMinutes(durationMs: -1e300).hasSuffix("m"))
         #expect(formatSleepHours(-1e300).hasSuffix("m"))

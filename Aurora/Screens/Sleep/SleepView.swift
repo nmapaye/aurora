@@ -62,7 +62,7 @@ struct SleepView: View {
         }
     }
 
-    private func chart(_ presentation: SleepPresentation, target: Double) -> some View {
+    private func chart(_ presentation: SleepPresentation, target: Double?) -> some View {
         let days = presentation.points.map { point -> DailyBarChart.Day in
             let readout = SleepModel.describeChartDay(point, text: model.text)
             return DailyBarChart.Day(
@@ -77,7 +77,8 @@ struct SleepView: View {
             days: days,
             unit: "Hours",
             accent: Palette.sleepAccent,
-            reference: (target, "\(OnboardingCopy.formatSleepTarget(target).value)h target"),
+            // No target, no reference line: nothing stands in for one.
+            reference: target.map { ($0, "\(OnboardingCopy.formatSleepTarget($0).value)h target") },
             defaultIndex: days.lastIndex { $0.value != nil },
             accessibilitySummary: presentation.accessibilitySummary,
             emptyMessage: "No sleep recorded in this range. Add a night or connect Apple Health in Sleep Data."

@@ -99,8 +99,9 @@ public enum HealthImportStatus: String, Codable, Sendable {
 public struct Prefs: Codable, Equatable, Sendable {
     /// Caffeine half-life in hours.
     public var halfLife: Double
-    /// Nightly sleep target in hours.
-    public var targetSleep: Double
+    /// Nightly sleep target in hours, nil until the person chooses one.
+    /// Nothing is pre-selected and no reference is substituted while unset.
+    public var targetSleep: Double?
     public var tz: String?
     /// The user's own stored reference. It is never presented as a limit,
     /// allowance or goal.
@@ -121,11 +122,10 @@ public struct Prefs: Codable, Equatable, Sendable {
     public var repeatDrinks: RepeatDrinkSettings?
 
     public static let defaultHalfLife: Double = 5
-    public static let defaultTargetSleep: Double = 8
 
     public static let defaults = Prefs(
         halfLife: defaultHalfLife,
-        targetSleep: defaultTargetSleep,
+        targetSleep: nil,
         tz: nil,
         dailyLimitMg: 400,
         cutoffHour: 16,
@@ -134,7 +134,7 @@ public struct Prefs: Codable, Equatable, Sendable {
 
     public init(
         halfLife: Double,
-        targetSleep: Double,
+        targetSleep: Double?,
         tz: String? = nil,
         dailyLimitMg: Double,
         cutoffHour: Double,

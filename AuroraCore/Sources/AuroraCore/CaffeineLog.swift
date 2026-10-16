@@ -233,7 +233,7 @@ public enum SummarySignals {
 
     public static func sleep(
         sleeps: [SleepSession],
-        targetSleepHours: Double,
+        targetSleepHours: Double?,
         now: Millis,
         clock: LocalClock,
         text: DateText

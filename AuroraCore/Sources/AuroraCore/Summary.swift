@@ -15,10 +15,12 @@ public enum AlertnessEstimate: Equatable, Sendable {
 
 public struct EstimateInputs: Sendable {
     public var halfLifeHours: Double
-    public var targetSleepHours: Double
+    /// Nil until the person sets a target; the model then leaves out its
+    /// sleep-target term (`SleepDebt.value`).
+    public var targetSleepHours: Double?
     public var clock: LocalClock
 
-    public init(halfLifeHours: Double, targetSleepHours: Double, clock: LocalClock) {
+    public init(halfLifeHours: Double, targetSleepHours: Double?, clock: LocalClock) {
         self.halfLifeHours = halfLifeHours
         self.targetSleepHours = targetSleepHours
         self.clock = clock

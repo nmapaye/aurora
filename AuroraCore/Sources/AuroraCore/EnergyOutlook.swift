@@ -64,7 +64,9 @@ public struct EnergyOutlook: Codable, Equatable, Sendable {
             if let score = estimate.modeledScore { past.append(score); sample = sample || estimate.includesSample }
         }
         var comparison: Comparison?
-        if let score = current.modeledScore, past.count >= minimumComparedDays {
+        // Without a sleep target, recorded sleep doesn't enter the score, so
+        // "about the same as your past week" after a short night would mislead.
+        if let score = current.modeledScore, past.count >= minimumComparedDays, inputs.targetSleepHours != nil {
             let difference = Double(score) - Double(past.reduce(0, +)) / Double(past.count)
             comparison = difference >= similarWithin ? .higher : (difference <= -similarWithin ? .lower : .similar)
         }

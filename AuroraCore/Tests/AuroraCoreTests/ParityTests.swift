@@ -322,7 +322,10 @@ struct ParityTests {
             #expect(state.vigilanceSessions.map(\.rating.rawValue) == want.list("vigilanceSessions").compactMap { $0.text("rating") }, "\(name)")
             let prefs = want["prefs"] ?? .null
             #expect(state.prefs.halfLife == prefs.double("halfLife"))
-            #expect(state.prefs.targetSleep == prefs.double("targetSleep"))
+            // The React Native build's 8 h default was pre-filled, never
+            // chosen: with no stored target the import leaves it unset.
+            let stored = try #require(item.text("raw")).contains(#""targetSleep""#)
+            #expect(state.prefs.targetSleep == (stored ? prefs.double("targetSleep") : nil), "\(name)")
             #expect(state.prefs.dailyLimitMg == prefs.double("dailyLimitMg"))
             #expect(state.prefs.cutoffHour == prefs.double("cutoffHour"))
             #expect(state.prefs.notifyCutoff == prefs.flag("notifyCutoff"))
