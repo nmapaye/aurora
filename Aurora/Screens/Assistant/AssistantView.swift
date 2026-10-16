@@ -39,8 +39,13 @@ struct AssistantView: View {
         /// Aurora revealing a long card's start doesn't move them away from
         /// the latest message.
         var userScrolling = false {
-            didSet { if userScrolling { awaitingReply = false } }
+            didSet { if userScrolling { awaitingReply = false; shownStart = nil } }
         }
+        /// The reply Aurora just showed, and when. If the bottom area grows
+        /// right after (the keyboard going down brings the quick actions
+        /// back), its start stays in view instead of the page being pulled
+        /// to the end past it. Cleared when the person scrolls.
+        var shownStart: (id: UUID, at: Date)?
     }
     @State private var viewportHeight: CGFloat = 0
     /// Where the visible part of the conversation ends, in its own
@@ -112,7 +117,7 @@ struct AssistantView: View {
                 // was reading; keep the end above it. Only when the end really
                 // is on screen, never past a reply's start.
                 .onChange(of: composerHeight) { old, new in
-                    if new > old && visibility.endOnScreen && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
+                    composerGrew(from: old, to: new, proxy)
                 }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
@@ -164,6 +169,20 @@ struct AssistantView: View {
         .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: sheetClosed))
     }
 
+    /// The bottom area grew. Keep the end above it, but only when the end
+    /// really is on screen, and never past the start of a reply that has
+    /// only just been shown: scrolling to its top is clamped at the end, so
+    /// a reply that fits still ends up fully above the taller area.
+    private func composerGrew(from old: CGFloat, to new: CGFloat, _ proxy: ScrollViewProxy) {
+        guard new > old && visibility.endOnScreen && heldMessage == nil else { return }
+        if let start = visibility.shownStart, Date.now.timeIntervalSince(start.at) < 2,
+           assistant.conversation.messages.last?.id == start.id {
+            reveal(proxy, start.id, anchor: .top)
+        } else {
+            reveal(proxy, "bottom", anchor: .bottom)
+        }
+    }
+
     /// A message was added or removed: reveal it, or hold it below while
     /// earlier messages are being read.
     private func messagesChanged(from old: Int, _ proxy: ScrollViewProxy) {
@@ -181,17 +200,20 @@ struct AssistantView: View {
             // the plain stack doesn't grow without bound.
             heldMessage = nil; windowStart = nil
             visibility.awaitingReply = old > 0
+            // A reply that fits now may not once the bottom area grows.
+            visibility.shownStart = messages.last.flatMap { $0.isUser ? nil : (id: $0.id, at: Date.now) }
             self.reveal(proxy, "bottom", anchor: .bottom)
         case .top:
-            heldMessage = nil
+            heldMessage = nil; visibility.shownStart = nil
             Task { @MainActor in proxy.scrollTo(Self.top, anchor: .top) }
         case .start(let id):
-            heldMessage = nil; visibility.awaitingReply = false
+            heldMessage = nil; visibility.awaitingReply = false; visibility.shownStart = (id: id, at: Date.now)
             self.reveal(proxy, id, anchor: .top)
         case .hold(let id):
             // Keep the earliest unseen message; reading resumes there. The
             // capsule and its announcement wait for its measured position.
             if heldMessage == nil { heldMessage = id; heldBelow = false }
+            visibility.shownStart = nil
         }
         // A held reply is announced by its capsule instead.
         var held = false
