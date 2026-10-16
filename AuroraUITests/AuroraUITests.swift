@@ -575,7 +575,20 @@ final class AuroraUITests: XCTestCase {
 
     private func request(_ text: String) {
         let input = app.textFields["assistant-composer"]
-        input.tap(); input.typeText(text)
+        // iPad CI once sent only "R" for "Reminders": the keystrokes after the
+        // first were lost. Type once the field has focus, and retype until it
+        // holds the whole request, clearing any partial text first.
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        let complete = NSPredicate(format: "value == %@", text)
+        for _ in 0..<3 {
+            input.tap()
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: input)], timeout: 3)
+            if let partial = input.value as? String, !partial.isEmpty, partial != text {
+                input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: partial.count))
+            }
+            input.typeText(text)
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: complete, object: input)], timeout: 2) == .completed { break }
+        }
         // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a retry can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
