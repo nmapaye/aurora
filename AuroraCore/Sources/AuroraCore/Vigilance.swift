@@ -7,6 +7,15 @@ public enum VigilanceRating: String, Codable, Sendable, CaseIterable {
     case sluggish = "Sluggish"
 }
 
+/// How a session's responses were given. A key press and a touch have
+/// different latencies, so sessions only compare with the same input.
+public enum VigilanceInput: String, Codable, Equatable, Hashable, Sendable {
+    case touch
+    /// A hardware keyboard, or Full Keyboard Access, Switch Control or
+    /// VoiceOver activating the test area.
+    case keyboard
+}
+
 /// One cue of a Reaction Test (protocol 2 and later), kept so a session can
 /// be re-scored later.
 public struct VigilanceTrial: Codable, Equatable, Hashable, Sendable {
@@ -66,6 +75,9 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
     /// The `utsname` machine identifier, such as "iPhone17,1". `nil` for
     /// version 1.
     public var deviceModel: String?
+    /// `.keyboard` if any response came from a key or an assistive
+    /// activation; `nil` (touch) for sessions saved before this was kept.
+    public var input: VigilanceInput?
 
     public init(
         id: String,
@@ -85,7 +97,8 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
         protocolVersion: Int = 1,
         trials: [VigilanceTrial] = [],
         falseStarts: [VigilanceFalseStart] = [],
-        deviceModel: String? = nil
+        deviceModel: String? = nil,
+        input: VigilanceInput? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -105,12 +118,13 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
         self.trials = trials
         self.falseStarts = falseStarts
         self.deviceModel = deviceModel
+        self.input = input
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, startedAt, completedAt, durationMs, trialCount, validReactionCount, falseStartCount, lapseCount
         case medianReactionMs, meanReactionMs, fastestReactionMs, reactionStdDevMs, score, rating
-        case protocolVersion, trials, falseStarts, deviceModel
+        case protocolVersion, trials, falseStarts, deviceModel, input
     }
 
     public init(from decoder: Decoder) throws {
@@ -133,11 +147,13 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
         trials = try c.decodeIfPresent([VigilanceTrial].self, forKey: .trials) ?? []
         falseStarts = try c.decodeIfPresent([VigilanceFalseStart].self, forKey: .falseStarts) ?? []
         deviceModel = try c.decodeIfPresent(String.self, forKey: .deviceModel)
+        // An unknown value from a later build reads as unknown, not a failure.
+        input = (try? c.decodeIfPresent(VigilanceInput.self, forKey: .input)) ?? nil
     }
 
     /// Whether this session can be compared with ones from `other`'s test.
     public func isComparable(with other: VigilanceSession) -> Bool {
-        protocolVersion == other.protocolVersion
+        protocolVersion == other.protocolVersion && (input ?? .touch) == (other.input ?? .touch)
     }
 
     /// Names a session from another version of the test wherever it is
@@ -387,7 +403,8 @@ public enum Vigilance {
         completedAt: Millis,
         trials: [VigilanceTrial],
         falseStarts: [VigilanceFalseStart],
-        deviceModel: String? = nil
+        deviceModel: String? = nil,
+        input: VigilanceInput? = nil
     ) -> VigilanceSession {
         let valid = trials.compactMap { trial -> Double? in
             guard let reaction = trial.reactionMs, reaction >= falseStartMs, reaction < lapseMs else { return nil }
@@ -413,7 +430,8 @@ public enum Vigilance {
             protocolVersion: protocolVersion,
             trials: trials,
             falseStarts: falseStarts,
-            deviceModel: deviceModel
+            deviceModel: deviceModel,
+            input: input
         )
     }
 

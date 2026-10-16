@@ -341,19 +341,25 @@ struct EnergyTimelineChart: View {
                     .symbolSize(50)
                     .foregroundStyle(Style.caffeine.opacity(dose.source == .sample ? 0.5 : 1))
             }
+            // The legend and the chart's summary say where now is; as its own
+            // element this hairline was a 1 pt target.
             RuleMark(x: .value("Now", date(projection.capturedAt)))
                 .foregroundStyle(Style.now)
                 .lineStyle(StrokeStyle(lineWidth: 1))
+                .accessibilityHidden(true)
             if let score = projection.current.modeledScore {
+                // The score is the card's headline; as a point it was a tiny target.
                 PointMark(x: .value("Now", date(projection.capturedAt)), y: .value("Modeled alertness", score))
                     .symbolSize(70)
                     .foregroundStyle(Style.line)
+                    .accessibilityHidden(true)
             }
             if highlight != projection.currentIndex {
                 let point = projection.points[highlight]
                 RuleMark(x: .value("Selected", date(point.t)))
                     .foregroundStyle(Style.selection)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    .accessibilityHidden(true)
             }
         }
         .chartYScale(domain: 0...100)

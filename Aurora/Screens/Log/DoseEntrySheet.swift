@@ -87,7 +87,7 @@ struct DoseEntrySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { finish(.cancelled(currentDraft)) }
+                    Button("Cancel") { finish(.cancelled(currentDraft)) }.keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }

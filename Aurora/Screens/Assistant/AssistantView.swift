@@ -145,6 +145,8 @@ struct AssistantView: View {
                         Text("Aurora").font(.headline)
                     }
                     .accessibilityElement(children: .ignore).accessibilityLabel("Aurora")
+                    // The bar caps its text size; a long press shows it full size.
+                    .accessibilityShowsLargeContentViewer()
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button { assistant.historySheet = .history } label: { Image(systemName: "clock.arrow.circlepath") }
@@ -356,7 +358,7 @@ struct AssistantView: View {
         VStack(alignment: .leading, spacing: 10) {
             if startsGroup {
                 Text(message.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2).foregroundStyle(Palette.textSecondary)
+                    .font(.caption).foregroundStyle(Palette.textSecondary)
             }
             if let card = message.card, !message.isUser {
                 AssistantCardView(message: message, card: card)
@@ -642,7 +644,7 @@ struct AssistantToolsView: View {
     }
 
     private var done: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
     }
 }
 
