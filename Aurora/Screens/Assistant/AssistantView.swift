@@ -61,6 +61,10 @@ struct AssistantView: View {
     @State private var composerHeight: CGFloat = 0
     @FocusState private var composerFocused: Bool
     private static let viewport = "conversation"
+    /// How far Clear conversation's erase has run (`ConversationErase`).
+    @State private var erased: Double = 0
+    /// From the erase's start until the welcome is back; takes no touches.
+    @State private var clearing = false
 
     var body: some View {
         @Bindable var assistant = assistant
@@ -101,6 +105,7 @@ struct AssistantView: View {
                 .trackingConversationEnd(visibility, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
+                .modifier(ConversationErase(progress: erased, reduceMotion: reduceMotion))
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)
                 // A taller bottom area would otherwise cover the end the person
@@ -150,11 +155,13 @@ struct AssistantView: View {
             // host took every accessibility hit on iPadOS 26, so nothing under
             // it was reachable by VoiceOver or UI tests.
             .overlay { AuroraEdgeGlow(active: assistant.processing).allowsHitTesting(false).accessibilityHidden(true).ignoresSafeArea() }
+            .allowsHitTesting(!clearing)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: clearing) { _, started in started }
         }
         .task { await assistant.start(app: app) }
         .modifier(ConversationObservers(assistant: assistant, router: router, app: app, dictation: dictation,
                                         input: $input, keyboardOverlap: $keyboardOverlap, composerFocused: composerFocused))
-        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: runRequestedErase))
+        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: sheetClosed))
     }
 
     /// A message was added or removed: reveal it, or hold it below while
@@ -350,14 +357,30 @@ struct AssistantView: View {
         return frame.maxY > 0 && frame.minY < viewportHeight
     }
 
-    /// Runs after this update, so a message added in it has been laid out.
-    /// Short and interruptible; instant under Reduce Motion.
-    /// The erase confirmed in a sheet, once that sheet has closed.
-    private func runRequestedErase() {
+    /// A sheet closed: run the erase or clear confirmed in it.
+    private func sheetClosed() {
+        if assistant.takeClearRequest() { clearConversation(); return }
         guard assistant.takeEraseRequest() else { return }
         if !app.eraseAllLocalData(assistant: assistant) { assistant.failure = app.mutationFailure }
     }
 
+    /// The conversation erases on screen, then clears and brings the welcome
+    /// in. If it can't be cleared, it comes back with the failure below it.
+    private func clearConversation() {
+        clearing = true
+        withAnimation(ConversationErase.animation(reduceMotion: reduceMotion), completionCriteria: .logicallyComplete) {
+            erased = 1
+        } completion: {
+            if assistant.clearConversation(app: app) {
+                windowStart = nil; heldMessage = nil
+                Self.announce("Conversation cleared.")
+            }
+            withAnimation(ConversationErase.returning(reduceMotion: reduceMotion)) { erased = 0 } completion: { clearing = false }
+        }
+    }
+
+    /// Runs after this update, so a message added in it has been laid out.
+    /// Short and interruptible; instant under Reduce Motion.
     private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
         Task { @MainActor in
             withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
