@@ -21,6 +21,12 @@ public enum ShortfallReason: Equatable, Sendable {
 /// Recent sleep for the screens and, later, the energy model
 /// (docs/research/sleep-and-check-in.md §4 R3, §6). Pure: it reads only the
 /// sessions given and `now`.
+///
+/// Not an input to `alertness-1`. The research gives this summary to the
+/// replacement model (energy-model.md §6) and nowhere says its 7-day
+/// shortfall is safe in the old hand-weighted `SleepDebt` term, whose
+/// weight was set for a 24-hour ratio. So `SleepDebt` keeps its 24-hour
+/// input (equal to `asleepLast24hMs`) until the new model consumes this.
 public struct RecentSleepSummary: Equatable, Sendable {
     /// Union of asleep time overlapping the 24 and 48 hours before `now`.
     public var asleepLast24hMs: Millis
