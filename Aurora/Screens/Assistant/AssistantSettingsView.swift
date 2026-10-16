@@ -32,9 +32,7 @@ struct AssistantSettingsView: View {
             }
             .sheet(isPresented: $showAppleHealth) { HealthConnectionView() }
             .confirmationDialog("Clear this conversation?", isPresented: $clearConversation) {
-                Button("Clear conversation", role: .destructive) {
-                    assistant.clearConversation()
-                }
+                Button("Clear conversation", role: .destructive) { assistant.requestClear() }
             }
         }
         .pageSizedSheet()
