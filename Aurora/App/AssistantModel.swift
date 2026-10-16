@@ -50,6 +50,20 @@ final class AssistantModel {
         defer { eraseRequested = false }
         return eraseRequested
     }
+    /// Set when Clear conversation is confirmed in settings. Like erase, it
+    /// waits for the sheet to close, so the person sees the conversation go.
+    private(set) var clearRequested = false
+
+    func requestClear() {
+        clearRequested = true
+        showAssistantSettings = false
+    }
+
+    /// True once per confirmed clear.
+    func takeClearRequest() -> Bool {
+        defer { clearRequested = false }
+        return clearRequested
+    }
     /// Messages whose card has a text field with keyboard focus. Each card
     /// releases only its own entry, so a card losing focus after another
     /// gained it can't clear the other's. Interaction state, never saved.
@@ -169,17 +183,21 @@ final class AssistantModel {
         return state
     }
 
-    func clearConversation() {
+    /// With `app`, the cleared conversation opens on its welcome, as a new
+    /// one does. False when the saved conversation couldn't be cleared.
+    @discardableResult func clearConversation(app: AppModel? = nil) -> Bool {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         var cleared = conversation; cleared.messages = []
         do { try store?.save(cleared) }
-        catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return }
+        catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return false }
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil
         releaseWarmResources()
+        if let app { appendCard(AssistantCards.make(.welcome, state: app.state, now: app.now, clock: app.clock, text: app.text)) }
         do { try store?.removeMigrationSource() }
         catch { failure = "The conversation was cleared, but its migration source couldn't be removed. Please retry." }
+        return true
     }
 
     func resetAfterErase() {

@@ -159,6 +159,18 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("conversation.v1-source.json").path))
         #expect(app.phase == .ready)
     }
+    @Test func clearedConversationOpensOnItsWelcome() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ConversationStore(directory: directory)
+        let app = app(directory.appendingPathComponent("records"))
+        let assistant = AssistantModel(calendars: calendars(), makeStore: { store })
+        await assistant.start(app: app)
+        await assistant.handle(.logCaffeine, input: "I had 80 mg tea", app: app)
+        #expect(assistant.clearConversation(app: app))
+        #expect(assistant.conversation.messages.map(\.card?.kind) == [.welcome])
+        #expect(try store.load().messages.map(\.card?.kind) == [.welcome])
+        #expect(assistant.pendingDraft == nil && assistant.failure == nil)
+    }
     @Test func briefingRefreshReadsCalendarsAndKeepsPriorSnapshot() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)
