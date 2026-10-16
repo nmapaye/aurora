@@ -71,7 +71,7 @@ struct LogView: View {
                         VStack(alignment: .leading, spacing: Metrics.xxs) {
                             Image(systemName: preset.symbol).foregroundStyle(Palette.caffeineAccent)
                             Text(preset.label).font(.headline).foregroundStyle(Palette.textPrimary)
-                            Text("\(numberText(preset.mg)) mg").font(.subheadline).foregroundStyle(Palette.textSecondary)
+                            Text("\(preset.serving) · \(numberText(preset.mg)) mg").font(.subheadline).foregroundStyle(Palette.textSecondary)
                         }
                         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
                         .padding(Metrics.sm)
@@ -79,7 +79,7 @@ struct LogView: View {
                         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
                     }
                     .buttonStyle(.auroraPress)
-                    .accessibilityLabel("Log \(preset.label), \(numberText(preset.mg)) mg")
+                    .accessibilityLabel("Log \(preset.accessibilityLabel)")
                     .accessibilityIdentifier("quick-add-\(preset.id)")
                 }
             }

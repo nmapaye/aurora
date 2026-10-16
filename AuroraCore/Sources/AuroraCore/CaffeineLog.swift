@@ -4,18 +4,44 @@ import Foundation
 /// day's total against a limit, allowance or "remaining" amount, and never
 /// suggests how much caffeine to have.
 public struct CaffeinePreset: Equatable, Identifiable, Sendable {
+    /// Stable: stored in `Prefs.favoriteDrinkIDs`.
     public var id: String
+    /// Also the stored `source` of a quick-added dose.
     public var label: String
+    /// The serving the amount describes, so the number never stands alone.
+    public var serving: String
     public var mg: Double
     /// SF Symbol name.
     public var symbol: String
 
+    public init(id: String, label: String, serving: String, mg: Double, symbol: String) {
+        self.id = id; self.label = label; self.serving = serving; self.mg = mg; self.symbol = symbol
+    }
+
+    /// Typical amounts for one stated serving (`docs/research/caffeine.md`
+    /// §3.3, §6.3). Cold brew and pre-workout vary two- to threefold by
+    /// recipe and brand, so they stay Custom entries from the label or menu.
     public static let all: [CaffeinePreset] = [
-        CaffeinePreset(id: "espresso", label: "Espresso", mg: 60, symbol: "cup.and.saucer.fill"),
-        CaffeinePreset(id: "drip", label: "Drip", mg: 95, symbol: "cup.and.saucer.fill"),
-        CaffeinePreset(id: "matcha", label: "Matcha", mg: 70, symbol: "leaf.fill"),
-        CaffeinePreset(id: "energy", label: "Energy", mg: 160, symbol: "bolt.fill"),
+        // USDA FoodData Central SR Legacy 171891 (212 mg/100 g); High.
+        CaffeinePreset(id: "espresso", label: "Espresso", serving: "1 shot", mg: 63, symbol: "cup.and.saucer.fill"),
+        // USDA FoodData Central, coffee brewed with tap water (94.8 mg); High.
+        CaffeinePreset(id: "drip", label: "Drip coffee", serving: "8 fl oz", mg: 95, symbol: "cup.and.saucer.fill"),
+        // Within 38–89 mg for 2 g of powder (Koláčková 2020); Medium-Low.
+        CaffeinePreset(id: "matcha", label: "Matcha", serving: "2 g", mg: 70, symbol: "leaf.fill"),
+        // Label value; FDA range 41–246 mg per 12 fl oz across brands; Medium.
+        CaffeinePreset(id: "energy", label: "Energy drink", serving: "16 fl oz can", mg: 160, symbol: "bolt.fill"),
+        // FDA (71 mg per 12 fl oz); Health Canada 30–50 mg per 8 fl oz; High.
+        CaffeinePreset(id: "blackTea", label: "Black tea", serving: "8 fl oz", mg: 47, symbol: "mug.fill"),
+        // FDA; Health Canada 36–46 mg; diet colas run higher; Medium-High.
+        CaffeinePreset(id: "cola", label: "Cola", serving: "12 fl oz", mg: 34, symbol: "takeoutbag.and.cup.and.straw.fill"),
     ]
+
+    /// "Drip coffee · 8 fl oz".
+    public var title: String { "\(label) · \(serving)" }
+    /// "Drip coffee · 8 fl oz · 95 mg".
+    public var titleWithAmount: String { "\(title) · \(numberText(mg)) mg" }
+    /// "Espresso, 1 shot, 63 milligrams".
+    public var accessibilityLabel: String { "\(label), \(serving), \(numberText(mg)) milligrams" }
 }
 
 public struct CustomDoseDraft: Equatable, Sendable {
