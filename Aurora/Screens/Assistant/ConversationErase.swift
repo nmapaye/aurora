@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Clearing the conversation, on screen: a soft edge lifts from the bottom
-/// and the messages blur away beneath it, newest first, with a faint
-/// aurora band riding the edge. Running it back brings the welcome in
-/// from the top. Under Reduce Motion it is a plain fade.
-struct ConversationErase: ViewModifier, Animatable {
-    /// 0 shows everything; 1 has erased everything.
+/// Clearing the conversation, on screen: the screen's own colour rises from
+/// the bottom under a soft edge, wiping the messages away newest first,
+/// with a faint aurora band riding the edge. Running it back brings the
+/// welcome in from the top. Under Reduce Motion it is a plain fade.
+///
+/// Drawn over the conversation rather than applied to it: a mask or blur
+/// on the scroll view, even at rest, moved where scrolled cards landed
+/// under the navigation bar on iOS 26 (CI). At 0 it draws nothing.
+struct ConversationErase: View, Animatable {
+    /// 0 shows everything; 1 has wiped everything.
     var progress: Double
     let reduceMotion: Bool
 
@@ -25,40 +29,47 @@ struct ConversationErase: ViewModifier, Animatable {
         reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.5, bounce: 0)
     }
 
-    func body(content: Content) -> some View {
-        if reduceMotion {
-            content.opacity(1 - progress)
-        } else {
-            content
-                .blur(radius: 8 * progress)
-                .scaleEffect(1 - 0.015 * progress, anchor: .top)
-                .mask(alignment: .top) { GeometryReader { mask($0.size.height) } }
-                .overlay(alignment: .top) { GeometryReader { band($0.size) } }
+    var body: some View {
+        GeometryReader { geometry in
+            if progress > 0 {
+                if reduceMotion {
+                    Palette.screen.opacity(progress)
+                } else {
+                    wash(geometry.size.height)
+                    band(geometry.size.height)
+                }
+            }
         }
+        // The wash runs past the bottom mid-sweep; keep it off the composer.
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
-    /// Opaque above the edge, fading out over the feather below it. At 0 the
-    /// edge sits a feather below the bottom; at 1 a feather above the top.
-    private func mask(_ height: CGFloat) -> some View {
+    /// Where the middle of the soft edge is: a feather below the bottom at
+    /// 0, a feather above the top at 1.
+    private func edge(_ height: CGFloat) -> CGFloat {
+        (height + Self.feather) * (1 - progress) - Self.feather / 2
+    }
+
+    /// Clear above the edge, the screen colour below it.
+    private func wash(_ height: CGFloat) -> some View {
         VStack(spacing: 0) {
-            Rectangle()
-            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [Palette.screen.opacity(0), Palette.screen], startPoint: .top, endPoint: .bottom)
                 .frame(height: Self.feather)
+            Palette.screen
         }
         .frame(height: height + Self.feather)
-        .offset(y: -(height + Self.feather) * progress)
+        .offset(y: edge(height) - Self.feather / 2)
     }
 
     /// Strongest mid-sweep, gone at either end.
-    private func band(_ size: CGSize) -> some View {
-        let edge = (size.height + Self.feather) * (1 - progress) - Self.feather / 2
-        return LinearGradient(colors: [.clear, Palette.auroraMint.opacity(0.35), Palette.auroraIndigo.opacity(0.18), .clear],
-                              startPoint: .top, endPoint: .bottom)
+    private func band(_ height: CGFloat) -> some View {
+        LinearGradient(colors: [.clear, Palette.auroraMint.opacity(0.35), Palette.auroraIndigo.opacity(0.18), .clear],
+                       startPoint: .top, endPoint: .bottom)
             .frame(height: Self.feather)
             .blur(radius: 18)
-            .offset(y: edge - Self.feather / 2)
+            .offset(y: edge(height) - Self.feather / 2)
             .opacity(sin(.pi * progress))
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 }
