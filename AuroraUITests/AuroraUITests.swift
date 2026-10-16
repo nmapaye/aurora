@@ -571,8 +571,17 @@ final class AuroraUITests: XCTestCase {
     func testReactionCardOpensTheExistingTest() {
         finishSetup(); request("Reaction test")
         let start = app.buttons["assistant-reaction-start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 5)); start.tap()
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertEqual(start.label, "Start 30-second test")
+        start.tap()
         XCTAssertTrue(app.buttons["reaction-start"].waitForExistence(timeout: 5))
+        // Full screen, not a sheet: the conversation isn't reachable behind it.
+        XCTAssertFalse(app.textFields["assistant-composer"].isHittable)
+        XCTAssertTrue(app.staticTexts["Wait for the cue, then tap anywhere on the screen as quickly as you can. It takes 30 seconds."].exists)
+        // Before a run starts, Close leaves without asking.
+        app.buttons["reaction-close"].tap()
+        XCTAssertTrue(app.buttons["reaction-start"].waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["End test?"].exists)
     }
     func testLargestAccessibilityTextKeepsCardsAndComposerReachable() {
         app.terminate()
