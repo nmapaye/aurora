@@ -13,6 +13,7 @@ struct CutoffScenarioCardView: View {
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var field: Field?
+    @State private var showsEvidence = false
 
     private enum Field: Hashable { case threshold, amount }
     private typealias S = CutoffScenario
@@ -290,6 +291,14 @@ struct CutoffScenarioCardView: View {
                 Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
                 Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
                 Text("Nothing here is recorded. Log caffeine records a drink you had.")
+                // Static, cited reading; kept here, away from the threshold field.
+                Button { showsEvidence = true } label: {
+                    Label(CaffeineEvidence.evidenceTitle, systemImage: "info.circle")
+                        .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(Palette.tint)
+                .accessibilityIdentifier("cutoff-evidence")
                 if let snapshot {
                     Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt))")
                         .foregroundStyle(Palette.textSecondary)
@@ -297,6 +306,7 @@ struct CutoffScenarioCardView: View {
             }
             .font(.footnote).padding(.top, Metrics.xxs)
         }
+        .sheet(isPresented: $showsEvidence) { CaffeineEvidenceSheet(topic: .evidence).pageSizedSheet() }
     }
 
     /// The reminder outcome is the card header's badge; only "preview

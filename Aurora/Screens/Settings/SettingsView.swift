@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var confirmErase = false
     @State private var reminderBusy = false
     @State private var deletedCount = 0
+    @State private var evidenceTopic: CaffeineEvidenceSheet.Topic?
 
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
@@ -56,7 +57,11 @@ struct SettingsView: View {
                     stepper("Caffeine half-life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
                         model.setPrefs { $0.halfLife = v }
                     }
-                    footnote("Used to estimate active caffeine.")
+                    footnote("Used to model caffeine over time. \(CaffeineEvidence.absorptionNote)")
+                    // Read-only, cited reading: nothing is asked or stored,
+                    // and it sits apart from the personal reference below.
+                    infoRow(CaffeineEvidence.halfLifeTitle, id: "settings-halflife-note") { evidenceTopic = .halfLife }
+                    infoRow(CaffeineEvidence.evidenceTitle, id: "settings-caffeine-evidence") { evidenceTopic = .evidence }
                     Divider()
                     stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
                         model.setPrefs { $0.targetSleep = v }
@@ -167,6 +172,7 @@ struct SettingsView: View {
             }
         }
         .sensoryFeedback(.warning, trigger: deletedCount)
+        .sheet(item: $evidenceTopic) { CaffeineEvidenceSheet(topic: $0).pageSizedSheet() }
         .task { await model.resyncReminder() }
     }
 
@@ -194,6 +200,21 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isLink)
+    }
+
+    /// A tinted row that opens a read-only sheet.
+    private func infoRow(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Label(title, systemImage: "info.circle").foregroundStyle(Palette.tint)
+                Spacer(minLength: Metrics.xs)
+                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 
     private func destructiveButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {

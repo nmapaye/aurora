@@ -135,3 +135,31 @@ import Testing
         #expect(try JSONDecoder().decode(CaffeinePK.self, from: JSONEncoder().encode(pk)) == pk)
     }
 }
+
+@Suite struct CaffeineEvidenceTests {
+    @Test func copyFollowsTheRulesAndCitesEverything() {
+        for text in CaffeineEvidence.allCopy {
+            #expect(CopyRules.violations(in: text).isEmpty, "\(text)")
+            #expect(!text.lowercased().contains("your threshold") && !text.lowercased().contains("you should"), "\(text)")
+        }
+        let items = CaffeineEvidence.halfLifeFactors + CaffeineEvidence.evidenceSections.flatMap(\.items)
+        #expect(items.allSatisfy { !$0.sources.isEmpty })
+        #expect(Set(items.map(\.id)).count == items.count)
+    }
+
+    @Test func halfLifeNoteNamesTheReportedFactorsAndAsksNothing() {
+        let ids = CaffeineEvidence.halfLifeFactors.map(\.id)
+        for factor in ["smoking", "contraceptives", "pregnancy", "fluvoxamine", "cirrhosis"] {
+            #expect(ids.contains(factor))
+        }
+        let text = CaffeineEvidence.halfLifeFactors.map(\.text).joined(separator: " ")
+        #expect(!text.contains("?") && !text.contains("×"))
+        #expect(CaffeineEvidence.halfLifeSummary.hasSuffix("Aurora uses only the number you set."))
+    }
+
+    @Test func evidenceSheetHoldsTheStudiesAndAuthorities() {
+        #expect(Array(CaffeineEvidence.sleep.items.map(\.id).prefix(4)) == ["drake", "gardiner", "landolt", "efsa-sleep"])
+        #expect(CaffeineEvidence.authorities.items.map(\.id) == ["fda", "efsa", "health-canada", "acog", "aap"])
+        #expect(CaffeineEvidence.authorities.items[0].text.contains("“not generally associated with negative effects”"))
+    }
+}
