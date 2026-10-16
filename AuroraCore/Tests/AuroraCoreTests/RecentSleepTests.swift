@@ -164,6 +164,18 @@ struct RecentSleepTests {
         #expect(timing?.middle80Midpoint == MinuteOfDayRange(lower: 3 * 60, upper: 3 * 60 + 40))
     }
 
+    @Test func patternCardStaysWithinItsGates() {
+        func minute(_ m: Int) -> String { "\(m / 60):\(String(format: "%02d", m % 60))" }
+        let few = SleepPattern.lines(sessions: [Self.night(0, hours: 7)], targetHours: nil, now: G.at(0, 12), clock: G.utc, formatMinute: minute)
+        #expect(few == .init(week: "Recorded sleep, last 7 days: 1 of 7 nights, average 7h 0m.", timing: UsualSleepTiming.gatheringText(nights: 1), spread: nil))
+        let sessions = (0..<7).map { Self.night(-$0, hours: 8) }
+        let week = SleepPattern.lines(sessions: sessions, targetHours: 8.5, now: G.at(0, 12), clock: G.utc, formatMinute: minute)
+        #expect(week.week == "Recorded sleep, last 7 days: 7 of 7 nights, average 8h 0m · 3h 30m under your 8h 30m target across recorded nights.")
+        #expect(week.timing == "Usual midpoint 3:00 · wake 7:00 · 7 nights")
+        #expect(week.spread == nil)
+        for line in [few.week, few.timing, week.week, week.timing] { #expect(CopyRules.violations(in: line).isEmpty) }
+    }
+
     @Test func usualNightDraftKeepsBedtimesAcrossMidnightTogether() {
         // Manual nights starting 23:30, 00:30, 00:00: the circular median is 00:00.
         let now = G.at(0, 12)

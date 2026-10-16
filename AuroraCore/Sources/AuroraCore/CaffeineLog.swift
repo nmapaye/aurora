@@ -236,12 +236,18 @@ public enum SummarySignals {
         targetSleepHours: Double?,
         now: Millis,
         clock: LocalClock,
-        text: DateText
+        text: DateText,
+        timeInBed: [TimeInBed] = []
     ) -> SignalCardModel {
         let lastNight = SleepModel.presentation(
             sessions: sleeps, targetSleepHours: targetSleepHours, range: .week, now: now, clock: clock, text: text
         ).lastNight
         guard let lastNight else {
+            if let inBed = InBed.uncovered(timeInBed, sleeps: sleeps, now: now).first {
+                var signal = InBed.signal(inBed, now: now, clock: clock, text: text)
+                signal.id = "sleep"
+                return signal
+            }
             return SignalCardModel(
                 id: "sleep", label: "Sleep", period: "Last 7 days", status: .empty,
                 context: "None recorded in the last 7 days.", destination: "Add Sleep"

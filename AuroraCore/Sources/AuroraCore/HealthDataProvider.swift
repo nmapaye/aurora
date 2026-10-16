@@ -17,6 +17,9 @@ public struct HealthCapabilities: OptionSet, Sendable {
     /// Health may wake Aurora for observed changes (iOS: the
     /// `com.apple.developer.healthkit.background-delivery` entitlement).
     public static let backgroundDelivery = HealthCapabilities(rawValue: 1 << 7)
+    /// Window reads of Sleep Analysis "In bed" samples, under the same read
+    /// permission as sleep.
+    public static let readInBed = HealthCapabilities(rawValue: 1 << 8)
 }
 
 public enum HealthProviderError: Error, Equatable, Sendable {
@@ -69,6 +72,9 @@ public protocol HealthDataProvider: Sendable {
     func caffeineChanges(after anchor: Data?) async throws -> HealthCaffeineChanges
     /// Asleep samples added, with identity, and samples deleted since `anchor`.
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges
+    /// "In bed" samples overlapping the window, with identity, oldest first.
+    /// Never asleep time: callers keep them apart from sleep.
+    func inBedSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample]
     /// Turns Health's wake-ups for changes to `kinds` on or off. Health
     /// decides when and how often it actually delivers.
     func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws
@@ -101,6 +107,10 @@ extension HealthDataProvider {
 
     public func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         throw HealthProviderError.unsupported("readSleepChanges")
+    }
+
+    public func inBedSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] {
+        throw HealthProviderError.unsupported("readInBed")
     }
 
     public func setBackgroundDelivery(_ kinds: Set<HealthDataKind>, enabled: Bool) async throws {

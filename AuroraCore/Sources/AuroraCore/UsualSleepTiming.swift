@@ -114,3 +114,34 @@ public enum UsualSleepTiming {
         "\(nights) of \(minimumNights) main sleeps in the last \(windowDays) days. Usual timing appears at \(minimumNights)."
     }
 }
+
+/// The Sleep screen's "Recent pattern" card: the 7-wake-day summary and
+/// usual timing, from recorded main sleeps only. Describes; never suggests.
+public enum SleepPattern {
+    public static let title = "Recent pattern"
+
+    public struct Lines: Equatable, Sendable {
+        public var week: String
+        public var timing: String
+        /// "Middle 80% of midpoints 2:30 AM – 3:40 AM", only past the spread gate.
+        public var spread: String?
+    }
+
+    public static func lines(
+        sessions: [SleepSession], targetHours: Double?, now: Millis, clock: LocalClock, formatMinute: (Int) -> String
+    ) -> Lines {
+        let summary = RecentSleep.summarize(sessions, targetHours: targetHours, now: now, clock: clock)
+        let episodes = SleepEpisodes.build(sessions, now: now, clock: clock)
+        guard let timing = UsualSleepTiming.compute(episodes, now: now, clock: clock) else {
+            let recent = episodes.filter {
+                $0.kind == .main && $0.end > now - Millis(UsualSleepTiming.windowDays) * dayMs && $0.spanMs <= UsualSleepTiming.maximumSpanMs
+            }.count
+            return Lines(week: RecentSleep.describe(summary, targetHours: targetHours), timing: UsualSleepTiming.gatheringText(nights: recent), spread: nil)
+        }
+        return Lines(
+            week: RecentSleep.describe(summary, targetHours: targetHours),
+            timing: UsualSleepTiming.describe(timing, formatMinute: formatMinute),
+            spread: timing.middle80Midpoint.map { "Middle 80% of midpoints \(formatMinute($0.lower)) – \(formatMinute($0.upper))" }
+        )
+    }
+}

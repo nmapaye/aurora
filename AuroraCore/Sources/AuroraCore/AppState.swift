@@ -30,6 +30,9 @@ public struct AppState: Codable, Equatable, Sendable {
     /// unset. Missing in files from builds that pre-selected 8 h, which
     /// decoding migrates once (see `init(from:)`).
     public var sleepTargetFormat: Int = SleepTargetMigration.currentFormat
+    /// Health "In bed" samples from the last `InBed.windowDays`, kept apart
+    /// from `sleeps` and never counted as asleep. Empty in older files.
+    public var timeInBed: [TimeInBed] = []
 
     public init() {}
 
@@ -66,6 +69,7 @@ public struct AppState: Codable, Equatable, Sendable {
         state.doses = doses.filter { isValidRecordTime($0.timestamp) }
         state.sleeps = sleeps.filter { isValidRecordTime($0.start) && isValidRecordTime($0.end) }
         state.vigilanceSessions = vigilanceSessions.filter { isValidRecordTime($0.startedAt) && isValidRecordTime($0.completedAt) }
+        state.timeInBed = timeInBed.filter { isValidRecordTime($0.start) && isValidRecordTime($0.end) }
         if let completedAt = onboarding.completedAt, !isValidRecordTime(completedAt) { state.onboarding.completedAt = nil }
         if let lastSyncedAt = healthSync.lastSyncedAt, !isValidRecordTime(lastSyncedAt) { state.healthSync.lastSyncedAt = nil }
         return state
@@ -326,6 +330,7 @@ public struct AppState: Codable, Equatable, Sendable {
         sleeps = []
         vigilanceSessions = []
         energyCheckIns = []
+        timeInBed = []
         demoMode = false
         healthSync = .defaults
         healthLedger = .empty
@@ -356,7 +361,7 @@ public struct AppState: Codable, Equatable, Sendable {
 extension AppState {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, doses, sleeps, vigilanceSessions, prefs, onboarding, healthSync, demoMode, appearanceMode
-        case energyCheckIns, healthLedger, healthChoices, sleepTargetFormat
+        case energyCheckIns, healthLedger, healthChoices, sleepTargetFormat, timeInBed
     }
 
     /// Missing keys fall back to defaults, so a file written by an older
@@ -388,5 +393,6 @@ extension AppState {
             prefs.targetSleep = nil
         }
         sleepTargetFormat = SleepTargetMigration.currentFormat
+        timeInBed = try container.decodeIfPresent([TimeInBed].self, forKey: .timeInBed) ?? []
     }
 }

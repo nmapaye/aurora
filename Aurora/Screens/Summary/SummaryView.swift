@@ -115,7 +115,10 @@ struct SummaryView: View {
                 accent: Palette.caffeineAccent
             ) { router.tab = .log }
             SignalCard(
-                model: SummarySignals.sleep(sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: model.clock, text: model.text),
+                model: SummarySignals.sleep(
+                    sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: now, clock: model.clock, text: model.text,
+                    timeInBed: state.demoMode ? [] : state.timeInBed
+                ),
                 symbol: "bed.double.fill",
                 accent: Palette.sleepAccent
             ) { router.tab = .sleep }

@@ -147,6 +147,23 @@ import Testing
         #expect(again.state.prefs.targetSleep == 8)
     }
 
+    @Test func timeInBedLoadsApartFromSleepAndUndateableOnesAreDropped() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        var edited = AppState()
+        edited.onboarding.completed = true
+        edited.timeInBed = [
+            TimeInBed(id: "healthkit:inbed:ok", start: 1_790_000_000_000, end: 1_790_028_800_000, sourceName: "iPhone"),
+            TimeInBed(id: "healthkit:inbed:huge", start: 1e300, end: 2e300),
+        ]
+        try StateMigration.encode(edited).write(to: stateFile)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .ready)
+        #expect(model.state.timeInBed.map(\.id) == ["healthkit:inbed:ok"])
+        #expect(model.state.sleeps.isEmpty)
+        #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
+    }
+
     @Test func aTargetChosenAtSetupIsKept() throws {
         try writeTargetFixture(target: 8, sleepTargetOutcome: "answered")
         let model = makeModel()

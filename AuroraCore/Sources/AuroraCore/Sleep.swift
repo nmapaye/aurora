@@ -231,13 +231,15 @@ public enum SleepModel {
         return "\(days) days ago"
     }
 
-    /// The most recent night in the last seven days.
+    /// The most recent night in the last seven days. With none, Health time
+    /// in bed is shown as "In bed" rather than as no record, never as sleep.
     public static func recentNightSignal(
         sleeps: [SleepSession],
         targetSleepHours: Double?,
         now: Millis,
         clock: LocalClock,
-        text: DateText
+        text: DateText,
+        timeInBed: [TimeInBed] = []
     ) -> SignalCardModel {
         let lastNight = presentation(
             sessions: sleeps,
@@ -248,6 +250,9 @@ public enum SleepModel {
             text: text
         ).lastNight
         guard let lastNight else {
+            if let inBed = InBed.uncovered(timeInBed, sleeps: sleeps, now: now).first {
+                return InBed.signal(inBed, now: now, clock: clock, text: text)
+            }
             return SignalCardModel(
                 id: "sleep-recent-night",
                 label: "Most Recent Sleep",

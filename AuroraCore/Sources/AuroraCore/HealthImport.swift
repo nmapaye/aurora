@@ -126,7 +126,9 @@ public enum HealthImport {
         state.healthSync.importedCount = nights
         state.healthSync.importStatus = hasMore ? .partial : .succeeded
         state.healthSync.lastSyncedAt = now
-        state.healthSync.lastMessage = hasMore ? partialMessage : describeImportedNights(nights)
+        state.healthSync.lastMessage = hasMore
+            ? partialMessage
+            : (nights == 0 && !state.timeInBed.isEmpty ? InBed.onlyInBedMessage : describeImportedNights(nights))
     }
 
     public static let partialMessage =

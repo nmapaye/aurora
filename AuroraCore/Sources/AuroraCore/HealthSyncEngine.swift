@@ -296,7 +296,25 @@ public final class HealthSyncEngine {
                 finishedAt: now, added: result.upserted, removed: result.removed, hasMore: changes.hasMore, pages: pages
             )
         }
+        if outcome == nil, !result.hasMore { await readInBed(generation: generation) }
         return outcome ?? .appliedSleep(result)
+    }
+
+    /// After a complete sleep read, Health's "In bed" samples for the
+    /// refresh window replace the stored ones. Kept apart from sleep and
+    /// never counted as asleep. A failure keeps what was stored and doesn't
+    /// fail the sleep read; a read that was turned off or erased meanwhile
+    /// applies nothing.
+    private func readInBed(generation: Int) async {
+        guard provider.capabilities.contains(.readInBed) else { return }
+        func current() -> Bool {
+            guard let state = host.state() else { return false }
+            return !Task.isCancelled && generation == readGeneration(.sleepAnalysis) && state.healthChoices.readSleep && !state.demoMode
+        }
+        guard current() else { return }
+        let now = host.now()
+        guard let samples = try? await provider.inBedSamples(from: now - InBed.windowDays * dayMs, to: now), current() else { return }
+        _ = host.commit { $0.replaceTimeInBed(samples, now: now) }
     }
 
     /// Bounded pages of one anchored read. Every page is applied and saved
