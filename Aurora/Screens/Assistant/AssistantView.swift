@@ -667,12 +667,29 @@ private struct ConversationSheets: ViewModifier {
             .sheet(isPresented: $assistant.showAssistantSettings, onDismiss: onDismiss) { AssistantSettingsView(assistant: assistant) }
             .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
             .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
-            .sheet(item: $assistant.historySheet, onDismiss: onDismiss) { intent in
-                if intent == .reactionTest { ReactionTestView() }
-                else if intent == .settings { SettingsView() }
+            .sheet(item: sheetDestination, onDismiss: onDismiss) { intent in
+                if intent == .settings { SettingsView() }
                 else { AssistantToolsView(destination: intent) }
             }
+            // The Reaction Test is always full screen: a sheet's dismiss pan
+            // took short slides on the test area.
+            .fullScreenCover(isPresented: reactionTest, onDismiss: onDismiss) { ReactionTestView() }
             .fullScreenCover(isPresented: $router.showReactionTest) { ReactionTestView() }
+    }
+
+    /// `historySheet` except the Reaction Test, which `reactionTest` covers.
+    private var sheetDestination: Binding<AssistantIntent?> {
+        Binding(
+            get: { assistant.historySheet == .reactionTest ? nil : assistant.historySheet },
+            set: { value in if value != nil || assistant.historySheet != .reactionTest { assistant.historySheet = value } }
+        )
+    }
+
+    private var reactionTest: Binding<Bool> {
+        Binding(
+            get: { assistant.historySheet == .reactionTest },
+            set: { shown in if !shown, assistant.historySheet == .reactionTest { assistant.historySheet = nil } }
+        )
     }
 }
 
