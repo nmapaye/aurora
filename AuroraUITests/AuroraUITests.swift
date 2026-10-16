@@ -782,6 +782,31 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(hint.waitForNonExistence(timeout: 3))
     }
 
+    /// Clearing erases the conversation and opens it again on the welcome.
+    func testClearConversationReturnsToTheWelcome() {
+        finishSetup()
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        request("help")
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["assistant-settings"])
+        let clear = app.buttons["Clear conversation"].firstMatch
+        for _ in 0..<8 where !clear.isHittable { app.swipeUp() }
+        let row = clear.frame
+        clear.tap()
+        // On iOS 26 the dialog is a menu from the row; its button is the
+        // other "Clear conversation".
+        let matches = app.buttons.matching(identifier: "Clear conversation")
+        let two = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: matches)
+        XCTAssertEqual(XCTWaiter.wait(for: [two], timeout: 3), .completed)
+        let confirm = matches.allElementsBoundByIndex.first { $0.frame != row }
+        XCTAssertNotNil(confirm)
+        confirm?.tap()
+        XCTAssertTrue(cardTitle("capabilities").waitForNonExistence(timeout: 5))
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: app.buttons["welcome-help"])
+        XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: 5), .completed)
+    }
+
     /// "help" answers with everything Aurora can do, not a clarification,
     /// and each row sends its own request. The welcome came first.
     func testHelpShowsCapabilitiesAndARowSendsItsRequest() {
