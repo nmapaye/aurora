@@ -208,7 +208,9 @@ struct WelcomeTests {
     @Test func freshStateHasNoSleepTargetAndDoesNotWriteOne() throws {
         #expect(AppState().prefs.targetSleep == nil)
         let encoded = String(decoding: try JSONEncoder().encode(AppState()), as: UTF8.self)
-        #expect(!encoded.contains("targetSleep"))
+        // Only the downgrade placeholder is written; no chosen target.
+        #expect(!encoded.contains("chosenTargetSleep"))
+        #expect(encoded.contains(#""targetSleep":8"#))
         #expect(encoded.contains(#""sleepTargetFormat":1"#))
         #expect(OnboardingCopy.sleepTargetRange == 5...11)
         #expect(CopyRules.violations(in: OnboardingCopy.sleepTargetContext + OnboardingCopy.noSleepTargetNote).isEmpty)
