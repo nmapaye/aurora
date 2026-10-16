@@ -3,7 +3,8 @@ import Charts
 import SwiftUI
 
 /// Today's modeled active caffeine, from local midnight to midnight. Tap or
-/// drag to inspect a time; VoiceOver can step through the hours. The user's
+/// drag to inspect a time; VoiceOver steps through the hours, now and each
+/// drink's modeled peak. The user's
 /// own cutoff is marked as context, never as a recommendation.
 struct CaffeineTodayChart: View {
     @Environment(AppModel.self) private var model
@@ -37,8 +38,8 @@ struct CaffeineTodayChart: View {
                     .accessibilityAdjustableAction { direction in
                         let current = currentIndex(today)
                         switch direction {
-                        case .increment: inspectedIndex = min(today.series.count - 1, current + 1)
-                        case .decrement: inspectedIndex = max(0, current - 1)
+                        case .increment: inspectedIndex = today.accessibilityStep(from: current, forward: true)
+                        case .decrement: inspectedIndex = today.accessibilityStep(from: current, forward: false)
                         @unknown default: break
                         }
                         selectedTime = nil
@@ -85,7 +86,7 @@ struct CaffeineTodayChart: View {
                 Text("\(jsRoundInt(inspection.activeMg)) mg")
                     .font(.title2.bold().monospacedDigit())
                     .foregroundStyle(Palette.textPrimary)
-                Text(inspection.isFuture ? "Projected active caffeine" : "Modeled active caffeine")
+                Text((inspection.isFuture ? "Projected active caffeine" : "Modeled active caffeine") + (inspection.isRising ? " · rising" : ""))
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             }
