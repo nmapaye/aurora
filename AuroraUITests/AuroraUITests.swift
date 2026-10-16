@@ -164,6 +164,8 @@ final class AuroraUITests: XCTestCase {
         field.tap(); field.typeText("Sam")
         tapWhenReady(app.buttons["setup-next"])
         XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        // Nothing is pre-selected; the person picks 8 h.
+        tapWhenReady(app.buttons["setup-sleep-target-8"])
         tapWhenReady(app.buttons["setup-next"])
         XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
         // Inspecting Health choices requests nothing.
