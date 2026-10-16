@@ -312,11 +312,18 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(curve.label.contains("Modeled."))
         // Recorded inputs are shown only when asked for.
         XCTAssertFalse(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
-        // The typed request leaves the keyboard up, and the row can sit
-        // behind it while still reporting hittable; reach it above both.
+        // The typed request leaves the keyboard up. On CI the row behind it
+        // still reported hittable and in place, and the tap missed; drag the
+        // keyboard away (interactive dismissal), then reach the row.
         let recorded = app.buttons["What’s recorded in this window"]
         let composer = app.textFields["assistant-composer"]
         let keyboard = app.keyboards.firstMatch
+        if keyboard.exists {
+            window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
+                forDuration: 0.05, thenDragTo: window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)),
+                withVelocity: .slow, thenHoldForDuration: 0.05)
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5))
+        }
         func reachable() -> Bool {
             recorded.isHittable && recorded.frame.maxY <= composer.frame.minY
                 && (!keyboard.exists || recorded.frame.maxY <= keyboard.frame.minY)
