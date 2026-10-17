@@ -82,7 +82,8 @@ final class ReactionTestUITests: XCTestCase {
     /// double tap would leave `early` short.
     private func expect(_ want: Counts, _ step: String, file: StaticString = #filePath, line: UInt = #line) {
         let reached = NSPredicate(format: "label == %@", want.description)
-        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: reached, object: diagnostics)], timeout: 3)
+        // 6 s: on CI's iPad the right count once arrived just after a 3 s wait.
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: reached, object: diagnostics)], timeout: 6)
         XCTAssertEqual(result, .completed, "\(step): wanted \(want), got \(diagnostics.label)", file: file, line: line)
     }
 
