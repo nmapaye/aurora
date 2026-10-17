@@ -1,90 +1,92 @@
 import AuroraCore
 import SwiftUI
 
-/// The 60-second Reaction Test. One timer aims at the next event (cue due,
-/// response window over, countdown second, end of test), so a cue appears
-/// on time and reaction times aren't inflated by polling. Leaving the app
-/// mid-test discards the run.
+/// The 30-second Reaction Test, always presented full screen.
+///
+/// While it runs the whole screen is the tap surface except Close: a UIKit
+/// view stamps each touch at touch-down, and a display link stamps each cue
+/// when its frame is shown (`ReactionRun`). Leaving the app mid-test
+/// discards the run.
+///
+/// Close mid-test asks "End test?" in a system alert. The clock pauses while
+/// it is open (the time left is kept); Keep going withdraws a cue that was on
+/// screen, unscored, and starts a new 1–4 s wait. End discards the run.
 struct ReactionTestView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var run = VigilanceTaskState()
-    @State private var now: Millis = AppModel.currentMillis()
-    @State private var timer: Task<Void, Never>?
+    @State private var run = ReactionRun()
     @State private var saved: VigilanceSession?
     @State private var interrupted = false
-    /// The score scales with Dynamic Type from 56 pt at the default size.
-    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize: CGFloat = 56
+    @State private var confirmingEnd = false
 
-    private var cueVisible: Bool { run.phase == .running && run.cueShownAt != nil }
+    private var running: Bool { run.state.phase == .running }
 
     var body: some View {
+        ZStack {
+            if running {
+                ReactionRunningScreen(run: run) { askToEnd() }
+            } else {
+                card
+            }
+        }
+        .background(Palette.screen.ignoresSafeArea())
+        .alert("End test?", isPresented: $confirmingEnd) {
+            Button("End", role: .destructive) { end() }
+                .accessibilityIdentifier("reaction-end-confirm")
+            Button("Keep going", role: .cancel) { run.resume() }
+                .accessibilityIdentifier("reaction-keep-going")
+        } message: {
+            Text("This run won’t be saved.")
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active, running else { return }
+            confirmingEnd = false
+            run.discard()
+            interrupted = true
+        }
+        .onAppear { run.onComplete = { state, at in save(state, completedAt: at) } }
+        .onDisappear { run.stop() }
+    }
+
+    // MARK: Instructions and results
+
+    private var card: some View {
         VStack(spacing: Metrics.lg) {
             HStack {
-                Button("Close") { close() }
+                Button("Close") { dismiss() }
                     .font(.headline)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
                     .accessibilityIdentifier("reaction-close")
                 Spacer()
-                Text(countdown)
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .padding(.horizontal, Metrics.sm)
-                    .frame(minHeight: Metrics.minimumTouchTarget)
-                    .background(Capsule().fill(Palette.cardMuted))
-                    .accessibilityLabel("Time remaining \(countdown)")
             }
-            area
-            if run.phase != .instructions { summary }
-        }
-        .padding(.horizontal, Metrics.md)
-        .padding(.top, Metrics.lg)
-        .padding(.bottom, Metrics.xxl)
-        .background(Palette.screen.ignoresSafeArea())
-        .onChange(of: scenePhase) { _, phase in
-            guard phase != .active, run.phase == .running else { return }
-            stopClock()
-            interrupted = true
-            run = VigilanceTaskState()
-        }
-        .onDisappear { stopClock() }
-    }
-
-    private var countdown: String {
-        let remaining = run.phase == .running ? max(0, (run.endsAt ?? now) - now) : Vigilance.testDurationMs
-        let seconds = Int(ceil(remaining / 1000))
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
-    }
-
-    @ViewBuilder
-    private var area: some View {
-        let shape = RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous)
-        ZStack {
-            shape.fill(run.phase == .complete ? Palette.card : (cueVisible ? Palette.primaryButton : Palette.neutralButton))
-            shape.strokeBorder(cueVisible ? Palette.primaryButton : Palette.cardBorder, lineWidth: 2)
-            switch run.phase {
-            case .instructions:
-                instructions
-            case .running:
-                running
-            case .complete:
-                if let saved { results(saved) }
-                else {
-                    VStack(spacing: Metrics.md) {
-                        Text("No timed reactions were recorded, so this run wasn’t saved.")
-                        Button("Run Again") { start() }.buttonStyle(.auroraPrimary)
-                    }.padding(Metrics.xl)
+            ZStack {
+                RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous).fill(Palette.card)
+                RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous).strokeBorder(Palette.cardBorder, lineWidth: 1)
+                // Centred when it fits; scrolls at the largest text sizes.
+                ViewThatFits(in: .vertical) {
+                    cardContent
+                    ScrollView { cardContent }
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(shape)
-        .onTapGesture { tap() }
-        .accessibilityElement(children: run.phase == .running ? .ignore : .contain)
-        .accessibilityLabel(run.phase == .running ? "Reaction test area" : "")
-        .accessibilityValue(run.phase == .running ? (cueVisible ? "TAP!" : "Wait…") : "")
-        .accessibilityAddTraits(run.phase == .running ? [.isButton, .allowsDirectInteraction] : [])
-        .accessibilityIdentifier("reaction-area")
+        .padding(.horizontal, Metrics.md)
+        .padding(.top, Metrics.sm)
+        .padding(.bottom, Metrics.md)
+        .frame(maxWidth: Metrics.contentMaxWidth)
+    }
+
+    private var cardContent: some View {
+        Group {
+            if run.state.phase == .complete {
+                if let saved { ReactionResults(session: saved, again: start, done: { dismiss() }) } else { notSaved }
+            } else {
+                instructions
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Metrics.xl)
     }
 
     private var instructions: some View {
@@ -92,10 +94,11 @@ struct ReactionTestView: View {
             Text("Check your reaction speed")
                 .font(.title3.bold())
                 .foregroundStyle(Palette.textPrimary)
-            Text("Wait for the cue, then tap the active area as quickly as you can.")
+                .accessibilityAddTraits(.isHeader)
+            Text("Wait for the cue, then tap anywhere on the screen as quickly as you can. It takes 30 seconds.")
                 .foregroundStyle(Palette.textSecondary)
             if interrupted {
-                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 60 seconds.")
+                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 30 seconds.")
                     .foregroundStyle(Palette.textPrimary)
                     .onAppear {
                         UIAccessibility.post(notification: .announcement, argument: "Test interrupted. This run was not saved.")
@@ -107,166 +110,195 @@ struct ReactionTestView: View {
                 .accessibilityIdentifier("reaction-start")
         }
         .multilineTextAlignment(.center)
-        .padding(Metrics.xl)
     }
 
-    private var running: some View {
-        VStack(spacing: Metrics.sm) {
-            Text(cueVisible ? "TAP!" : "Wait…")
-                .font(.largeTitle.bold())
-                .foregroundStyle(cueVisible ? Palette.primaryButtonText : Palette.textPrimary)
-            Text(cueVisible ? "Now" : "Hold steady")
-                .font(.title2.monospacedDigit())
-                .foregroundStyle(cueVisible ? Palette.primaryButtonText : Palette.textSecondary)
-            Text(feedbackText)
-                .font(.footnote)
-                .foregroundStyle(cueVisible ? Palette.primaryButtonText : Palette.textSecondary)
-        }
-        .multilineTextAlignment(.center)
-        .padding(Metrics.xl)
-    }
-
-    private func results(_ session: VigilanceSession) -> some View {
-        VStack(spacing: Metrics.sm) {
-            Text("Session complete").foregroundStyle(Palette.textSecondary)
-            Text("\(session.score)").font(.system(size: scoreSize, weight: .bold).monospacedDigit()).foregroundStyle(Palette.textPrimary)
-            Text(session.rating.rawValue).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
-            VStack(spacing: 2) {
-                Text("Median reaction: \(reaction(session.medianReactionMs))")
-                Text("Fastest reaction: \(reaction(session.fastestReactionMs))")
-                Text("Lapses: \(session.lapseCount) • False starts: \(session.falseStartCount)")
-            }
-            .font(.subheadline)
-            .foregroundStyle(Palette.textSecondary)
-            Text("A quick check of reaction speed, not a medical assessment.")
-                .font(.footnote)
-                .foregroundStyle(Palette.textSecondary)
-            HStack(spacing: Metrics.sm) {
-                Button("Run Again") { start() }.buttonStyle(.auroraPrimary)
-                Button("Done") { close() }.buttonStyle(.auroraSecondary)
-            }
-            .frame(maxWidth: 360)
-        }
-        .multilineTextAlignment(.center)
-        .padding(Metrics.xl)
-    }
-
-    private var summary: some View {
-        let counts: (trials: Int, falseStarts: Int, lapses: Int) = {
-            if run.phase == .running {
-                let lapses = run.trialResults.filter { if case .lapse = $0 { true } else { false } }.count
-                return (run.trialResults.count, run.falseStartCount, lapses)
-            }
-            if let saved { return (saved.trialCount, saved.falseStartCount, saved.lapseCount) }
-            return (0, 0, 0)
-        }()
-        return HStack(spacing: Metrics.sm) {
-            stat("Trials", counts.trials)
-            stat("False starts", counts.falseStarts)
-            stat("Lapses", counts.lapses)
+    private var notSaved: some View {
+        VStack(spacing: Metrics.md) {
+            Text("No timed reactions were recorded, so this run wasn’t saved.")
+                .foregroundStyle(Palette.textPrimary)
+                .multilineTextAlignment(.center)
+            Button("Run Again") { start() }.buttonStyle(.auroraPrimary)
         }
     }
 
-    private func stat(_ label: String, _ value: Int) -> some View {
-        VStack(spacing: 2) {
-            Text("\(value)").font(.title3.bold().monospacedDigit()).foregroundStyle(Palette.textPrimary)
-            Text(label).font(.caption).foregroundStyle(Palette.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(Metrics.sm)
-        .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
-        .accessibilityElement(children: .combine)
-    }
-
-    private var feedbackText: String {
-        switch run.feedback {
-        case .falseStart: "Too early. Wait for the cue before tapping."
-        case .missed: "Missed cue. A lapse was recorded."
-        case .slow: "Slow response. Reactions at \(numberText(Vigilance.lapseMs)) ms or more count as lapses."
-        case nil: "Responses under \(numberText(Vigilance.falseStartMs)) ms count as false starts."
-        }
-    }
-
-    private func reaction(_ ms: Double?) -> String {
-        ms.map { "\(jsRoundInt($0)) ms" } ?? "—"
-    }
-
-    // MARK: Clock
+    // MARK: Run
 
     private func start() {
         interrupted = false
         saved = nil
-        let at = AppModel.currentMillis()
-        commit(Vigilance.start(at: at, randomValue: Double.random(in: 0..<1)), at: at)
-        scheduleNextEvent()
+        run.start()
     }
 
-    private func tap() {
-        guard run.phase == .running else { return }
-        let at = AppModel.currentMillis()
-        let next = Vigilance.tap(run, at: at, randomValue: Double.random(in: 0..<1))
-        if next.feedback == .falseStart && next.falseStartCount > run.falseStartCount {
-            Haptics.warning()
-        } else if next != run {
-            Haptics.tap()
+    private func askToEnd() {
+        guard running else { dismiss(); return }
+        run.pause()
+        confirmingEnd = true
+    }
+
+    private func end() {
+        run.discard()
+        dismiss()
+    }
+
+    private func save(_ final: VigilanceTaskState, completedAt: Millis) {
+        guard saved == nil, let startedAt = final.startedAt else { return }
+        let session = Vigilance.buildSession(
+            id: RecordID.newVigilanceID(now: completedAt),
+            startedAt: startedAt,
+            completedAt: completedAt,
+            trials: final.trials,
+            falseStarts: final.falseStarts,
+            deviceModel: ReactionRun.deviceModel
+        )
+        let hasTimedResponse = Vigilance.hasTimedResponse(final)
+        model.saveReactionTest(session, hasTimedResponse: hasTimedResponse)
+        if hasTimedResponse, model.mutationFailure == nil {
+            saved = session
+            Haptics.success()
         }
-        commit(next, at: at)
-        scheduleNextEvent()
+    }
+}
+
+/// The running test: the cue colour fills the screen, every touch outside
+/// Close lands on the touch surface, and the text above it ignores touches.
+private struct ReactionRunningScreen: View {
+    let run: ReactionRun
+    let close: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var cue: Bool { run.cueVisible }
+
+    var body: some View {
+        ZStack {
+            (cue ? Palette.primaryButton : Palette.neutralButton).ignoresSafeArea()
+            if !reduceMotion {
+                Palette.statusWarningBackground
+                    .ignoresSafeArea()
+                    .keyframeAnimator(initialValue: 0.0, trigger: run.falseStartFlash) { content, value in
+                        content.opacity(value)
+                    } keyframes: { _ in
+                        LinearKeyframe(1.0, duration: 0.01)
+                        LinearKeyframe(0.0, duration: 0.35)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            ReactionTouchSurface(accessibilityValue: cue ? "Tap now" : "Wait for the cue") { uptime in
+                run.touchDown(uptime: uptime)
+            }
+            .ignoresSafeArea()
+            prompt
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            chrome
+        }
     }
 
-    private func commit(_ next: VigilanceTaskState, at: Millis) {
-        run = next
-        now = at
-        if next.phase == .complete, saved == nil, let startedAt = next.startedAt {
-            let session = Vigilance.buildSession(
-                id: RecordID.newVigilanceID(now: at),
-                startedAt: startedAt,
-                completedAt: at,
-                trialResults: next.trialResults,
-                falseStartCount: next.falseStartCount
-            )
-            let hasTimedResponse = session.validReactionCount > 0 || next.trialResults.contains(where: {
-                if case .lapse(let reaction) = $0 { return reaction != nil }
-                return false
-            })
-            model.saveReactionTest(session, hasTimedResponse: hasTimedResponse)
-            if hasTimedResponse, model.mutationFailure == nil {
-                saved = session
-                Haptics.success()
+    private var prompt: some View {
+        VStack(spacing: Metrics.sm) {
+            Text(cue ? "Tap now" : "Wait for the cue")
+                .font(.largeTitle.bold())
+                .foregroundStyle(cue ? Palette.primaryButtonText : Palette.textPrimary)
+            Text(feedback ?? " ")
+                .font(.title2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(feedbackColor)
+        }
+        .multilineTextAlignment(.center)
+        .padding(Metrics.xl)
+    }
+
+    private var chrome: some View {
+        VStack {
+            HStack {
+                Button("Close", action: close)
+                    .font(.headline)
+                    .foregroundStyle(cue ? Palette.primaryButtonText : Palette.tint)
+                    .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("reaction-close")
+                Spacer()
+                Text(countdown)
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(cue ? Palette.primaryButtonText : Palette.textPrimary)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("Time remaining \(countdown)")
+            }
+            Spacer()
+            if ReactionRun.holdsCue {
+                Text("touches \(run.touchCount) early \(run.state.falseStartCount) ignored \(run.state.ignoredTapCount)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Palette.textSecondary)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("reaction-diagnostics")
             }
         }
+        .padding(.horizontal, Metrics.md)
+        .padding(.top, Metrics.xs)
     }
 
-    private func scheduleNextEvent() {
-        stopClock()
-        guard run.phase == .running else { return }
-        let current = AppModel.currentMillis()
-        var events = [run.endsAt, run.nextCueAt].compactMap { $0 }
-        if let cue = run.cueShownAt { events.append(cue + Vigilance.responseWindowMs) }
-        if let ends = run.endsAt {
-            let remaining = ends - current
-            let tick = remaining.truncatingRemainder(dividingBy: 1000)
-            events.append(current + (tick == 0 ? 1000 : tick))
-        }
-        guard let due = events.min() else { return }
-        let delay = max(0, due - current)
-        timer = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(Int(delay)))
-            guard !Task.isCancelled else { return }
-            let fired = AppModel.currentMillis()
-            commit(Vigilance.advance(run, at: fired, randomValue: Double.random(in: 0..<1)), at: fired)
-            scheduleNextEvent()
+    private var countdown: String {
+        String(format: "%d:%02d", run.secondsLeft / 60, run.secondsLeft % 60)
+    }
+
+    private var feedback: String? {
+        switch run.state.feedback {
+        case .tooEarly(let count): "Too early (\(count))"
+        case .reaction(let ms): "\(jsRoundInt(ms)) ms"
+        case .tooLate: "Too late"
+        case .missed: "Missed"
+        case nil: nil
         }
     }
 
-    private func stopClock() {
-        timer?.cancel()
-        timer = nil
+    private var feedbackColor: Color {
+        if cue { return Palette.primaryButtonText }
+        switch run.state.feedback {
+        case .tooEarly, .tooLate, .missed: return Palette.statusWarningText
+        default: return Palette.textSecondary
+        }
+    }
+}
+
+/// The saved session's score and counts.
+private struct ReactionResults: View {
+    let session: VigilanceSession
+    let again: () -> Void
+    let done: () -> Void
+    /// The score scales with Dynamic Type from 56 pt at the default size.
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize: CGFloat = 56
+
+    var body: some View {
+        VStack(spacing: Metrics.sm) {
+            Text("Session complete").foregroundStyle(Palette.textSecondary)
+            Text("\(session.score)")
+                .font(.system(size: scoreSize, weight: .bold).monospacedDigit())
+                .foregroundStyle(Palette.textPrimary)
+            Text(session.rating.rawValue).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
+            VStack(spacing: 2) {
+                Text("Median reaction: \(reaction(session.medianReactionMs))")
+                Text("Fastest reaction: \(reaction(session.fastestReactionMs))")
+                Text("Cues: \(session.trialCount) • Lapses: \(session.lapseCount) • False starts: \(session.falseStartCount)")
+            }
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(Palette.textSecondary)
+            Text("A quick check of reaction speed, not a medical assessment.")
+                .font(.footnote)
+                .foregroundStyle(Palette.textSecondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Metrics.sm) { buttons }
+                VStack(spacing: Metrics.sm) { buttons }
+            }
+            .frame(maxWidth: 360)
+        }
+        .multilineTextAlignment(.center)
     }
 
-    private func close() {
-        stopClock()
-        if run.phase == .running { run = VigilanceTaskState() }
-        dismiss()
+    @ViewBuilder private var buttons: some View {
+        Button("Run Again", action: again).buttonStyle(.auroraPrimary)
+        Button("Done", action: done).buttonStyle(.auroraSecondary)
+    }
+
+    private func reaction(_ ms: Double?) -> String {
+        ms.map { "\(jsRoundInt($0)) ms" } ?? "—"
     }
 }

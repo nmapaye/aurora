@@ -270,7 +270,7 @@ struct ParityTests {
         let expected = fixture.list("vigilance")
         #expect(expected.count == cases.count)
         for (index, (trials, want)) in zip(cases, expected).enumerated() {
-            let session = Vigilance.buildSession(
+            let session = Vigilance.protocol1Session(
                 id: "case-\(index)", startedAt: 1_000, completedAt: Double(61_000 + index), trialResults: trials, falseStartCount: index
             )
             #expect(session == vigilance(want["session"] ?? .null), "case \(index)")

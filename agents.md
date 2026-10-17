@@ -4,7 +4,7 @@
 
 Aurora is a native SwiftUI app for iPhone and iPad (iOS 17+). It tracks
 caffeine against sleep and alertness through optional HealthKit sleep and
-caffeine import, optional export of caffeine saved in Aurora, manual logging, a 60-second Reaction Test, and an alertness
+caffeine import, optional export of caffeine saved in Aurora, manual logging, a 30-second Reaction Test, and an alertness
 estimate. A standalone Vite showcase site lives in `website/`.
 
 The app was rewritten from React Native and Expo in October 2026. The rules,
