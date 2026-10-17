@@ -119,6 +119,7 @@ struct AssistantView: View {
                 .onChange(of: composerHeight) { old, new in
                     composerGrew(from: old, to: new, proxy)
                 }
+                .onChange(of: keyboardOverlap) { old, new in if new < old { keyboardLowered(proxy) } }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
             .background(Palette.screen)
@@ -180,6 +181,18 @@ struct AssistantView: View {
             reveal(proxy, start.id, anchor: .top)
         } else {
             reveal(proxy, "bottom", anchor: .bottom)
+        }
+    }
+
+    /// The keyboard went down, as it does when a draft arrives. On CI the
+    /// page settled about 20 pt past a draft shown from its title, under the
+    /// bar; once the keyboard has finished moving, show that start again.
+    private func keyboardLowered(_ proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard heldMessage == nil, let start = visibility.shownStart, Date.now.timeIntervalSince(start.at) < 3,
+                  assistant.conversation.messages.last?.id == start.id else { return }
+            withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(start.id, anchor: .top) }
         }
     }
 
