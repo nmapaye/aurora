@@ -89,6 +89,52 @@ Known reminders use local notifications; the briefing notification invites
 the user to open Aurora rather than presenting stale calculated results.
 iOS may deny or delay background work, so no always-running agent is promised.
 
+### Notification limits
+
+`NotificationBudget` (AuroraCore `Notifications.swift`) separates two kinds:
+
+- **Set by the person, never capped:** the daily cutoff reminder (only once a
+  cutoff time is set; the time starts unset), wake reminders, and a saved
+  cutoff-scenario reminder. Wake reminders timed from the usual wake time skip
+  quiet hours; ones from a recorded wake-up don't.
+- **Started by Aurora, at most one a day,** in this order:
+  1. the morning briefing (on, and its hour outside quiet hours);
+  2. drink follow-ups, which otherwise stay in the conversation only.
+
+  Proactive suggestions are in-app cards and never push; `ProactivePolicy`
+  caps them at two a day.
+
+Drink follow-ups are asked about 60 minutes after yesterday's time ("Did you
+have a Drip around 9:30?"), never in quiet hours or at/after the person's
+cutoff time. Their notification is one silent (`.passive`) batch a day at the
+latest due time, titled "Log yesterday’s drinks?", with no amounts. After
+5 days in a row with follow-ups offered and none answered ("Log it", or a drink
+of that kind logged around the time), notifications pause until the person
+switches them on again. "Not today" records nothing.
+
+### Compatibility keys (downgrades)
+
+Builds before October 2026 require `cutoffHour` and `dailyLimitMg` in prefs and
+set a file aside as corrupt without them. `Prefs` therefore always writes them as
+**legacy placeholders**: `cutoffHour` is the chosen hour or 16, `dailyLimitMg` is
+always 400, and `notifyCutoff` is true only while a cutoff is chosen, so a
+downgraded build never starts a reminder nobody set. The real value is in
+`chosenCutoffHour`, and `legacyPlaceholders` lists which legacy keys are only
+placeholders in this file.
+
+- Key listed in `legacyPlaceholders`: read only the `chosen…` key.
+- Not listed (an older build's file, or one an older build re-saved after a
+  downgrade, which drops unknown keys): the stored legacy value is the person's.
+  This case keeps a 4 PM placeholder as their time, because the older build
+  can't say it was one.
+- `dailyLimitMg` is never read back.
+
+Another field that loses its default (for example `targetSleep`) follows the same
+pattern: keep writing the legacy key with a valid placeholder, add
+`chosen<Name>`, and add the legacy key name to `Prefs.placeholderKeys`.
+`PrefsCompatibilityTests` decodes new files with a frozen copy of the older
+shape.
+
 Conversation data uses a separate versioned protected JSON file in the
 backup-excluded Application Support folder. Core record saves roll back the
 in-memory change on failure. Native state keeps a `state.pre-assistant.json`
@@ -104,7 +150,7 @@ tests, iPhone/iPad UI tests, and Debug/Release simulator builds. UI coverage
 includes first-run setup, the conversation home, explicit Save/Undo, missing
 data, weekly charts/history, disconnected calendars, and absence of key entry.
 
-Before TestFlight: exercise read-only HealthKit allow/deny/import on physical
+Before TestFlight: exercise HealthKit read and caffeine-write allow/deny/import on physical
 devices; connect live Apple/Google test calendars; verify revocation, recurring
 instances, mirrored authority, conflicts, etag failures, and reversal; measure
 touch feedback (<100 ms), scrolling, animation, and battery use; test VoiceOver,

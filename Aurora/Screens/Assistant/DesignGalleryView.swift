@@ -247,7 +247,7 @@ struct DesignGalleryView: View {
             // A made-up Drip at 9:30 yesterday; nothing reads personal records.
             fixtureApp.tick()
             let yesterday = fixtureApp.clock.addingDays(-1, to: fixtureApp.clock.setTime(fixtureApp.now, hour: 9, minute: 30))
-            let prompt = RepeatDrinks.Prompt(doseID: "gallery-fixture", source: "Drip", mg: 95, yesterdayAt: yesterday, dueAt: fixtureApp.clock.addingDays(1, to: yesterday))
+            let prompt = RepeatDrinks.Prompt(doseID: "gallery-fixture", source: "Drip", mg: 95, yesterdayAt: yesterday, dueAt: fixtureApp.clock.addingDays(1, to: yesterday) + RepeatDrinks.followUpDelayMs)
             var card = AssistantCard(kind: .repeatDrink, capturedAt: fixtureApp.now, title: RepeatDrinks.question(prompt, text: fixtureApp.text), summary: RepeatDrinks.detail(prompt))
             card.timeZone = fixtureApp.clock.timeZone.identifier
             card.repeatDrink = prompt

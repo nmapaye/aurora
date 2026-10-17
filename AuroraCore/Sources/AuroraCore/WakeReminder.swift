@@ -72,17 +72,20 @@ public enum WakeReminders {
     /// Reminders for the rest of today and for tomorrow. Today uses the
     /// recorded wake-up when there is one, otherwise the usual wake time;
     /// tomorrow always starts from the usual wake time and is replaced once
-    /// a wake-up is recorded. Nothing at or after the person's cutoff, nothing
-    /// already delivered, and nothing in the past except a recorded-wake
-    /// reminder within `lateGraceMs`.
+    /// a wake-up is recorded. Nothing at or after the person's cutoff (when
+    /// they set one), nothing already delivered, and nothing in the past
+    /// except a recorded-wake reminder within `lateGraceMs`. A reminder timed
+    /// from the usual wake time skips the person's quiet hours, because they
+    /// may still be asleep; one from a recorded wake-up doesn't.
     public static func plan(
         settings: WakeReminderSettings,
-        cutoffHour: Double,
+        cutoffHour: Double?,
         sleeps: [SleepSession],
         now: Millis,
         clock: LocalClock,
         text: DateText,
-        delivered: Set<String> = []
+        delivered: Set<String> = [],
+        quietHours: AssistantPreferences? = nil
     ) -> [Reminder] {
         let settings = settings.normalized()
         guard settings.enabled, !settings.offsetsMinutes.isEmpty else { return [] }
@@ -95,13 +98,13 @@ public enum WakeReminders {
                 : nil
             let basis: Basis = recorded.map { .recordedWake($0) } ?? .usualWake(usual)
             let wake = recorded ?? usual
-            let cutoffWhole = Int(floor(cutoffHour))
-            let cutoff = clock.setTime(dayStart, hour: cutoffWhole, minute: Int(jsRound((cutoffHour - Double(cutoffWhole)) * 60)))
+            let cutoff = CutoffTime.at(dayStart: dayStart, hour: cutoffHour, clock: clock)
             for offset in settings.offsetsMinutes {
                 let id = "\(identifierPrefix)\(clock.dayKey(dayStart))-\(offset)"
                 guard !delivered.contains(id) else { continue }
                 var fireAt = wake + Millis(offset) * minuteMs
-                guard fireAt < cutoff else { continue }
+                if let cutoff, fireAt >= cutoff { continue }
+                if recorded == nil, let quietHours, ProactivePolicy.isQuiet(hour: clock.hour(fireAt), preferences: quietHours) { continue }
                 if fireAt <= now {
                     guard recorded != nil, now - fireAt <= lateGraceMs else { continue }
                     fireAt = now + minuteMs

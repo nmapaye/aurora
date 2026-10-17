@@ -156,6 +156,18 @@ import UserNotifications
         #expect(backend.removed.first == ["cutoff-reminder"])
     }
 
+    /// The reminder states the person's own time: no directive, no
+    /// prediction. With no time set, nothing is scheduled.
+    @Test func reminderNamesTheirTimeAndNeedsOne() async throws {
+        let service = service
+        _ = await service.sync(enabled: true, cutoffHour: 14, prompt: false)
+        let content = try #require(backend.pending["cutoff-reminder"]?.content)
+        #expect(content.title == "Your cutoff time")
+        #expect(content.body.hasSuffix(" · the time you set."))
+        #expect(await service.sync(enabled: true, cutoffHour: nil, prompt: true) == .off)
+        #expect(backend.pending.isEmpty && backend.requested == 0)
+    }
+
     @Test func switchingOffCancelsAndSchedulesNothing() async {
         let service = service
         _ = await service.sync(enabled: true, cutoffHour: 14, prompt: false)

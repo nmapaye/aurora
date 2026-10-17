@@ -897,7 +897,7 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<12 where !review.isHittable { app.swipeUp() }
         XCTAssertTrue(review.isHittable)
         XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)
-        let question = NSPredicate(format: "label BEGINSWITH 'Had your ' AND label ENDSWITH ' Drip today?'")
+        let question = NSPredicate(format: "label BEGINSWITH 'Did you have a Drip around ' AND label ENDSWITH '?'")
         XCTAssertTrue(app.staticTexts.matching(question).firstMatch.exists)
         attachScreenshot("Drink follow-up")
     }

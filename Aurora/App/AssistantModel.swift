@@ -447,7 +447,7 @@ final class AssistantModel {
         // Clock times in the person's locale (8 AM or 08:00), as everywhere else.
         let hour = { (value: Int) in app.text.clockHour(Double(value), clock: app.clock) }
         return [
-            .init(id: "cutoff", label: "Cutoff reminder", value: app.state.prefs.notifyCutoff ? app.text.clockHour(app.state.prefs.cutoffHour, clock: app.clock) : "Off", source: "Your selected time"),
+            .init(id: "cutoff", label: "Cutoff reminder", value: app.state.prefs.cutoffReminderOn ? app.text.clockHour(app.state.prefs.cutoffHour ?? 0, clock: app.clock) : (app.state.prefs.cutoffHour == nil ? "No time set" : "Off"), source: "Your selected time"),
             .init(id: "briefing", label: "Morning briefing", value: p.proactive && p.morningBriefing ? hour(p.briefingHour) : "Off", source: "Opt-in"),
             .init(id: "quiet", label: "Quiet hours", value: "\(hour(p.quietStartHour))–\(hour(p.quietEndHour))", source: "Up to two unsolicited suggestions daily")
         ]
@@ -622,14 +622,23 @@ final class AssistantModel {
         return settings
     }
 
+    /// Whether follow-up notifications are paused after unanswered days;
+    /// shown in settings. Turning notifications on again resumes them.
+    private(set) var repeatDrinksPaused = false
+
     /// Shows yesterday's-drink follow-ups whose time has come. Their own
-    /// opt-in, not proactive suggestions'; once each; never in quiet hours.
+    /// opt-in, not proactive suggestions'; once each; never in quiet hours
+    /// or after the person's cutoff time.
     func deliverRepeatDrinks(app: AppModel) {
         guard started, app.phase == .ready, repeatDrinksOn(app) != nil else { return }
         app.tick()
-        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock)
-        let due = RepeatDrinks.due(planned, conversation: conversation, now: app.now, clock: app.clock)
+        let cutoff = app.state.prefs.cutoffHour
+        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock, cutoffHour: cutoff)
+        let due = RepeatDrinks.due(planned, conversation: conversation, now: app.now, clock: app.clock, cutoffHour: cutoff)
         guard !due.isEmpty else { return }
+        var engagement = conversation.repeatDrinkEngagement ?? .init()
+        engagement.recordOffered(due, now: app.now, clock: app.clock)
+        conversation.repeatDrinkEngagement = engagement
         for prompt in due {
             conversation.deliveredSuggestions[prompt.id] = app.now
             var card = AssistantCard(kind: .repeatDrink, capturedAt: app.now, title: RepeatDrinks.question(prompt, text: app.text), summary: RepeatDrinks.detail(prompt))
@@ -642,19 +651,23 @@ final class AssistantModel {
         save()
     }
 
-    /// "Review entry": a caffeine draft with yesterday's drink, timed now.
+    /// "Log it": a caffeine draft with yesterday's drink, timed now.
     func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
         guard let prompt = message.card?.repeatDrink, !processing else { return }
         app.tick()
         expireDraft()
         updateCard(message.id) { $0.state = .saved; $0.summary = "Review it below before saving." }
         activeCards.remove(message.id)
+        var engagement = conversation.repeatDrinkEngagement ?? .init()
+        engagement.recordAnswered(now: app.now, clock: app.clock)
+        conversation.repeatDrinkEngagement = engagement
         pendingDraft = RepeatDrinks.draft(prompt, now: app.now)
         pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
         captureDraft(app: app)
     }
 
-    /// "Not today": not asked again for that drink.
+    /// "Not today": not asked again for that drink. Records nothing, never
+    /// a zero: a missing record is not zero.
     func dismissRepeatDrink(_ message: ConversationMessage, app: AppModel) {
         guard let key = message.suggestionKey else { return }
         conversation.dismissedSuggestions.insert(key)
@@ -664,16 +677,43 @@ final class AssistantModel {
         Task { await syncRepeatDrinkNotifications(app: app) }
     }
 
-    /// Schedules notifications for today's follow-ups still ahead, when the
-    /// person asked for them. Permission is asked only when they turn
-    /// notifications on.
+    /// Schedules today's one silent follow-up notification for the
+    /// follow-ups still ahead, when the person asked for notifications,
+    /// they aren't paused after unanswered days, and the morning briefing
+    /// isn't using Aurora's one notification a day (`NotificationBudget`).
+    /// Permission is asked only when they turn notifications on.
     func syncRepeatDrinkNotifications(app: AppModel, prompt: Bool = false) async {
         guard started, app.phase == .ready else { return }
         app.tick()
         let settings = repeatDrinksOn(app)
-        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock)
+        var engagement = conversation.repeatDrinkEngagement ?? .init()
+        engagement.settle(now: app.now, clock: app.clock)
+        let paused = engagement.isPaused(doses: app.state.doses, now: app.now, clock: app.clock)
+        repeatDrinksPaused = settings?.notify == true && paused
+        let enabled = settings?.notify == true && !paused && NotificationBudget.followUpsMayNotify(conversation.preferences)
+        let planned = RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock, cutoffHour: app.state.prefs.cutoffHour)
         let upcoming = RepeatDrinks.upcoming(planned, conversation: conversation, now: app.now, clock: app.clock)
-        repeatDrinkStatus = await app.reminders.syncRepeatDrinks(upcoming, enabled: settings?.notify == true, prompt: prompt, text: app.text)
+        let batch = enabled ? RepeatDrinks.batch(upcoming, clock: app.clock) : nil
+        let status = await app.reminders.syncRepeatDrinks(batch, enabled: enabled, prompt: prompt, text: app.text)
+        repeatDrinkStatus = status
+        // Follow-ups shown while scheduling stay recorded.
+        let before = conversation.repeatDrinkEngagement
+        engagement = before ?? .init()
+        engagement.settle(now: app.now, clock: app.clock)
+        if case .scheduled(let count) = status, count > 0 { engagement.scheduled = batch } else { engagement.scheduled = nil }
+        let after: RepeatDrinks.Engagement? = engagement == .init() ? nil : engagement
+        if after != before {
+            conversation.repeatDrinkEngagement = after
+            save()
+        }
+    }
+
+    /// Turning follow-up notifications on again resumes them after a pause.
+    func resumeRepeatDrinkNotifications() {
+        guard conversation.repeatDrinkEngagement != nil else { return }
+        conversation.repeatDrinkEngagement = nil
+        repeatDrinksPaused = false
+        save()
     }
 
     func dismissSuggestion(_ message: ConversationMessage) {
@@ -735,6 +775,11 @@ final class AssistantModel {
         conversation.messages.append(.init(text: text, intent: .briefing, suggestionKey: key, card: card))
     }
 
+    /// Energy is modeled, not recorded, so the body names only what is.
+    static let briefingNotificationBody = "Today’s sleep, caffeine and commitments."
+
+    /// The briefing is Aurora's first-priority notification of the day
+    /// (`NotificationBudget`); callers re-plan follow-up notifications after.
     func syncBriefingNotification(prompt: Bool) async {
         let generation = cacheGeneration
         let center = UNUserNotificationCenter.current()
@@ -749,7 +794,7 @@ final class AssistantModel {
         let hour = p.briefingHour
         let quiet = p.quietStartHour == p.quietEndHour || (p.quietStartHour > p.quietEndHour ? hour >= p.quietStartHour || hour < p.quietEndHour : hour >= p.quietStartHour && hour < p.quietEndHour)
         guard !quiet else { failure = "Choose a briefing time outside quiet hours."; return }
-        let content = UNMutableNotificationContent(); content.title = "Your Aurora briefing"; content.body = "Open Aurora to review today’s recorded energy and commitments."
+        let content = UNMutableNotificationContent(); content.title = "Your Aurora briefing"; content.body = Self.briefingNotificationBody
         var date = DateComponents(); date.hour = hour; date.minute = 0
         do {
             try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true)))
