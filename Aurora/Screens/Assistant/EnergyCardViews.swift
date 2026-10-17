@@ -21,9 +21,15 @@ struct EnergyEvidenceSections: View {
     }
 
     @ViewBuilder private var status: some View {
-        if snapshot.includesSample || !estimate.missingInputs.isEmpty {
+        if snapshot.includesSample || !estimate.missingInputs.isEmpty || estimate.usualSleep != nil {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 if snapshot.includesSample { SampleDataBadge() }
+                // No target set: the term used the person's own usual sleep.
+                if let usual = estimate.usualSleep {
+                    Label(usual.text, systemImage: "info.circle")
+                        .font(.footnote).foregroundStyle(Palette.textSecondary)
+                        .accessibilityIdentifier("energy-usual-sleep")
+                }
                 ForEach(estimate.missingInputs, id: \.self) { missing in
                     Label(missing.text, systemImage: StatusTone.warning.symbol)
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
@@ -72,7 +78,7 @@ struct EnergyEvidenceSections: View {
         case .caffeine:
             return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours))h half-life."
         case .sleepDebt:
-            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours))h."
+            return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). \(estimate.sleepReferenceText)"
         case .inertia:
             return estimate.evidence.lastWakeAt.map { "Recorded sleep ended at \(text.clockTime($0))." } ?? "Not shortly after recorded sleep."
         }

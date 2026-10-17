@@ -13,7 +13,8 @@ public enum SleepDataStatus {
         healthSync: HealthSync,
         demoMode: Bool,
         healthAvailable: Bool,
-        refreshError: String? = nil
+        refreshError: String? = nil,
+        hasTimeInBed: Bool = false
     ) -> Description {
         let failure: String? = refreshError.map { "Health refresh failed. \($0)" }
             ?? (healthSync.importStatus == .failed ? (healthSync.lastMessage ?? "Health refresh failed. Try again.") : nil)
@@ -30,7 +31,10 @@ public enum SleepDataStatus {
             state = "Health not connected"
         } else if onboarding.permissionStatus == .granted {
             switch healthSync.importStatus {
-            case .succeeded: state = healthSync.importedCount > 0 ? "Health sleep imported" : "No sleep found"
+            case .succeeded:
+                // iPhone-only Health data is time in bed, shown as such; it
+                // isn't "no sleep found" and isn't counted as sleep.
+                state = healthSync.importedCount > 0 ? "Health sleep imported" : (hasTimeInBed ? timeInBedOnlyState : "No sleep found")
             case .importing: state = "Importing sleep"
             case .partial: state = "Sleep partly imported"
             default: state = "Health access requested"
@@ -44,6 +48,8 @@ public enum SleepDataStatus {
             detail = failure
         } else if state == "Sleep partly imported" {
             detail = HealthImport.partialMessage
+        } else if state == timeInBedOnlyState {
+            detail = InBed.onlyInBedMessage
         } else if ["Health sleep imported", "No sleep found", "Importing sleep", "Health access requested"].contains(state) {
             detail = healthSync.importStatus == .succeeded && healthSync.importedCount == 0
                 ? "Check sleep records and Aurora’s read access in Health, or add sleep manually."
@@ -59,6 +65,8 @@ public enum SleepDataStatus {
         }
         return Description(state: state, detail: detail)
     }
+
+    public static let timeInBedOnlyState = "Time in bed only"
 
     public static let unavailableMessage = "Health isn’t available on this device. No sleep was imported."
     public static let notSetUpMessage = "Health access wasn’t set up. No sleep was imported."

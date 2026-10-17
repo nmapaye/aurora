@@ -164,6 +164,8 @@ final class AuroraUITests: XCTestCase {
         field.tap(); field.typeText("Sam")
         tapWhenReady(app.buttons["setup-next"])
         XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        // Nothing is pre-selected; the person picks 8 h.
+        tapWhenReady(app.buttons["setup-sleep-target-8"])
         tapWhenReady(app.buttons["setup-next"])
         XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
         // Inspecting Health choices requests nothing.
@@ -226,15 +228,31 @@ final class AuroraUITests: XCTestCase {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
         tapWhenReady(app.buttons["setup-skip"])
         XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
-        // Change the shown value, then decline: the stored target stays.
+        // Nothing is pre-selected: no stepper and Continue disabled until a choice.
+        XCTAssertFalse(app.steppers["setup-sleep-target"].exists)
+        XCTAssertFalse(app.buttons["setup-next"].isEnabled)
+        XCTAssertTrue(app.otherElements["setup-sleep-target-context"].exists || app.staticTexts["setup-sleep-target-context"].exists)
+        // Pick and adjust a value, then decline: nothing is stored.
+        tapWhenReady(app.buttons["setup-sleep-target-8"])
         app.steppers["setup-sleep-target"].buttons.element(boundBy: 1).tap()
         tapWhenReady(app.buttons["setup-skip"])
         XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["You: Not now"].exists)
         XCTAssertTrue(app.staticTexts["setup-retained-sleepTarget"].exists)
-        XCTAssertTrue(app.staticTexts["setup-retained-sleepTarget"].label.contains("8 hours"))
+        XCTAssertTrue(app.staticTexts["setup-retained-sleepTarget"].label.contains("No sleep target set"))
         XCTAssertFalse(app.staticTexts["You: 8 hours"].exists)
         XCTAssertFalse(app.staticTexts["You: 8.5 hours"].exists)
+    }
+
+    func testSleepTargetContinueSavesOnlyAChosenValue() {
+        tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
+        tapWhenReady(app.buttons["setup-skip"])
+        XCTAssertTrue(app.staticTexts["setup-question-sleepTarget"].waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["setup-sleep-target-7"])
+        XCTAssertTrue(app.buttons["setup-next"].isEnabled)
+        tapWhenReady(app.buttons["setup-next"])
+        XCTAssertTrue(app.staticTexts["setup-question-health"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["You: 7 hours"].exists)
     }
 
     func testHealthSetupAtLargestTextRequestsNothing() {

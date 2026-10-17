@@ -54,9 +54,9 @@ import Testing
 
         let relaunched = makeModel(health: health)
         #expect(relaunched.state.prefs.displayName == "Sam")
-        #expect(relaunched.state.prefs.targetSleep == Prefs.defaultTargetSleep)
+        #expect(relaunched.state.prefs.targetSleep == nil)
         #expect(FirstRun(relaunched.state.onboarding) == .setup(.health))
-        #expect(transcript(relaunched).map(\.reply) == [.person("Sam"), .retained("Sleep target stays at 8 hours. You can change it in Settings."), nil])
+        #expect(transcript(relaunched).map(\.reply) == [.person("Sam"), .retained("No sleep target set. You can choose one in Settings."), nil])
         #expect(relaunched.finishSetup(withSampleData: false))
 
         let again = makeModel(health: health)
@@ -69,7 +69,7 @@ import Testing
         #expect(model.setSetupStep(.name))
         #expect(model.skipSetupToEnd())
         #expect(transcript(model).map(\.step) == [.finish])
-        #expect(model.state.prefs.targetSleep == Prefs.defaultTargetSleep && model.state.prefs.displayName == nil)
+        #expect(model.state.prefs.targetSleep == nil && model.state.prefs.displayName == nil)
         #expect(model.state.onboarding.setupOutcomes == nil)
         #expect(model.state.onboarding.source == .manual)
     }

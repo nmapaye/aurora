@@ -38,6 +38,7 @@ struct SleepView: View {
                 chart(presentation, target: state.prefs.targetSleep)
             } trailing: {
                 recentNight(state)
+                recentPattern(state)
                 caffeineTiming(state)
             }
             sleepData(state)
@@ -62,7 +63,7 @@ struct SleepView: View {
         }
     }
 
-    private func chart(_ presentation: SleepPresentation, target: Double) -> some View {
+    private func chart(_ presentation: SleepPresentation, target: Double?) -> some View {
         let days = presentation.points.map { point -> DailyBarChart.Day in
             let readout = SleepModel.describeChartDay(point, text: model.text)
             return DailyBarChart.Day(
@@ -77,7 +78,8 @@ struct SleepView: View {
             days: days,
             unit: "Hours",
             accent: Palette.sleepAccent,
-            reference: (target, "\(OnboardingCopy.formatSleepTarget(target).value)h target"),
+            // No target, no reference line: nothing stands in for one.
+            reference: target.map { ($0, "\(OnboardingCopy.formatSleepTarget($0).value)h target") },
             defaultIndex: days.lastIndex { $0.value != nil },
             accessibilitySummary: presentation.accessibilitySummary,
             emptyMessage: "No sleep recorded in this range. Add a night or connect Apple Health in Sleep Data."
@@ -86,7 +88,8 @@ struct SleepView: View {
 
     private func recentNight(_ state: AppState) -> some View {
         let signal = SleepModel.recentNightSignal(
-            sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: model.now, clock: model.clock, text: model.text
+            sleeps: state.sleeps, targetSleepHours: state.prefs.targetSleep, now: model.now, clock: model.clock, text: model.text,
+            timeInBed: state.demoMode ? [] : state.timeInBed
         )
         return SignalCard(model: signal, symbol: "bed.double.fill", accent: Palette.sleepAccent) {
             if signal.status == .empty {
@@ -95,6 +98,29 @@ struct SleepView: View {
                 showHistory = true
             }
         }
+    }
+
+    /// Recorded nights over the last 7 wake days and usual timing, each
+    /// only past its own gate. Missing nights are never counted as 0.
+    private func recentPattern(_ state: AppState) -> some View {
+        let clock = model.clock
+        let now = model.now
+        let lines = SleepPattern.lines(sessions: state.sleeps, targetHours: state.prefs.targetSleep, now: now, clock: clock) { minute in
+            model.text.clockTime(clock.setTime(now, hour: minute / 60, minute: minute % 60))
+        }
+        return Card {
+            Text(SleepPattern.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.textSecondary)
+            ForEach([lines.week, lines.timing] + [lines.spread].compactMap { $0 }, id: \.self) { line in
+                Text(line)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("sleep-recent-pattern")
     }
 
     @ViewBuilder
@@ -144,7 +170,8 @@ struct SleepView: View {
 
     private func sleepData(_ state: AppState) -> some View {
         let status = SleepDataStatus.describe(
-            onboarding: state.onboarding, healthSync: state.healthSync, demoMode: state.demoMode, healthAvailable: model.healthAvailable
+            onboarding: state.onboarding, healthSync: state.healthSync, demoMode: state.demoMode, healthAvailable: model.healthAvailable,
+            hasTimeInBed: !state.timeInBed.isEmpty
         )
         let sync = state.healthSync
         return VStack(alignment: .leading, spacing: Metrics.sm) {

@@ -96,11 +96,14 @@ public enum HealthImportStatus: String, Codable, Sendable {
     case partial
 }
 
-public struct Prefs: Codable, Equatable, Sendable {
+public struct Prefs: Equatable, Sendable {
     /// Caffeine half-life in hours.
     public var halfLife: Double
-    /// Nightly sleep target in hours.
-    public var targetSleep: Double
+    /// Nightly sleep target in hours, nil until the person chooses one.
+    /// Nothing is pre-selected and no reference is substituted while unset.
+    /// Stored as `chosenTargetSleep`; the legacy `targetSleep` key is only a
+    /// placeholder for older builds (see the Codable extension below).
+    public var targetSleep: Double?
     public var tz: String?
     /// The user's own stored reference. It is never presented as a limit,
     /// allowance or goal.
@@ -121,11 +124,10 @@ public struct Prefs: Codable, Equatable, Sendable {
     public var repeatDrinks: RepeatDrinkSettings?
 
     public static let defaultHalfLife: Double = 5
-    public static let defaultTargetSleep: Double = 8
 
     public static let defaults = Prefs(
         halfLife: defaultHalfLife,
-        targetSleep: defaultTargetSleep,
+        targetSleep: nil,
         tz: nil,
         dailyLimitMg: 400,
         cutoffHour: 16,
@@ -134,7 +136,7 @@ public struct Prefs: Codable, Equatable, Sendable {
 
     public init(
         halfLife: Double,
-        targetSleep: Double,
+        targetSleep: Double?,
         tz: String? = nil,
         dailyLimitMg: Double,
         cutoffHour: Double,
@@ -154,6 +156,74 @@ public struct Prefs: Codable, Equatable, Sendable {
         self.favoriteDrinkIDs = favoriteDrinkIDs
         self.wakeReminders = wakeReminders
         self.repeatDrinks = repeatDrinks
+    }
+}
+
+/// Downgrade compatibility. Builds before October 2026 (main, claude/ui-review)
+/// decode Prefs with synthesized Codable and require `halfLife`, `targetSleep`,
+/// `dailyLimitMg`, `cutoffHour` and `notifyCutoff`; a missing one fails the
+/// whole file, which they then set aside as corrupt. So the legacy key is
+/// always written with a valid number, the real value lives under a
+/// `chosen…` key older builds ignore, and `legacyPlaceholders` names the
+/// legacy keys that are only placeholders in this file.
+extension Prefs: Codable {
+    /// Values written only for older builds, never read as the person's.
+    public enum LegacyPlaceholder {
+        /// What older builds pre-selected. Never a default here.
+        public static let targetSleep: Double = 8
+    }
+
+    /// The legacy keys this build writes as placeholders. Another field that
+    /// moves to a `chosen…` key adds its legacy key here.
+    public static let placeholderKeys = [CodingKeys.targetSleep.rawValue]
+
+    enum CodingKeys: String, CodingKey {
+        case halfLife, tz, dailyLimitMg, cutoffHour, notifyCutoff, displayName, favoriteDrinkIDs, wakeReminders, repeatDrinks
+        /// Legacy key older builds require.
+        case targetSleep
+        /// The real value, which older builds ignore.
+        case chosenTargetSleep
+        /// Which legacy keys in this file are only placeholders.
+        case legacyPlaceholders
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        halfLife = try container.decode(Double.self, forKey: .halfLife)
+        let placeholders = Set(try container.decodeIfPresent([String].self, forKey: .legacyPlaceholders) ?? [])
+        if placeholders.contains(CodingKeys.targetSleep.rawValue) {
+            targetSleep = try container.decodeIfPresent(Double.self, forKey: .chosenTargetSleep)
+        } else {
+            // From an older build, or re-saved by one: its value is kept here,
+            // and `AppState` decoding clears an 8 h that setup's "Not now"
+            // left (`SleepTargetMigration`).
+            targetSleep = try container.decodeIfPresent(Double.self, forKey: .targetSleep)
+        }
+        tz = try container.decodeIfPresent(String.self, forKey: .tz)
+        dailyLimitMg = try container.decode(Double.self, forKey: .dailyLimitMg)
+        cutoffHour = try container.decode(Double.self, forKey: .cutoffHour)
+        notifyCutoff = try container.decode(Bool.self, forKey: .notifyCutoff)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        favoriteDrinkIDs = try container.decodeIfPresent([String].self, forKey: .favoriteDrinkIDs)
+        wakeReminders = try container.decodeIfPresent(WakeReminderSettings.self, forKey: .wakeReminders)
+        repeatDrinks = try container.decodeIfPresent(RepeatDrinkSettings.self, forKey: .repeatDrinks)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(halfLife, forKey: .halfLife)
+        // Placeholder for older builds: the chosen target, else 8.
+        try container.encode(targetSleep ?? LegacyPlaceholder.targetSleep, forKey: .targetSleep)
+        try container.encodeIfPresent(targetSleep, forKey: .chosenTargetSleep)
+        try container.encode(Self.placeholderKeys, forKey: .legacyPlaceholders)
+        try container.encodeIfPresent(tz, forKey: .tz)
+        try container.encode(dailyLimitMg, forKey: .dailyLimitMg)
+        try container.encode(cutoffHour, forKey: .cutoffHour)
+        try container.encode(notifyCutoff, forKey: .notifyCutoff)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(favoriteDrinkIDs, forKey: .favoriteDrinkIDs)
+        try container.encodeIfPresent(wakeReminders, forKey: .wakeReminders)
+        try container.encodeIfPresent(repeatDrinks, forKey: .repeatDrinks)
     }
 }
 

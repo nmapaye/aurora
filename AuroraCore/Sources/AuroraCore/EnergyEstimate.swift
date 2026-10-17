@@ -33,12 +33,21 @@ public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
     case recentCaffeine
     /// No entry adds any active caffeine at this time. The model counts none.
     case caffeine
+    /// No sleep target is set, so the model leaves out its sleep-target term
+    /// rather than measure against a reference the person never chose.
+    /// Unknown to builds before October 2026, so it is never written under
+    /// the legacy `missingInputs` key (see `EnergyEstimate`'s Codable).
+    case sleepTarget
+
+    /// The cases builds before October 2026 can decode.
+    public static let legacyCases: Set<EnergyMissingInput> = [.recentSleep, .recentCaffeine, .caffeine]
 
     public var text: String {
         switch self {
         case .recentSleep: "No sleep is recorded in the 24 hours before this time, so there is no modeled alertness."
         case .recentCaffeine: "No caffeine is recorded in the 24 hours before this time. Earlier entries still add a modeled amount as they fade."
         case .caffeine: "No caffeine is recorded by this time. The model counts none."
+        case .sleepTarget: "No sleep target is set, so recorded sleep isn’t compared with one. Set a target in Settings."
         }
     }
 }
@@ -172,8 +181,8 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
         }
 
         // Mirrors `SleepInertia`: the latest episode that started and ended
-        // by capture, with brief awakenings joined.
-        let episode = SleepIntervals.merge(sleeps.filter { $0.start <= t }, gapMs: SleepIntervals.briefAwakeningMs)
+        // by capture, by the one 90-minute episode rule.
+        let episode = SleepEpisodes.spans(sleeps.filter { $0.start <= t })
             .filter { $0.end <= t }
             .max { $0.end < $1.end }
         let wakeApplies = SleepInertia.value(at: t, sleeps: sleeps) > 0
@@ -204,7 +213,7 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 /// needed to explain it later without recomputing from changed records.
 /// The score is the existing alertness estimate, rounded the same way, and is
 /// present only when sleep is recorded in the 24 hours before.
-public struct EnergyEstimate: Codable, Equatable, Sendable {
+public struct EnergyEstimate: Equatable, Sendable {
     /// 2 added `evidence`, the `caffeine` missing input and the
     /// `unmeasuredFactors` limitation.
     public static let currentVersion = 2
@@ -217,7 +226,11 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var capturedAt: Millis
     public var timeZoneIdentifier: String
     public var halfLifeHours: Double
-    public var targetSleepHours: Double
+    /// The person's chosen target, nil when none was set.
+    public var targetSleepHours: Double?
+    /// With no target: the person's usual sleep the sleep-target term used
+    /// instead. Nil with a target, below its gate, or in older snapshots.
+    public var usualSleep: UsualSleepBaseline?
     public var sleepHoursLast24: Double
     /// Rounded 0 to 100 model output. Not a percentage.
     public var modeledScore: Int?
@@ -236,8 +249,10 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         sleeps: [SleepSession],
         inputs: EstimateInputs
     ) -> EnergyEstimate {
-        let estimate = Summary.estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs)
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
+        // Resolved only when there is a score to use it.
+        let reference = sleepHours > 0 ? inputs.sleepReference(at: t, sleeps: sleeps) : nil
+        let estimate = Summary.estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs, sleepHours: sleepHours, reference: reference)
         let evidence = EnergyEvidence.capture(at: t, doses: doses, sleeps: sleeps, halfLifeHours: inputs.halfLifeHours)
 
         var missing: [EnergyMissingInput] = []
@@ -247,20 +262,25 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         } else if !evidence.hasRecentCaffeine {
             missing.append(.recentCaffeine)
         }
+        if estimate.score != nil, reference == nil { missing.append(.sleepTarget) }
 
         var contributions: [EnergyContribution] = []
         if estimate.score != nil {
             let circadian = Circadian.value(at: t, clock: inputs.clock)
             let effect = Caffeine.activeEffect(at: t, doses: doses, halfLifeHours: inputs.halfLifeHours)
-            let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: inputs.targetSleepHours)
+            let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: reference?.hours)
             let inertia = SleepInertia.value(at: t, sleeps: sleeps)
             contributions = [
                 EnergyContribution(kind: .baseline, term: 1, points: Alertness.baseline),
                 EnergyContribution(kind: .timeOfDay, term: circadian, points: Alertness.circadianWeight * circadian),
                 EnergyContribution(kind: .caffeine, term: effect, points: Alertness.caffeineWeight * effect),
-                EnergyContribution(kind: .sleepDebt, term: debt, points: -(Alertness.sleepDebtWeight * debt)),
-                EnergyContribution(kind: .inertia, term: inertia, points: -(Alertness.inertiaWeight * inertia)),
             ]
+            // With neither a target nor enough usual sleep the term is left
+            // out, not shown as zero.
+            if reference != nil {
+                contributions.append(EnergyContribution(kind: .sleepDebt, term: debt, points: -(Alertness.sleepDebtWeight * debt)))
+            }
+            contributions.append(EnergyContribution(kind: .inertia, term: inertia, points: -(Alertness.inertiaWeight * inertia)))
         }
 
         return EnergyEstimate(
@@ -270,6 +290,10 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
             timeZoneIdentifier: inputs.clock.timeZone.identifier,
             halfLifeHours: inputs.halfLifeHours,
             targetSleepHours: inputs.targetSleepHours,
+            usualSleep: inputs.targetSleepHours == nil && estimate.score != nil ? reference.flatMap {
+                if case .usual(let baseline) = $0 { return baseline }
+                return nil
+            } : nil,
             sleepHoursLast24: sleepHours,
             modeledScore: estimate.score,
             contributions: contributions,
@@ -285,6 +309,13 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var unroundedScore: Double? {
         guard modeledScore != nil else { return nil }
         return min(100, max(0, contributions.reduce(0) { $0 + $1.points }))
+    }
+
+    /// What recorded sleep was compared with, for the sleep-target term.
+    public var sleepReferenceText: String {
+        if let targetSleepHours { return "Your goal: \(numberText(targetSleepHours))h." }
+        if let usualSleep { return usualSleep.text }
+        return "No sleep target set."
     }
 
     public var summary: String {
@@ -303,5 +334,85 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         let lastEnd = sleeps.filter { $0.end <= now }.map(\.end).max()
         guard let lastEnd, lastEnd <= now - dayMs else { return "No sleep recorded in the last 24 hours." }
         return "No sleep recorded since \(text.weekdayDate(lastEnd))."
+    }
+}
+
+/// Downgrade compatibility, the same pattern as `Prefs`. Builds before
+/// October 2026 (main, claude/ui-review) decode snapshots in saved
+/// conversations with synthesized Codable: they require a number under
+/// `targetSleepHours` and only know three missing inputs, and one card they
+/// can't read fails the whole conversation. So the legacy keys are always
+/// written in their old shape, the real values live under keys older builds
+/// ignore, and `legacyPlaceholders` names the legacy keys that are only
+/// placeholders in this snapshot.
+extension EnergyEstimate: Codable {
+    /// Values written only for older builds, never read as the snapshot's.
+    public enum LegacyPlaceholder {
+        /// `targetSleepHours` when the model compared with nothing.
+        public static let targetSleepHours: Double = 8
+    }
+
+    /// The legacy keys this build writes as placeholders.
+    public static let placeholderKeys = [CodingKeys.targetSleepHours.rawValue, CodingKeys.missingInputs.rawValue]
+
+    enum CodingKeys: String, CodingKey {
+        case version, modelVersion, capturedAt, timeZoneIdentifier, halfLifeHours, usualSleep, sleepHoursLast24
+        case modeledScore, contributions, includesSample, limitations, evidence
+        /// Legacy keys older builds require, in their old shape.
+        case targetSleepHours, missingInputs
+        /// The real values, which older builds ignore.
+        case chosenTargetSleepHours, allMissingInputs
+        /// Which legacy keys in this snapshot are only placeholders.
+        case legacyPlaceholders
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let placeholders = Set(try container.decodeIfPresent([String].self, forKey: .legacyPlaceholders) ?? [])
+        version = try container.decode(Int.self, forKey: .version)
+        modelVersion = try container.decode(String.self, forKey: .modelVersion)
+        capturedAt = try container.decode(Millis.self, forKey: .capturedAt)
+        timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
+        halfLifeHours = try container.decode(Double.self, forKey: .halfLifeHours)
+        // Older snapshots' value is the target they used; this build's is a
+        // placeholder for the reference, so only the chosen key is read.
+        targetSleepHours = placeholders.contains(CodingKeys.targetSleepHours.rawValue)
+            ? try container.decodeIfPresent(Double.self, forKey: .chosenTargetSleepHours)
+            : try container.decodeIfPresent(Double.self, forKey: .targetSleepHours)
+        usualSleep = try container.decodeIfPresent(UsualSleepBaseline.self, forKey: .usualSleep)
+        sleepHoursLast24 = try container.decode(Double.self, forKey: .sleepHoursLast24)
+        modeledScore = try container.decodeIfPresent(Int.self, forKey: .modeledScore)
+        contributions = try container.decode([EnergyContribution].self, forKey: .contributions)
+        missingInputs = try container.decode(
+            [EnergyMissingInput].self,
+            forKey: placeholders.contains(CodingKeys.missingInputs.rawValue) ? .allMissingInputs : .missingInputs
+        )
+        includesSample = try container.decode(Bool.self, forKey: .includesSample)
+        limitations = try container.decode([EnergyLimitation].self, forKey: .limitations)
+        evidence = try container.decode(EnergyEvidence.self, forKey: .evidence)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(modelVersion, forKey: .modelVersion)
+        try container.encode(capturedAt, forKey: .capturedAt)
+        try container.encode(timeZoneIdentifier, forKey: .timeZoneIdentifier)
+        try container.encode(halfLifeHours, forKey: .halfLifeHours)
+        // Placeholder for older builds: the reference the model used (the
+        // target or the usual-sleep baseline), else 8.
+        try container.encode(targetSleepHours ?? usualSleep?.hours ?? LegacyPlaceholder.targetSleepHours, forKey: .targetSleepHours)
+        try container.encodeIfPresent(targetSleepHours, forKey: .chosenTargetSleepHours)
+        try container.encodeIfPresent(usualSleep, forKey: .usualSleep)
+        try container.encode(sleepHoursLast24, forKey: .sleepHoursLast24)
+        try container.encodeIfPresent(modeledScore, forKey: .modeledScore)
+        try container.encode(contributions, forKey: .contributions)
+        // Only the cases older builds know under the legacy key.
+        try container.encode(missingInputs.filter(EnergyMissingInput.legacyCases.contains), forKey: .missingInputs)
+        try container.encode(missingInputs, forKey: .allMissingInputs)
+        try container.encode(Self.placeholderKeys, forKey: .legacyPlaceholders)
+        try container.encode(includesSample, forKey: .includesSample)
+        try container.encode(limitations, forKey: .limitations)
+        try container.encode(evidence, forKey: .evidence)
     }
 }

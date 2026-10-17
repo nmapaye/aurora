@@ -32,11 +32,9 @@ public enum Circadian {
 }
 
 public enum SleepIntervals {
-    /// Awakenings shorter than this are treated as part of one sleep episode.
-    public static let briefAwakeningMs: Millis = 30 * minuteMs
-
-    /// Merges overlapping intervals, or ones within `gapMs` of each other, so
+    /// Merges overlapping or touching intervals (or ones within `gapMs`), so
     /// stage segments and duplicate sources (Watch and iPhone) count once.
+    /// Episodes use `SleepEpisodes.spans`, the one 90-minute rule.
     public static func merge(_ intervals: [Interval], gapMs: Millis = 0) -> [Interval] {
         let ordered = intervals
             .filter { $0.start.isFinite && $0.end.isFinite && $0.end > $0.start }
@@ -68,7 +66,12 @@ public enum SleepDebt {
     }
 
     /// The share of the target missing from the last 24 hours, from 0 to 1.
-    public static func value(at now: Millis, sleeps: [SleepSession], targetHours: Double) -> Double {
+    /// With no target set the term is left out (0) rather than measured
+    /// against a reference the person never chose; `EnergyMissingInput
+    /// .sleepTarget` labels that. Whether the model should use a labelled
+    /// consensus reference instead is an open product decision.
+    public static func value(at now: Millis, sleeps: [SleepSession], targetHours: Double?) -> Double {
+        guard let targetHours, targetHours > 0 else { return 0 }
         let hours = totalHoursLast24(at: now, sleeps: sleeps)
         return clamp((targetHours - hours) / targetHours, 0, 1)
     }
@@ -76,10 +79,10 @@ public enum SleepDebt {
 
 public enum SleepInertia {
     /// Minutes since the end of the latest sleep episode at or before `now`,
-    /// or infinity when there is none.
+    /// or infinity when there is none. Episodes follow the one 90-minute rule.
     public static func minutesSinceLastWake(at now: Millis, sleeps: [SleepSession]) -> Double {
         let started = sleeps.filter { $0.start <= now }
-        let latestEnd = SleepIntervals.merge(started, gapMs: SleepIntervals.briefAwakeningMs)
+        let latestEnd = SleepEpisodes.spans(started)
             .filter { $0.end <= now }
             .map(\.end)
             .max()
@@ -108,7 +111,7 @@ public enum Alertness {
         doses: [Dose],
         sleeps: [SleepSession],
         halfLifeHours: Double,
-        targetSleepHours: Double,
+        targetSleepHours: Double?,
         clock: LocalClock
     ) -> Double {
         let effect = Caffeine.activeEffect(at: now, doses: doses, halfLifeHours: halfLifeHours)

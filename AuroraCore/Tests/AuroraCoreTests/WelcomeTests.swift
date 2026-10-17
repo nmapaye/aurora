@@ -198,6 +198,55 @@ struct WelcomeTests {
         #expect(FirstRun(state.onboarding) == .done)
     }
 
+    // MARK: Sleep target without a default
+
+    private func oldFile(target: Double, outcomes: String?) -> Data {
+        let setup = outcomes.map { #","setupStep":7,"setupOutcomes":\#($0)"# } ?? ""
+        return Data(#"{"schemaVersion":2,"prefs":{"halfLife":5,"targetSleep":\#(target),"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false},"onboarding":{"completed":true,"source":"manual","permissionStatus":"unsupported","appWalkthroughCompleted":true,"appWalkthroughStep":9\#(setup)}}"#.utf8)
+    }
+
+    @Test func freshStateHasNoSleepTargetAndDoesNotWriteOne() throws {
+        #expect(AppState().prefs.targetSleep == nil)
+        let encoded = String(decoding: try JSONEncoder().encode(AppState()), as: UTF8.self)
+        // Only the downgrade placeholder is written; no chosen target.
+        #expect(!encoded.contains("chosenTargetSleep"))
+        #expect(encoded.contains(#""targetSleep":8"#))
+        #expect(encoded.contains(#""sleepTargetFormat":1"#))
+        #expect(OnboardingCopy.sleepTargetRange == 5...11)
+        #expect(CopyRules.violations(in: OnboardingCopy.sleepTargetContext + OnboardingCopy.noSleepTargetNote).isEmpty)
+    }
+
+    @Test func eightHoursKeptByNotNowGoesBackToUnset() throws {
+        let state = try JSONDecoder().decode(AppState.self, from: oldFile(target: 8, outcomes: #"{"0":"answered","2":"skipped"}"#))
+        #expect(state.prefs.targetSleep == nil)
+        #expect(state.sleepTargetFormat == SleepTargetMigration.currentFormat)
+        // Saved and reopened, it stays unset.
+        let reopened = try JSONDecoder().decode(AppState.self, from: StateMigration.encode(state))
+        #expect(reopened == state)
+        #expect(SetupTranscript.reply(.sleepTarget, .skipped, state: state, healthAvailable: true, calendarsChosen: false)
+            == .retained("No sleep target set. You can choose one in Settings."))
+    }
+
+    @Test func chosenTargetsAreKeptByTheMigration() throws {
+        // Answered at setup, a different value kept by Not now, and a file
+        // from before setup outcomes existed: all the person's own.
+        for (target, outcomes) in [(8.0, #"{"2":"answered"}"#), (7.5, #"{"2":"skipped"}"#), (8.0, nil as String?)] {
+            let state = try JSONDecoder().decode(AppState.self, from: oldFile(target: target, outcomes: outcomes))
+            #expect(state.prefs.targetSleep == target)
+        }
+        // A standalone older Prefs value keeps its number.
+        let prefs = try JSONDecoder().decode(Prefs.self, from: Data(#"{"halfLife":5,"targetSleep":8,"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false}"#.utf8))
+        #expect(prefs.targetSleep == 8)
+    }
+
+    @Test func eightHoursChosenLaterInSettingsIsNeverCleared() throws {
+        var state = try JSONDecoder().decode(AppState.self, from: oldFile(target: 8, outcomes: #"{"2":"skipped"}"#))
+        #expect(state.prefs.targetSleep == nil)
+        state.prefs.targetSleep = 8
+        let reopened = try JSONDecoder().decode(AppState.self, from: StateMigration.encode(state))
+        #expect(reopened.prefs.targetSleep == 8)
+    }
+
     @Test func unsetFieldsAreNotWrittenAndSetOnesRoundTrip() throws {
         let encoded = String(decoding: try JSONEncoder().encode(AppState()), as: UTF8.self)
         for key in ["displayName", "favoriteDrinkIDs", "setupStep"] { #expect(!encoded.contains(key)) }
@@ -228,7 +277,7 @@ struct WelcomeTests {
         let entries = transcript(state)
         #expect(entries.map(\.step) == [.finish])
         #expect(entries.allSatisfy { $0.reply == nil })
-        #expect(state.prefs.targetSleep == Prefs.defaultTargetSleep)
+        #expect(state.prefs.targetSleep == nil)
         #expect(state.onboarding.setupOutcomes == nil)
         #expect(state.onboarding.source == .manual)
     }

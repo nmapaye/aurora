@@ -55,16 +55,24 @@ public struct EnergyOutlook: Codable, Equatable, Sendable {
         let low = (lowPoint?.modeledScore ?? 0) + windowTolerance < (peak?.score ?? 0) ? lowPoint.flatMap(window) : nil
 
         let current = EnergyEstimate.capture(at: now, doses: projection.knownDoses(state.doses), sleeps: projection.knownSleeps(state.sleeps), inputs: inputs)
+        // Past days are scored against today's reference, so a usual-sleep
+        // reference compares like with like.
+        var pastInputs = inputs
+        if pastInputs.targetSleepHours == nil { pastInputs.targetSleepHours = current.usualSleep?.hours }
         var past: [Int] = []
         var sample = current.includesSample
         for days in 1...comparisonDays {
             let then = clock.addingDays(-days, to: now)
             let known = EnergyProjection.knownRecords(doses: state.doses, sleeps: state.sleeps, at: then)
-            let estimate = EnergyEstimate.capture(at: then, doses: known.doses, sleeps: known.sleeps, inputs: inputs)
+            let estimate = EnergyEstimate.capture(at: then, doses: known.doses, sleeps: known.sleeps, inputs: pastInputs)
             if let score = estimate.modeledScore { past.append(score); sample = sample || estimate.includesSample }
         }
         var comparison: Comparison?
-        if let score = current.modeledScore, past.count >= minimumComparedDays {
+        // With neither a target nor usual sleep to compare with, recorded
+        // sleep doesn't enter the score, so "about the same as your past
+        // week" after a short night would mislead.
+        if let score = current.modeledScore, past.count >= minimumComparedDays,
+           current.targetSleepHours != nil || current.usualSleep != nil {
             let difference = Double(score) - Double(past.reduce(0, +)) / Double(past.count)
             comparison = difference >= similarWithin ? .higher : (difference <= -similarWithin ? .lower : .similar)
         }

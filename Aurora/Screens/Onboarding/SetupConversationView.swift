@@ -217,29 +217,69 @@ struct SetupConversationView: View {
         }
     }
 
+    /// Nothing is selected until the person picks a value: the 7–9 h range
+    /// is context, never a default. Continue saves only a chosen target.
     private var sleepTargetControls: some View {
-        let target = targetDraft ?? model.state.prefs.targetSleep
-        let formatted = OnboardingCopy.formatSleepTarget(target)
+        let target = targetDraft
         return VStack(alignment: .leading, spacing: Metrics.sm) {
-            Stepper(
-                value: Binding(get: { target }, set: { targetDraft = $0 }),
-                in: OnboardingCopy.sleepTargetRange,
-                step: OnboardingCopy.sleepTargetStep
-            ) {
-                Text("\(formatted.value) \(formatted.unit)")
-                    .font(Typography.value.monospacedDigit())
-                    .foregroundStyle(Palette.textPrimary)
+            HStack(spacing: Metrics.xs) {
+                ForEach(OnboardingCopy.sleepTargetPresets, id: \.self) { preset in
+                    sleepTargetChip(preset, selected: target == preset)
+                }
             }
-            .accessibilityLabel("Sleep target")
-            .accessibilityValue(formatted.spoken)
-            .accessibilityIdentifier("setup-sleep-target")
-            // Continue confirms the shown target; Not now keeps the stored one.
-            actionRow(primary: "Continue", primaryDisabled: false, primaryAction: {
+            if let target {
+                let formatted = OnboardingCopy.formatSleepTarget(target)
+                Stepper(
+                    value: Binding(get: { target }, set: { targetDraft = $0 }),
+                    in: OnboardingCopy.sleepTargetRange,
+                    step: OnboardingCopy.sleepTargetStep
+                ) {
+                    Text("\(formatted.value) \(formatted.unit)")
+                        .font(Typography.value.monospacedDigit())
+                        .foregroundStyle(Palette.textPrimary)
+                }
+                .accessibilityLabel("Sleep target")
+                .accessibilityValue(formatted.spoken)
+                .accessibilityIdentifier("setup-sleep-target")
+            }
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(OnboardingCopy.sleepTargetContext)
+                Text(OnboardingCopy.sleepTargetContextSource)
+                    .font(Typography.source)
+            }
+            .font(.footnote)
+            .foregroundStyle(Palette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("setup-sleep-target-context")
+            // Continue saves the chosen target; Not now leaves it unset.
+            actionRow(primary: "Continue", primaryDisabled: target == nil, primaryAction: {
+                guard let target else { return }
                 record(.sleepTarget, .answered) { $0.prefs.targetSleep = target }
             }) {
                 record(.sleepTarget, .skipped)
             }
         }
+    }
+
+    private func sleepTargetChip(_ hours: Double, selected: Bool) -> some View {
+        let formatted = OnboardingCopy.formatSleepTarget(hours)
+        return Button {
+            targetDraft = hours
+        } label: {
+            Text("\(formatted.value) h")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                .foregroundStyle(selected ? Palette.primaryButtonText : Palette.textPrimary)
+                .background(selected ? Palette.tint : Palette.card, in: Capsule())
+                .overlay(Capsule().strokeBorder(selected ? Palette.tint : Palette.cardBorder))
+        }
+        .buttonStyle(.auroraPress)
+        .accessibilityLabel(formatted.spoken)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("setup-sleep-target-\(formatted.value)")
     }
 
     private var healthControls: some View {
