@@ -97,6 +97,20 @@ struct CapabilitiesTests {
         }
     }
 
+    /// A new conversation opens on one line and three starting points; the
+    /// full list stays one tap away, and the welcome offers no next steps.
+    @Test func welcomeOffersThreeStartingPointsIncludingEverything() {
+        let utc = LocalClock(timeZone: TimeZone(identifier: "UTC")!)
+        let welcome = AssistantCards.make(.welcome, state: AppState(), now: 0, clock: utc, text: .localized(timeZone: utc.timeZone))
+        #expect(welcome.title == "Ready when you are." && welcome.summary.isEmpty)
+        #expect(welcome.refreshIntent == nil)
+        #expect(CopyRules.violations(in: welcome.title).isEmpty)
+        let chips = Capabilities.welcome.compactMap(Capabilities.capability)
+        #expect(chips.map(\.title) == ["Log caffeine", "Log sleep", "What can you do?"])
+        #expect(chips.map { AssistantPlanner.explicitIntent($0.phrase) } == [.logCaffeine, .logSleep, .help])
+        #expect(Capabilities.bottomRow(after: welcome, clock: utc).allSatisfy { !$0.isNextStep })
+    }
+
     @Test func bottomRowIsTimedByTheCardNotTheReading() {
         let utc = LocalClock(timeZone: TimeZone(identifier: "UTC")!)
         let pacific = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)

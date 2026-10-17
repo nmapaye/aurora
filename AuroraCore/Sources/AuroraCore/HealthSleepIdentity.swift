@@ -67,9 +67,43 @@ public enum ManualSleep {
         }
     }
 
-    /// Eight hours ending now.
-    public static func newDraft(now: Millis) -> Draft {
-        Draft(start: now - 8 * hourMs, end: now, note: "")
+    /// A manual sleep entry being filled in. Each time stays empty until the
+    /// person adds it, so nothing is proposed for them; only a usual night
+    /// they recorded themselves may start it filled.
+    public struct Entry: Equatable, Sendable {
+        public var start: Millis?
+        public var end: Millis?
+        public var note: String
+
+        public init(start: Millis? = nil, end: Millis? = nil, note: String = "") {
+            self.start = start
+            self.end = end
+            self.note = note
+        }
+
+        public init(_ draft: Draft) {
+            self.init(start: draft.start, end: draft.end, note: draft.note)
+        }
+
+        /// The entry to save, once both times are set.
+        public var draft: Draft? {
+            guard let start, let end else { return nil }
+            return Draft(start: start, end: end, note: note)
+        }
+
+        /// Save's check: both times, then the usual rules.
+        public func validate(now: Millis) -> DraftValidation {
+            guard let draft else { return .invalid(ManualSleep.missingTimes) }
+            return ManualSleep.validate(start: draft.start, end: draft.end, now: now)
+        }
+    }
+
+    public static let missingTimes = "Add a start and end time."
+
+    /// Where an added time starts: the current minute, for the person to
+    /// change. Never a proposed bedtime or wake time.
+    public static func addedTime(now: Millis) -> Millis {
+        (now / minuteMs).rounded(.down) * minuteMs
     }
 
     public static func validate(start: Millis, end: Millis, now: Millis) -> DraftValidation {

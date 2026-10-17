@@ -5,10 +5,16 @@ import SwiftUI
 /// record", never 0 mg; the average counts recorded days only; a comparison
 /// appears only when both periods have enough recorded days.
 struct InsightsView: View {
+    /// Pushed inside Your records: keeps the system bar (see `AppScreen`).
+    var pushed = false
     @Environment(AppModel.self) private var model
-    @Environment(Router.self) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var range: InsightsRange = .default
     @State private var showDetails = false
+    // Presented from here, not through Router: the conversation's own
+    // presenter is busy with the sheet this screen is pushed in.
+    @State private var showReactionTest = false
+    @State private var showCaffeineHistory = false
 
     var body: some View {
         let state = model.state
@@ -16,7 +22,7 @@ struct InsightsView: View {
             doses: state.doses, vigilanceSessions: state.vigilanceSessions, range: range,
             now: model.now, clock: model.clock, text: model.text
         )
-        AppScreen(title: "Insights", subtitle: "What you recorded over time.") {
+        AppScreen(title: "Insights", subtitle: "What you recorded over time.", pushed: pushed) {
             RangeControl(
                 label: "Insights range",
                 options: [(InsightsRange.week, "W", "Week"), (.twoWeeks, "2W", "Two weeks"), (.month, "M", "Month")],
@@ -29,6 +35,8 @@ struct InsightsView: View {
                 details(p)
             }
         }
+        .navigationDestination(isPresented: $showCaffeineHistory) { CaffeineHistoryView() }
+        .fullScreenCover(isPresented: $showReactionTest) { ReactionTestView() }
     }
 
     private func intake(_ p: InsightsPresentation) -> some View {
@@ -50,9 +58,13 @@ struct InsightsView: View {
                         .foregroundStyle(p.source == .sample ? Palette.textSecondary : Palette.textPrimary)
                     Text(p.period).font(.footnote).foregroundStyle(Palette.textSecondary)
                     if let source = p.source {
-                        Text(source.rawValue)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(source == .manual ? Palette.textSecondary : StatusTone.warning.foreground)
+                        // Every source is named; Sample Data always by its badge.
+                        if source != .sample {
+                            Text(source.rawValue)
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Palette.textSecondary)
+                        }
+                        if source.includesSample { SampleDataBadge() }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -79,9 +91,9 @@ struct InsightsView: View {
     private func reaction(_ p: InsightsPresentation) -> some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             SignalCard(model: p.reaction.signal, symbol: "speedometer", accent: Palette.vigilanceAccent) {
-                router.showReactionTest = true
+                showReactionTest = true
             }
-            Button("Take Reaction Test") { router.showReactionTest = true }
+            Button("Take Reaction Test") { showReactionTest = true }
                 .buttonStyle(.auroraSecondary)
         }
     }
@@ -89,7 +101,7 @@ struct InsightsView: View {
     private func details(_ p: InsightsPresentation) -> some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             Button {
-                withAnimation { showDetails.toggle() }
+                withAnimation(Motion.stateChange(reduceMotion: reduceMotion)) { showDetails.toggle() }
             } label: {
                 HStack {
                     Text("Details").font(.headline).foregroundStyle(Palette.textPrimary)
@@ -119,15 +131,10 @@ struct InsightsView: View {
                         row(item.label, value: "\(numberText(jsRound(item.mg))) mg · \(item.pct)%")
                     }
                     if let source = p.source, source.includesSample {
-                        Text("Includes \(source == .sample ? "only " : "")Sample Data.")
-                            .font(.caption)
-                            .foregroundStyle(StatusTone.warning.foreground)
+                        SampleDataBadge()
                     }
                 }
-                Button("Show All Caffeine Data") {
-                    router.tab = .log
-                    router.logPath = [.caffeine]
-                }
+                Button("Show All Caffeine Data") { showCaffeineHistory = true }
                 .font(.subheadline.weight(.semibold))
             }
         }

@@ -86,26 +86,41 @@ struct StoryScenesView: View {
         .onChange(of: page) { _, _ in Haptics.selection() }
     }
 
+    /// The glass panel sits at the bottom of the page and hugs its text.
+    /// When large text makes it taller than the page, the panel fills the
+    /// page and its text scrolls inside the glass, fading at the edges the
+    /// way setup's transcript does, so a cut-off line reads as more to come.
     private func sceneCard(_ scene: SetupCopy.Scene) -> some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack {
-                    Spacer(minLength: Metrics.md)
-                    sceneText(scene)
-                }
-                // Sits at the bottom of the page, and scrolls once large text
-                // makes it taller than the page.
-                .frame(minHeight: proxy.size.height, alignment: .bottom)
-                .padding(.horizontal, Metrics.lg)
-                .frame(maxWidth: Metrics.contentMaxWidth)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            // Large text: open at the headline, not the end of the body.
-            .defaultScrollAnchor(.top)
+        ViewThatFits(in: .vertical) {
+            sceneText(scene).padding(Metrics.xl)
+            scrollingText(scene)
         }
+        .auroraGlass()
+        .padding(.top, Metrics.md)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, Metrics.lg)
+        .frame(maxWidth: Metrics.contentMaxWidth)
+        .frame(maxWidth: .infinity)
         // Clears the page indicator below the card.
         .padding(.bottom, Metrics.xxl + Metrics.lg)
+    }
+
+    private func scrollingText(_ scene: SetupCopy.Scene) -> some View {
+        ScrollView {
+            sceneText(scene).padding(.horizontal, Metrics.xl)
+        }
+        // Keeps the first and last lines clear of the fades at rest.
+        .safeAreaPadding(.vertical, Metrics.xl)
+        .scrollIndicatorsFlash(onAppear: true)
+        // Large text: open at the headline, not the end of the body.
+        .defaultScrollAnchor(.top)
+        .mask(
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: Metrics.xl)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: Metrics.xl)
+            }
+        )
     }
 
     private func sceneText(_ scene: SetupCopy.Scene) -> some View {
@@ -124,8 +139,6 @@ struct StoryScenesView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Metrics.xl)
-        .auroraGlass()
         .accessibilityElement(children: .combine)
     }
 }

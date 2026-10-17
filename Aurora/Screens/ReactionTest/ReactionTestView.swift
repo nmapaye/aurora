@@ -15,6 +15,8 @@ struct ReactionTestView: View {
     @State private var timer: Task<Void, Never>?
     @State private var saved: VigilanceSession?
     @State private var interrupted = false
+    /// The score scales with Dynamic Type from 56 pt at the default size.
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize: CGFloat = 56
 
     private var cueVisible: Bool { run.phase == .running && run.cueShownAt != nil }
 
@@ -127,7 +129,7 @@ struct ReactionTestView: View {
     private func results(_ session: VigilanceSession) -> some View {
         VStack(spacing: Metrics.sm) {
             Text("Session complete").foregroundStyle(Palette.textSecondary)
-            Text("\(session.score)").font(.system(size: 56, weight: .bold).monospacedDigit()).foregroundStyle(Palette.textPrimary)
+            Text("\(session.score)").font(.system(size: scoreSize, weight: .bold).monospacedDigit()).foregroundStyle(Palette.textPrimary)
             Text(session.rating.rawValue).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
             VStack(spacing: 2) {
                 Text("Median reaction: \(reaction(session.medianReactionMs))")

@@ -12,6 +12,9 @@ struct CaffeineHistoryView: View {
 
         var id: String { rawValue }
 
+        /// "7 days" rather than "7d" for VoiceOver.
+        var spoken: String { days.map { "\($0) days" } ?? "All" }
+
         var days: Int? {
             switch self {
             case .week: 7
@@ -32,7 +35,7 @@ struct CaffeineHistoryView: View {
         List {
             Section {
                 Picker("Range", selection: $range) {
-                    ForEach(Range.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(Range.allCases) { Text($0.rawValue).accessibilityLabel($0.spoken).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)

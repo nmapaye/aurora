@@ -22,7 +22,7 @@ struct DesignGalleryView: View {
     @State private var welcome: WelcomeFixture?
     @State private var cutoffFixture = CutoffFixture.feasible
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .capabilities, .repeatDrink, .receipt]
+    private let kinds: [AssistantCard.Kind] = [.caffeineDraft, .sleepDraft, .energy, .energyProjection, .energyCheckIn, .cutoffScenario, .trends, .calendar, .reaction, .history, .exports, .briefing, .reminders, .clarification, .welcome, .capabilities, .repeatDrink, .receipt]
     private let energyKinds: Set<AssistantCard.Kind> = [.energy, .energyProjection, .energyCheckIn]
 
     /// Synthetic energy states. Populated and stale use made-up manual
@@ -158,7 +158,8 @@ struct DesignGalleryView: View {
             if value { fixtureApp.loadSampleData() } else { fixtureApp.deleteAllData() }
             Task { await showExperience() }
         }
-        // Mirrors the conversation, which captures the draft as it is edited.
+        // Writes the draft into its card as it is edited, so closed states can
+        // be reviewed here; the conversation writes it only when the draft closes.
         .onChange(of: fixtureAssistant.pendingDraft) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }
         .onChange(of: fixtureAssistant.pendingSleep) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }
         .onChange(of: fixtureAssistant.pendingCheckIn) { _, _ in fixtureAssistant.captureDraft(app: fixtureApp) }

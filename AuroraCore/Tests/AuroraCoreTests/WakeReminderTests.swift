@@ -131,6 +131,16 @@ struct WakeReminderTests {
         #expect(WakeReminders.offsetText(120) == "2h")
     }
 
+    @Test func defaultsChooseNoReminderTime() {
+        #expect(!WakeReminderSettings.defaults.enabled)
+        #expect(WakeReminderSettings.defaults.offsetsMinutes.isEmpty)
+    }
+
+    @Test func storedReminderTimesDecodeUnchanged() throws {
+        let stored = try JSONDecoder().decode(WakeReminderSettings.self, from: Data(#"{"enabled":true,"offsetsMinutes":[60],"usualWakeMinutes":420}"#.utf8))
+        #expect(stored == WakeReminderSettings(enabled: true, offsetsMinutes: [60], usualWakeMinutes: 420))
+    }
+
     @Test func olderPrefsDecodeWithoutWakeReminders() throws {
         let prefs = try JSONDecoder().decode(Prefs.self, from: Data(#"{"halfLife":5,"targetSleep":8,"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false}"#.utf8))
         #expect(prefs.wakeReminders == nil)

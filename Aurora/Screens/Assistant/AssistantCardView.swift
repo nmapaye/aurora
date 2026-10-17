@@ -16,6 +16,7 @@ struct AssistantCardView: View {
     @State private var editingSleep: SleepSheet?
     @FocusState private var field: CardField?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// Set when this card turns Saved while on screen, for the save moment.
     @State private var justSaved = false
     @State private var editingWakeReminders = false
@@ -43,14 +44,27 @@ struct AssistantCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             cardContent
-            if card.kind != .clarification { captureRow }
+            if card.kind != .clarification && card.kind != .welcome { captureRow }
         }
         .onChange(of: card.state, stateChanged)
         // Save or Discard removes the focused field, which clears focus too.
         .onChange(of: field, focusChanged)
         .onDisappear { assistant.cardFocus(message.id, focused: false) }
+        .toolbar { keyboardDone }
         .sheet(item: $editingDose, content: doseEditor)
         .sheet(item: $editingSleep, content: sleepEditor)
+    }
+
+    /// The number pad has no return key; Done ends editing so the rest of
+    /// the card, and its Save, can be reached. Only the card being edited
+    /// adds it.
+    @ToolbarContentBuilder private var keyboardDone: some ToolbarContent {
+        if field != nil {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { field = nil }.accessibilityIdentifier("assistant-keyboard-done")
+            }
+        }
     }
 
     private func stateChanged(from old: AssistantCard.State, to new: AssistantCard.State) {
@@ -125,31 +139,55 @@ struct AssistantCardView: View {
         }
     }
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) { title; Spacer(minLength: 0); draftBadge }
-            VStack(alignment: .leading, spacing: Metrics.xs) { title; draftBadge }
+        // Redrawn once more when an energy snapshot turns earlier.
+        TimelineView(.explicit(staleMoment)) { _ in
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) { title; Spacer(minLength: 0); draftBadge }
+                VStack(alignment: .leading, spacing: Metrics.xs) { title; draftBadge }
+            }
         }
     }
+    /// The symbol is decoration: VoiceOver would read its own name ("Do Not
+    /// Disturb" for the moon), so only the title is spoken.
     private var title: some View {
-        Label(card.title, systemImage: symbol).font(Typography.cardTitle)
+        Label { Text(card.title) } icon: { Image(systemName: symbol).accessibilityHidden(true) }
+            .font(Typography.cardTitle)
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            // One element: automation still finds the hidden symbol, and it
+            // took the card's identifier ahead of the title.
+            .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
+    }
+    /// A ready energy snapshot can turn earlier; other cards never change with time.
+    private var canTurnEarlier: Bool {
+        (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
+    }
+    /// When a fresh energy snapshot turns earlier; empty otherwise. The badge
+    /// reads the time only then: the app's per-minute `now` redrew the whole
+    /// card, chart included, every minute.
+    private var staleMoment: [Date] {
+        let at = (card.capturedAt + EnergyCardTiming.staleAfterMs) / 1000 + 1
+        return canTurnEarlier && at > Date.now.timeIntervalSince1970 ? [Date(timeIntervalSince1970: at)] : []
     }
     /// Drafts say where they stand; receipts already do through their title.
     @ViewBuilder private var draftBadge: some View {
-        if (card.kind == .energy || card.kind == .energyProjection) && card.energy != nil && card.state == .ready
-            && app.now - card.capturedAt > EnergyCardTiming.staleAfterMs {
+        if canTurnEarlier && Date.now.timeIntervalSince1970 * 1000 - card.capturedAt > EnergyCardTiming.staleAfterMs {
             // Old snapshots keep their results; this only says they are old.
             // The badge itself refreshes, so "Refresh" is never a riddle.
             Button { assistant.refresh(card, app: app) } label: {
-                Label("Earlier snapshot · Tap to refresh", systemImage: "arrow.clockwise")
+                Label { Text("Earlier snapshot") } icon: { Image(systemName: "arrow.clockwise").accessibilityHidden(true) }
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(StatusTone.warning.foreground)
                     .padding(.horizontal, Metrics.sm).padding(.vertical, Metrics.xxs)
                     .background(StatusTone.warning.background, in: Capsule())
+                    // The capsule stays compact; the whole 44 pt row is the target.
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.auroraPress)
             .disabled(assistant.processing)
+            .accessibilityHint("Captures a current one.")
+            .accessibilityIdentifier("assistant-earlier-snapshot")
         }
         if card.kind == .cutoffScenario {
             let header = CutoffScenarioCardView.header(state: card.state, active: draftActive, reminder: card.cutoff?.reminder, text: snapshotText)
@@ -168,10 +206,14 @@ struct AssistantCardView: View {
         }
     }
     /// One capability as a tappable row; it sends the capability's request.
+    /// At accessibility sizes the symbols go, so the title keeps the width
+    /// and doesn't break mid-word.
     private func capabilityRow(_ capability: Capability, showsSymbol: Bool = false) -> some View {
         Button { assistant.send(capability.phrase, app: app) } label: {
-            HStack(spacing: Metrics.sm) {
-                if showsSymbol { Image(systemName: capability.symbol).frame(width: 24).accessibilityHidden(true) }
+            HStack(spacing: Metrics.xs) {
+                if showsSymbol && !typeSize.isAccessibilitySize {
+                    Image(systemName: capability.symbol).frame(width: 24).accessibilityHidden(true)
+                }
                 Text(capability.intent == .help && !showsSymbol ? "See everything I can do" : capability.title)
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote).accessibilityHidden(true)
@@ -186,17 +228,24 @@ struct AssistantCardView: View {
     @ViewBuilder private var wakeReminderRow: some View {
         let settings = app.state.prefs.wakeReminders?.normalized()
         let on = settings?.enabled == true && settings?.offsetsMinutes.isEmpty == false
+        let value = on ? settings!.offsetsMinutes.map { "+" + WakeReminders.offsetText($0) }.joined(separator: ", ") : "Off"
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            HStack(alignment: .firstTextBaseline) {
-                Label("Caffeine after waking", systemImage: "alarm").font(Typography.label).foregroundStyle(Palette.textPrimary)
-                Spacer()
-                Text(on ? settings!.offsetsMinutes.map { "+" + WakeReminders.offsetText($0) }.joined(separator: ", ") : "Off")
-                    .font(Typography.value.monospacedDigit()).foregroundStyle(on ? Palette.textPrimary : Palette.textSecondary)
+            // The value goes under the label at accessibility sizes.
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Metrics.xxs))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Metrics.sm))
+            layout {
+                Label { Text("Caffeine after waking") } icon: { Image(systemName: "alarm").accessibilityHidden(true) }
+                    .font(Typography.label).foregroundStyle(Palette.textPrimary)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                Text(value).font(Typography.value.monospacedDigit()).foregroundStyle(on ? Palette.textPrimary : Palette.textSecondary)
             }
+            .accessibilityElement(children: .combine)
             if on, let next = app.nextWakeReminder {
                 Text("Next \(app.clock.dayKey(next.fireAt) == app.clock.dayKey(app.now) ? "" : "tomorrow ")\(app.text.clockTime(next.fireAt))")
                     .font(Typography.source).foregroundStyle(Palette.textSecondary)
             }
+            // The card's one primary action, while nothing is set up.
             Button(on ? "Change" : "Set up") { editingWakeReminders = true }
                 .buttonStyle(on ? AnyButtonStyle(.auroraSecondary) : AnyButtonStyle(.auroraPrimary))
                 .accessibilityIdentifier("assistant-wake-reminders-edit")
@@ -206,21 +255,34 @@ struct AssistantCardView: View {
     }
     /// When the card's records were read: just the time today, the day
     /// otherwise, and the zone only if it isn't the current one.
-    private var captureText: String {
+    private func captureText(now: Date) -> String {
         let sameZone = snapshotClock.timeZone.secondsFromGMT() == TimeZone.current.secondsFromGMT()
-        let today = app.clock.dayKey(card.capturedAt) == app.clock.dayKey(app.now)
+        let today = app.clock.dayKey(card.capturedAt) == app.clock.dayKey(now.timeIntervalSince1970 * 1000)
         let when = today ? snapshotText.clockTime(card.capturedAt) : snapshotText.fullDateTime(card.capturedAt)
         return sameZone ? when : "\(when) · \(snapshotClock.timeZone.abbreviation() ?? card.timeZone)"
     }
+    /// Only the caption follows the clock, and only at the midnight that
+    /// turns today's time into a date; the app's per-minute `now` redrew
+    /// every card each minute.
     private var captureLabel: some View {
-        Text(captureText)
-            .font(.caption2).foregroundStyle(Palette.textSecondary)
+        TimelineView(.explicit(captionMidnight)) { _ in
+            let text = captureText(now: .now)
+            Text(text)
+                .font(.caption2).foregroundStyle(Palette.textSecondary)
+                .accessibilityLabel("Captured \(text)")
+        }
+    }
+    /// The next midnight for a card captured today; empty for earlier days.
+    private var captionMidnight: [Date] {
+        let now = Date.now.timeIntervalSince1970 * 1000
+        guard app.clock.dayKey(card.capturedAt) == app.clock.dayKey(now) else { return [] }
+        return [Date(timeIntervalSince1970: app.clock.addingDays(1, to: app.clock.startOfDay(now)) / 1000 + 1)]
     }
     @ViewBuilder private var refreshButton: some View {
         if card.refreshIntent != nil {
-            let label = [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn].contains(card.kind) ? "New review" : "Refresh"
+            // One verb on every card: drafts and snapshots both refresh.
             Button { assistant.refresh(card, app: app) } label: {
-                Label(label, systemImage: "arrow.clockwise")
+                Label { Text("Refresh") } icon: { Image(systemName: "arrow.clockwise").accessibilityHidden(true) }
                     .font(.footnote.weight(.semibold))
                     .padding(.horizontal, Metrics.sm)
                     .frame(minHeight: 32)
@@ -247,6 +309,7 @@ struct AssistantCardView: View {
         case .clarification: "sparkle"
         case .capabilities: "questionmark.circle"
         case .repeatDrink: "cup.and.saucer"
+        case .welcome: "hand.wave"
         case .energyProjection: "chart.xyaxis.line"
         case .energyCheckIn: "hand.raised"
         case .cutoffScenario: "moon.zzz"
@@ -278,24 +341,7 @@ struct AssistantCardView: View {
         case .energyProjection: projection
         case .energyCheckIn: checkInEditor
         case .cutoffScenario: CutoffScenarioCardView(message: message, card: card, active: draftActive)
-        case .reminders:
-            // Each setting appears once, as its own control.
-            wakeReminderRow
-            DrinkFollowUpControls()
-            Toggle("Proactive suggestions", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
-                assistant.conversation.preferences.proactive = enabled; assistant.save()
-                Task { await assistant.syncBriefingNotification(prompt: enabled) }
-            }))
-            Toggle("Morning briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
-                assistant.conversation.preferences.morningBriefing = enabled; assistant.save()
-                Task { await assistant.syncBriefingNotification(prompt: enabled) }
-            })).disabled(!assistant.conversation.preferences.proactive)
-            Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.notifyCutoff }, set: { enabled in
-                Task { await app.setReminder(enabled: enabled) }
-            }))
-            if app.reminderStatus == .denied { Text("Notifications are unavailable. Check iOS notification settings.").font(.footnote).foregroundStyle(Palette.destructive) }
-            Button("Manage reminders") { assistant.showAssistantSettings = true }.buttonStyle(.auroraPrimary)
-            Button("Cutoff reminder settings") { assistant.historySheet = .settings }.buttonStyle(.auroraSecondary)
+        case .reminders: reminders
         case .clarification:
             ForEach([AssistantIntent.logCaffeine, .logSleep, .explainEnergy, .energyProjection, .energyCheckIn, .weeklyTrends, .calendar, .help].compactMap(Capabilities.capability)) { capability in
                 capabilityRow(capability)
@@ -307,6 +353,7 @@ struct AssistantCardView: View {
                     ForEach(Capabilities.all.filter { $0.group == group }) { capabilityRow($0, showsSymbol: true) }
                 }
             }
+        case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
                 Button("Review entry") { assistant.reviewRepeatDrink(message, app: app) }
@@ -335,6 +382,37 @@ struct AssistantCardView: View {
                     .transition(Motion.stateTransition(reduceMotion: reduceMotion))
             }
         }
+    }
+    /// Each setting appears once, as its own control, named as in Aurora
+    /// settings. A switch that depends on another shows only once that one
+    /// is on, nested under it. Aurora settings is the one place for the rest.
+    @ViewBuilder private var reminders: some View {
+        let prefs = assistant.conversation.preferences
+        wakeReminderRow
+        DrinkFollowUpControls()
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Toggle("Offer useful updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
+                assistant.conversation.preferences.proactive = enabled; assistant.save()
+                Task { await assistant.syncBriefingNotification(prompt: enabled) }
+            }))
+            .accessibilityIdentifier("assistant-proactive")
+            if prefs.proactive {
+                Toggle("Morning briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
+                    assistant.conversation.preferences.morningBriefing = enabled; assistant.save()
+                    Task { await assistant.syncBriefingNotification(prompt: enabled) }
+                }))
+                .padding(.leading, Metrics.md)
+                .accessibilityIdentifier("assistant-morning-briefing")
+            } else {
+                Text("Morning briefing is available once this is on.").font(.footnote).foregroundStyle(Palette.textSecondary)
+            }
+        }
+        Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.notifyCutoff }, set: { enabled in
+            Task { await app.setReminder(enabled: enabled) }
+        }))
+        if app.reminderStatus == .denied { NotificationsOffNotice() }
+        Button("Manage reminders") { assistant.showAssistantSettings = true }
+            .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-manage-reminders")
     }
     /// Label leading, quantity trailing on one baseline; stacks when the text
     /// size no longer fits both on a line.
@@ -367,34 +445,24 @@ struct AssistantCardView: View {
             }
             // The overview: the headline number, then what it means for the day.
             ForEach(card.metrics.filter { $0.id == "alertness" || card.kind != .energy }) { item in
-                metricHero(item)
+                EnergyMetricHero(item: item)
             }
             if let outlook = card.energy?.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
             // Missing inputs stay visible, with a way to add them.
-            ForEach(card.metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
-                Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { assistant.send(item.id == "sleep" ? "Log sleep" : "Log caffeine", app: app) }
-                    .buttonStyle(.auroraSecondary)
-            }
+            EnergyRecordActions(metrics: card.metrics) { kind in assistant.send(kind == "sleep" ? "Log sleep" : "Log caffeine", app: app) }
             // Everything else only when asked for.
             if card.kind == .energy {
-                DisclosureGroup("What’s recorded") {
-                    ForEach(card.metrics.filter { $0.id != "alertness" }) { metricHero($0) }
+                CardDisclosure(title: "What’s recorded") {
+                    ForEach(card.metrics.filter { $0.id != "alertness" }) { EnergyMetricHero(item: $0) }
                 }
                 if let energy = card.energy {
-                    DisclosureGroup("What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+                    CardDisclosure(title: "What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
                 }
             }
-            DisclosureGroup("What this means") {
+            CardDisclosure(title: "What this means") {
                 Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-    private func metricHero(_ item: AssistantCard.Metric) -> some View {
-        VStack(alignment: .leading, spacing: Metrics.xxs) {
-            Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-            Text(item.value).font(Typography.heroValue).monospacedDigit()
-            if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
-        }.accessibilityElement(children: .combine)
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
@@ -402,9 +470,9 @@ struct AssistantCardView: View {
             let chart = EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
             chart
             if let outlook = energy.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
-            DisclosureGroup("What’s recorded in this window") { chart.observations.padding(.top, Metrics.xs) }
-            DisclosureGroup("What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
-            DisclosureGroup("What this means") {
+            CardDisclosure(title: "What’s recorded in this window") { chart.observations.padding(.top, Metrics.xs) }
+            CardDisclosure(title: "What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+            CardDisclosure(title: "What this means") {
                 Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         } else {
@@ -430,22 +498,16 @@ struct AssistantCardView: View {
                         .font(Typography.value).monospacedDigit()
                         .accessibilityIdentifier("assistant-checkin-rating-value")
                 }
-                DatePicker(selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingCheckIn?.recordedAt ?? app.now) / 1000) }, set: { assistant.pendingCheckIn?.recordedAt = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now) {
-                    Text("Time").font(Typography.label).foregroundStyle(Palette.textSecondary)
-                }
-                .frame(minHeight: Metrics.minimumTouchTarget)
+                DateTimeField(label: "Time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingCheckIn?.recordedAt ?? app.now) / 1000) }, set: { assistant.pendingCheckIn?.recordedAt = $0.timeIntervalSince1970 * 1000 }), id: "assistant-checkin-time")
                 if draft.rating != nil, let problem = draft.validate(now: AppModel.currentMillis()).message { fieldProblem(problem) }
                 Text(EnergyCheckIn.sourceLabel + " · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
-                LabeledField(label: "Note") {
-                    TextField("Optional note", text: Binding(get: { assistant.pendingCheckIn?.note ?? "" }, set: { assistant.pendingCheckIn?.note = $0 }))
-                        .font(Typography.evidence).focused($field, equals: .note).accessibilityIdentifier("assistant-checkin-note")
-                }
+                noteField(Binding(get: { assistant.pendingCheckIn?.note ?? "" }, set: { assistant.pendingCheckIn?.note = $0 }), id: "assistant-checkin-note")
                 draftActions(save: draft.original == nil ? "Save check-in" : "Save correction", saveID: "assistant-checkin-save", disabled: false) { assistant.saveCheckIn(app: app) }
                 recentCheckIns
             }
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
         } else {
-            closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This check-in is closed. Start a new review to record a rating.")
+            closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This check-in is closed. Refresh to record a rating.")
             recentCheckIns
         }
     }
@@ -476,8 +538,7 @@ struct AssistantCardView: View {
                 VStack(spacing: Metrics.xxs) {
                     Button(info.previous == nil ? "Undo check-in" : "Undo correction") { assistant.undoCheckIn(message, app: app) }
                         .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-checkin-undo")
-                    Button("Edit check-in") { assistant.editCheckIn(message, app: app) }
-                        .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                    quietButton("Edit check-in") { assistant.editCheckIn(message, app: app) }
                         .disabled(assistant.processing).accessibilityIdentifier("assistant-checkin-edit")
                 }
                 .transition(Motion.stateTransition(reduceMotion: reduceMotion))
@@ -495,7 +556,7 @@ struct AssistantCardView: View {
                         assistant.pendingDraft?.source = preset.label
                         assistant.pendingDraft?.mg = numberText(preset.mg)
                     } label: {
-                        Label("\(preset.label) · \(numberText(preset.mg)) mg", systemImage: preset.symbol)
+                        Label { Text("\(preset.label) · \(numberText(preset.mg)) mg") } icon: { Image(systemName: preset.symbol).accessibilityHidden(true) }
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .padding(.horizontal, Metrics.sm)
                             .frame(minHeight: Metrics.minimumTouchTarget)
@@ -517,9 +578,10 @@ struct AssistantCardView: View {
         if draftActive, let draft = assistant.pendingDraft {
             VStack(alignment: .leading, spacing: Metrics.md) {
                 drinkChips(selected: draft)
-                LabeledField(label: "Amount", unit: "mg") {
-                    TextField("Amount in mg", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
+                LabeledField(label: "Amount", unit: "mg", isFocused: field == .amount) {
+                    TextField("Enter amount", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
                         .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().focused($field, equals: .amount)
+                        .accessibilityLabel("Amount, milligrams")
                         .accessibilityIdentifier("assistant-dose-amount")
                 }
                 // Mirrors Save's own validation once something is typed; Save
@@ -527,30 +589,50 @@ struct AssistantCardView: View {
                 if !draft.mg.isEmpty, let problem = CaffeineLog.validate(draft, now: AppModel.currentMillis()).message {
                     fieldProblem(problem)
                 }
-                LabeledField(label: "Drink or source") {
+                LabeledField(label: "Drink or source", isFocused: field == .source) {
                     TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
-                        .font(Typography.evidence).focused($field, equals: .source).accessibilityIdentifier("assistant-dose-source")
+                        .font(Typography.evidence).focused($field, equals: .source)
+                        .accessibilityLabel("Drink or source")
+                        .accessibilityIdentifier("assistant-dose-source")
                 }
-                DatePicker(selection: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), in: ...Date.now) {
-                    Text("Recorded time").font(Typography.label).foregroundStyle(Palette.textSecondary)
-                }
-                .frame(minHeight: Metrics.minimumTouchTarget)
+                DateTimeField(label: "Recorded time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), id: "assistant-dose-time")
                 Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
-                draftActions(save: "Save entry", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
+                draftActions(save: "Save caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
             }
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
-        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record an entry.") }
+        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Refresh to record an entry.") }
     }
     private func fieldProblem(_ text: String) -> some View {
-        Label(text, systemImage: StatusTone.error.symbol).font(.footnote).foregroundStyle(Palette.destructive)
+        Label { Text(text) } icon: { Image(systemName: StatusTone.error.symbol).accessibilityHidden(true) }
+            .font(.footnote).foregroundStyle(Palette.destructive)
+    }
+    /// An optional note, named once for VoiceOver.
+    private func noteField(_ text: Binding<String>, id: String) -> some View {
+        LabeledField(label: "Note", isFocused: field == .note) {
+            TextField("Optional note", text: text)
+                .font(Typography.evidence).focused($field, equals: .note)
+                .accessibilityLabel("Note").accessibilityIdentifier(id)
+        }
+    }
+    /// A full-width quiet action: the whole 44 pt row is the target, not
+    /// just its text.
+    private func quietButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.auroraPress)
+        .foregroundStyle(Palette.tint)
     }
     /// Save leads; Discard is the quiet way out. Stacked so both keep a full
     /// touch target at every text size.
     private func draftActions(save: String, saveID: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         VStack(spacing: Metrics.xxs) {
             Button(save, action: action).buttonStyle(.auroraPrimary).accessibilityIdentifier(saveID).disabled(disabled)
-            Button("Discard") { assistant.discardDraft() }
-                .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
+            quietButton("Discard") { assistant.discardDraft() }
+                .accessibilityIdentifier("assistant-discard")
         }
         .padding(.top, Metrics.xxs)
     }
@@ -562,29 +644,35 @@ struct AssistantCardView: View {
         .transition(Motion.stateTransition(reduceMotion: reduceMotion))
     }
     @ViewBuilder private var sleepEditor: some View {
-        if draftActive, let draft = assistant.pendingSleep {
+        if draftActive, let entry = assistant.pendingSleep {
             VStack(alignment: .leading, spacing: Metrics.md) {
-                DatePicker(selection: sleepDate(\.start), in: ...Date.now) { Text("Start").font(Typography.label).foregroundStyle(Palette.textSecondary) }
-                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("assistant-sleep-start")
-                DatePicker(selection: sleepDate(\.end), in: ...Date.now) { Text("End").font(Typography.label).foregroundStyle(Palette.textSecondary) }
-                    .frame(minHeight: Metrics.minimumTouchTarget).accessibilityIdentifier("assistant-sleep-end")
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Duration").font(Typography.label).foregroundStyle(Palette.textSecondary)
-                    Spacer(minLength: Metrics.sm)
-                    Text(formatHoursMinutes(durationMs: max(0, draft.end - draft.start))).font(Typography.value).monospacedDigit()
+                sleepTime("Start", key: \.start, id: "start")
+                sleepTime("End", key: \.end, id: "end")
+                // Duration and problems only once both times are the person's.
+                if let draft = entry.draft {
+                    valueRow("Duration", formatHoursMinutes(durationMs: max(0, draft.end - draft.start)))
+                        .accessibilityElement(children: .combine)
+                    if let problem = entry.validate(now: AppModel.currentMillis()).message { fieldProblem(problem) }
                 }
-                .accessibilityElement(children: .combine)
-                if let problem = ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()).message { fieldProblem(problem) }
                 Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
-                LabeledField(label: "Note") {
-                    TextField("Optional note", text: Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 })).font(Typography.evidence).focused($field, equals: .note)
-                }
-                draftActions(save: "Save sleep", saveID: "assistant-sleep-save", disabled: ManualSleep.validate(start: draft.start, end: draft.end, now: AppModel.currentMillis()) != .valid) { assistant.saveSleep(app: app) }
+                noteField(Binding(get: { assistant.pendingSleep?.note ?? "" }, set: { assistant.pendingSleep?.note = $0 }), id: "assistant-sleep-note")
+                draftActions(save: "Save sleep", saveID: "assistant-sleep-save", disabled: entry.validate(now: AppModel.currentMillis()) != .valid) { assistant.saveSleep(app: app) }
             }
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
-        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Start a new review to record sleep.") }
+        } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Refresh to record sleep.") }
     }
-    private func sleepDate(_ key: WritableKeyPath<ManualSleep.Draft, Millis>) -> Binding<Date> {
+    /// A sleep time once the person has added it; until then, a button that
+    /// adds it at the current minute, a neutral starting point to change,
+    /// never a proposed bedtime or wake time.
+    @ViewBuilder private func sleepTime(_ label: String, key: WritableKeyPath<ManualSleep.Entry, Millis?>, id: String) -> some View {
+        if assistant.pendingSleep?[keyPath: key] != nil {
+            DateTimeField(label: label, date: sleepDate(key), id: "assistant-sleep-\(id)")
+        } else {
+            Button("Add \(label.lowercased())") { assistant.pendingSleep?[keyPath: key] = ManualSleep.addedTime(now: AppModel.currentMillis()) }
+                .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-sleep-add-\(id)")
+        }
+    }
+    private func sleepDate(_ key: WritableKeyPath<ManualSleep.Entry, Millis?>) -> Binding<Date> {
         Binding(get: { Date(timeIntervalSince1970: (assistant.pendingSleep?[keyPath: key] ?? app.now) / 1000) }, set: { assistant.pendingSleep?[keyPath: key] = $0.timeIntervalSince1970 * 1000 })
     }
     @ViewBuilder private var trends: some View {
@@ -593,30 +681,52 @@ struct AssistantCardView: View {
         if let series = card.series.first(where: { $0.metric == metric && $0.days == days }) {
             DailyBarChart(title: metric == "Caffeine" && days == 7 ? "Recorded caffeine · this week" : "Recorded \(metric.lowercased()) · \(days) days", days: series.points.map {
                 .init(date: $0.date, value: $0.value, title: snapshotText.weekdayDate($0.date), readout: $0.detail, isSample: $0.sample)
-            }, unit: series.unit, accent: metric == "Caffeine" ? Palette.caffeineAccent : Palette.tint, accessibilitySummary: series.summary, emptyMessage: "No \(metric.lowercased()) recorded in this range.").environment(\.timeZone, snapshotClock.timeZone)
+            }, unit: series.unit, accent: metric == "Caffeine" ? Palette.caffeineAccent : Palette.tint, accessibilitySummary: series.summary, emptyMessage: "No \(metric.lowercased()) recorded in this range.", framed: false).environment(\.timeZone, snapshotClock.timeZone)
             Text(series.comparison).font(.footnote).foregroundStyle(Palette.textSecondary)
         }
     }
     private var history: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            TextField("Search records", text: $query).textFieldStyle(.roundedBorder).focused($field, equals: .search).accessibilityIdentifier("assistant-history-search")
-            Picker("Date range", selection: $historyDays) { Text("7d").tag(7); Text("30d").tag(30); Text("All").tag(0) }.pickerStyle(.segmented)
-            Picker("Source", selection: $source) { ForEach(["All sources", "Manual", "Health", "Sample Data", "Recorded"], id: \.self) { Text($0).tag($0) } }
-            if filteredRecords.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }
-            ForEach(Array(filteredRecords.prefix(historyLimit)), id: \.identity) { row in
-                Button { edit(row) } label: {
-                    HStack(spacing: Metrics.sm) {
-                        VStack(alignment: .leading, spacing: Metrics.xxs) {
-                            Text(row.title + " · " + row.detail).font(.subheadline.weight(.medium)).monospacedDigit()
-                            Text(snapshotText.weekdayDate(row.date) + " · " + row.source + (row.editable ? " · Edit" : " · Read-only")).font(Typography.source).foregroundStyle(Palette.textSecondary)
-                        }
-                        Spacer(minLength: 0)
-                        if row.editable { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary).accessibilityHidden(true) }
-                    }.frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.auroraPress).disabled(!row.editable)
+            LabeledField(label: "Search", isFocused: field == .search) {
+                TextField("Search records", text: $query)
+                    .font(Typography.evidence).focused($field, equals: .search)
+                    .accessibilityLabel("Search history").accessibilityIdentifier("assistant-history-search")
             }
-            if filteredRecords.count > historyLimit { Button("Show more records (\(filteredRecords.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
+            Picker("Date range", selection: $historyDays) {
+                Text("7d").accessibilityLabel("7 days").tag(7)
+                Text("30d").accessibilityLabel("30 days").tag(30)
+                Text("All").tag(0)
+            }
+            .pickerStyle(.segmented)
+            Picker("Source", selection: $source) { ForEach(["All sources", "Manual", "Health", "Sample Data", "Recorded"], id: \.self) { Text($0).tag($0) } }
+            // Filtered once per body; it scans every record in the snapshot.
+            let records = filteredRecords
+            let shown = records.prefix(historyLimit)
+            let samples = shown.filter(\.isSample)
+            if records.isEmpty { Text("No matching records in this snapshot.").foregroundStyle(Palette.textSecondary) }
+            ForEach(shown.filter { !$0.isSample }, id: \.identity) { historyRow($0) }
+            // Sample Data is labeled once, above its own rows.
+            if !samples.isEmpty {
+                SampleDataBadge().padding(.top, Metrics.xs)
+                ForEach(samples, id: \.identity) { historyRow($0) }
+            }
+            if records.count > historyLimit { Button("Show more records (\(records.count) total)") { historyLimit += 30 }.frame(minHeight: Metrics.minimumTouchTarget) }
         }
+    }
+    private func historyRow(_ row: AssistantCard.Record) -> some View {
+        // A sample row's source is the section's badge.
+        let source = row.isSample ? [] : [row.source]
+        let detail = ([snapshotText.weekdayDate(row.date)] + source + [row.editable ? "Edit" : "Read-only"]).joined(separator: " · ")
+        return Button { edit(row) } label: {
+            HStack(spacing: Metrics.sm) {
+                VStack(alignment: .leading, spacing: Metrics.xxs) {
+                    Text(row.title + " · " + row.detail).font(.subheadline.weight(.medium)).monospacedDigit()
+                    Text(detail).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                }
+                Spacer(minLength: 0)
+                if row.editable { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary).accessibilityHidden(true) }
+            }.frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading).contentShape(Rectangle())
+        }.buttonStyle(.auroraPress).disabled(!row.editable)
     }
     private var filteredRecords: [AssistantCard.Record] {
         let start = historyDays == 0 ? -Double.greatestFiniteMagnitude : snapshotClock.addingDays(-(historyDays - 1), to: snapshotClock.startOfDay(card.capturedAt))
@@ -630,13 +740,26 @@ struct AssistantCardView: View {
         if row.kind == "caffeine", let dose = app.state.doses.first(where: { $0.id == row.id }), CaffeineLog.isEditable(dose) { editingDose = .edit(dose) }
         if row.kind == "sleep", let sleep = app.state.sleeps.first(where: { $0.id == row.id }), RecordID.isManualSleep(sleep.id) { editingSleep = .edit(sleep) }
     }
+    /// Each file is built only when shared, not on every redraw. The daily
+    /// totals end at the moment of sharing, so they don't read the app's
+    /// per-minute `now` either.
     private var exports: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
-            ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv", text: Export.doseEntriesCSV(app.state.doses, clock: app.clock)), preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
-            ShareLink(item: CSVFile(name: "aurora-sleep.csv", text: Export.sleepSessionsCSV(app.state.sleeps, clock: app.clock)), preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
-            ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv", text: Export.vigilanceSessionsCSV(app.state.vigilanceSessions)), preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
-            ShareLink(item: CSVFile(name: "aurora-energy-check-ins.csv", text: Export.energyCheckInsCSV(app.state.energyCheckIns, clock: app.clock)), preview: SharePreview("Energy check-ins")) { Label("Energy check-ins CSV", systemImage: "hand.raised") }
-            ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv", text: Export.dailyTotalsCSV(Export.dailyTotalRows(app.state.doses, now: app.now, clock: app.clock))), preview: SharePreview("Daily caffeine totals")) { Label("Daily caffeine totals CSV", systemImage: "chart.bar") }
+            ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv") { [doses = app.state.doses, clock = app.clock] in
+                Export.doseEntriesCSV(doses, clock: clock)
+            }, preview: SharePreview("Caffeine entries")) { Label("Caffeine entries CSV", systemImage: "cup.and.saucer") }
+            ShareLink(item: CSVFile(name: "aurora-sleep.csv") { [sleeps = app.state.sleeps, clock = app.clock] in
+                Export.sleepSessionsCSV(sleeps, clock: clock)
+            }, preview: SharePreview("Sleep records")) { Label("Sleep records CSV", systemImage: "moon") }
+            ShareLink(item: CSVFile(name: "aurora-reaction-tests.csv") { [sessions = app.state.vigilanceSessions] in
+                Export.vigilanceSessionsCSV(sessions)
+            }, preview: SharePreview("Reaction tests")) { Label("Reaction tests CSV", systemImage: "hand.tap") }
+            ShareLink(item: CSVFile(name: "aurora-energy-check-ins.csv") { [checkIns = app.state.energyCheckIns, clock = app.clock] in
+                Export.energyCheckInsCSV(checkIns, clock: clock)
+            }, preview: SharePreview("Energy check-ins")) { Label("Energy check-ins CSV", systemImage: "hand.raised") }
+            ShareLink(item: CSVFile(name: "aurora-daily-caffeine.csv") { [doses = app.state.doses, clock = app.clock] in
+                Export.dailyTotalsCSV(Export.dailyTotalRows(doses, now: (Date.now.timeIntervalSince1970 * 1000).rounded(), clock: clock))
+            }, preview: SharePreview("Daily caffeine totals")) { Label("Daily caffeine totals CSV", systemImage: "chart.bar") }
         }.buttonStyle(.auroraSecondary)
     }
     @ViewBuilder private var calendar: some View {
@@ -651,6 +774,55 @@ struct AssistantCardView: View {
             }) { assistant.showCalendarSettings = true }
         }
     }
+}
+
+/// A disclosure inside a card whose whole title row is a 44 pt target.
+struct CardDisclosure<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        DisclosureGroup {
+            content()
+        } label: {
+            Text(title)
+                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+    }
+}
+
+/// A draft's date and time: the label above, then the date and time chips
+/// from the card's leading edge, so every row's chips line up. At
+/// accessibility sizes each chip gets its own row instead of squeezing the
+/// label. VoiceOver hears each picker's own name once ("Start, date").
+private struct DateTimeField: View {
+    let label: String
+    @Binding var date: Date
+    let id: String
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.xs) {
+            Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                .accessibilityHidden(true)
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Metrics.xs))
+                : AnyLayout(HStackLayout(spacing: Metrics.xs))
+            layout {
+                DatePicker("\(label), date", selection: $date, in: ...Date.now, displayedComponents: .date)
+                    .labelsHidden().frame(minHeight: Metrics.minimumTouchTarget)
+                    .accessibilityIdentifier("\(id)-date")
+                DatePicker("\(label), time", selection: $date, in: ...Date.now, displayedComponents: .hourAndMinute)
+                    .labelsHidden().frame(minHeight: Metrics.minimumTouchTarget)
+                    .accessibilityIdentifier("\(id)-time")
+            }
+        }
+    }
+}
+
+private extension AssistantCard.Record {
+    var isSample: Bool { source == "Sample Data" }
 }
 
 enum EnergyCardTiming {

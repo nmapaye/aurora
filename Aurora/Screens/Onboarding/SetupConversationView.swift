@@ -14,7 +14,9 @@ struct SetupConversationView: View {
     @Environment(AppModel.self) private var model
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var wakeDraft = WakeReminderSettings(enabled: true, offsetsMinutes: [60], usualWakeMinutes: 8 * 60)
+    /// No reminder time is chosen for the person; "Turn on reminders" waits
+    /// for their first pick.
+    @State private var wakeDraft = WakeReminderSettings(enabled: true, offsetsMinutes: [], usualWakeMinutes: 8 * 60)
     @State private var controlsHeight: CGFloat = 0
     @State private var name = ""
     /// Edited here and saved only by Continue, so "Not now" keeps the stored target.
@@ -205,7 +207,7 @@ struct SetupConversationView: View {
                 .onSubmit(saveName)
                 .padding(.horizontal, Metrics.md)
                 .frame(minHeight: Metrics.minimumTouchTarget)
-                .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                .fieldSurface(focused: nameFocused)
                 .accessibilityLabel("First name")
                 .accessibilityIdentifier("setup-name")
             actionRow(primary: "Continue", primaryDisabled: Welcome.cleanName(name) == nil, primaryAction: saveName) {

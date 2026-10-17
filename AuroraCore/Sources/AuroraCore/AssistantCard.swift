@@ -11,6 +11,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case capabilities
         /// A next-day follow-up on yesterday's drink.
         case repeatDrink
+        /// A new conversation's first card: one line and three starting
+        /// points. The full list stays one "What can you do?" away.
+        case welcome
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -88,7 +91,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .briefing: .briefing
         case .reminders: .reminders
         case .capabilities: .help
-        case .clarification, .receipt, .repeatDrink: nil
+        case .clarification, .receipt, .repeatDrink, .welcome: nil
         }
     }
 }
@@ -113,6 +116,7 @@ public enum AssistantCards {
         case .receipt: "Saved"
         case .capabilities: "What Aurora can do"
         case .repeatDrink: "Yesterday’s drink"
+        case .welcome: "Ready when you are."
         }
         var card = AssistantCard(kind: kind, capturedAt: now, title: title)
         card.timeZone = clock.timeZone.identifier
@@ -128,7 +132,8 @@ public enum AssistantCards {
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Modeled · 0–100", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
+                // With no score, the source names the missing record instead of a scale.
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: estimate.score == nil ? EnergyEstimate.missingSleepText(sleeps: known.sleeps, at: now, text: text) : EnergyEstimate.scaleLabel, detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
             card.summary = ""
             if kind == .energy {
@@ -149,7 +154,8 @@ public enum AssistantCards {
             card.metrics = [.init(
                 id: "alertness", label: EnergyEstimate.title + " · now",
                 value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable",
-                source: "Modeled · 0–100",
+                source: snapshot.estimate.modeledScore == nil
+                    ? EnergyEstimate.missingSleepText(sleeps: state.sleeps, at: now, text: text) : EnergyEstimate.scaleLabel,
                 detail: snapshot.estimate.summary, missing: snapshot.estimate.modeledScore == nil
             )]
         case .energyCheckIn:
@@ -191,14 +197,16 @@ public enum AssistantCards {
             card.summary = "Share your records as CSV."
         case .reminders:
             card.summary = "Reminders at times you choose."
-        case .caffeineDraft: card.summary = "Check the details, then save."
+        // The "Review before saving" badge already says it.
+        case .caffeineDraft: card.summary = ""
         case .sleepDraft: card.summary = "Set when you slept."
         case .calendar: card.summary = ""
         case .clarification: card.summary = "Choose one, or tell me a little more."
         case .cutoffScenario:
-            card.summary = CutoffScenario.disclaimer
+            // The "Scenario" badge labels it; the disclaimer sits under Assumptions.
+            card.summary = ""
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
-        case .receipt: break
+        case .receipt, .welcome: break
         case .capabilities: card.summary = "Tap one, or ask in your own words."
         // Built by the follow-up itself, from the prompt it carries.
         case .repeatDrink: break

@@ -37,10 +37,14 @@ final class CutoffScenarioUITests: XCTestCase {
             let floor = strip.exists ? strip.frame.minY - 8 : app.windows.firstMatch.frame.maxY
             return element.isHittable && element.frame.maxY < floor
         }
+        // Drag toward the element: a drag that overshoots leaves it above
+        // the bar, and dragging up again only moves it further away.
+        let bar = app.navigationBars.firstMatch
         for _ in 0..<10 where !clear() {
             let window = app.windows.firstMatch
-            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 0.05,
-                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+            let above = bar.exists && element.frame.minY < bar.frame.maxY
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.3 : 0.55)).press(forDuration: 0.05,
+                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.45 : 0.3)))
         }
         XCTAssertTrue(clear(), element.debugDescription)
     }
