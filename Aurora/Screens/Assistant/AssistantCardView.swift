@@ -556,7 +556,7 @@ struct AssistantCardView: View {
                         assistant.pendingDraft?.source = preset.label
                         assistant.pendingDraft?.mg = numberText(preset.mg)
                     } label: {
-                        Label { Text("\(preset.label) · \(numberText(preset.mg)) mg") } icon: { Image(systemName: preset.symbol).accessibilityHidden(true) }
+                        Label { Text(preset.titleWithAmount) } icon: { Image(systemName: preset.symbol).accessibilityHidden(true) }
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .padding(.horizontal, Metrics.sm)
                             .frame(minHeight: Metrics.minimumTouchTarget)
@@ -564,6 +564,7 @@ struct AssistantCardView: View {
                             .background(chosen ? Palette.tint : Palette.cardMuted, in: Capsule())
                     }
                     .buttonStyle(.auroraPress)
+                    .accessibilityLabel(preset.accessibilityLabel)
                     .accessibilityAddTraits(chosen ? .isSelected : [])
                     .accessibilityIdentifier("assistant-drink-\(preset.id)")
                 }

@@ -5,7 +5,11 @@ import Foundation
 
 public enum Caffeine {
     /// Active caffeine at `now`: every dose at or before `now`, halved once
-    /// per half-life.
+    /// per half-life, with no absorption phase. This is the React Native
+    /// build's instant model, kept only because the current alertness score
+    /// takes it through `activeEffect` (and the parity fixtures check that
+    /// score). Displays, the Today chart and the cutoff scenario use
+    /// `CaffeineKinetics` instead.
     public static func activeMg(at now: Millis, doses: [Dose], halfLifeHours: Double) -> Double {
         let halfLifeMs = halfLifeHours * hourMs
         return doses.reduce(0) { total, dose in
@@ -16,6 +20,12 @@ public enum Caffeine {
     }
 
     /// `1 − e^(−mg/100)`, between 0 and 1.
+    ///
+    /// Deliberately still on the instant model: the replacement energy model
+    /// brings its own fitted caffeine time course, and feeding it
+    /// `CaffeineKinetics.bodyMg` would count absorption twice
+    /// (`docs/research/caffeine.md` §3.1, `energy-model.md` §4.5). Until that
+    /// model lands, the score's caffeine input is unchanged.
     public static func activeEffect(at now: Millis, doses: [Dose], halfLifeHours: Double) -> Double {
         let mg = activeMg(at: now, doses: doses, halfLifeHours: halfLifeHours)
         return 1 - exp(-mg / 100)
@@ -111,6 +121,7 @@ public enum Alertness {
         targetSleepHours: Double,
         clock: LocalClock
     ) -> Double {
+        // The legacy instant model on purpose; see `Caffeine.activeEffect`.
         let effect = Caffeine.activeEffect(at: now, doses: doses, halfLifeHours: halfLifeHours)
         let circadian = Circadian.value(at: now, clock: clock)
         let debt = SleepDebt.value(at: now, sleeps: sleeps, targetHours: targetSleepHours)

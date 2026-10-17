@@ -315,8 +315,24 @@ struct WelcomeTests {
     }
 
     @Test func favoritesComeFirstWithoutDuplicates() {
-        #expect(CaffeinePreset.ordered(favorites: ["matcha", "espresso", "matcha", "unknown"]).map(\.id) == ["matcha", "espresso", "drip", "energy"])
+        #expect(CaffeinePreset.ordered(favorites: ["matcha", "espresso", "matcha", "unknown"]).map(\.id) == ["matcha", "espresso", "drip", "energy", "blackTea", "cola"])
         #expect(CaffeinePreset.ordered(favorites: nil).map(\.id) == CaffeinePreset.all.map(\.id))
+    }
+
+    @Test func presetsStateTheirServing() {
+        let presets = CaffeinePreset.all.map { "\($0.id)|\($0.label)|\($0.serving)|\(numberText($0.mg))" }
+        #expect(presets == [
+            "espresso|Espresso|1 shot|63", "drip|Drip coffee|8 fl oz|95", "matcha|Matcha|2 g|70",
+            "energy|Energy drink|16 fl oz can|160", "blackTea|Black tea|8 fl oz|47", "cola|Cola|12 fl oz|34",
+        ])
+        let espresso = CaffeinePreset.all[0]
+        #expect(espresso.title == "Espresso · 1 shot" && espresso.titleWithAmount == "Espresso · 1 shot · 63 mg")
+        #expect(espresso.accessibilityLabel == "Espresso, 1 shot, 63 milligrams")
+        // The stored source stays the label, and favorites saved before keep working.
+        #expect(CaffeineLog.quickAddDose(CaffeinePreset.all[1], now: 1, id: "q").source == "Drip coffee")
+        #expect(CaffeinePreset.ordered(favorites: ["energy", "drip"]).prefix(2).map(\.label) == ["Energy drink", "Drip coffee"])
+        // Every preset still lands in its drink-mix group.
+        #expect(CaffeinePreset.all.map { Insights.normalizeDrink($0.label) } == ["Coffee", "Coffee", "Tea", "Energy", "Tea", "Other"])
     }
 
     // MARK: Health and model availability copy

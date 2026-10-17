@@ -13,6 +13,7 @@ struct CutoffScenarioCardView: View {
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var field: Field?
+    @State private var showsEvidence = false
 
     private enum Field: Hashable { case threshold, amount }
     private typealias S = CutoffScenario
@@ -254,7 +255,7 @@ struct CutoffScenarioCardView: View {
                 metric("Bedtime", text.fullDateTime(bedtime), source: zoneNote(bedtime))
             }
             if let existing = r.existing {
-                metric("Modeled caffeine at bedtime · existing records", mg(existing.totalMg), source: provenance(existing))
+                metric(S.bedtimeValueLabel, mg(existing.totalMg), source: provenance(existing))
                 if existing.includesSample {
                     SampleDataBadge(detail: mg(existing.sampleMg))
                 }
@@ -290,6 +291,14 @@ struct CutoffScenarioCardView: View {
                 Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
                 Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
                 Text("Nothing here is recorded. Log caffeine records a drink you had.")
+                // Static, cited reading; kept here, away from the threshold field.
+                Button { showsEvidence = true } label: {
+                    Label(CaffeineEvidence.evidenceTitle, systemImage: "info.circle")
+                        .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(Palette.tint)
+                .accessibilityIdentifier("cutoff-evidence")
                 if let snapshot {
                     Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt))")
                         .foregroundStyle(Palette.textSecondary)
@@ -297,6 +306,7 @@ struct CutoffScenarioCardView: View {
             }
             .font(.footnote).padding(.top, Metrics.xxs)
         }
+        .sheet(isPresented: $showsEvidence) { CaffeineEvidenceSheet(topic: .evidence).pageSizedSheet() }
     }
 
     /// The reminder outcome is the card header's badge; only "preview
@@ -334,7 +344,7 @@ struct CutoffScenarioCardView: View {
         case .thresholdReachedByRecords:
             metric("Latest hypothetical time", "None", source: "Existing records already model at or above \(threshold) at bedtime.")
         case .unreachable:
-            metric("Latest hypothetical time", "No finite time", source: "Modeled caffeine halves but never reaches 0 mg, so a 0 mg threshold can’t be met.")
+            metric("Latest hypothetical time", "No finite time", source: "Modeled caffeine keeps falling but never reaches 0 mg, so a 0 mg threshold can’t be met.")
         }
     }
 
@@ -391,7 +401,7 @@ struct CutoffScenarioCardView: View {
     }
 
     private func provenance(_ existing: S.Existing) -> String {
-        var parts = ["\(existing.recordedCount) recorded \(existing.recordedCount == 1 ? "entry" : "entries")"]
+        var parts = ["From \(existing.recordedCount) recorded \(existing.recordedCount == 1 ? "entry" : "entries")"]
         if existing.includesSample { parts.append("\(existing.sampleCount) Sample Data") }
         if existing.excludedFutureCount > 0 { parts.append("\(existing.excludedFutureCount) dated later not included") }
         return parts.joined(separator: " · ")

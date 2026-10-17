@@ -239,15 +239,34 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         }
     }
 
-    @Test func todaySeriesCoversTheLocalDayAndNow() {
+    @Test func todaySeriesCoversTheLocalDayAndNow() throws {
         let doses = [Dose(id: "a", timestamp: pacific.startOfDay(now) + 8 * hourMs, mg: 100)]
         let series = TodayCaffeineSeries.make(doses: doses, halfLifeHours: 5, now: now, clock: pacific)
         #expect(series.start == pacific.startOfDay(now))
         #expect(series.end == pacific.addingDays(1, to: series.start))
-        #expect(series.series.count == 26)
+        // 97 quarter hours, the dose's modeled peak and now.
+        #expect(series.series.count == 99)
         #expect(series.series.map(\.t) == series.series.map(\.t).sorted())
         #expect(series.series.contains { $0.t == now })
-        #expect(series.series[8].hasDose)
+        #expect(series.series[32].hasDose && series.series[32].t == doses[0].timestamp)
+        // The peak about 52 minutes after the dose is a point of its own, and the highest.
+        let peakT = doses[0].timestamp + CaffeineKinetics.peakDelayHours(pk: .init(halfLifeHours: 5)) * hourMs
+        let peak = try #require(series.series.first { $0.t == peakT })
+        #expect(series.series.allSatisfy { $0.mg <= peak.mg })
+        #expect(abs(peak.mg - 100 * 84.20 / 95) < 0.01)
+        // Rising from the dose until the peak, then falling.
+        #expect(series.series[32].mg == 0 && series.series[33].isRising && !series.series.last!.isRising)
+        // Values are the body amount, not the instant model.
+        #expect(series.series[36].mg == CaffeineKinetics.bodyMg(at: series.series[36].t, doses: doses, pk: .init(halfLifeHours: 5)))
+        // VoiceOver steps by whole hours plus the off-grid points.
+        var index = 0, stops: [Millis] = []
+        while true {
+            let next = series.accessibilityStep(from: index, forward: true)
+            if next == index { break }
+            stops.append(series.series[next].t); index = next
+        }
+        #expect(stops.count == 24 + 2 && stops.contains(peakT) && stops.contains(now))
+        #expect(series.accessibilityStep(from: 0, forward: false) == 0)
     }
 
     @Test func storedTimeZoneSetsTheCircadianTerm() {

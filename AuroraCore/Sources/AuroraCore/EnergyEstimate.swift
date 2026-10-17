@@ -80,9 +80,11 @@ public enum EnergyInputSource: String, Codable, Sendable {
 /// snapshot still explains itself after records change. Only plain values
 /// are kept: ids, times, amounts and Health provenance identifiers.
 public struct EnergyEvidence: Codable, Equatable, Sendable {
-    /// Entries with at least this much modeled active caffeine are listed one
-    /// by one; fainter ones are summed in `fadedCaffeine`. Evidence only; the
-    /// model itself uses every entry.
+    /// Entries with at least this much caffeine not yet cleared
+    /// (`CaffeineKinetics.unclearedMg`) are listed one by one; fainter ones
+    /// are summed in `fadedCaffeine`. Tested on the uncleared amount so a
+    /// just-logged dose, with nothing absorbed yet, still counts. Evidence
+    /// only; the model itself uses every entry.
     public static let itemizedMinimumMg: Double = 0.01
 
     public struct CaffeineInput: Codable, Equatable, Sendable {
@@ -90,7 +92,8 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
         public var source: EnergyInputSource
         public var timestamp: Millis
         public var mg: Double
-        /// This entry's modeled active caffeine at capture.
+        /// This entry's modeled caffeine in the body at capture
+        /// (`CaffeineKinetics`; 0 the instant it is logged).
         public var activeMg: Double
         public var healthSampleUUID: String?
         public var healthSourceBundleIdentifier: String?
@@ -119,7 +122,8 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 
     /// The start of the 24 hours before capture.
     public var windowStart: Millis
-    /// Total modeled active caffeine, equal to `Caffeine.activeMg`.
+    /// Total modeled caffeine in the body, equal to `CaffeineKinetics.bodyMg`.
+    /// Snapshots from version 2 and earlier hold the instant model's value.
     public var activeCaffeineMg: Double
     /// Every entry adding at least `itemizedMinimumMg`, oldest first.
     public var caffeine: [CaffeineInput]
@@ -146,16 +150,20 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 
     static func capture(at t: Millis, doses: [Dose], sleeps: [SleepSession], halfLifeHours: Double) -> EnergyEvidence {
         let windowStart = t - dayMs
-        let halfLifeMs = halfLifeHours * hourMs
+        let pk = CaffeinePK(halfLifeHours: halfLifeHours)
         var caffeine: [CaffeineInput] = []
         var faded: FadedCaffeine?
         let ordered = doses.filter { $0.timestamp <= t }.sorted { ($0.timestamp, $0.id) < ($1.timestamp, $1.id) }
         for dose in ordered {
-            // The same term `Caffeine.activeMg` adds for this entry.
-            let active = dose.mg * pow(0.5, (t - dose.timestamp) / halfLifeMs)
-            guard active > 0 else { continue }
+            // The same terms `CaffeineKinetics.bodyMg` and `unclearedMg` add
+            // for this entry. Evidence only: the score's caffeine input is
+            // still the legacy instant model (`Caffeine.activeEffect`).
+            let hours = (t - dose.timestamp) / hourMs
+            let active = dose.mg * CaffeineKinetics.bodyFraction(hours: hours, pk: pk)
+            let uncleared = dose.mg * CaffeineKinetics.unclearedFraction(hours: hours, pk: pk)
+            guard uncleared > 0 else { continue }
             let isSample = RecordID.isSample(dose.id)
-            if active >= itemizedMinimumMg {
+            if uncleared >= itemizedMinimumMg {
                 caffeine.append(CaffeineInput(
                     recordID: dose.id, source: .of(doseID: dose.id), timestamp: dose.timestamp, mg: dose.mg, activeMg: active,
                     healthSampleUUID: dose.health?.sampleUUID, healthSourceBundleIdentifier: dose.health?.sourceBundleIdentifier
@@ -191,7 +199,7 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 
         return EnergyEvidence(
             windowStart: windowStart,
-            activeCaffeineMg: Caffeine.activeMg(at: t, doses: doses, halfLifeHours: halfLifeHours),
+            activeCaffeineMg: CaffeineKinetics.bodyMg(at: t, doses: doses, pk: pk),
             caffeine: caffeine,
             fadedCaffeine: faded,
             sleep: sleep,
@@ -206,8 +214,9 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 /// present only when sleep is recorded in the 24 hours before.
 public struct EnergyEstimate: Codable, Equatable, Sendable {
     /// 2 added `evidence`, the `caffeine` missing input and the
-    /// `unmeasuredFactors` limitation.
-    public static let currentVersion = 2
+    /// `unmeasuredFactors` limitation. 3: evidence caffeine amounts come from
+    /// `CaffeineKinetics` (with absorption); the score is unchanged.
+    public static let currentVersion = 3
     /// The React Native port's model, unchanged.
     public static let currentModelVersion = "alertness-1"
     public static let title = "Modeled alertness"
@@ -251,6 +260,7 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         var contributions: [EnergyContribution] = []
         if estimate.score != nil {
             let circadian = Circadian.value(at: t, clock: inputs.clock)
+            // The legacy instant model, as the score uses; see `Caffeine.activeEffect`.
             let effect = Caffeine.activeEffect(at: t, doses: doses, halfLifeHours: inputs.halfLifeHours)
             let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: inputs.targetSleepHours)
             let inertia = SleepInertia.value(at: t, sleeps: sleeps)

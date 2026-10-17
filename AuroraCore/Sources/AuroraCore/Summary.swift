@@ -135,8 +135,10 @@ public enum Summary {
         public var t: Millis
         public var isNow: Bool
         public var isFuture: Bool
-        /// From the half-life model.
+        /// Modeled caffeine in the body (`CaffeineKinetics.bodyMg`).
         public var activeMg: Double
+        /// A recent dose is still being absorbed faster than caffeine clears.
+        public var isRising: Bool = false
         /// Only doses logged today, up to `t`.
         public var loggedMg: Double
         public var loggedCount: Int
@@ -157,6 +159,7 @@ public enum Summary {
             isNow: point.t == now,
             isFuture: point.t > now,
             activeMg: point.mg,
+            isRising: point.isRising,
             loggedMg: logged.reduce(0) { $0 + $1.mg },
             loggedCount: logged.count,
             alertness: estimateAlertness(at: point.t, doses: doses, sleeps: sleeps, inputs: inputs)
@@ -165,7 +168,7 @@ public enum Summary {
 
     public static func describe(_ inspection: CaffeineInspection, formatTime: (Millis) -> String) -> String {
         let time = inspection.isNow ? "Now, \(formatTime(inspection.t))" : formatTime(inspection.t)
-        let active = "\(inspection.isFuture ? "projected" : "modeled") active caffeine \(jsRoundInt(inspection.activeMg)) milligrams"
+        let active = "\(inspection.isFuture ? "projected" : "modeled") active caffeine \(jsRoundInt(inspection.activeMg)) milligrams\(inspection.isRising ? ", rising" : "")"
         let logged = inspection.loggedCount == 0
             ? "no doses logged today by then"
             : "\(jsRoundInt(inspection.loggedMg)) milligrams logged today by then in \(inspection.loggedCount) \(inspection.loggedCount == 1 ? "dose" : "doses")"
@@ -223,11 +226,15 @@ public struct CaffeinePoint: Equatable, Sendable {
     public var t: Millis
     public var mg: Double
     public var hasDose: Bool
+    /// The modeled amount is still rising here: a recent dose is being
+    /// absorbed faster than caffeine clears.
+    public var isRising: Bool
 
-    public init(t: Millis, mg: Double, hasDose: Bool = false) {
+    public init(t: Millis, mg: Double, hasDose: Bool = false, isRising: Bool = false) {
         self.t = t
         self.mg = mg
         self.hasDose = hasDose
+        self.isRising = isRising
     }
 }
 
@@ -237,42 +244,70 @@ public struct TodayCaffeineSeries: Equatable, Sendable {
     public var end: Millis
     public var now: Millis
 
-    /// Today's active-caffeine curve: one point per step from local midnight
-    /// to the next, plus a point at `now`.
+    /// Today's modeled caffeine in the body (`CaffeineKinetics.bodyMg`): one
+    /// point per step from local midnight to the next, plus each dose's modeled
+    /// peak (`t + peakDelayHours`) and `now`. A 15-minute grid with the peaks
+    /// added shows the rise over about an hour after a drink.
     public static func make(
         doses: [Dose],
         halfLifeHours: Double,
         now: Millis,
         clock: LocalClock,
-        stepMinutes: Double = 60
+        stepMinutes: Double = 15
     ) -> TodayCaffeineSeries {
         let (start, end) = clock.dayBounds(now)
         let stepMs = max(1, stepMinutes * minuteMs)
         let count = max(2, jsRoundInt((end - start) / stepMs) + 1)
+        let pk = CaffeinePK(halfLifeHours: halfLifeHours)
 
         var bucketsWithDose = Set<Int>()
         for dose in doses where dose.timestamp >= start && dose.timestamp <= end {
             bucketsWithDose.insert(Int(floor((dose.timestamp - start) / stepMs)))
         }
-
-        var series = (0..<count).map { i -> CaffeinePoint in
-            let t = start + Double(i) * stepMs
-            return CaffeinePoint(
+        func point(_ t: Millis, hasDose: Bool) -> CaffeinePoint {
+            CaffeinePoint(
                 t: t,
-                mg: Caffeine.activeMg(at: t, doses: doses, halfLifeHours: halfLifeHours),
-                hasDose: bucketsWithDose.contains(i)
+                mg: CaffeineKinetics.bodyMg(at: t, doses: doses, pk: pk),
+                hasDose: hasDose,
+                isRising: CaffeineKinetics.isRising(at: t, doses: doses, pk: pk)
             )
+        }
+
+        var series = (0..<count).map { i in point(start + Double(i) * stepMs, hasDose: bucketsWithDose.contains(i)) }
+        let grid = Set(series.map(\.t))
+        // Each dose's modeled peak, so the grid never steps over it.
+        let peakMs = CaffeineKinetics.peakDelayHours(pk: pk) * hourMs
+        let peaks = Set(doses.map { $0.timestamp + peakMs }.filter { $0 > start && $0 < end && !grid.contains($0) && $0 != now })
+        for t in peaks.sorted() {
+            let index = series.firstIndex { $0.t > t } ?? series.endIndex
+            series.insert(point(t, hasDose: false), at: index)
         }
         if now > start && now < end {
             let bucket = Int(floor((now - start) / stepMs))
             // After any grid point at the same instant, as a stable sort would place it.
             let index = series.firstIndex { $0.t > now } ?? series.endIndex
-            series.insert(CaffeinePoint(
-                t: now,
-                mg: Caffeine.activeMg(at: now, doses: doses, halfLifeHours: halfLifeHours),
-                hasDose: bucketsWithDose.contains(bucket)
-            ), at: index)
+            series.insert(point(now, hasDose: bucketsWithDose.contains(bucket)), at: index)
         }
-        return TodayCaffeineSeries(series: series, start: start, end: end, now: now)
+        return TodayCaffeineSeries(series: series, start: start, end: end, now: now, stepMs: stepMs)
+    }
+
+    /// The grid spacing `make` used.
+    public var stepMs: Millis = 15 * minuteMs
+
+    /// The next point a VoiceOver swipe moves to: the next whole hour from
+    /// local midnight, or a point off the grid (`now`, a dose's peak), so a
+    /// 15-minute grid isn't 96 swipes. Stays put at either end.
+    public func accessibilityStep(from index: Int, forward: Bool) -> Int {
+        guard !series.isEmpty else { return 0 }
+        var i = min(max(index, 0), series.count - 1)
+        while true {
+            let next = forward ? i + 1 : i - 1
+            guard series.indices.contains(next) else { return i }
+            i = next
+            let offset = series[i].t - start
+            let onHour = offset.truncatingRemainder(dividingBy: hourMs) == 0
+            let offGrid = offset.truncatingRemainder(dividingBy: stepMs) != 0
+            if onHour || offGrid { return i }
+        }
     }
 }

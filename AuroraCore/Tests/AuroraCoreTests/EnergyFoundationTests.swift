@@ -22,7 +22,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
                 let energy = EnergyEstimate.capture(at: t, doses: context.doses, sleeps: context.sleeps, inputs: context.inputs)
                 #expect(energy.modeledScore == existing.score)
                 #expect(energy.timeZoneIdentifier == context.clock.timeZone.identifier)
-                #expect(energy.evidence.activeCaffeineMg == Caffeine.activeMg(at: t, doses: context.doses, halfLifeHours: 5))
+                #expect(energy.evidence.activeCaffeineMg == CaffeineKinetics.bodyMg(at: t, doses: context.doses, pk: .init(halfLifeHours: 5)))
                 #expect(energy.includesSample == energy.evidence.includesSample)
                 switch existing {
                 case .needsSleep:
@@ -110,7 +110,8 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
                 let input = try #require(energy.evidence.caffeine.first)
                 #expect(energy.evidence.caffeine.count == 1 && energy.evidence.fadedCaffeine == nil)
                 #expect(input.recordID == id && input.timestamp == now - 30 * hourMs && input.mg == 200)
-                #expect(input.activeMg == 200 * pow(0.5, 6) && energy.evidence.activeCaffeineMg == input.activeMg)
+                #expect(input.activeMg == 200 * CaffeineKinetics.bodyFraction(hours: 30, pk: .init(halfLifeHours: 5)))
+                #expect(energy.evidence.activeCaffeineMg == input.activeMg)
                 #expect(try #require(energy.contributions.first { $0.kind == .caffeine }).term > 0)
                 // The 24-hour summary flag misses this dose; the snapshot doesn't.
                 if case .estimated(_, _, let summarySample) = existing { #expect(!summarySample) }
@@ -130,6 +131,20 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(energy.missingInputs == [.recentCaffeine])
     }
 
+    @Test func aJustLoggedDoseIsCaffeineAndTheScoreIsUnchanged() throws {
+        let doses = [Dose(id: "lx1-now", timestamp: now, mg: 95, source: "Drip")]
+        let energy = EnergyEstimate.capture(at: now, doses: doses, sleeps: recentSleep, inputs: inputs(utc))
+        // Nothing absorbed yet, but the entry is listed and counts as caffeine.
+        let input = try #require(energy.evidence.caffeine.first)
+        #expect(input.activeMg == 0 && energy.evidence.activeCaffeineMg == 0)
+        #expect(energy.evidence.hasActiveCaffeine && !energy.missingInputs.contains(.caffeine))
+        // The score still takes the legacy instant model: the full 95 mg.
+        let caffeine = try #require(energy.contributions.first { $0.kind == .caffeine })
+        #expect(caffeine.term == Caffeine.activeEffect(at: now, doses: doses, halfLifeHours: 5))
+        #expect(caffeine.term == 1 - exp(-0.95))
+        #expect(energy.modeledScore == Summary.estimateAlertness(at: now, doses: doses, sleeps: recentSleep, inputs: inputs(utc)).score)
+    }
+
     @Test func fadedAndVanishedCaffeineAreToldApart() throws {
         let faded = [Dose(id: "demo:dose:month", timestamp: now - 30 * dayMs, mg: 100)]
         let energy = EnergyEstimate.capture(at: now, doses: faded, sleeps: recentSleep, inputs: inputs(utc))
@@ -142,7 +157,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         // 1,920 half-lives: the model's own arithmetic adds exactly zero.
         let vanished = [Dose(id: "demo:dose:old", timestamp: now - 400 * dayMs, mg: 100)]
         let none = EnergyEstimate.capture(at: now, doses: vanished, sleeps: recentSleep, inputs: inputs(utc))
-        #expect(Caffeine.activeMg(at: now, doses: vanished, halfLifeHours: 5) == 0)
+        #expect(CaffeineKinetics.unclearedMg(at: now, doses: vanished, pk: .init(halfLifeHours: 5)) == 0)
         #expect(none.missingInputs == [.caffeine] && !none.evidence.hasActiveCaffeine && !none.includesSample)
     }
 

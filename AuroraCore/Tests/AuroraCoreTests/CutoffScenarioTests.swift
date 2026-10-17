@@ -20,13 +20,17 @@ import Testing
     private func run(_ input: S.Input, doses: [Dose] = [], halfLife: Double = 5, at time: Millis? = nil, zone: TimeZone? = nil) -> S.Snapshot {
         S.evaluate(input: input, doses: doses, halfLifeHours: halfLife, now: time ?? now, timeZone: zone ?? la)
     }
+    /// Not-yet-cleared caffeine, the value the scenario uses.
+    private func uncleared(at t: Millis, _ doses: [Dose], halfLife: Double = 5) -> Double {
+        CaffeineKinetics.unclearedMg(at: t, doses: doses, pk: .init(halfLifeHours: halfLife))
+    }
 
     @Test func existingMatchesBaselineDecay() {
         let doses = [Dose(id: "a", timestamp: now - 2 * hourMs, mg: 95), Dose(id: "b", timestamp: now - 30 * minuteMs, mg: 60)]
         let snapshot = run(input(), doses: doses)
         let bedtime = instant(local(2026, 10, 10, 23), la)
         #expect(snapshot.result.bedtime == bedtime)
-        #expect(snapshot.result.existing?.totalMg == Caffeine.activeMg(at: bedtime, doses: doses, halfLifeHours: 5))
+        #expect(snapshot.result.existing?.totalMg == uncleared(at: bedtime, doses))
         #expect(snapshot.halfLifeHours == 5 && snapshot.timeZone == la.identifier && snapshot.capturedAt == now)
         #expect(snapshot.modelVersion == S.modelVersion)
     }
@@ -53,13 +57,14 @@ import Testing
         // No records: headroom is the whole threshold.
         let equal = run(input(threshold: "50", amount: "50"))
         #expect(equal.result.latest == .feasible(bedtime))
+        // Twice the threshold: a little over one half-life, for the absorption time.
         let doubled = run(input(threshold: "50", amount: "100"))
-        #expect(doubled.result.latest == .feasible(bedtime - 5 * hourMs))
+        #expect(doubled.result.latest == .feasible(instant(local(2026, 10, 10, 17, 44), la)))
         let odd = run(input(threshold: "37", amount: "95"), doses: [.init(id: "a", timestamp: now - hourMs, mg: 40)])
         guard case .feasible(let time) = odd.result.latest else { Issue.record("expected feasible"); return }
         #expect(time.truncatingRemainder(dividingBy: minuteMs) == 0)
         func atBedtime(_ drinkAt: Millis) -> Double {
-            Caffeine.activeMg(at: bedtime, doses: [.init(id: "a", timestamp: now - hourMs, mg: 40), .init(id: "h", timestamp: drinkAt, mg: 95)], halfLifeHours: 5)
+            uncleared(at: bedtime, [.init(id: "a", timestamp: now - hourMs, mg: 40), .init(id: "h", timestamp: drinkAt, mg: 95)])
         }
         // At or under at the time shown; above a minute later.
         #expect(atBedtime(time) <= 37)
@@ -68,26 +73,29 @@ import Testing
 
     @Test func combinedIncludesHypotheticalAtItsTime() {
         let snapshot = run(input(threshold: "50", amount: "100", drink: local(2026, 10, 10, 18)), doses: [.init(id: "a", timestamp: now, mg: 20)])
-        #expect(snapshot.result.hypotheticalMg == 50)
-        #expect(snapshot.result.combinedMg == snapshot.result.existing!.totalMg + 50)
+        let hypothetical = 100 * CaffeineKinetics.unclearedFraction(hours: 5, pk: .init(halfLifeHours: 5))
+        #expect(snapshot.result.hypotheticalMg == hypothetical)
+        #expect(abs(hypothetical - 51.80) < 0.01)
+        #expect(snapshot.result.combinedMg == snapshot.result.existing!.totalMg + hypothetical)
     }
 
     @Test func existingAtOrAboveThreshold() {
         let doses = [Dose(id: "a", timestamp: now - hourMs, mg: 400)]
         #expect(run(input(threshold: "10", amount: "50"), doses: doses).result.latest == .thresholdReachedByRecords)
         #expect(run(input(threshold: "10"), doses: doses).result.latest == .thresholdReachedByRecords)
-        // Exactly equal: 100 mg at bedtime from a 200 mg entry one half-life earlier.
+        // Exactly equal: the threshold is what the records model at bedtime.
         let bedtime = instant(local(2026, 10, 10, 23), la)
         let equal = [Dose(id: "b", timestamp: bedtime - 5 * hourMs - 6 * hourMs, mg: 400)]
-        let existing = Caffeine.activeMg(at: bedtime, doses: equal, halfLifeHours: 5)
+        let existing = uncleared(at: bedtime, equal)
         let snapshot = run(input(threshold: numberText(existing), amount: "1"), doses: equal, at: bedtime - 6 * hourMs)
         #expect(snapshot.result.latest == .thresholdReachedByRecords)
     }
 
     @Test func pastCandidateAndZeroThreshold() {
         let late = instant(local(2026, 10, 10, 22), la)
-        // 400 mg needs three half-lives under a 50 mg threshold: 15 hours before 11 PM.
-        #expect(run(input(threshold: "50", amount: "400"), at: late).result.latest == .passed(instant(local(2026, 10, 10, 8), la)))
+        // 400 mg needs a little over three half-lives under a 50 mg threshold:
+        // 15.25 hours before 11 PM.
+        #expect(run(input(threshold: "50", amount: "400"), at: late).result.latest == .passed(instant(local(2026, 10, 10, 7, 44), la)))
         #expect(run(input(threshold: "0", amount: "50")).result.latest == .unreachable)
         #expect(run(input(threshold: "0"), doses: [.init(id: "a", timestamp: now - hourMs, mg: 1)]).result.latest == .unreachable)
         #expect(run(input(threshold: "0")).result.latest == .needsAmount)
@@ -119,8 +127,8 @@ import Testing
         ]
         let existing = run(input(), doses: doses).result.existing!
         let bedtime = instant(local(2026, 10, 10, 23), la)
-        #expect(existing.recordedMg == Caffeine.activeMg(at: bedtime, doses: [doses[0]], halfLifeHours: 5))
-        #expect(existing.sampleMg == Caffeine.activeMg(at: bedtime, doses: [doses[1]], halfLifeHours: 5))
+        #expect(existing.recordedMg == uncleared(at: bedtime, [doses[0]]))
+        #expect(existing.sampleMg == uncleared(at: bedtime, [doses[1]]))
         #expect(existing.recordedCount == 1 && existing.sampleCount == 1 && existing.includesSample)
         #expect(existing.excludedFutureCount == 1)
         #expect(run(input(), doses: doses).result.basis.allSatisfy { !$0.hasPrefix("c|") })
@@ -135,6 +143,52 @@ import Testing
         // A drink time problem still leaves the latest time computable.
         #expect(after.result.latest == .feasible(instant(local(2026, 10, 10, 23), la)))
         #expect(run(.init(bedtime: local(2026, 2, 30, 23), thresholdMg: "5")).result.problems == [.bedtimeInvalid])
+    }
+
+    // MARK: Golden cases (docs/research/caffeine.md §6.4)
+
+    /// Bedtime 23:00, t½ 5 h, captured at 07:00 so every case is feasible.
+    @Test(arguments: [
+        // (existing 95 mg at 08:00?, threshold, hypothetical, latest hour, minute)
+        (true, "50", "95", 16, 4),
+        (false, "100", "200", 17, 44),
+        (false, "30", "95", 14, 25),
+        (false, "50", "40", 23, 0),
+    ]) func goldenLatestTimes(existing: Bool, threshold: String, amount: String, hour: Int, minute: Int) {
+        let morning = instant(local(2026, 10, 10, 7), la)
+        let doses = existing ? [Dose(id: "a", timestamp: instant(local(2026, 10, 10, 8), la), mg: 95)] : []
+        // The existing drink is in the future at 07:00, so capture at 08:00 for that case.
+        let at = existing ? instant(local(2026, 10, 10, 8), la) : morning
+        let snapshot = run(input(threshold: threshold, amount: amount), doses: doses, at: at)
+        #expect(snapshot.result.latest == .feasible(instant(local(2026, 10, 10, hour, minute), la)), "\(threshold) mg, \(amount) mg")
+        if existing { #expect(abs(snapshot.result.existing!.totalMg - 12.301) < 0.001) }
+    }
+
+    @Test func goldenZeroThresholdIsUnreachable() {
+        let doses = [Dose(id: "a", timestamp: instant(local(2026, 10, 10, 8), la), mg: 95)]
+        #expect(run(input(threshold: "0"), doses: doses).result.latest == .unreachable)
+        #expect(run(input(threshold: "0", amount: "95"), doses: doses).result.latest == .unreachable)
+    }
+
+    @Test func aDrinkJustBeforeBedIsNotZero() {
+        // Two minutes before bed: almost nothing is in the body yet, but
+        // almost all of it is still to clear.
+        let bedtime = instant(local(2026, 10, 10, 23), la)
+        let snapshot = run(input(threshold: "50", amount: "95", drink: local(2026, 10, 10, 22, 58)))
+        #expect(snapshot.result.hypotheticalMg! > 94)
+        #expect(CaffeineKinetics.bodyMg(at: bedtime, doses: [.init(id: "h", timestamp: bedtime - 2 * minuteMs, mg: 95)], pk: .init(halfLifeHours: 5)) < 13)
+        #expect(snapshot.modelVersion == "cutoff-scenario-2")
+    }
+
+    @Test func longHalfLivesSearchPastThreeDays() throws {
+        // t½ 24 h, 400 mg under 10 mg: about 5.3 half-lives, beyond 72 hours.
+        let bedtime = instant(local(2026, 10, 20, 23), la)
+        let snapshot = run(.init(bedtime: local(2026, 10, 20, 23), thresholdMg: "10", drinkMg: "400"), halfLife: 24)
+        guard case .feasible(let time) = snapshot.result.latest else { Issue.record("expected feasible"); return }
+        #expect(bedtime - time > 72 * hourMs)
+        let pk = CaffeinePK(halfLifeHours: 24)
+        #expect(400 * CaffeineKinetics.unclearedFraction(hours: (bedtime - time) / hourMs, pk: pk) <= 10)
+        #expect(400 * CaffeineKinetics.unclearedFraction(hours: (bedtime - time - minuteMs) / hourMs, pk: pk) > 10)
     }
 
     // MARK: Daylight saving
@@ -173,11 +227,11 @@ import Testing
         let scenario = S.Input(bedtime: local(2026, 11, 1, 3, 30), thresholdMg: "500", drinkMg: "100", drinkTime: local(2026, 11, 1, 0, 30))
         let result = run(scenario, halfLife: 4, at: before).result
         #expect(result.bedtime! - result.drinkAt! == 4 * hourMs)
-        #expect(result.hypotheticalMg == 50)
+        #expect(result.hypotheticalMg == 100 * CaffeineKinetics.unclearedFraction(hours: 4, pk: .init(halfLifeHours: 4)))
         // Spring forward: 01:30 PST to 03:30 PDT is one hour.
         let spring = S.Input(bedtime: local(2026, 3, 8, 3, 30), thresholdMg: "500", drinkMg: "100", drinkTime: local(2026, 3, 8, 1, 30))
         let sprung = run(spring, halfLife: 1, at: instant(local(2026, 3, 7, 20), la)).result
-        #expect(sprung.hypotheticalMg == 50)
+        #expect(sprung.hypotheticalMg == 100 * CaffeineKinetics.unclearedFraction(hours: 1, pk: .init(halfLifeHours: 1)))
     }
 
     @Test func utcAndLosAngelesAgreeOnInstants() {
@@ -206,9 +260,9 @@ import Testing
     @Test func reminderCopyIsUserDefinedAndOnlyForFutureTimes() throws {
         let snapshot = run(input(threshold: "50", amount: "100"))
         let content = try #require(S.reminder(for: snapshot, now: now, text: text))
-        #expect(content.fireAt == instant(local(2026, 10, 10, 18), la))
+        #expect(content.fireAt == instant(local(2026, 10, 10, 17, 44), la))
         #expect(content.body.contains("user-defined scenario, not a safety limit"))
-        for copy in [content.title, content.body, S.disclaimer, S.assumption] + S.Problem.allCases.map({ $0.message(timeZone: "UTC") }) {
+        for copy in [content.title, content.body, S.disclaimer, S.assumption, S.bedtimeValueLabel] + S.Problem.allCases.map({ $0.message(timeZone: "UTC") }) {
             #expect(CopyRules.violations(in: copy).isEmpty, "\(copy)")
         }
         #expect(S.reminder(for: snapshot, now: content.fireAt, text: text) == nil)
