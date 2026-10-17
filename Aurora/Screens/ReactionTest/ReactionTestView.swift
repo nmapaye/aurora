@@ -1,4 +1,5 @@
 import AuroraCore
+import GameController
 import SwiftUI
 
 /// The 30-second Reaction Test, always presented full screen.
@@ -56,6 +57,7 @@ struct ReactionTestView: View {
         VStack(spacing: Metrics.lg) {
             HStack {
                 Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
                     .font(.headline)
                     .frame(minHeight: Metrics.minimumTouchTarget)
                     .accessibilityIdentifier("reaction-close")
@@ -93,10 +95,19 @@ struct ReactionTestView: View {
         VStack(spacing: Metrics.sm) {
             Text("Check your reaction speed")
                 .font(.title3.bold())
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Palette.textPrimary)
                 .accessibilityAddTraits(.isHeader)
             Text("Wait for the cue, then tap anywhere on the screen as quickly as you can. It takes 30 seconds.")
                 .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // Only with a keyboard connected (read when the screen is drawn).
+            if GCKeyboard.coalesced != nil {
+                Text("With a keyboard, press Space or Return.")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if interrupted {
                 Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 30 seconds.")
                     .foregroundStyle(Palette.textPrimary)
@@ -148,7 +159,8 @@ struct ReactionTestView: View {
             completedAt: completedAt,
             trials: final.trials,
             falseStarts: final.falseStarts,
-            deviceModel: ReactionRun.deviceModel
+            deviceModel: ReactionRun.deviceModel,
+            input: run.input
         )
         let hasTimedResponse = Vigilance.hasTimedResponse(final)
         model.saveReactionTest(session, hasTimedResponse: hasTimedResponse)
@@ -183,9 +195,9 @@ private struct ReactionRunningScreen: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
-            ReactionTouchSurface(accessibilityValue: cue ? "Tap now" : "Wait for the cue") { uptime in
-                run.touchDown(uptime: uptime)
-            }
+            ReactionTouchSurface(accessibilityValue: cue ? "Tap now" : "Wait for the cue") { uptime, input in
+                run.touchDown(uptime: uptime, input: input)
+            } onEscape: { close() }
             .ignoresSafeArea()
             prompt
                 .allowsHitTesting(false)
@@ -211,6 +223,7 @@ private struct ReactionRunningScreen: View {
         VStack {
             HStack {
                 Button("Close", action: close)
+                    .keyboardShortcut(.cancelAction)
                     .font(.headline)
                     .foregroundStyle(cue ? Palette.primaryButtonText : Palette.tint)
                     .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget)

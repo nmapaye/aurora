@@ -327,7 +327,7 @@ struct CalendarConnectionsView: View {
                 if let error = error ?? service.message { Section { Text(error).foregroundStyle(Palette.destructive) } }
             }
             .navigationTitle("Calendar connections").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() }.keyboardShortcut(.cancelAction) } }
             .task { await service.refreshCalendars() }
         }
     }

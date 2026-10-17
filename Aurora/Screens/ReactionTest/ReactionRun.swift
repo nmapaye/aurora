@@ -83,9 +83,15 @@ final class ReactionRun {
         set(Vigilance.resume(state, at: nowMillis, randomValue: random()))
     }
 
-    /// A touch-down on the surface, with `UITouch.timestamp`.
-    func touchDown(uptime: TimeInterval) {
+    /// `.keyboard` once any response came from a key or an assistive
+    /// activation during the run.
+    private(set) var input: VigilanceInput = .touch
+
+    /// A response on the surface: a touch-down with `UITouch.timestamp`, or
+    /// a key press with `UIPress.timestamp`.
+    func touchDown(uptime: TimeInterval, input: VigilanceInput = .touch) {
         guard state.phase == .running else { return }
+        if input == .keyboard { self.input = .keyboard }
         touchCount += 1
         let before = state
         let next = Vigilance.tap(before, at: millis(uptime: uptime), randomValue: random())
