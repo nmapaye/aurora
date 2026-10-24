@@ -7,6 +7,14 @@ import Testing
 /// both 2026 DST changes).
 @Suite("Parity with the TypeScript build")
 struct ParityTests {
+    private static let missingNightReason = "missing-night rule: no >=3h main sleep ended within 18h; TS reference is legacy"
+    private static let expectedDivergentAlertnessProbes: [String: String] = [
+        "UTC|1767146340000": missingNightReason,
+        "America/Los_Angeles|1790419260000": missingNightReason,
+        "America/Los_Angeles|1772888400000": missingNightReason,
+        "America/Los_Angeles|1790516460000": missingNightReason,
+    ]
+
     struct Context {
         let clock: LocalClock
         let scenario: JSONValue
@@ -38,31 +46,34 @@ struct ParityTests {
     }
 
     @Test func alertnessEstimates() throws {
+        var divergent: Set<String> = []
         for context in try Self.contexts() {
             for probe in context.scenario.list("alertness") {
                 let t = try #require(probe.double("t"))
                 let estimate = Summary.estimateAlertness(at: t, doses: context.doses, sleeps: context.sleeps, inputs: context.inputs)
                 let expected = probe["estimate"] ?? .null
-                let hasRecentMainSleep = context.sleeps.contains {
-                    $0.end <= t && $0.end >= t - 18 * hourMs && $0.end - $0.start >= 3 * hourMs
-                }
+                let zone = context.clock.timeZone.identifier == "GMT" ? "UTC" : context.clock.timeZone.identifier
+                let key = "\(zone)|\(String(format: "%.0f", t))"
+                var matchesFixture = false
                 switch estimate {
                 case .needsSleep:
-                    #expect(expected.text("status") == "needs-sleep" || !hasRecentMainSleep)
+                    matchesFixture = expected.text("status") == "needs-sleep" && Summary.describe(estimate) == probe.text("text")
                 case .estimated(let score, let hours, let sample):
-                    #expect(hasRecentMainSleep)
-                    #expect(expected.text("status") == "estimated")
-                    #expect(score == expected.int("score"), "\(context.clock.timeZone.identifier) t=\(t)")
-                    #expect(approxEqual(hours, expected.double("sleepHours")))
-                    #expect(sample == expected.flag("includesSample"))
+                    matchesFixture = expected.text("status") == "estimated"
+                        && score == expected.int("score")
+                        && approxEqual(hours, expected.double("sleepHours"))
+                        && sample == expected.flag("includesSample")
+                        && Summary.describe(estimate) == probe.text("text")
                 }
-                if hasRecentMainSleep {
-                    #expect(Summary.describe(estimate) == probe.text("text"))
-                } else {
+                if !matchesFixture {
+                    divergent.insert(key)
+                    #expect(Self.expectedDivergentAlertnessProbes[key] == Self.missingNightReason, "Unexpected legacy fixture divergence: \(key)")
+                    #expect(estimate == .needsSleep, "Expected needs-sleep for \(key)")
                     #expect(Summary.describe(estimate) == "Estimated alertness unavailable. No sleep of at least 3 hours ended in the last 18 hours.")
                 }
             }
         }
+        #expect(divergent == Set(Self.expectedDivergentAlertnessProbes.keys), "The expected-divergent probe list must match the actual divergences exactly")
     }
 
     @Test func cutoffAnnotations() throws {

@@ -139,7 +139,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
         let both = EnergySnapshot.capture(state: state(sleeps: [watch, phone]), now: now, clock: utc, includeProjection: true)
         let union = EnergySnapshot.capture(state: state(sleeps: [SleepSession(id: "manual:sleep:3:c", start: now - 10 * hourMs, end: now - 2 * hourMs)]), now: now, clock: utc, includeProjection: true)
         #expect(both.estimate.modeledScore == union.estimate.modeledScore)
-        #expect(both.projection?.points.filter { $0.t >= phone.end }.map(\.modeledScore) == union.projection?.points.filter { $0.t >= phone.end }.map(\.modeledScore))
+        #expect(both.projection?.points.map(\.modeledScore) == union.projection?.points.map(\.modeledScore))
         #expect(both.observations.count == 2)
         #expect(both.mergedSleep.count == 1)
         #expect(both.mergedSleep.first?.start == now - 10 * hourMs && both.mergedSleep.first?.end == now - 2 * hourMs)

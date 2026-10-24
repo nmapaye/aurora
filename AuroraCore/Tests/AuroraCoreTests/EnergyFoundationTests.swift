@@ -54,6 +54,50 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
     }
 
+    @Test func touchingFragmentsCountAsOneMainSleep() {
+        let sleeps = [
+            SleepSession(id: "manual:sleep:fragment:a", start: now - 8 * hourMs, end: now - 6 * hourMs),
+            SleepSession(id: "manual:sleep:fragment:b", start: now - 6 * hourMs, end: now - 4 * hourMs),
+        ]
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func overlappingPhoneAndWatchSleepCountsOnceForEligibilityAndScore() {
+        let watch = SleepSession(id: "healthkit:sleep:watch", start: now - 9 * hourMs, end: now - 2 * hourMs)
+        let phone = SleepSession(id: "healthkit:sleep:phone", start: now - 9 * hourMs + minuteMs, end: now - 2 * hourMs + minuteMs)
+        let alone = Summary.estimateAlertness(at: now, doses: [], sleeps: [watch], inputs: inputs(utc))
+        let phoneAlone = Summary.estimateAlertness(at: now, doses: [], sleeps: [phone], inputs: inputs(utc))
+        let duplicate = Summary.estimateAlertness(at: now, doses: [], sleeps: [watch, phone], inputs: inputs(utc))
+        #expect(alone.score != nil)
+        #expect(phoneAlone.score == alone.score)
+        #expect(duplicate.score == alone.score)
+    }
+
+    @Test func needsSleepCopyIsAccessibleAcrossEnergyAndAssistantSurfaces() throws {
+        let text = Summary.describe(.needsSleep)
+        #expect(text.localizedCaseInsensitiveContains("unavailable"))
+        #expect(text.contains("at least 3 hours") && text.contains("18 hours"))
+        #expect(text.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+
+        let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: [], inputs: inputs(utc))
+        #expect(energy.modeledScore == nil)
+        #expect(energy.summary.localizedCaseInsensitiveContains("unavailable"))
+        #expect(energy.summary.localizedCaseInsensitiveContains("sleep"))
+        #expect(energy.summary.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+
+        for kind in [AssistantCard.Kind.energy, .briefing] {
+            let card = AssistantCards.make(kind, state: AppState(), now: now, clock: utc, text: .localized(locale: Locale(identifier: "en_US"), timeZone: utc.timeZone))
+            let metric = try #require(card.metrics.first { $0.id == "alertness" })
+            #expect(metric.label == "Modeled alertness")
+            #expect(metric.value == "Needs sleep")
+            #expect(metric.source == "Modeled")
+            #expect(metric.detail == energy.summary)
+            let accessibilityLabel = [metric.label, metric.value, metric.source, metric.detail].filter { !$0.isEmpty }.joined(separator: ". ")
+            #expect(accessibilityLabel.localizedCaseInsensitiveContains("needs sleep"))
+            #expect(accessibilityLabel.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+        }
+    }
+
     @Test func matchesTheExistingEstimateForEveryFixtureProbe() throws {
         var probes = 0
         for context in try ParityTests.contexts() {
