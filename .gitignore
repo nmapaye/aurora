@@ -35,3 +35,6 @@ DerivedData/
 
 # TypeScript incremental build artifacts
 *.tsbuildinfo
+
+# Local signing overrides (see Config/Signing.xcconfig)
+Config/Signing.local.xcconfig
