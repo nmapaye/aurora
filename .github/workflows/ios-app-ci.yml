@@ -94,6 +94,26 @@ jobs:
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # typeText has been losing keystrokes in the composer (see the repeat
+      # step below). Simulator.app's "Connect Hardware Keyboard" is a known
+      # cause of dropped typeText characters, so turn it off globally and for
+      # this device before it boots. CI boots headless with simctl, so this
+      # may be a no-op here; it keeps a Simulator.app launch from changing it.
+      - name: Disconnect the hardware keyboard
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          plist="$RUNNER_TEMP/iphonesimulator.plist"
+          defaults export com.apple.iphonesimulator "$plist"
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid:ConnectHardwareKeyboard bool false" "$plist"
+          defaults import com.apple.iphonesimulator "$plist"
+          echo "ConnectHardwareKeyboard (global): $(defaults read com.apple.iphonesimulator ConnectHardwareKeyboard)"
+          echo "ConnectHardwareKeyboard ($udid): $(/usr/libexec/PlistBuddy -c "Print :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist")"
+
       # Boot the simulator and wait until it is fully up before any test
       # launches the app; a cold iPad simulator booting during the first
       # launch timed out the launch.
@@ -102,6 +122,35 @@ jobs:
           set -euo pipefail
           xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
           xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      # Fix the software keyboard's state before any UI test types: no
+      # predictive text or autocorrection (the app log shows the predictive
+      # engine's CandidateGeneration timing out while typeText runs), no
+      # slide-to-type, and the first-use keyboard introductions marked shown.
+      # Key names are the ones WebDriverAgent sets through TIPreferencesController
+      # and Appium writes with simctl; iOS 15+ keeps them in
+      # com.apple.keyboard.preferences, older releases in com.apple.Preferences.
+      - name: Set simulator keyboard preferences
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          for domain in com.apple.keyboard.preferences com.apple.Preferences; do
+            for key in KeyboardPrediction KeyboardAutocorrection KeyboardShowPredictionBar KeyboardContinuousPathEnabled; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool NO
+            done
+            for key in DidShowContinuousPathIntroduction DidShowGestureKeyboardIntroduction; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool YES
+            done
+          done
+          xcrun simctl spawn "$udid" defaults write com.apple.keyboard.ContinuousPath KeyboardContinuousPathEnabled -bool NO
+          # Fail if a write didn't stick, rather than run on unknown settings.
+          for check in KeyboardPrediction=0 KeyboardAutocorrection=0 KeyboardShowPredictionBar=0 \
+                       KeyboardContinuousPathEnabled=0 DidShowContinuousPathIntroduction=1 DidShowGestureKeyboardIntroduction=1; do
+            key=${check%=*}; want=${check#*=}
+            got=$(xcrun simctl spawn "$udid" defaults read com.apple.keyboard.preferences "$key")
+            echo "com.apple.keyboard.preferences $key = $got"
+            [ "$got" = "$want" ] || { echo "::error title=keyboard prefs::$key is $got, wanted $want"; exit 1; }
+          done
 
       # Tests are signed ad hoc: unsigned, the Keychain erase test fails
       # with errSecMissingEntitlement (-34018).
@@ -121,7 +170,45 @@ jobs:
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
           exit $status
 
+      # request() types into the composer. CI has lost keystrokes there: the
+      # field held "R" for "Reminders" (3 runs) and "Show t" for "Show this
+      # week" (1 run), then the app answered the fragment. Repeat the two tests
+      # that failed that way up to 40 times on both devices and stop at the
+      # first failure. Never -retry-tests-on-failure: a retry would turn the
+      # flake green and hide it. About 70-80 s per iteration of both tests.
+      - name: Repeat the typed-request UI tests
+        id: repeat-typed
+        timeout-minutes: 60
+        run: |
+          set +e
+          if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
+            echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
+            exit 1
+          fi
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testBriefingAndReminderCards \
+            -only-testing:AuroraUITests/AuroraUITests/testTrendsSwitchSignalsAndRange \
+            -test-iterations 40 \
+            -run-tests-until-failure \
+            -resultBundlePath build/TypedRequestRepeat.xcresult \
+            > build/xcodebuild-typed-repeat.log 2>&1
+          status=$?
+          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-typed-repeat.log | head -200
+          for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
+            echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" build/xcodebuild-typed-repeat.log)"
+          done
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-typed-repeat.log
+          exit $status
+
+      # Still runs after the repeat step fails, so a flake doesn't hide the
+      # rest of the suite's results; not after a failed build.
       - name: Test
+        if: success() || steps.repeat-typed.outcome == 'failure'
         run: |
           set +e
           xcodebuild test-without-building \
@@ -167,6 +254,7 @@ jobs:
           path: |
             build/*.log
             build/AuroraTests.xcresult
+            build/TypedRequestRepeat.xcresult
 
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
