@@ -2,9 +2,10 @@
 
 ## Locked release
 
-Native iPhone/iPad, English, paid US$4.99, free TestFlight. Initial storefronts:
+Native iPhone/iPad, English, paid US$4.99 upfront with no in-app purchases, free
+TestFlight. App Privacy label: Data Not Collected. Initial storefronts:
 US, Canada, UK, Australia, New Zealand after regional business/privacy checks.
-Google Calendar is a launch requirement. No cloud AI, keys, subscriptions, analytics
+Google Calendar is a launch requirement. No cloud AI, keys, in-app purchases, subscriptions, analytics
 SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
 
 ## Owners and milestones

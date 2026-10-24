@@ -26,6 +26,8 @@ Alertness values are estimates, not measurements. Aurora does not diagnose fatig
 
 Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases.
 
+App Privacy: Data Not Collected. Health, caffeine, sleep, and reaction data stay on the device and are never sent to the developer or third parties; `Aurora/PrivacyInfo.xcprivacy` declares no collected data types and no tracking.
+
 ## Keywords
 
 caffeine,sleep,energy,coffee,calendar,reaction,alertness,wellness
@@ -38,7 +40,7 @@ Verify deployed pages and configure a real private support contact before submis
 
 ## Reviewer notes
 
-Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy must declare Health and Fitness data read and written (dietary caffeine written), not linked to tracking. The optional "Update in the background" choice uses HealthKit background delivery (entitlement declared; provisioning profile must include it). Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
+Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy answer: Data Not Collected. Aurora reads sleep and caffeine from HealthKit and writes dietary caffeine samples, but that Health data is processed and stored only on the device and is never transmitted to the developer or any third party; there is no tracking. The optional "Update in the background" choice uses HealthKit background delivery (entitlement declared; provisioning profile must include it). Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
 
 Debug Design Gallery is excluded from Release. No Mac app or cross-device health/conversation sync is included. Notifications use permitted foreground/background opportunities, not continuous reasoning.
 
