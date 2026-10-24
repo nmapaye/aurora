@@ -44,7 +44,7 @@ public enum Summary {
         sleeps: [SleepSession],
         inputs: EstimateInputs
     ) -> AlertnessEstimate {
-        let hasRecentMainSleep = sleeps.contains {
+        let hasRecentMainSleep = SleepIntervals.merge(sleeps).contains {
             $0.end <= t && $0.end >= t - 18 * hourMs && $0.end - $0.start >= 3 * hourMs
         }
         guard hasRecentMainSleep else { return .needsSleep }
