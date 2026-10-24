@@ -62,6 +62,49 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
     }
 
+    @Test func briefAwakeningFragmentsCountAsRecentMainSleepInEstimateAndProjection() {
+        let gap = SleepIntervals.briefAwakeningMs - 1
+        let end = now - hourMs
+        let secondStart = end - 90 * minuteMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap < SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+        #expect(EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).modeledScore != nil)
+    }
+
+    @Test func longAwakeningFragmentsDoNotCountAsMainSleep() {
+        let gap = 45 * minuteMs
+        let end = now - hourMs
+        let secondStart = end - 2 * hourMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:long-fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:long-fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap > SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func briefAwakeningFragmentsOutsideEighteenHoursNeedSleep() {
+        let gap = SleepIntervals.briefAwakeningMs - 1
+        let end = now - 18 * hourMs - 1
+        let secondStart = end - 90 * minuteMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:old-fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:old-fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap < SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)) == .needsSleep)
+    }
+
     @Test func overlappingPhoneAndWatchSleepCountsOnceForEligibilityAndScore() {
         let watch = SleepSession(id: "healthkit:sleep:watch", start: now - 9 * hourMs, end: now - 2 * hourMs)
         let phone = SleepSession(id: "healthkit:sleep:phone", start: now - 9 * hourMs + minuteMs, end: now - 2 * hourMs + minuteMs)

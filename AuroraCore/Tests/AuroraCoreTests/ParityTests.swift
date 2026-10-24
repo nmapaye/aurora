@@ -10,6 +10,7 @@ struct ParityTests {
     private static let missingNightReason = "missing-night rule: no >=3h main sleep ended within 18h; TS reference is legacy"
     private static let expectedDivergentAlertnessProbes: [String: String] = [
         "UTC|1767146340000": missingNightReason,
+        "UTC|1767243540000": missingNightReason,
         "America/Los_Angeles|1790419260000": missingNightReason,
         "America/Los_Angeles|1772888400000": missingNightReason,
         "America/Los_Angeles|1790516460000": missingNightReason,
