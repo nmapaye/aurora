@@ -10,6 +10,7 @@ on:
       - 'AuroraTests/**'
       - 'AuroraUITests/**'
       - 'Aurora.xcodeproj/**'
+      - 'Config/**'
       - '.github/workflows/ios-app-ci.yml'
       - '.github/scripts/xcode-annotate.py'
   pull_request:
@@ -51,7 +52,7 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
+          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
