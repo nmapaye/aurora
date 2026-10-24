@@ -21,9 +21,48 @@ enum ConversationReveal: Equatable {
         // Opening the stored conversation adds everything at once.
         if previousCount == 0 { return .end }
         let added = messages[previousCount...]
-        if added.contains(where: \.isUser) { return .end }
+        if let lastUser = added.lastIndex(where: \.isUser) {
+            // The person's message and Aurora's reply can land in one update
+            // when the reply is ready at once (quick actions). They just sent
+            // it, so they are at the latest: show the reply's start, as when
+            // it arrives on its own, not the end of a long card.
+            let replyIndex = messages.index(after: lastUser)
+            return replyIndex < messages.endIndex ? .start(messages[replyIndex].id) : .end
+        }
         guard let first = added.first else { return .none }
         return readingLatest ? .start(first.id) : .hold(first.id)
+    }
+}
+
+/// What a taller bottom area keeps in view. Right after a reply arrives the
+/// bottom area can grow: the keyboard finishing its dismissal, Stop turning
+/// back into Send, the quick actions becoming next steps. Whatever the reply
+/// revealed has to stay in view through that.
+struct ConversationFollow: Equatable {
+    /// The reply whose start was revealed last; nil once the end was shown
+    /// or the person scrolled.
+    private(set) var revealedStart: UUID?
+
+    mutating func revealed(_ reveal: ConversationReveal) {
+        switch reveal {
+        case .end: revealedStart = nil
+        case .start(let id): revealedStart = id
+        case .none, .hold: break
+        }
+    }
+
+    /// The person scrolled, or (before iOS 18) the end came into view: where
+    /// they read is theirs again.
+    mutating func stopFollowing() { revealedStart = nil }
+
+    /// - Parameter atEnd: the end was on screen when last known. On iOS 18
+    ///   and later only the person's own scrolling updates it, so it is
+    ///   still true after Aurora revealed a long reply's start.
+    func afterBottomAreaGrew(from old: CGFloat, to new: CGFloat, atEnd: Bool, holding: Bool) -> ConversationReveal {
+        guard new > old, atEnd, !holding else { return .none }
+        // A short reply's start clamps to the end, so it still shows whole.
+        if let revealedStart { return .start(revealedStart) }
+        return .end
     }
 }
 
