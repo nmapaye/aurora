@@ -54,6 +54,24 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
     }
 
+    @Test func inProgressSleepOfFourHoursScores() {
+        let sleep = SleepSession(id: "manual:sleep:in-progress-main", start: now - 4 * hourMs, end: now + hourMs)
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func inProgressSleepDoesNotMergeIntoRecentCompletedMainSleep() {
+        let t = now
+        let nightEnd = t - hourMs
+        let sleeps = [
+            SleepSession(id: "manual:sleep:completed-night", start: nightEnd - 7 * hourMs, end: nightEnd),
+            SleepSession(id: "manual:sleep:in-progress", start: nightEnd + 20 * minuteMs, end: t + 2 * hourMs),
+        ]
+
+        #expect(Summary.estimateAlertness(at: t, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+        #expect(EnergyEstimate.capture(at: t, doses: [], sleeps: sleeps, inputs: inputs(utc)).modeledScore != nil)
+    }
+
     @Test func touchingFragmentsCountAsOneMainSleep() {
         let sleeps = [
             SleepSession(id: "manual:sleep:fragment:a", start: now - 8 * hourMs, end: now - 6 * hourMs),
