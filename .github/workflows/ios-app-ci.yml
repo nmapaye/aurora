@@ -122,14 +122,13 @@ jobs:
           exit $status
 
       # testLongCardArrivesShowingItsStart failed intermittently on iPhone
-      # (about 2 in 25 runs). Run it alone up to 40 times and stop at the
-      # first failure. Never -retry-tests-on-failure here: a retry would turn
-      # the flake green and hide it. Each iteration launches the app (about
-      # 10 to 40 seconds), so 40 fit well inside the timeout.
+      # (about 2 in 25 runs). Run it alone up to 40 times on both devices and
+      # stop at the first failure. Never -retry-tests-on-failure here: a retry
+      # would turn the flake green and hide it. Each iteration launches the
+      # app (about 40 to 65 seconds in CI), so 40 fit inside the timeout.
       - name: Repeat the long-card UI test
         id: repeat
-        if: matrix.device == 'iPhone'
-        timeout-minutes: 40
+        timeout-minutes: 50
         run: |
           set +e
           if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
