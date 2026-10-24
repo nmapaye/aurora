@@ -35,7 +35,7 @@ caffeine,sleep,energy,coffee,calendar,reaction,alertness,wellness
 Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
 Proposed support: https://nmapaye.github.io/aurora/support.html
 Support and beta contact: nmapaye@outlook.com (owner approved 2026-10-24)
-Verify deployed pages before submission. These drafts have not been published.
+Verify deployed pages before submission. Use nmapaye@outlook.com as the App Store Connect support and contact email. These drafts have not been published.
 
 ## Reviewer notes
 
