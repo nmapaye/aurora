@@ -217,8 +217,8 @@ struct SetupConversationView: View {
         }
     }
 
-    /// Nothing is selected until the person picks a value: the 7–9 h range
-    /// is context, never a default. Continue saves only a chosen target.
+    /// Nothing is selected until the person picks a value; no preset is a
+    /// default. Continue saves only a chosen target.
     private var sleepTargetControls: some View {
         let target = targetDraft
         return VStack(alignment: .leading, spacing: Metrics.sm) {
@@ -242,11 +242,7 @@ struct SetupConversationView: View {
                 .accessibilityValue(formatted.spoken)
                 .accessibilityIdentifier("setup-sleep-target")
             }
-            VStack(alignment: .leading, spacing: Metrics.xxs) {
-                Text(OnboardingCopy.sleepTargetContext)
-                Text(OnboardingCopy.sleepTargetContextSource)
-                    .font(Typography.source)
-            }
+            Text(OnboardingCopy.sleepTargetContext)
             .font(.footnote)
             .foregroundStyle(Palette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)

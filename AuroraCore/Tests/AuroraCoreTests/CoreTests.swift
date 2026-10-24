@@ -226,6 +226,10 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(CopyRules.violations(in: "You have 120 mg remaining today.").isEmpty == false)
         #expect(CopyRules.violations(in: "Suggested bedtime: 10 PM").isEmpty == false)
         #expect(CopyRules.violations(in: "Personal caffeine reference. It is not a recommended or safe amount.").isEmpty)
+        // Onboarding never cites experts, recommends hours or gives a range.
+        let oldClaim = "Sleep experts recommend 7 or more hours for most adults; 7–9 h is the usual adult range."
+        #expect(Set(CopyRules.violations(in: oldClaim).map { $0.lowercased() }) == ["experts recommend", "7 or more hours", "7–9 h"])
+        #expect(!CopyRules.violations(in: "Most adults need 7-9 hours.").isEmpty)
         let texts = Walkthrough.steps.flatMap { [$0.title, $0.body] } +
             (0..<3).flatMap { step in
                 [OnboardingSource.healthkit, .manual].flatMap { source -> [String] in
@@ -233,7 +237,8 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
                     return [copy.eyebrow, copy.title, copy.body]
                 }
             } +
-            [Summary.noCaffeineBody, HealthImport.noSleepMessage]
+            [Summary.noCaffeineBody, HealthImport.noSleepMessage,
+             OnboardingCopy.sleepTargetContext, OnboardingCopy.noSleepTargetNote]
         for text in texts {
             #expect(CopyRules.violations(in: text).isEmpty, "\(text)")
         }

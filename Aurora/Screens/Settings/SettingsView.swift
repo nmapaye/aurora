@@ -77,7 +77,7 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(minHeight: Metrics.minimumTouchTarget)
                     .accessibilityIdentifier("settings-sleep-target")
-                    footnote("Your own sleep goal. Sleep compares recorded nights with it, and the alertness estimate uses it. \(OnboardingCopy.sleepTargetContext) (\(OnboardingCopy.sleepTargetContextSource))")
+                    footnote("Your own sleep goal. Sleep compares recorded nights with it, and the alertness estimate uses it.")
                     Divider()
                     stepper("Personal caffeine reference", value: prefs.dailyLimitMg, in: 0...1000, step: 20, text: { "\(numberText($0)) mg" }) { v in
                         model.setPrefs { $0.dailyLimitMg = v }

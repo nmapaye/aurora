@@ -10,10 +10,8 @@ public enum OnboardingCopy {
     public static let sleepTargetStep: Double = 0.5
     /// Offered with none selected: the person chooses.
     public static let sleepTargetPresets: [Double] = [7, 8, 9]
-    /// Context only, never a pre-selected value (AASM/SRS, Watson 2015;
-    /// National Sleep Foundation, Hirshkowitz 2015).
-    public static let sleepTargetContext = "Sleep experts recommend 7 or more hours for most adults; 7–9 h is the usual adult range."
-    public static let sleepTargetContextSource = "AASM and National Sleep Foundation"
+    /// Shown under the picker. Makes no health claim and gives no range.
+    public static let sleepTargetContext = "Choose a nightly sleep target. Aurora compares your logged sleep with it. You can change it anytime in Settings."
     public static let noSleepTargetNote = "No sleep target set. You can choose one in Settings."
     /// Two columns need this much width, and text no larger than this scale.
     public static let splitLayoutMinWidth: Double = 800
@@ -150,7 +148,7 @@ public enum CutoffReminder {
 /// universal caffeine limit. Tests run every user-facing string through this.
 public enum CopyRules {
     public static let forbiddenPattern =
-        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence)\b"#
+        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence|experts? recommends?|\d+ or more hours|\d+(\.\d+)?\s*[–-]\s*\d+(\.\d+)?\s*(h|hours?)\b)"#
 
     /// Disclaimers that negate the idea are allowed.
     public static let allowedSentences = ["It is not a recommended or safe amount."]
