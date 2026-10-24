@@ -128,7 +128,7 @@ public enum AssistantCards {
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Unavailable", source: "Modeled · 0–100", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Needs sleep", source: "Modeled · 0–100", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
             card.summary = ""
             if kind == .energy {
@@ -148,7 +148,7 @@ public enum AssistantCards {
             card.summary = EnergyProjection.futureAssumption
             card.metrics = [.init(
                 id: "alertness", label: EnergyEstimate.title + " · now",
-                value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable",
+                value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Needs sleep",
                 source: "Modeled · 0–100",
                 detail: snapshot.estimate.summary, missing: snapshot.estimate.modeledScore == nil
             )]

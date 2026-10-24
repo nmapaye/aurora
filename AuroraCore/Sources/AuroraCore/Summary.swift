@@ -1,8 +1,9 @@
 import Foundation
 
-/// Estimated Alertness is the alertness model, nothing more. Without any sleep
-/// in the 24 hours before `t`, the sleep-debt term saturates and the number
-/// would describe missing data rather than the person, so there is no score.
+/// Estimated Alertness is the alertness model, nothing more. Without a single
+/// sleep of at least three hours that ended in the 18 hours before `t`, the
+/// number would describe missing data rather than the person, so there is no
+/// score.
 public enum AlertnessEstimate: Equatable, Sendable {
     case estimated(score: Int, sleepHours: Double, includesSample: Bool)
     case needsSleep
@@ -43,8 +44,11 @@ public enum Summary {
         sleeps: [SleepSession],
         inputs: EstimateInputs
     ) -> AlertnessEstimate {
+        let hasRecentMainSleep = sleeps.contains {
+            $0.end <= t && $0.end >= t - 18 * hourMs && $0.end - $0.start >= 3 * hourMs
+        }
+        guard hasRecentMainSleep else { return .needsSleep }
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
-        guard sleepHours > 0 else { return .needsSleep }
         let windowStart = t - dayMs
         let includesSample =
             sleeps.contains { $0.end > windowStart && $0.start <= t && RecordID.isSample($0.id) } ||
@@ -63,7 +67,7 @@ public enum Summary {
     public static func describe(_ estimate: AlertnessEstimate) -> String {
         switch estimate {
         case .needsSleep:
-            return "Estimated alertness unavailable. No sleep is recorded in the last 24 hours."
+            return "Estimated alertness unavailable. No sleep of at least 3 hours ended in the last 18 hours."
         case .estimated(let score, let sleepHours, let includesSample):
             return "Estimated alertness \(score) out of 100. Modeled from \(formatSleepHours(sleepHours)) of sleep in the last 24 hours, active caffeine, and time of day.\(includesSample ? " Includes Sample Data." : "") This is an estimate, not a measurement."
         }
@@ -173,7 +177,7 @@ public enum Summary {
         if case .estimated(let score, _, _) = inspection.alertness {
             alertness = "\(inspection.isFuture ? "projected" : "estimated") alertness \(score)"
         } else {
-            alertness = "alertness needs recent sleep"
+            alertness = "alertness needs recent main sleep"
         }
         return "\(time): \(active), \(logged), \(alertness)."
     }

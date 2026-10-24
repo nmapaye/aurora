@@ -26,7 +26,7 @@ public struct EnergyContribution: Codable, Equatable, Sendable {
 
 /// Inputs the model had no record for at the captured instant.
 public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
-    /// No sleep in the 24 hours before. There is no modeled score.
+    /// No main sleep ended in the 18 hours before. There is no modeled score.
     case recentSleep
     /// No caffeine in the 24 hours before, but earlier entries still add
     /// modeled active caffeine as they fade.
@@ -36,7 +36,7 @@ public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
 
     public var text: String {
         switch self {
-        case .recentSleep: "No sleep is recorded in the 24 hours before this time, so there is no modeled alertness."
+        case .recentSleep: "No sleep of at least 3 hours ended in the 18 hours before this time, so there is no modeled alertness."
         case .recentCaffeine: "No caffeine is recorded in the 24 hours before this time. Earlier entries still add a modeled amount as they fade."
         case .caffeine: "No caffeine is recorded by this time. The model counts none."
         }
@@ -203,7 +203,8 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 /// A versioned snapshot of modeled alertness at one instant, with everything
 /// needed to explain it later without recomputing from changed records.
 /// The score is the existing alertness estimate, rounded the same way, and is
-/// present only when sleep is recorded in the 24 hours before.
+/// present only when a sleep of at least three hours ended in the 18 hours
+/// before.
 public struct EnergyEstimate: Codable, Equatable, Sendable {
     /// 2 added `evidence`, the `caffeine` missing input and the
     /// `unmeasuredFactors` limitation.
@@ -288,7 +289,7 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     }
 
     public var summary: String {
-        guard let modeledScore else { return "\(Self.title) unavailable. No sleep is recorded in the 24 hours before this time." }
+        guard let modeledScore else { return "\(Self.title) unavailable. No sleep of at least 3 hours ended in the 18 hours before this time." }
         return "\(Self.title) \(modeledScore) of 100, modeled from sleep, caffeine and time of day."
             + (includesSample ? " Includes Sample Data." : "")
     }
