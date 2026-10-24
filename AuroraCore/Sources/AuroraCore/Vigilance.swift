@@ -143,7 +143,7 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
     /// Names a session from another version of the test wherever it is
     /// shown; `nil` for the current test.
     public var protocolLabel: String? {
-        Vigilance.protocolLabel(protocolVersion)
+        Vigilance.protocolLabel(protocolVersion, durationMs: durationMs)
     }
 
     /// What a hand-edited or damaged store could hold, pulled back to what
@@ -299,12 +299,18 @@ public enum Vigilance {
     public static let feedbackMs: Millis = 1_000
     static let deviceModelMaxLength = 64
 
-    /// A short label for sessions from another version of the test.
-    public static func protocolLabel(_ version: Int) -> String? {
+    /// A short label for sessions from another version of the test. The
+    /// length comes from the session's `durationMs` when known, because a
+    /// 30-second session re-saved by an older build reads as version 1 but
+    /// keeps its duration. Without one, version 1 was the 60-second test.
+    public static func protocolLabel(_ version: Int, durationMs: Millis? = nil) -> String? {
         switch version {
-        case protocolVersion: nil
-        case ..<protocolVersion: "Earlier 60-second test"
-        default: "Newer test version"
+        case protocolVersion: return nil
+        case ..<protocolVersion:
+            // Guard the Int conversion against a damaged store (NaN, huge).
+            let seconds = durationMs.flatMap { $0.isFinite && $0 >= 500 && $0 <= 3_600_000 ? Int(($0 / 1000).rounded()) : nil } ?? 60
+            return "Earlier \(seconds)-second test"
+        default: return "Newer test version"
         }
     }
 

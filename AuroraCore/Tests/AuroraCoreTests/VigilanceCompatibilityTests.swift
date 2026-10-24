@@ -103,11 +103,25 @@ struct VigilanceCompatibilityTests {
         #expect(back.fastestReactionMs == current.fastestReactionMs && back.reactionStdDevMs == current.reactionStdDevMs)
         #expect(back.score == current.score && back.rating == current.rating)
         // Lost: the version, trials, false starts and device. It now reads as
-        // the earlier 60-second test though it lasted 30 seconds.
+        // an earlier test, but its label keeps the length it really had.
         #expect(back.protocolVersion == 1 && back.trials.isEmpty && back.falseStarts.isEmpty && back.deviceModel == nil)
-        #expect(back.protocolLabel == "Earlier 60-second test")
+        #expect(back.protocolLabel == "Earlier 30-second test")
         // The earlier test is unchanged.
         #expect(loaded.vigilanceSessions.first { $0.id == "v1" } == earlier)
+    }
+
+    /// The earlier-test label names the length from `durationMs`, falling
+    /// back to 60 seconds (version 1) when it is missing or damaged.
+    @Test func theEarlierTestLabelFollowsTheRecordedDuration() {
+        #expect(Vigilance.protocolLabel(1, durationMs: 30_000) == "Earlier 30-second test")
+        #expect(Vigilance.protocolLabel(1, durationMs: 30_400) == "Earlier 30-second test")
+        #expect(Vigilance.protocolLabel(1, durationMs: 60_003) == "Earlier 60-second test")
+        #expect(Vigilance.protocolLabel(1) == "Earlier 60-second test")
+        for damaged in [Millis.nan, .infinity, -1, 0, 1e300] {
+            #expect(Vigilance.protocolLabel(1, durationMs: damaged) == "Earlier 60-second test", "\(damaged)")
+        }
+        #expect(Vigilance.protocolLabel(Vigilance.protocolVersion, durationMs: 30_000) == nil)
+        #expect(Vigilance.protocolLabel(Vigilance.protocolVersion + 1, durationMs: 30_000) == "Newer test version")
     }
 
     /// An unedited file from a build before #39 loads with no copy kept aside.

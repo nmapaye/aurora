@@ -18,8 +18,10 @@ private func cueShown(at cue: Millis = 1_000) -> VigilanceTaskState {
 }
 
 private func session(_ id: String, completedAt: Millis, score: Int, protocolVersion: Int, median: Double = 280) -> VigilanceSession {
-    VigilanceSession(
-        id: id, startedAt: completedAt - 30_000, completedAt: completedAt, durationMs: 30_000, trialCount: 10,
+    // Version 1 was the 60-second test; the label reads the length from durationMs.
+    let durationMs: Millis = protocolVersion == 1 ? 60_000 : 30_000
+    return VigilanceSession(
+        id: id, startedAt: completedAt - durationMs, completedAt: completedAt, durationMs: durationMs, trialCount: 10,
         validReactionCount: 10, falseStartCount: 0, lapseCount: 0, medianReactionMs: median, meanReactionMs: median,
         fastestReactionMs: median - 30, reactionStdDevMs: 20, score: score, rating: Vigilance.rating(for: score),
         protocolVersion: protocolVersion
