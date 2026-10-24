@@ -691,7 +691,7 @@ final class AssistantModel {
         let hour = p.briefingHour
         let quiet = p.quietStartHour == p.quietEndHour || (p.quietStartHour > p.quietEndHour ? hour >= p.quietStartHour || hour < p.quietEndHour : hour >= p.quietStartHour && hour < p.quietEndHour)
         guard !quiet else { failure = "Choose a briefing time outside quiet hours."; return }
-        let content = UNMutableNotificationContent(); content.title = "Your Aurora briefing"; content.body = "Open Aurora to review today’s estimated energy and commitments."
+        let content = UNMutableNotificationContent(); content.title = "Your Aurora briefing"; content.body = "Open Aurora to review today’s recorded energy and commitments."
         var date = DateComponents(); date.hour = hour; date.minute = 0
         do {
             try await center.add(.init(identifier: "aurora.assistant.briefing", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true)))
