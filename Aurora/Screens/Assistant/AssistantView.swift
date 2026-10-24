@@ -31,6 +31,8 @@ struct AssistantView: View {
         /// Aurora revealing a long card's start doesn't move them away from
         /// the latest message.
         var userScrolling = false
+        /// What a taller bottom area keeps in view (`ConversationFollow`).
+        var follow = ConversationFollow()
     }
     @State private var viewportHeight: CGFloat = 0
     /// The first message added while earlier messages were being read.
@@ -70,6 +72,7 @@ struct AssistantView: View {
                         Color.clear.frame(height: 1).id("bottom")
                             .trackingVisibility(onScreen) { visible in
                                 visibility.end = visible
+                                if visible { visibility.follow.stopFollowing() }
                                 if visible && heldMessage != nil { heldMessage = nil }
                             }
                             .onDisappear { visibility.end = false }
@@ -103,10 +106,14 @@ struct AssistantView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
-                // A taller bottom area would otherwise cover the end the person
-                // was reading; keep the end above it.
+                // A taller bottom area would otherwise cover what the person
+                // was reading: the end, or the start of the reply just revealed.
                 .onChange(of: composerHeight) { old, new in
-                    if new > old && visibility.end && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
+                    switch visibility.follow.afterBottomAreaGrew(from: old, to: new, atEnd: visibility.end, holding: heldMessage != nil) {
+                    case .start(let id): reveal(proxy, id, anchor: .top)
+                    case .end: reveal(proxy, "bottom", anchor: .bottom)
+                    case .none, .hold: break
+                    }
                 }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
@@ -162,7 +169,9 @@ struct AssistantView: View {
         let messages = assistant.conversation.messages
         let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
         windowStart = ConversationWindow.start(windowStart, count: messages.count, previousCount: old)
-        switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
+        let next = ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest)
+        visibility.follow.revealed(next)
+        switch next {
         case .none:
             if messages.isEmpty { heldMessage = nil }
         case .end:
@@ -462,6 +471,7 @@ private extension View {
         if #available(iOS 18, *) {
             onScrollPhaseChange { _, phase in
                 visibility.userScrolling = phase == .interacting || phase == .decelerating
+                if visibility.userScrolling { visibility.follow.stopFollowing() }
             }
             .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
                 let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height

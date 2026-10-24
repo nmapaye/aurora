@@ -34,6 +34,36 @@ enum ConversationReveal: Equatable {
     }
 }
 
+/// What a taller bottom area keeps in view. Right after a reply arrives the
+/// bottom area can grow: the keyboard finishing its dismissal, Stop turning
+/// back into Send, the quick actions becoming next steps. Whatever the reply
+/// revealed has to stay in view through that.
+struct ConversationFollow: Equatable {
+    /// The reply whose start was revealed last; nil once the end was shown
+    /// or the person scrolled.
+    private(set) var revealedStart: UUID?
+
+    mutating func revealed(_ reveal: ConversationReveal) {
+        switch reveal {
+        case .end: revealedStart = nil
+        case .start(let id): revealedStart = id
+        case .none, .hold: break
+        }
+    }
+
+    /// The person scrolled, or (before iOS 18) the end came into view: where
+    /// they read is theirs again.
+    mutating func stopFollowing() { revealedStart = nil }
+
+    /// - Parameter atEnd: the end was on screen when last known. On iOS 18
+    ///   and later only the person's own scrolling updates it, so it is
+    ///   still true after Aurora revealed a long reply's start.
+    func afterBottomAreaGrew(from old: CGFloat, to new: CGFloat, atEnd: Bool, holding: Bool) -> ConversationReveal {
+        guard new > old, atEnd, !holding else { return .none }
+        return .end
+    }
+}
+
 /// Which messages the conversation renders. It is a plain stack, not a lazy
 /// one: on iOS 26.5 the lazy stack's estimated row heights kept the scroll
 /// view re-adjusting its offset forever (an iPad hang after saving a draft
