@@ -19,7 +19,7 @@ Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. I
 
 HealthKit is read-only and optional. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. Google Calendar requires direct Google authentication and network requests; local account tokens are protected in Keychain. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
 
-Aurora is informational, not a medical device. Estimates cannot establish the cause of fatigue or prescribe caffeine doses or sleep schedules.
+Estimates can’t establish the cause of fatigue, and Aurora doesn’t prescribe caffeine doses or sleep schedules. It is not a medical device. Informational only. Doesn’t diagnose, treat, cure or prevent any condition. Check with a doctor before medical decisions.
 
 ## Access and gates
 

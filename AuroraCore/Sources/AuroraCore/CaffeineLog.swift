@@ -270,7 +270,7 @@ public enum SummarySignals {
         guard let latest else {
             return SignalCardModel(
                 id: "reaction-test", label: "Reaction Test", period: "No test yet", status: .empty,
-                context: "A 60-second test of reaction speed.", destination: "Take Reaction Test"
+                context: "A \(Vigilance.durationAdjective) test of reaction speed.", destination: "Take Reaction Test"
             )
         }
         let sample = RecordID.isSample(latest.id)
@@ -281,7 +281,7 @@ public enum SummarySignals {
             source: sample ? "Sample Data" : nil,
             status: sample ? .sample : .observed,
             value: "\(latest.score)",
-            context: latest.medianReactionMs.map { "\(latest.rating.rawValue) · \(jsRoundInt($0)) ms median" } ?? latest.rating.rawValue,
+            context: latest.displayLabel,
             destination: "Take Reaction Test"
         )
     }

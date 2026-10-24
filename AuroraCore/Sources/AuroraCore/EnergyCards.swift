@@ -20,8 +20,12 @@ public struct EnergyReaction: Codable, Equatable, Identifiable, Sendable {
     public var id: String
     public var completedAt: Millis
     public var score: Int
+    /// Stored for older snapshots; never shown.
     public var rating: String
     public var sample: Bool
+    /// The median shown instead of a rating word. Snapshots captured before
+    /// it existed have none and show the score alone.
+    public var displayLabel: String?
 }
 
 /// Everything an energy card shows, captured once. Old cards keep this
@@ -71,7 +75,7 @@ public struct EnergySnapshot: Codable, Equatable, Sendable {
                 .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) },
             reactions: state.vigilanceSessions.filter { $0.completedAt >= windowStart && $0.completedAt <= now }
                 .sorted { ($0.completedAt, $0.id) > ($1.completedAt, $1.id) }
-                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id)) },
+                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id), displayLabel: $0.displayLabel) },
             outlook: EnergyOutlook.make(state: state, now: now, clock: clock)
         )
     }

@@ -1,5 +1,7 @@
 import Foundation
 
+/// Stored with each session so older files keep decoding. Never shown: the
+/// words read as a verdict, so results show `VigilanceSession.displayLabel`.
 public enum VigilanceRating: String, Codable, Sendable, CaseIterable {
     case sharp = "Sharp"
     case steady = "Steady"
@@ -55,6 +57,16 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
         self.score = score
         self.rating = rating
     }
+
+    /// What a result shows in place of a rating word: the median, or that no
+    /// tap counted.
+    public var displayLabel: String {
+        medianReactionMs.map { "\(jsRoundInt($0)) ms median" } ?? "No valid taps recorded"
+    }
+
+    public var accessibilityLabel: String {
+        medianReactionMs.map { "Median reaction time \(jsRoundInt($0)) milliseconds." } ?? "No valid taps were recorded in this test."
+    }
 }
 
 public enum VigilanceTrialResult: Equatable, Sendable {
@@ -106,11 +118,15 @@ public struct VigilanceTaskState: Equatable, Sendable {
     }
 }
 
-/// The 60-second Reaction Test as a pure state machine. The screen owns the
-/// timer; it calls `advance` when the next event is due and `tap` on each
-/// press. `randomValue` is in [0, 1) and picks the delay before the next cue.
+/// The Reaction Test (length: `testDurationMs`) as a pure state machine.
+/// The screen owns the timer; it calls `advance` when the next event is due
+/// and `tap` on each press. `randomValue` is in [0, 1) and picks the delay before the next cue.
 public enum Vigilance {
     public static let testDurationMs: Millis = 60_000
+    public static let testDurationSeconds = Int(testDurationMs / 1000)
+    /// Copy interpolates these instead of restating the length.
+    public static let durationAdjective = "\(testDurationSeconds)-second"
+    public static let durationPhrase = "\(testDurationSeconds) seconds"
     public static let minDelayMs: Millis = 2_000
     public static let maxDelayMs: Millis = 5_000
     public static let responseWindowMs: Millis = 1_000

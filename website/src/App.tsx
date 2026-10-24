@@ -21,7 +21,7 @@ const features = [
   },
   {
     title: 'Reaction test',
-    body: 'A short on-device reaction test gives a measured result alongside your records.',
+    body: 'A 30-second on-device reaction test records your reaction times next to your other records.',
   },
   {
     title: 'Exports and reminders',
@@ -69,7 +69,7 @@ export default function App() {
             <h1>Understand your energy, one honest record at a time.</h1>
             <p className="hero-text">
               Aurora is a native assistant for recording sleep and caffeine, reviewing clearly labelled
-              estimates and measured reaction tests, and keeping selected commitments in view.
+              estimates and timed reaction tests, and keeping selected commitments in view.
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href="#preview">
@@ -80,7 +80,8 @@ export default function App() {
               </a>
             </div>
             <p className="hero-note">
-              Aurora does not diagnose fatigue or prescribe caffeine or sleep schedules.
+              Aurora doesn’t prescribe caffeine or sleep schedules. Informational only. Doesn’t diagnose,
+              treat, cure or prevent any condition. Check with a doctor before medical decisions.
             </p>
           </div>
         </section>
