@@ -60,6 +60,8 @@ struct ConversationFollow: Equatable {
     ///   still true after Aurora revealed a long reply's start.
     func afterBottomAreaGrew(from old: CGFloat, to new: CGFloat, atEnd: Bool, holding: Bool) -> ConversationReveal {
         guard new > old, atEnd, !holding else { return .none }
+        // A short reply's start clamps to the end, so it still shows whole.
+        if let revealedStart { return .start(revealedStart) }
         return .end
     }
 }
