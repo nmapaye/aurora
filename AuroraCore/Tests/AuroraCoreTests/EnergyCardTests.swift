@@ -79,9 +79,12 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
 
     @Test func contributionsShowSleepCaffeineAndTimeOfDay() throws {
         let dose = Dose(id: "lx1", timestamp: now - 2 * hourMs, mg: 120, source: "Drip")
-        let card = AssistantCards.make(.energy, state: state(doses: [dose], sleeps: [night]), now: now, clock: pacific, text: text(pacific))
+        var targeted = state(doses: [dose], sleeps: [night])
+        targeted.prefs.targetSleep = 8
+        let card = AssistantCards.make(.energy, state: targeted, now: now, clock: pacific, text: text(pacific))
         let estimate = try #require(card.energy?.estimate)
         #expect(estimate.contributions.map(\.kind) == EnergyContribution.Kind.allCases)
+        #expect(!estimate.missingInputs.contains(.sleepTarget))
         #expect(EnergyContribution.Kind.allCases.map(\.label).allSatisfy { !$0.isEmpty && CopyRules.violations(in: $0).isEmpty })
         #expect(EnergyContribution.Kind.timeOfDay.label.contains("generic"))
         #expect(card.metrics.first { $0.id == "activeCaffeine" }?.value == "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg")

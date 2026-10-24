@@ -4,9 +4,13 @@ import Foundation
 /// does not reveal read decisions.
 public enum OnboardingCopy {
     public static let stepCount = 3
-    public static let sleepTargetRange: ClosedRange<Double> = 5...10
+    /// 5–11 h: the NSF "may be appropriate" bands reach 6–11 h for adults
+    /// under 65 and about 5 h from 65 (Hirshkowitz 2015).
+    public static let sleepTargetRange: ClosedRange<Double> = 5...11
     public static let sleepTargetStep: Double = 0.5
+    /// Offered with none selected: the person chooses.
     public static let sleepTargetPresets: [Double] = [7, 8, 9]
+    public static let noSleepTargetNote = "No sleep target set. You can choose one in Settings."
     /// Two columns need this much width, and text no larger than this scale.
     public static let splitLayoutMinWidth: Double = 800
     public static let splitLayoutMaxFontScale: Double = 1.35
@@ -142,7 +146,7 @@ public enum CutoffReminder {
 /// universal caffeine limit. Tests run every user-facing string through this.
 public enum CopyRules {
     public static let forbiddenPattern =
-        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence)\b"#
+        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence|experts? recommends?|\d+ or more hours|\d+(\.\d+)?\s*[–-]\s*\d+(\.\d+)?\s*(h|hours?)\b)"#
 
     /// Disclaimers that negate the idea are allowed.
     public static let allowedSentences = ["It is not a recommended or safe amount."]

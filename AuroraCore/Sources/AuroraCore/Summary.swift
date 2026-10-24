@@ -15,10 +15,12 @@ public enum AlertnessEstimate: Equatable, Sendable {
 
 public struct EstimateInputs: Sendable {
     public var halfLifeHours: Double
-    public var targetSleepHours: Double
+    /// Nil until the person sets a target; the model then leaves out its
+    /// sleep-target term (`SleepDebt.value`).
+    public var targetSleepHours: Double?
     public var clock: LocalClock
 
-    public init(halfLifeHours: Double, targetSleepHours: Double, clock: LocalClock) {
+    public init(halfLifeHours: Double, targetSleepHours: Double?, clock: LocalClock) {
         self.halfLifeHours = halfLifeHours
         self.targetSleepHours = targetSleepHours
         self.clock = clock
@@ -45,6 +47,21 @@ public enum Summary {
     ) -> AlertnessEstimate {
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
         guard sleepHours > 0 else { return .needsSleep }
+        return estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs, sleepHours: sleepHours,
+                                 reference: inputs.sleepReference(at: t, sleeps: sleeps))
+    }
+
+    /// With the sleep reference already resolved (`EstimateInputs.sleepReference`):
+    /// the chosen target, else the person's usual sleep, else none.
+    static func estimateAlertness(
+        at t: Millis,
+        doses: [Dose],
+        sleeps: [SleepSession],
+        inputs: EstimateInputs,
+        sleepHours: Double,
+        reference: SleepReference?
+    ) -> AlertnessEstimate {
+        guard sleepHours > 0 else { return .needsSleep }
         let windowStart = t - dayMs
         let includesSample =
             sleeps.contains { $0.end > windowStart && $0.start <= t && RecordID.isSample($0.id) } ||
@@ -54,7 +71,7 @@ public enum Summary {
             doses: doses,
             sleeps: sleeps,
             halfLifeHours: inputs.halfLifeHours,
-            targetSleepHours: inputs.targetSleepHours,
+            targetSleepHours: reference?.hours,
             clock: inputs.clock
         )
         return .estimated(score: jsRoundInt(score), sleepHours: sleepHours, includesSample: includesSample)

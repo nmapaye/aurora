@@ -84,10 +84,11 @@ public enum HealthImport {
     /// asleep (unspecified) 1, core 3, deep 4, REM 5.
     public static let asleepValues: Set<Int> = [1, 3, 4, 5]
 
-    /// Nights rather than samples: one Watch night can be dozens of stage
-    /// segments.
+    /// Episodes rather than samples: one Watch night can be dozens of stage
+    /// segments, and a night with an awakening under 90 minutes is one night
+    /// (`SleepEpisodes.joinGapMs`, the rule every screen uses).
     public static func countNights(_ samples: [HealthSleepSample]) -> Int {
-        SleepIntervals.merge(samples.map { Interval(start: $0.start, end: $0.end) }, gapMs: SleepIntervals.briefAwakeningMs).count
+        SleepEpisodes.spans(samples.map { Interval(start: $0.start, end: $0.end) }).count
     }
 
     public static func describeImportedNights(_ nights: Int) -> String {
@@ -125,7 +126,9 @@ public enum HealthImport {
         state.healthSync.importedCount = nights
         state.healthSync.importStatus = hasMore ? .partial : .succeeded
         state.healthSync.lastSyncedAt = now
-        state.healthSync.lastMessage = hasMore ? partialMessage : describeImportedNights(nights)
+        state.healthSync.lastMessage = hasMore
+            ? partialMessage
+            : (nights == 0 && !state.timeInBed.isEmpty ? InBed.onlyInBedMessage : describeImportedNights(nights))
     }
 
     public static let partialMessage =

@@ -21,6 +21,12 @@ struct SettingsView: View {
     /// The one name for the links into this screen from Aurora settings and
     /// Your records.
     static let recordsTitle = "Records, exports and privacy"
+    /// 5–11 h in half hours, the same range setup offers.
+    static let sleepTargetChoices: [Double] = stride(
+        from: OnboardingCopy.sleepTargetRange.lowerBound,
+        through: OnboardingCopy.sleepTargetRange.upperBound,
+        by: OnboardingCopy.sleepTargetStep
+    ).map { $0 }
 
     /// True when pushed onto another screen's NavigationStack. A second
     /// stack nested inside it crashed iPadOS 26's focus system as soon as
@@ -58,10 +64,20 @@ struct SettingsView: View {
                     }
                     footnote("Used to estimate active caffeine.")
                     Divider()
-                    stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
+                    // Nothing is chosen for the person: "No target set" until they pick one.
+                    Picker("Daily sleep target", selection: Binding(get: { prefs.targetSleep }, set: { v in
                         model.setPrefs { $0.targetSleep = v }
+                    })) {
+                        Text(SleepModel.noTargetText).tag(Double?.none)
+                        // A stored value outside the list (from an earlier range) stays selectable.
+                        ForEach(Self.sleepTargetChoices + [prefs.targetSleep].compactMap { $0 }.filter { !Self.sleepTargetChoices.contains($0) }, id: \.self) { hours in
+                            Text(hoursText(hours)).tag(Double?.some(hours))
+                        }
                     }
-                    footnote("Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.")
+                    .pickerStyle(.menu)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    .accessibilityIdentifier("settings-sleep-target")
+                    footnote("Your own sleep goal. Sleep compares recorded nights with it, and the alertness estimate uses it.")
                     Divider()
                     stepper("Personal caffeine reference", value: prefs.dailyLimitMg, in: 0...1000, step: 20, text: { "\(numberText($0)) mg" }) { v in
                         model.setPrefs { $0.dailyLimitMg = v }

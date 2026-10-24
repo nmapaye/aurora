@@ -15,7 +15,7 @@ struct HealthConnectionView: View {
         let state = app.state
         let status = SleepDataStatus.describe(
             onboarding: state.onboarding, healthSync: state.healthSync,
-            demoMode: state.demoMode, healthAvailable: app.healthAvailable
+            demoMode: state.demoMode, healthAvailable: app.healthAvailable, hasTimeInBed: !state.timeInBed.isEmpty
         )
         NavigationStack {
             ScrollView {

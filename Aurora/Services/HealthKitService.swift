@@ -34,7 +34,7 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     /// entitlement, declared in `Aurora.entitlements`. Without it Health
     /// refuses `enableBackgroundDelivery`, and the choice stays off.
     var capabilities: HealthCapabilities {
-        [.authorization, .readSleep, .readSleepChanges, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine,
+        [.authorization, .readSleep, .readSleepChanges, .readInBed, .readCaffeineChanges, .writeOwnCaffeine, .deleteOwnCaffeine,
          .observeChanges, .backgroundDelivery]
     }
 
@@ -81,6 +81,31 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
                 HealthSleepSample(
                     start: ($0.startDate.timeIntervalSince1970 * 1000).rounded(),
                     end: ($0.endDate.timeIntervalSince1970 * 1000).rounded()
+                )
+            }
+    }
+
+    /// "In bed" samples (iPhone's estimate from phone use and the sleep
+    /// schedule) overlapping the window, with their UUID and source. Read
+    /// under the same Sleep Analysis permission, and kept apart from sleep.
+    func inBedSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] {
+        guard isAvailable else { throw Failure.unavailable }
+        let predicate = HKQuery.predicateForSamples(
+            withStart: Date(timeIntervalSince1970: start / 1000),
+            end: Date(timeIntervalSince1970: end / 1000),
+            options: []
+        )
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: sleepType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        return try await descriptor.result(for: store)
+            .filter { $0.value == InBed.healthValue }
+            .map {
+                HealthSleepSample(
+                    start: ($0.startDate.timeIntervalSince1970 * 1000).rounded(),
+                    end: ($0.endDate.timeIntervalSince1970 * 1000).rounded(),
+                    provenance: provenance($0)
                 )
             }
     }

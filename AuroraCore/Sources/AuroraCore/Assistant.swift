@@ -217,8 +217,12 @@ public enum AssistantPlanner {
         return result
     }
 
-    /// A historical default, not a recommended sleep schedule. Circular clock
-    /// arithmetic keeps late bedtimes around midnight together and excludes naps.
+    /// A historical default, not a recommended sleep schedule. Bedtime is the
+    /// circular median (`UsualSleepTiming.circularMedian`), so bedtimes
+    /// either side of midnight, and a daytime sleeper's, stay together;
+    /// naps are excluded. Its manual-only, 30-day, 3-night gate is kept:
+    /// whether a draft may be proposed from history is an open product
+    /// question (sleep-and-check-in §8 Q4).
     public static func usualNight(_ sessions: [SleepSession], now: Millis, clock: LocalClock) -> ManualSleep.Draft? {
         let nights = sessions.filter {
             RecordID.isManualSleep($0.id) && $0.type == .sleep && $0.end <= now && $0.end >= now - 30 * dayMs &&
@@ -229,12 +233,7 @@ public enum AssistantPlanner {
             let sorted = values.sorted(); let middle = sorted.count / 2
             return sorted.count.isMultiple(of: 2) ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
         }
-        let minutes = nights.map { night -> Double in
-            let date = Date(timeIntervalSince1970: night.start / 1000)
-            let parts = clock.calendar.dateComponents([.hour, .minute], from: date)
-            return Double(((parts.hour ?? 0) * 60 + (parts.minute ?? 0) + 720) % 1440)
-        }
-        let bedtime = (Int(median(minutes)) + 720) % 1440
+        let bedtime = UsualSleepTiming.circularMedian(nights.map { UsualSleepTiming.minuteOfDay($0.start, clock: clock) })
         var start = clock.setTime(now, hour: bedtime / 60, minute: bedtime % 60)
         if start > now - 3 * hourMs { start = clock.addingDays(-1, to: start) }
         let end = min(now, start + median(nights.map { $0.end - $0.start }))

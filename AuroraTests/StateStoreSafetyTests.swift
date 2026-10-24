@@ -115,6 +115,62 @@ import Testing
         #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
     }
 
+    // MARK: Sleep target without a default
+
+    /// A file from a build that pre-selected 8 h, as it was written.
+    private func writeTargetFixture(target: Double, sleepTargetOutcome: String) throws {
+        try StateStore(directory: storeDirectory).prepare()
+        let file = #"{"schemaVersion":2,"doses":[],"sleeps":[],"vigilanceSessions":[],"energyCheckIns":[],"demoMode":false,"appearanceMode":"system","prefs":{"halfLife":5,"targetSleep":\#(target),"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false},"onboarding":{"completed":true,"source":"manual","permissionStatus":"unsupported","appWalkthroughCompleted":true,"appWalkthroughStep":9,"setupStep":7,"setupOutcomes":{"0":"answered","2":"\#(sleepTargetOutcome)"}},"healthSync":{"importedCount":0,"importStatus":"idle"}}"#
+        try Data(file.utf8).write(to: stateFile)
+    }
+
+    @Test func eightHoursKeptBySkippingSetupLoadsUnsetAndStaysUnset() throws {
+        try writeTargetFixture(target: 8, sleepTargetOutcome: "skipped")
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .ready)
+        #expect(model.state.prefs.targetSleep == nil)
+        // Nothing else is touched, and no damaged-file copy is made for it.
+        #expect(model.state.prefs.cutoffHour == 16 && model.state.onboarding.completed)
+        #expect(StateStore(directory: storeDirectory).corruptBackups().isEmpty)
+
+        model.setPrefs { $0.cutoffHour = 13 }
+        #expect(String(decoding: try Data(contentsOf: stateFile), as: UTF8.self).contains(#""sleepTargetFormat":1"#))
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.state.prefs.targetSleep == nil)
+
+        // Choosing 8 h afterwards is the person's own and survives relaunch.
+        relaunched.setPrefs { $0.targetSleep = 8 }
+        let again = makeModel()
+        again.load()
+        #expect(again.state.prefs.targetSleep == 8)
+    }
+
+    @Test func timeInBedLoadsApartFromSleepAndUndateableOnesAreDropped() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        var edited = AppState()
+        edited.onboarding.completed = true
+        edited.timeInBed = [
+            TimeInBed(id: "healthkit:inbed:ok", start: 1_790_000_000_000, end: 1_790_028_800_000, sourceName: "iPhone"),
+            TimeInBed(id: "healthkit:inbed:huge", start: 1e300, end: 2e300),
+        ]
+        try StateMigration.encode(edited).write(to: stateFile)
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .ready)
+        #expect(model.state.timeInBed.map(\.id) == ["healthkit:inbed:ok"])
+        #expect(model.state.sleeps.isEmpty)
+        #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
+    }
+
+    @Test func aTargetChosenAtSetupIsKept() throws {
+        try writeTargetFixture(target: 8, sleepTargetOutcome: "answered")
+        let model = makeModel()
+        model.load()
+        #expect(model.state.prefs.targetSleep == 8)
+    }
+
     // MARK: Erase
 
     @Test func eraseRemovesUnfinishedSavesAndExports() throws {
