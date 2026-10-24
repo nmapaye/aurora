@@ -24,7 +24,6 @@ concurrency:
 jobs:
   testflight:
     name: Archive and upload to TestFlight
-    if: github.ref == 'refs/heads/main'
     runs-on: macos-26
     timeout-minutes: 60
     environment: release
@@ -33,6 +32,10 @@ jobs:
       # Raise if builds were ever uploaded by hand with higher numbers.
       BUILD_NUMBER_OFFSET: ${{ vars.BUILD_NUMBER_OFFSET || '0' }}
     steps:
+      - name: Require main
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then echo "::error::release only runs on main"; exit 1; fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +61,8 @@ jobs:
           set -euo pipefail
           # run_number is fixed across re-runs, so the attempt is appended:
           # 12.1 < 12.2 < 13.1, and every attempt gets an unused number.
+          BUILD_NUMBER_OFFSET="${BUILD_NUMBER_OFFSET:-0}"
+          [[ "$BUILD_NUMBER_OFFSET" =~ ^[0-9]+$ ]] || { echo "::error::BUILD_NUMBER_OFFSET must be a non-negative integer"; exit 1; }
           build="$((RUN_NUMBER + BUILD_NUMBER_OFFSET)).${RUN_ATTEMPT}"
           echo "build=$build" >> "$GITHUB_OUTPUT"
           echo "Build number: $build"
@@ -65,10 +70,11 @@ jobs:
       - name: Preflight signing configuration
         run: |
           set -euo pipefail
-          team=$(xcodebuild -showBuildSettings \
+          settings=$(xcodebuild -showBuildSettings -json \
             -project Aurora.xcodeproj -scheme Aurora -configuration Release \
-            -destination 'generic/platform=iOS' 2>/dev/null \
-            | awk -F' = ' '/^ *DEVELOPMENT_TEAM = / {print $2; exit}')
+            -destination 'generic/platform=iOS' 2>/dev/null) || {
+            echo "::error::xcodebuild -showBuildSettings failed"; exit 1; }
+          team=$(python3 -c 'import json,sys; print(next((t["buildSettings"].get("DEVELOPMENT_TEAM","") for t in json.load(sys.stdin) if t["target"]=="Aurora"),""))' <<< "$settings")
           export_team=$(/usr/libexec/PlistBuddy -c 'Print :teamID' Config/ExportOptions.plist)
           if ! [[ "$team" =~ ^[A-Z0-9]{10}$ ]]; then
             echo "::error file=Config/Signing.xcconfig::DEVELOPMENT_TEAM is not set to a 10-character Team ID."
@@ -102,6 +108,10 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           BUILD_NUMBER: ${{ steps.version.outputs.build }}
         run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ]; then
+            echo "::error::ASC_KEY_ID and ASC_ISSUER_ID must be set in the release environment."
+            exit 1
+          fi
           mkdir -p build
           set +e
           xcodebuild archive \
@@ -118,6 +128,9 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             > build/xcodebuild-archive.log 2>&1
           status=$?
+          if [ -f build/xcodebuild-archive.log ]; then
+            sed -i '' -e "s/${ASC_KEY_ID}/[REDACTED]/g" -e "s/${ASC_ISSUER_ID}/[REDACTED]/g" build/xcodebuild-archive.log
+          fi
           grep -E "error:|\*\* .* \*\*" build/xcodebuild-archive.log | head -200
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-archive.log
           exit $status
@@ -132,6 +145,9 @@ jobs:
           pb() { /usr/libexec/PlistBuddy -c "Print :$1" "$2" 2>/dev/null; }
           fail=0
 
+          for key in CFBundleShortVersionString CFBundleVersion CFBundleIdentifier; do
+            pb "$key" "$info" >/dev/null || { echo "::error::Archived Info.plist is missing $key"; exit 1; }
+          done
           version=$(pb CFBundleShortVersionString "$info")
           build=$(pb CFBundleVersion "$info")
           bundle=$(pb CFBundleIdentifier "$info")
@@ -181,6 +197,9 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             > build/xcodebuild-export.log 2>&1
           status=$?
+          if [ -f build/xcodebuild-export.log ]; then
+            sed -i '' -e "s/${ASC_KEY_ID}/[REDACTED]/g" -e "s/${ASC_ISSUER_ID}/[REDACTED]/g" build/xcodebuild-export.log
+          fi
           grep -E "error:|\*\* .* \*\*|Upload|upload" build/xcodebuild-export.log | head -200
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-export.log
           if [ -f "$EXPORT_PATH/DistributionSummary.plist" ]; then
