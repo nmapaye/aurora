@@ -18,19 +18,31 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     /// maps it the same way.
     private var colors: [String: String] = [:]
     private struct Token: Codable { var accessToken: String; var refreshToken: String?; var expiresAt: Date }
+    /// Info.plist lookup; tests inject values instead of the app bundle's.
+    private let infoValue: (String) -> Any?
     var configured: Bool {
         guard let clientID, let callbackScheme, !clientID.isEmpty, !callbackScheme.isEmpty else { return false }
-        let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
+        let types = infoValue("CFBundleURLTypes") as? [[String: Any]] ?? []
         return types.contains { ($0["CFBundleURLSchemes"] as? [String])?.contains(callbackScheme) == true }
     }
-    var connected: Bool { token != nil }
-    private var clientID: String? { Bundle.main.object(forInfoDictionaryKey: "AuroraGoogleClientID") as? String }
-    private var callbackScheme: String? { Bundle.main.object(forInfoDictionaryKey: "AuroraGoogleCallbackScheme") as? String }
-    override init() {
+    /// A token left in the Keychain by a build that had a client ID does not
+    /// count when this build has none, so an unconfigured build never calls Google.
+    var connected: Bool { configured && token != nil }
+    private var clientID: String? { infoValue("AuroraGoogleClientID") as? String }
+    private var callbackScheme: String? { infoValue("AuroraGoogleCallbackScheme") as? String }
+    override convenience init() {
+        self.init(infoValue: { Bundle.main.object(forInfoDictionaryKey: $0) }, storedToken: GoogleCalendarProvider.keychainToken)
+    }
+    /// Test seam: Info.plist values and the stored token come from the caller.
+    init(infoValue: @escaping (String) -> Any?, storedToken: (_ account: String) -> Data?) {
+        self.infoValue = infoValue
         super.init()
+        if let data = storedToken(account) { token = try? JSONDecoder().decode(Token.self, from: data) }
+    }
+    private static func keychainToken(account: String) -> Data? {
         var result: CFTypeRef?
-        if SecItemCopyMatching([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne] as CFDictionary, &result) == errSecSuccess,
-           let data = result as? Data { token = try? JSONDecoder().decode(Token.self, from: data) }
+        guard SecItemCopyMatching([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne] as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first { $0.isKeyWindow } ?? ASPresentationAnchor()
@@ -100,7 +112,8 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         token = next
     }
     private func request(path: String, query: [URLQueryItem] = [], method: String = "GET", body: Data? = nil, etag: String? = nil) async throws -> Data {
-        guard let existing = token else { throw CalendarActionError.unavailable }
+        // Every Google call, the token refresh included, needs a configured build.
+        guard connected, let existing = token else { throw CalendarActionError.unavailable }
         if existing.expiresAt < .now.addingTimeInterval(60) {
             guard let refresh = existing.refreshToken, let clientID else { throw CalendarActionError.unavailable }
             try await exchange(["client_id": clientID, "refresh_token": refresh, "grant_type": "refresh_token"])
