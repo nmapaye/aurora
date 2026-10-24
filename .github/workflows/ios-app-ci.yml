@@ -166,7 +166,42 @@ jobs:
           fi
           echo "Simulator Info.plist keeps NSAllowsLocalNetworking."
 
+      # testLongCardArrivesShowingItsStart failed intermittently on iPhone
+      # (about 2 in 25 runs). Run it alone up to 40 times and stop at the
+      # first failure. Never -retry-tests-on-failure here: a retry would turn
+      # the flake green and hide it. Each iteration launches the app (about
+      # 10 to 40 seconds), so 40 fit well inside the timeout.
+      - name: Repeat the long-card UI test
+        id: repeat
+        if: matrix.device == 'iPhone'
+        timeout-minutes: 40
+        run: |
+          set +e
+          if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
+            echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
+            exit 1
+          fi
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testLongCardArrivesShowingItsStart \
+            -test-iterations 40 \
+            -run-tests-until-failure \
+            -resultBundlePath build/LongCardRepeat.xcresult \
+            > build/xcodebuild-repeat.log 2>&1
+          status=$?
+          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-repeat.log | head -200
+          echo "Iterations run: $(grep -cE "Test Case '.*testLongCardArrivesShowingItsStart\]' (passed|failed)" build/xcodebuild-repeat.log)"
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-repeat.log
+          exit $status
+
+      # Still runs after the repeat step fails, so a flake doesn't hide the
+      # rest of the suite's results; not after a failed build.
       - name: Test
+        if: success() || steps.repeat.outcome == 'failure'
         run: |
           set +e
           xcodebuild test-without-building \
@@ -223,6 +258,7 @@ jobs:
           path: |
             build/*.log
             build/AuroraTests.xcresult
+            build/LongCardRepeat.xcresult
 
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
