@@ -71,10 +71,28 @@ Select the Apple Developer team that owns the identifier and use automatic
 signing for device and archive builds. Simulator builds don't need a team, but
 HealthKit only works in a signed build.
 
-Xcode owns release numbering:
+Signing lives in `Config/Signing.xcconfig`, the app target's base
+configuration: `DEVELOPMENT_TEAM` and automatic signing. Don't choose a team in
+Signing & Capabilities; that writes a target setting that overrides the file.
+For a personal override, create the gitignored `Config/Signing.local.xcconfig`
+with `DEVELOPMENT_TEAM = <your team>`.
 
-- Marketing version: `0.1.0`
-- Build number: `1`, incremented before every App Store Connect upload
+Release numbering:
+
+- Marketing version: `0.1.0`, set in the target.
+- Build number: set by the Release workflow as `<run number>.<attempt>`
+  (plus the `BUILD_NUMBER_OFFSET` repository variable, default 0). Local
+  archives keep `CURRENT_PROJECT_VERSION = 1` and must not be uploaded.
+
+## Release workflow (TestFlight)
+
+`.github/workflows/release.yml` runs only from `main` on manual dispatch. It
+archives with `xcodebuild` using cloud-managed automatic signing and uploads to
+App Store Connect. The `release` environment requires the owner's approval and
+holds `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8` (base64 of the team API
+key's `.p8`, Admin role). Before the first run, set the Team ID in
+`Config/Signing.xcconfig` and `Config/ExportOptions.plist`, and create the App
+Store Connect app record for `com.nmapaye.aurora`.
 
 ## Archive and Distribute
 
