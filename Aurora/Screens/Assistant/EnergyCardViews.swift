@@ -179,7 +179,7 @@ struct EnergyTimelineChart: View {
     }
 
     private func spoken(_ point: EnergyProjection.Point) -> String {
-        let score = point.modeledScore.map { "\(EnergyEstimate.title) \($0)" } ?? "No modeled score, no sleep recorded in the 24 hours before"
+        let score = point.modeledScore.map { "\(EnergyEstimate.title) \($0)" } ?? "No modeled score, no sleep of at least 3 hours ended in the 18 hours before"
         return "\(text.fullDateTime(point.t)), \(score). \(point.kind.label)."
     }
 

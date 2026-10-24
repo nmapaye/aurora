@@ -394,7 +394,9 @@ struct AssistantCardView: View {
             Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
             Text(item.value).font(Typography.heroValue).monospacedDigit()
             if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
-        }.accessibilityElement(children: .combine)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([item.label, item.value, item.source, item.detail].filter { !$0.isEmpty }.joined(separator: ". "))
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
