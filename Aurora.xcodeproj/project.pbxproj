@@ -38,6 +38,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Aurora.entitlements,
+				"Info-Simulator.plist",
 				Info.plist,
 			);
 			target = 3D4C91345015A4DD0A099400 /* Aurora */;
@@ -368,6 +369,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Aurora/Info.plist;
+				"INFOPLIST_FILE[sdk=iphonesimulator*]" = "Aurora/Info-Simulator.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = AURORA;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
@@ -400,6 +402,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Aurora/Info.plist;
+				"INFOPLIST_FILE[sdk=iphonesimulator*]" = "Aurora/Info-Simulator.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = AURORA;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.health-fitness";
