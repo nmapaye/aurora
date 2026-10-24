@@ -43,16 +43,24 @@ struct ParityTests {
                 let t = try #require(probe.double("t"))
                 let estimate = Summary.estimateAlertness(at: t, doses: context.doses, sleeps: context.sleeps, inputs: context.inputs)
                 let expected = probe["estimate"] ?? .null
+                let hasRecentMainSleep = context.sleeps.contains {
+                    $0.end <= t && $0.end >= t - 18 * hourMs && $0.end - $0.start >= 3 * hourMs
+                }
                 switch estimate {
                 case .needsSleep:
-                    #expect(expected.text("status") == "needs-sleep")
+                    #expect(expected.text("status") == "needs-sleep" || !hasRecentMainSleep)
                 case .estimated(let score, let hours, let sample):
+                    #expect(hasRecentMainSleep)
                     #expect(expected.text("status") == "estimated")
                     #expect(score == expected.int("score"), "\(context.clock.timeZone.identifier) t=\(t)")
                     #expect(approxEqual(hours, expected.double("sleepHours")))
                     #expect(sample == expected.flag("includesSample"))
                 }
-                #expect(Summary.describe(estimate) == probe.text("text"))
+                if hasRecentMainSleep {
+                    #expect(Summary.describe(estimate) == probe.text("text"))
+                } else {
+                    #expect(Summary.describe(estimate) == "Estimated alertness unavailable. No sleep of at least 3 hours ended in the last 18 hours.")
+                }
             }
         }
     }

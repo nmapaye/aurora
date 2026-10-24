@@ -287,7 +287,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
         tapQuick("How is my energy?")
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Unavailable"].exists)
+        XCTAssertTrue(app.staticTexts["Needs sleep"].exists)
     }
     func testEnergyCurveShowsModeledLabelsWithoutRecords() {
         finishSetup()

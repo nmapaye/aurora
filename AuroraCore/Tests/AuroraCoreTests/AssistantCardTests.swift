@@ -19,10 +19,23 @@ import Testing
         let card = AssistantCards.make(.energy, state: AppState(), now: now, clock: clock, text: text)
         #expect(card.metrics.first { $0.id == "caffeine" }?.value == "No record")
         #expect(card.metrics.first { $0.id == "sleep" }?.value == "No record")
-        #expect(card.metrics.first { $0.id == "alertness" }?.value == "Unavailable")
+        #expect(card.metrics.first { $0.id == "alertness" }?.value == "Needs sleep")
         // No cause is offered for how someone feels, in the summary or metrics.
         let text = ([card.summary] + card.metrics.map { "\($0.value) \($0.detail ?? "")" }).joined(separator: " ").lowercased()
         #expect(!text.contains("because") && !text.contains("due to") && !text.contains("caused"))
+    }
+    @Test(arguments: [AssistantCard.Kind.energy, .briefing]) func energySurfacesNeedMainSleep(kind: AssistantCard.Kind) throws {
+        var state = AppState()
+        state.sleeps = [
+            .init(id: "manual:sleep:nap:a", start: now - 8 * hourMs, end: now - 6 * hourMs),
+            .init(id: "manual:sleep:nap:b", start: now - 4 * hourMs, end: now - 2 * hourMs),
+        ]
+
+        let card = AssistantCards.make(kind, state: state, now: now, clock: clock, text: text)
+        let alertness = try #require(card.metrics.first { $0.id == "alertness" })
+        #expect(alertness.value == "Needs sleep")
+        #expect(alertness.missing)
+        #expect(alertness.detail.contains("No sleep of at least 3 hours ended in the 18 hours before"))
     }
     @Test func snapshotStaysFixedWhenRecordsChange() {
         var state = AppState()
