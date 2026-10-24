@@ -393,6 +393,37 @@ extension AppState {
             prefs.targetSleep = nil
         }
         sleepTargetFormat = SleepTargetMigration.currentFormat
+        // The record of a chosen 8 h is only for the migration above.
+        if onboarding.setupOutcomes?[SleepTargetMigration.chosenKey] != nil {
+            onboarding.setupOutcomes?[SleepTargetMigration.chosenKey] = nil
+            if onboarding.setupOutcomes?.isEmpty == true { onboarding.setupOutcomes = nil }
+        }
         timeInBed = try container.decodeIfPresent([TimeInBed].self, forKey: .timeInBed) ?? []
+    }
+
+    /// Every stored key, as synthesized encoding writes them, plus the record
+    /// of a chosen 8 h after "Not now" (`SleepTargetMigration.chosenKey`) so
+    /// a save by an older build doesn't turn the choice back into the old
+    /// pre-selected default.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(doses, forKey: .doses)
+        try container.encode(sleeps, forKey: .sleeps)
+        try container.encode(vigilanceSessions, forKey: .vigilanceSessions)
+        try container.encode(prefs, forKey: .prefs)
+        var storedOnboarding = onboarding
+        if SleepTargetMigration.isEightAfterNotNow(prefs: prefs, onboarding: onboarding) {
+            storedOnboarding.setupOutcomes?[SleepTargetMigration.chosenKey] = String(SleepTargetMigration.currentFormat)
+        }
+        try container.encode(storedOnboarding, forKey: .onboarding)
+        try container.encode(healthSync, forKey: .healthSync)
+        try container.encode(demoMode, forKey: .demoMode)
+        try container.encode(appearanceMode, forKey: .appearanceMode)
+        try container.encode(energyCheckIns, forKey: .energyCheckIns)
+        try container.encode(healthLedger, forKey: .healthLedger)
+        try container.encode(healthChoices, forKey: .healthChoices)
+        try container.encode(sleepTargetFormat, forKey: .sleepTargetFormat)
+        try container.encode(timeInBed, forKey: .timeInBed)
     }
 }

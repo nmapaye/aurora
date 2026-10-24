@@ -99,6 +99,44 @@ struct SleepTargetCompatibilityTests {
         #expect(try JSONDecoder().decode(AppState.self, from: resavedChosen).prefs.targetSleep == 6.5)
     }
 
+    /// 8 h chosen after "Not now" at setup, then a downgrade that saves:
+    /// the older build drops `sleepTargetFormat` and the `chosen…` key, so
+    /// the file looks like one from before the target could be unset. It
+    /// keeps `setupOutcomes` whole (`[String: String]` in every older build),
+    /// so the choice is recorded there and the migration leaves it.
+    @Test func anEightChosenAfterNotNowSurvivesAnOlderBuildsSave() throws {
+        let resaved = try JSONEncoder().encode(try legacy(file(8, skippedAtSetup: true)))
+        let text = String(decoding: resaved, as: UTF8.self)
+        #expect(!text.contains("sleepTargetFormat") && !text.contains("chosenTargetSleep"))
+        let back = try JSONDecoder().decode(AppState.self, from: resaved)
+        #expect(back.prefs.targetSleep == 8)
+        // Setup still reads as "Not now", in this build and the older one.
+        #expect(back.onboarding.setupOutcomes == ["2": SetupOutcome.skipped.rawValue])
+        #expect(try legacy(file(8, skippedAtSetup: true)).onboarding?.setupOutcome(.sleepTarget, displayName: nil) == .skipped)
+        // Unset after "Not now" still goes back to unset.
+        let unset = try JSONEncoder().encode(try legacy(file(nil, skippedAtSetup: true)))
+        #expect(try JSONDecoder().decode(AppState.self, from: unset).prefs.targetSleep == nil)
+    }
+
+    /// The record of the choice never shows in the state: it is written from
+    /// the target on save and read only by the migration.
+    @Test func theRecordedChoiceRoundTripsInvisibly() throws {
+        var state = AppState()
+        state.prefs.targetSleep = 8
+        state.onboarding.setupOutcomes = ["2": SetupOutcome.skipped.rawValue]
+        #expect(try StateMigration.decode(StateMigration.encode(state)) == state)
+        // Only 8 h after "Not now" needs it; every other file is unchanged.
+        for (target, outcomes) in [(7.5, ["2": "skipped"]), (8, ["2": "answered"]), (nil, ["2": "skipped"])] as [(Double?, [String: String])] {
+            var other = AppState()
+            other.prefs.targetSleep = target
+            other.onboarding.setupOutcomes = outcomes
+            let object = try #require(try JSONSerialization.jsonObject(with: StateMigration.encode(other)) as? [String: Any])
+            let onboarding = try #require(object["onboarding"] as? [String: Any])
+            #expect(onboarding["setupOutcomes"] as? [String: String] == outcomes)
+            #expect(try StateMigration.decode(StateMigration.encode(other)) == other)
+        }
+    }
+
     @Test func theCurrentShapeStillHasEveryKeyOlderBuildsRequire() throws {
         let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(Prefs.defaults)) as? [String: Any])
         for key in ["halfLife", "targetSleep", "dailyLimitMg", "cutoffHour", "notifyCutoff"] {

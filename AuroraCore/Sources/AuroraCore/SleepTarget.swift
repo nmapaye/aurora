@@ -16,6 +16,20 @@ public enum SleepTargetMigration {
     /// setup, any other value, or one from before setup outcomes were kept
     /// is theirs and stays.
     public static func clearsTarget(prefs: Prefs, onboarding: Onboarding) -> Bool {
+        isEightAfterNotNow(prefs: prefs, onboarding: onboarding)
+            && onboarding.setupOutcomes?[chosenKey] == nil
+    }
+
+    /// Written into `setupOutcomes` beside the step outcomes when the file
+    /// holds 8 h with "Not now" at setup, which in this build is always a
+    /// target the person chose. Older builds drop `sleepTargetFormat` and the
+    /// `chosen…` keys when they save, but keep `setupOutcomes` whole (it is
+    /// `[String: String]` in every one of them) and look up only step numbers
+    /// in it, so this survives a downgrade that saves and keeps the migration
+    /// from clearing the choice. Never in the decoded state.
+    public static let chosenKey = "sleepTargetChosen"
+
+    static func isEightAfterNotNow(prefs: Prefs, onboarding: Onboarding) -> Bool {
         prefs.targetSleep == formerDefault
             && onboarding.setupOutcomes?[String(SetupStep.sleepTarget.rawValue)] == SetupOutcome.skipped.rawValue
     }
