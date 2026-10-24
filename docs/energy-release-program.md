@@ -60,6 +60,12 @@ signed archive/privacy audit, real previous-version upgrade, dictation/backgroun
 control feedback <100 ms, scrolling/animation/thermal/battery, verified support URLs
 and contact, TestFlight feedback. No App Store submission without final authorization.
 
+Beta structure (owner-approved 2026-10-24, "Yes"): v0.1.0 has no public wave-2 link.
+The CPO exit criteria (at least 14 days of wave 1, at least 10 feedback testers, zero
+data-safety bugs, CTO-verified migration, at least 80% comprehension with n of 8 or more)
+gate App Review submission. Wave 2 becomes the invite-only v0.1.1 widget beta,
+starting from the wave-1 panel.
+
 ## Resume instructions
 
 Check clean status and latest accepted commit. Inspect Claude's handoff and commits
