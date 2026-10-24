@@ -31,9 +31,9 @@ swift test
 
 The project uses folder-synchronized groups (project format 77). Every file
 under `Aurora/`, `AuroraTests/` and `AuroraUITests/` belongs to its folder's
-target automatically, so adding a Swift file needs no project change. Two
+target automatically, so adding a Swift file needs no project change. Three
 files in `Aurora/` are excluded from the app's resources in the project file:
-`Info.plist` and `Aurora.entitlements`.
+`Info.plist`, `Info-Simulator.plist` and `Aurora.entitlements`.
 
 These are edited and reviewed directly:
 
@@ -41,6 +41,11 @@ These are edited and reviewed directly:
 - `Aurora/Info.plist`: URL schemes `aurora` and `com.nmapaye.aurora`, the
   HealthKit usage strings, and the launch screen color. The build also
   generates keys from `INFOPLIST_KEY_*` settings.
+- `Aurora/Info-Simulator.plist`: used only for simulator builds through
+  `INFOPLIST_FILE[sdk=iphonesimulator*]`. It must equal `Info.plist` plus
+  `NSAppTransportSecurity` → `NSAllowsLocalNetworking`, which the
+  simulator-only Ollama adapter needs. Device builds (Debug and Release) never
+  contain that key. CI checks both.
 - `Aurora/Aurora.entitlements`: HealthKit only, with no APNs.
 - `Aurora/PrivacyInfo.xcprivacy`: no tracking, no collected data, and no
   required-reason APIs.
