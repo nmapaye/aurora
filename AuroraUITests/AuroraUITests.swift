@@ -481,11 +481,24 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String) {
+    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
-        input.tap(); input.typeText(text)
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                      "request(\"\(text)\"): keyboard never appeared", file: file, line: line)
+        input.typeText(text)
+        // Never send a partial request. CI has lost keystrokes after typeText
+        // returned (field showed "R" for "Reminders", "Show t" for "Show this
+        // week"), and the app then answered the fragment. Fail here, naming
+        // what the field holds, instead of timing out later on a missing card.
+        let typed = NSPredicate(format: "value == %@", text)
+        guard XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: typed, object: input)], timeout: 5) == .completed else {
+            XCTFail("request(\"\(text)\"): composer shows \"\(input.value as? String ?? "nil")\" after typeText; keystrokes were lost, not sending",
+                    file: file, line: line)
+            return
+        }
         // The keyboard can still be moving the composer when the tap lands.
-        // Sending clears the field, so a retry can never send twice.
+        // Sending clears the field, so a re-tap can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
         for _ in 0..<3 {
             app.buttons["assistant-send"].tap()
