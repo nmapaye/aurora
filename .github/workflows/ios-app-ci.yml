@@ -121,7 +121,45 @@ jobs:
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
           exit $status
 
+      # request() types into the composer. CI has lost keystrokes there: the
+      # field held "R" for "Reminders" (3 runs) and "Show t" for "Show this
+      # week" (1 run), then the app answered the fragment. Repeat the two tests
+      # that failed that way up to 40 times on both devices and stop at the
+      # first failure. Never -retry-tests-on-failure: a retry would turn the
+      # flake green and hide it. About 70-80 s per iteration of both tests.
+      - name: Repeat the typed-request UI tests
+        id: repeat-typed
+        timeout-minutes: 60
+        run: |
+          set +e
+          if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
+            echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
+            exit 1
+          fi
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testBriefingAndReminderCards \
+            -only-testing:AuroraUITests/AuroraUITests/testTrendsSwitchSignalsAndRange \
+            -test-iterations 40 \
+            -run-tests-until-failure \
+            -resultBundlePath build/TypedRequestRepeat.xcresult \
+            > build/xcodebuild-typed-repeat.log 2>&1
+          status=$?
+          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-typed-repeat.log | head -200
+          for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
+            echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" build/xcodebuild-typed-repeat.log)"
+          done
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-typed-repeat.log
+          exit $status
+
+      # Still runs after the repeat step fails, so a flake doesn't hide the
+      # rest of the suite's results; not after a failed build.
       - name: Test
+        if: success() || steps.repeat-typed.outcome == 'failure'
         run: |
           set +e
           xcodebuild test-without-building \
@@ -167,6 +205,7 @@ jobs:
           path: |
             build/*.log
             build/AuroraTests.xcresult
+            build/TypedRequestRepeat.xcresult
 
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
