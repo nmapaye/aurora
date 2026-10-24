@@ -239,7 +239,7 @@ struct CalendarConnectionsView: View {
         NavigationStack {
             Form {
                 Section("Apple Calendar") {
-                    Text("Selected calendars are read locally. Google calendars synced to Apple can also be selected here.").font(.footnote)
+                    Text("Aurora reads the calendars you select on this device, and moves an event only after you approve its preview. Google calendars synced to Apple can also be selected here.").font(.footnote)
                     Button("Connect Apple Calendar") {
                         Task { await perform { try await service.apple.connect() } }
                     }.disabled(busy)
