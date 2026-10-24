@@ -45,7 +45,8 @@ These are edited and reviewed directly:
   `INFOPLIST_FILE[sdk=iphonesimulator*]`. It must equal `Info.plist` plus
   `NSAppTransportSecurity` → `NSAllowsLocalNetworking`, which the
   simulator-only Ollama adapter needs. Device builds (Debug and Release) never
-  contain that key. CI checks both.
+  contain that key. CI checks the Release device build only (and that the
+  Debug simulator build keeps the key); it does not build Debug for device.
 - `Aurora/Aurora.entitlements`: HealthKit only, with no APNs.
 - `Aurora/PrivacyInfo.xcprivacy`: no tracking and no collected data. It
   declares one required-reason API: `NSPrivacyAccessedAPICategoryUserDefaults`

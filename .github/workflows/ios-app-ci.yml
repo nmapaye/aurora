@@ -173,7 +173,7 @@ jobs:
       # The only Release build. It targets a generic iOS device, so CI checks
       # the Info.plist that would ship: no local networking exception.
       - name: Release device build
-        if: matrix.device == 'iPhone'
+        if: ${{ !cancelled() && matrix.device == 'iPhone' }}
         run: |
           mkdir -p build
           set +e
@@ -191,6 +191,7 @@ jobs:
           [ $status -eq 0 ] || exit $status
           set -e
           device=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist
+          [ -f "$device" ] || { echo "::error::missing $device"; exit 1; }
           if plutil -extract NSAppTransportSecurity xml1 -o - "$device" >/dev/null 2>&1; then
             echo "::error::Release device Info.plist contains NSAppTransportSecurity"
             plutil -p "$device"
