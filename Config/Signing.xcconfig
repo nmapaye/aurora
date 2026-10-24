@@ -11,7 +11,7 @@
 // https://developer.apple.com/account (Membership details). The Team ID is
 // not a secret; it is embedded in every signed build. It must match teamID
 // in Config/ExportOptions.plist; the Release workflow checks both.
-DEVELOPMENT_TEAM =
+DEVELOPMENT_TEAM = 72DC9RVDYJ
 
 CODE_SIGN_STYLE = Automatic
 
