@@ -14,8 +14,13 @@ Apple Intelligence. Foundation Models requires runtime availability; Mac Ollama 
 simulator-only development tooling. No cloud inference, AI keys, analytics SDK,
 cross-device health/conversation sync, or autonomous calendar edits.
 
-Launch: paid upfront US$4.99, free TestFlight; Google Calendar required. English
-initial storefronts: US, Canada, UK, Australia, New Zealand after regional checks.
+Launch (v0.1.0): paid upfront US$4.99 with no in-app purchases, free TestFlight;
+Google Calendar required. App Privacy label: Data Not Collected (Health data never
+leaves the device; Google Calendar, when connected, exchanges data directly between
+the device and the user's own Google account, so nothing is sent to or stored by the
+developer, and Aurora runs no server; CSV export happens only through the
+user-initiated share sheet). English initial storefronts: US, Canada, UK, Australia,
+New Zealand after regional checks.
 Target iOS 17+ with explicit native controls when local AI is unavailable.
 
 User owns physical devices but Apple Developer enrollment is pending. Signing,

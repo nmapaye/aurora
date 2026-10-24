@@ -24,7 +24,9 @@ Alertness values are estimates, not measurements. Aurora does not diagnose fatig
 
 ## Commercial defaults
 
-Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases.
+Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases in v0.1.0.
+
+App Privacy: Data Not Collected. Health, caffeine, sleep, and reaction data stay on the device and are never sent to the developer or third parties; `Aurora/PrivacyInfo.xcprivacy` declares no collected data types and no tracking. Google Calendar, when connected, exchanges data directly between the device and the user's own Google account; nothing is sent to or stored by the developer, and Aurora runs no server. CSV export happens only through the user-initiated share sheet.
 
 ## Keywords
 
@@ -38,7 +40,7 @@ Verify deployed pages and configure a real private support contact before submis
 
 ## Reviewer notes
 
-Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy must declare Health and Fitness data read and written (dietary caffeine written), not linked to tracking. The optional "Update in the background" choice uses HealthKit background delivery (entitlement declared; provisioning profile must include it). Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
+Complete manual setup to use Aurora without Health or Calendar access. HealthKit has three separate opt-ins (read sleep, read caffeine, write caffeine saved in Aurora); imported records are read-only, and Aurora edits or deletes only its own caffeine samples. Missing sleep remains missing. App Privacy answer: Data Not Collected. Aurora reads sleep and caffeine from HealthKit and writes dietary caffeine samples, but that Health data is processed and stored only on the device and is never transmitted to the developer or any third party; there is no tracking. Aurora does not store Health data in iCloud, and its local store (Application Support/Aurora) is excluded from device backups and is not opened until that exclusion is confirmed. Health data appears in the app on the Sleep screen (imported nights, marked read-only), in the caffeine Log (imported Health caffeine entries are read-only; Aurora's own entries show their Apple Health write status), on the Apple Health connection screen, and as inputs to the on-device energy estimates in Summary, Insights, and Assistant cards. Google Calendar, when connected, exchanges data directly between the device and the user's own Google account (OAuth and Calendar API requests go straight to Google); nothing is sent to or stored by the developer, and Aurora runs no server. CSV export happens only through the user-initiated share sheet. The optional "Update in the background" choice uses HealthKit background delivery (entitlement declared; provisioning profile must include it). Explicit quick actions work without a local model. Google Calendar production client registration and verification remain release gates. Account access must never be supplied in repository files.
 
 Debug Design Gallery is excluded from Release. No Mac app or cross-device health/conversation sync is included. Notifications use permitted foreground/background opportunities, not continuous reasoning.
 

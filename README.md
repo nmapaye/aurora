@@ -115,7 +115,8 @@ Set `VITE_AURORA_APP_STORE_URL`, `VITE_AURORA_GUMROAD_URL`, and
 
 ## App Store and TestFlight
 
-Aurora targets a paid App Store v0.1.0 release, with free TestFlight beta
+Aurora targets a paid App Store v0.1.0 release (US$4.99 upfront, no in-app
+purchases; App Privacy label "Data Not Collected"), with free TestFlight beta
 testing and an optional Gumroad companion guide. TestFlight access must not be
 sold, and a raw IPA must not be distributed as the product.
 
