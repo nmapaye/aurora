@@ -126,6 +126,26 @@ jobs:
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # typeText has been losing keystrokes in the composer (see the repeat
+      # step below). Simulator.app's "Connect Hardware Keyboard" is a known
+      # cause of dropped typeText characters, so turn it off globally and for
+      # this device before it boots. CI boots headless with simctl, so this
+      # may be a no-op here; it keeps a Simulator.app launch from changing it.
+      - name: Disconnect the hardware keyboard
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          plist="$RUNNER_TEMP/iphonesimulator.plist"
+          defaults export com.apple.iphonesimulator "$plist"
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid:ConnectHardwareKeyboard bool false" "$plist"
+          defaults import com.apple.iphonesimulator "$plist"
+          echo "ConnectHardwareKeyboard (global): $(defaults read com.apple.iphonesimulator ConnectHardwareKeyboard)"
+          echo "ConnectHardwareKeyboard ($udid): $(/usr/libexec/PlistBuddy -c "Print :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist")"
+
       # Boot the simulator and wait until it is fully up before any test
       # launches the app; a cold iPad simulator booting during the first
       # launch timed out the launch.
@@ -134,6 +154,35 @@ jobs:
           set -euo pipefail
           xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
           xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      # Fix the software keyboard's state before any UI test types: no
+      # predictive text or autocorrection (the app log shows the predictive
+      # engine's CandidateGeneration timing out while typeText runs), no
+      # slide-to-type, and the first-use keyboard introductions marked shown.
+      # Key names are the ones WebDriverAgent sets through TIPreferencesController
+      # and Appium writes with simctl; iOS 15+ keeps them in
+      # com.apple.keyboard.preferences, older releases in com.apple.Preferences.
+      - name: Set simulator keyboard preferences
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          for domain in com.apple.keyboard.preferences com.apple.Preferences; do
+            for key in KeyboardPrediction KeyboardAutocorrection KeyboardShowPredictionBar KeyboardContinuousPathEnabled; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool NO
+            done
+            for key in DidShowContinuousPathIntroduction DidShowGestureKeyboardIntroduction; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool YES
+            done
+          done
+          xcrun simctl spawn "$udid" defaults write com.apple.keyboard.ContinuousPath KeyboardContinuousPathEnabled -bool NO
+          # Fail if a write didn't stick, rather than run on unknown settings.
+          for check in KeyboardPrediction=0 KeyboardAutocorrection=0 KeyboardShowPredictionBar=0 \
+                       KeyboardContinuousPathEnabled=0 DidShowContinuousPathIntroduction=1 DidShowGestureKeyboardIntroduction=1; do
+            key=${check%=*}; want=${check#*=}
+            got=$(xcrun simctl spawn "$udid" defaults read com.apple.keyboard.preferences "$key")
+            echo "com.apple.keyboard.preferences $key = $got"
+            [ "$got" = "$want" ] || { echo "::error title=keyboard prefs::$key is $got, wanted $want"; exit 1; }
+          done
 
       # Tests are signed ad hoc: unsigned, the Keychain erase test fails
       # with errSecMissingEntitlement (-34018).
