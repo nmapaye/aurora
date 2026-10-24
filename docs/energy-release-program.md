@@ -1,6 +1,7 @@
 # Expanded Aurora release program
 
-User-approved 2026-10-09. All packages below gate the first App Store release.
+User-approved 2026-10-09. All packages below gate the first App Store release (v0.1.0),
+except widget gates, which apply to v0.1.1 (owner decision 2026-10-24).
 Starting checkpoint: 85a3ddb on codex/native-assistant, clean before work.
 Legacy PR #19 is unmerged; remote Actions-analysis and gitleaks jobs were cancelled
 with no executed steps (2026-10-05), not reported code/security findings. JS analysis passed.
@@ -32,7 +33,7 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
   recommended threshold/dose/sleep schedule. Reminder changes require Save.
 - Refresh coalesces bounded foreground/observer/background work, invalidates stale
   results, honors quiet hours/daily limits/dismissal, never continuous reasoning.
-- Widgets open review drafts; neutral Lock Screen defaults, metrics opt-in. Minimal
+- Widgets (v0.1.1) open review drafts; neutral Lock Screen defaults, metrics opt-in. Minimal
   protected App Group snapshots, stale labels, no calendar mutation or silent logs.
 - Shared design.md/tokens; no fabricated speed, battery or accuracy claims.
 
