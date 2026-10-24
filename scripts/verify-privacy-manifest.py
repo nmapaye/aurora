@@ -14,11 +14,16 @@ Source mode (default, runs on Linux):
     be on the known list below; other URL literals are reported as links;
   * the app target must not exclude PrivacyInfo.xcprivacy and must not add
     remote Swift packages, CocoaPods or Carthage without a review.
+  * export compliance: every app-target build configuration sets
+    INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO (or its Info.plist has
+    ITSAppUsesNonExemptEncryption false), and no non-exempt crypto library
+    (CommonCrypto ciphers, OpenSSL, libsodium, custom ciphers) is used.
 
 Built-app mode (--app PATH, .app / .xcarchive / .ipa, needs a Mac build):
   * the bundled PrivacyInfo.xcprivacy exists and equals the source one;
   * the built Info.plist has no NSAppTransportSecurity (device builds;
     pass --allow-local-networking for a simulator build);
+  * ITSAppUsesNonExemptEncryption is present and false;
   * embedded frameworks/extensions carry their own manifest;
   * best-effort symbol hints in the executable (warnings only).
 
@@ -102,6 +107,26 @@ INERT_HOSTS = {"www.apple.com", "apple.com"}
 # is a link the system opens outside Aurora (Safari), reported as a note.
 NETWORK_API = re.compile(r"\b(?:URLSession|URLRequest|NWConnection|NWPathMonitor|ASWebAuthenticationSession|WKWebView|SFSafariViewController|CFStream|URLSessionWebSocketTask)\b")
 
+# Non-exempt or non-standard cryptography. Apple's exemptions (Complying with
+# encryption export regulations; 15 CFR 740.17(b)(1) / 742.15(b)) cover
+# encryption provided by the OS (HTTPS/TLS via URLSession, Keychain, data
+# protection) and authentication-only uses such as hashing. Any hit below
+# needs an export-compliance review before ITSAppUsesNonExemptEncryption may
+# stay NO.
+CRYPTO_REVIEW = [
+    (re.compile(r"\bimport\s+CommonCrypto\b|#\s*(?:include|import)\s*<CommonCrypto/"), "CommonCrypto"),
+    (re.compile(LIBC + r"\bCC(?:Crypt|Cryptor\w*|Hmac\w*|KeyDerivationPBKDF)\s*\("), "CommonCrypto cipher/HMAC/KDF call"),
+    (re.compile(r"\b(?:AES\.GCM|ChaChaPoly|AES\.KeyWrap|HPKE)\b"), "CryptoKit symmetric encryption"),
+    (re.compile(r"\bSecKeyCreate(?:Encrypted|Decrypted)Data\b"), "Security framework asymmetric encryption"),
+    (re.compile(r"\b(?:OpenSSL|EVP_\w+|libsodium|crypto_secretbox|crypto_box|Sodium)\b"), "OpenSSL / libsodium"),
+    (re.compile(r"\bimport\s+(?:CryptoSwift|Sodium|OpenSSL|BoringSSL)\b"), "third-party crypto library"),
+]
+CRYPTO_EXEMPT = [
+    (re.compile(r"\bSHA(?:256|384|512)\b|\bInsecure\.(?:SHA1|MD5)\b|\bCC_SHA\w*\b"), "hashing (authentication only, exempt)"),
+    (re.compile(r"\bSecRandomCopyBytes\b"), "random bytes (not encryption)"),
+    (re.compile(r"\bSecItem(?:Add|CopyMatching|Update|Delete)\b"), "Keychain storage (OS-provided)"),
+]
+ITS_KEY = "ITSAppUsesNonExemptEncryption"
 
 
 class Report:
@@ -378,6 +403,61 @@ def check_project(root: Path, rep: Report) -> None:
                 rep.warn(f"{p.relative_to(root)}: third-party dependencies present; review their privacy manifests")
 
 
+def app_build_configs(text: str) -> list[tuple[str, str]]:
+    """(name, settings) for every build configuration of the app target."""
+    configs = []
+    for m in re.finditer(r"/\* (\w+) \*/ = \{\s*isa = XCBuildConfiguration;(.*?)\n\t\t\};", text, flags=re.S):
+        body = m.group(2)
+        if re.search(r"PRODUCT_BUNDLE_IDENTIFIER = com\.nmapaye\.aurora;", body):
+            configs.append((m.group(1), body))
+    return configs
+
+
+def check_encryption_sources(root: Path, cache: dict[Path, tuple[str, str]], rep: Report) -> list[str]:
+    exempt = []
+    for path, (raw, code) in cache.items():
+        rel = str(path.relative_to(root))
+        for number, ln in enumerate(code.splitlines(), 1):
+            for reg, what in CRYPTO_REVIEW:
+                if reg.search(ln):
+                    rep.error(f"{rel}:{number}: {what} may be non-exempt encryption; review export compliance before keeping {ITS_KEY} = NO")
+            for reg, what in CRYPTO_EXEMPT:
+                if reg.search(ln):
+                    exempt.append(f"{rel}:{number}: {what}")
+    return exempt
+
+
+def check_encryption_project(root: Path, rep: Report) -> list[str]:
+    pbx = root / "Aurora.xcodeproj/project.pbxproj"
+    found = []
+    if not pbx.exists():
+        return found
+    text = pbx.read_text(encoding="utf-8", errors="replace")
+    configs = app_build_configs(text)
+    if not configs:
+        rep.error("project.pbxproj: no build configuration for com.nmapaye.aurora found")
+    for name, body in configs:
+        m = re.search(r"INFOPLIST_KEY_" + ITS_KEY + r"\s*=\s*(\w+);", body)
+        plist_values = []
+        for pm in re.finditer(r'"?INFOPLIST_FILE(?:\[[^\]]*\])?"?\s*=\s*"?([^";]+)"?;', body):
+            p = root / pm.group(1)
+            if p.exists():
+                data = load_plist(p, rep) or {}
+                if ITS_KEY in data:
+                    plist_values.append((pm.group(1), data[ITS_KEY]))
+        for plist, value in plist_values:
+            if value is not False:
+                rep.error(f"{plist}: {ITS_KEY} is {value!r}; the code qualifies for the exemption, so it should be false")
+        if m:
+            if m.group(1).upper() not in {"NO", "FALSE"}:
+                rep.error(f"project.pbxproj ({name}): INFOPLIST_KEY_{ITS_KEY} = {m.group(1)}; expected NO")
+            else:
+                found.append(f"{name}: INFOPLIST_KEY_{ITS_KEY} = {m.group(1)}")
+        elif plist_values:
+            found.append(f"{name}: {ITS_KEY} = false in {', '.join(p for p, _ in plist_values)}")
+        else:
+            rep.error(f"project.pbxproj ({name}): {ITS_KEY} is not set; App Store Connect will ask for export compliance on every build")
+    return found
 
 
 def locate_app(path: Path, tmp: Path) -> Path | None:
@@ -421,6 +501,12 @@ def check_app(app_arg: Path, source_manifest: dict | None, declared: dict[str, s
                 rep.error(f"{app.name}/Info.plist: NSAppTransportSecurity contains {sorted(bad)}")
             if not args.allow_local_networking:
                 rep.error(f"{app.name}/Info.plist: NSAppTransportSecurity present in a device build ({ats}); see PR #48")
+        if ITS_KEY not in info:
+            rep.error(f"{app.name}/Info.plist: {ITS_KEY} missing")
+        elif info[ITS_KEY] is not False:
+            rep.error(f"{app.name}/Info.plist: {ITS_KEY} is {info[ITS_KEY]!r}, expected false")
+        else:
+            rep.note(f"{app.name}/Info.plist: {ITS_KEY} = false")
         for sub in sorted(list(app.glob("Frameworks/*.framework")) + list(app.glob("PlugIns/*.appex"))):
             if not (sub / "PrivacyInfo.xcprivacy").exists():
                 (rep.warn if sub.name.startswith("libswift") else rep.error)(
@@ -476,6 +562,8 @@ def main(argv: list[str]) -> int:
             rep.warn(f"{short(cat)} declared ({', '.join(sorted(declared[cat]))}) but no use found in {', '.join(map(str, SOURCE_DIRS))}")
     hosts = check_hosts(literals, networked, rep)
     check_project(root, rep)
+    exempt = check_encryption_sources(root, cache, rep)
+    its = check_encryption_project(root, rep)
     if args.app:
         if not args.app.exists():
             print(f"error: {args.app} does not exist", file=sys.stderr)
@@ -492,6 +580,11 @@ def main(argv: list[str]) -> int:
     print(f"Network hosts in code: {len(hosts)}")
     if args.verbose:
         for h in hosts:
+            print(f"      {h}")
+    print(f"Export compliance: {'; '.join(its) or 'not set'}")
+    print(f"  exempt crypto uses: {len(exempt)}")
+    if args.verbose:
+        for h in exempt:
             print(f"      {h}")
     for n in rep.notes:
         print(f"note: {n}")
