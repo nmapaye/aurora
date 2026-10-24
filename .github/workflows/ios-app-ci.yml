@@ -57,6 +57,21 @@ jobs:
             echo "relevant=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Linux-only, about 10 seconds: checks Aurora/PrivacyInfo.xcprivacy against
+  # the code (required-reason APIs, tracking, collected data, network hosts).
+  # Runs on every pull request so a change that adds a required-reason API
+  # fails here even when nothing else in the app changed.
+  privacy-manifest:
+    name: privacy manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify privacy manifest
+        run: python3 scripts/verify-privacy-manifest.py --verbose
+
   build-and-test:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
@@ -172,7 +187,7 @@ jobs:
   # passed, or when the jobs were skipped because nothing in the app changed.
   gate:
     name: iOS App gate
-    needs: [changes, build-and-test]
+    needs: [changes, privacy-manifest, build-and-test]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -190,3 +205,4 @@ jobs:
             esac
           }
           check "build-and-test" "${{ needs.build-and-test.result }}"
+          check "privacy-manifest" "${{ needs.privacy-manifest.result }}"
