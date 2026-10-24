@@ -34,7 +34,8 @@ caffeine,sleep,energy,coffee,calendar,reaction,alertness,wellness
 
 Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
 Proposed support: https://nmapaye.github.io/aurora/support.html
-Verify deployed pages and configure a real private support contact before submission. These drafts have not been published.
+Support and beta contact: nmapaye@outlook.com (owner approved 2026-10-24)
+Verify deployed pages before submission. These drafts have not been published.
 
 ## Reviewer notes
 
@@ -44,4 +45,4 @@ Debug Design Gallery is excluded from Release. No Mac app or cross-device health
 
 ## Remaining metadata gates
 
-Verify signed build, age rating, privacy answers, encryption/export compliance, accessibility, real screenshots, support contact, and final storefront pricing. Do not claim measured speed, battery savings, or medical outcomes without evidence.
+Verify signed build, age rating, privacy answers, encryption/export compliance, accessibility, real screenshots, that support email (nmapaye@outlook.com) is monitored, and final storefront pricing. Do not claim measured speed, battery savings, or medical outcomes without evidence.

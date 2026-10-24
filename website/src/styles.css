@@ -354,6 +354,27 @@ input {
   text-underline-offset: 3px;
 }
 
+/* Beta sign-up */
+.beta-card {
+  margin-top: var(--space-6);
+  max-width: 640px;
+}
+
+.beta-card .beta-help,
+.beta-card .beta-privacy {
+  margin-top: var(--space-4);
+}
+
+.beta-card .beta-privacy {
+  color: var(--text-secondary);
+}
+
+.beta-card .beta-help a {
+  color: var(--tint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Synthetic preview */
 .preview-layout {
   display: grid;

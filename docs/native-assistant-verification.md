@@ -255,7 +255,7 @@ Privacy/support and store/beta drafts now describe the native assistant, local A
 optional Google network access, explicit calendar approval and full erase. Claude's
 website removes the obsolete tab demo, dose recommendations and purchase claims;
 its interactive preview is explicitly synthetic and does not create real records.
-A verified private support contact and deployed policy/support URLs remain required.
+Support contact: nmapaye@outlook.com (owner approved 2026-10-24). Deployed policy/support URLs remain required.
 No website was deployed. Remote CI has not run. Apple enrollment, signed hardware
 archive, production Google OAuth, live Health/calendar/dictation/background tests,
 real prior-version upgrade, TestFlight and App Review remain separate release gates.

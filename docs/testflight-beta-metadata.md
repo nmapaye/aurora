@@ -15,6 +15,8 @@ Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. I
 - Apple/Google calendars, read-only access, recurrence scope, stale proposals, and partial failures. Never approve a real change you do not intend.
 - Largest text, VoiceOver, Reduce Motion, light/dark, keyboard, Stop, and interrupted processing on real iPhone and iPad.
 
+Send feedback through TestFlight or email nmapaye@outlook.com. Don't include Health records, calendar details, or credentials.
+
 ## Beta review notes
 
 HealthKit is read-only and optional. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. Google Calendar requires direct Google authentication and network requests; local account tokens are protected in Keychain. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
@@ -27,3 +29,8 @@ Free TestFlight access; public release defaults to paid upfront. Supply actual r
 
 Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
 Proposed support: https://nmapaye.github.io/aurora/support.html
+Support and beta contact: nmapaye@outlook.com (owner approved 2026-10-24)
+
+## Beta sign-up
+
+The website's "Request beta access" link opens an email to nmapaye@outlook.com (subject "Aurora beta request") asking for the tester's Apple ID email and device. First wave: small, invite-only, up to 25 testers; no dates promised. Addresses are used only to send a TestFlight invite and beta updates, aren't shared or sold, and testers can ask to be removed any time by replying.

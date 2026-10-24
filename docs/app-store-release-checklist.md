@@ -26,7 +26,7 @@ SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
 | VoiceOver / large text / Reduce Motion | Claude + User | Physical phone/pad acceptance pending |
 | Dictation / notifications / background refresh | User + Codex | Real-device allow/deny/interruption tests pending |
 | Latency / scrolling / thermal / battery | Codex + User | Measured hardware evidence required; no speed claim yet |
-| Website / privacy / support / metadata | Codex + Claude | Local drafts updated; verified hosting/contact required |
+| Website / privacy / support / metadata | Codex + Claude | Local drafts updated; support/beta contact nmapaye@outlook.com approved 2026-10-24; verified hosting required |
 | TestFlight beta | User + Codex | Signed build, beta feedback and blocking defects resolved |
 | App Review / publication | User | Final approval and store submission pending |
 
@@ -64,7 +64,7 @@ does not authorize changing personal events; test only explicitly approved fixtu
 ## Publication evidence
 
 Final tag/commit, test logs and xcresults, signed archive validation/privacy report,
-device checklist, Google production approval, methodology/claims review, real support
-contact and working URLs, actual screenshots, age rating, export compliance, accurate
+device checklist, Google production approval, methodology/claims review, support contact
+(nmapaye@outlook.com) and working URLs, actual screenshots, age rating, export compliance, accurate
 privacy/accessibility answers, price/storefronts and reviewer instructions.
 No blocking data-loss, unauthorized-write, crash or accessibility defects may remain.

@@ -2,6 +2,17 @@ import { useState } from 'react';
 
 const githubUrl = 'https://github.com/nmapaye/aurora';
 
+const betaEmail = 'nmapaye@outlook.com';
+const betaSubject = 'Aurora beta request';
+const betaBody = [
+  "Hi, I'd like to join the Aurora TestFlight beta.",
+  '',
+  'Apple ID email:',
+  'Device (iPhone or iPad):',
+  'iOS version:',
+].join('\r\n');
+const betaMailto = `mailto:${betaEmail}?subject=${encodeURIComponent(betaSubject)}&body=${encodeURIComponent(betaBody)}`;
+
 const features = [
   {
     title: 'Log with Save and Undo',
@@ -54,6 +65,7 @@ export default function App() {
           <a href="#features">Features</a>
           <a href="#preview">Preview</a>
           <a href="#release">Release</a>
+          <a href="#beta">Beta</a>
           <a href="privacy.html">Privacy</a>
           <a className="nav-cta" href={githubUrl} target="_blank" rel="noreferrer">
             GitHub
@@ -158,8 +170,8 @@ export default function App() {
             <article className="card release-card">
               <h3>Not open yet</h3>
               <p>
-                TestFlight and the App Store listing are not available. There is no download or
-                sign-up on this page.
+                TestFlight and the App Store listing are not available yet. You can request a beta
+                invite below.
               </p>
             </article>
             <article className="card release-card">
@@ -172,6 +184,31 @@ export default function App() {
                 Read the privacy policy
               </a>
             </article>
+          </div>
+        </section>
+
+        <section id="beta" className="section" aria-labelledby="beta-title">
+          <div className="section-heading">
+            <p className="eyebrow">TestFlight beta</p>
+            <h2 id="beta-title">Request beta access.</h2>
+            <p>
+              The first wave is small and invite-only, with room for up to 25 testers. There are no
+              dates yet.
+            </p>
+          </div>
+          <div className="card beta-card">
+            <a className="button button-primary" href={betaMailto} aria-describedby="beta-privacy">
+              Request beta access
+            </a>
+            <p className="beta-help">
+              Opens your email app with a message to <a href={`mailto:${betaEmail}`}>{betaEmail}</a>.
+              Include your Apple ID email and your device (iPhone or iPad, and iOS version).
+            </p>
+            <p id="beta-privacy" className="beta-privacy">
+              Privacy: your email address is used only to send you a TestFlight invite and beta
+              updates. It isn't shared or sold. You can ask to be removed at any time by replying to
+              any beta email.
+            </p>
           </div>
         </section>
       </main>
