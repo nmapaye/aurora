@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	Simulator-only copy of Info.plist. The Aurora target selects it with
+	INFOPLIST_FILE[sdk=iphonesimulator*]. It must match Info.plist except for
+	NSAppTransportSecurity, which the simulator-only Ollama path needs for
+	http://127.0.0.1:11434. CI checks this. Edit both files together.
+-->
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.nmapaye.aurora.assistant.refresh</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.nmapaye.aurora</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aurora</string>
+				<string>com.nmapaye.aurora</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Aurora reads selected commitments to help review your day. It changes an event only after you approve its preview.</string>
+	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+	<string>Aurora does not read clinical health records. It only reads Sleep Analysis and dietary caffeine from Apple Health.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>If you turn them on, Aurora reads Sleep Analysis and dietary caffeine from Apple Health to show your records and estimate sleep debt and alertness. Imported records stay read-only in Aurora and stay on this device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>If you turn it on, Aurora adds caffeine you save in Aurora to Apple Health, and updates or removes only those entries. It never changes data from other apps or devices.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Aurora uses the microphone only while you dictate a request on this device.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Aurora transcribes your requests on device. It does not send audio to cloud speech services.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+</dict>
+</plist>

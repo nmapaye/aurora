@@ -18,11 +18,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Aurora reads selected commitments to help review your day. It changes an event only after you approve its preview.</string>
 	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
