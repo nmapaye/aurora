@@ -233,12 +233,13 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         state.vigilanceSessions = sessions
         let history = AssistantCards.make(.history, state: state, now: now, clock: utc, text: fixtureText)
         let trends = AssistantCards.make(.trends, state: state, now: now, clock: utc, text: fixtureText)
-        let texts = sessions.flatMap { [$0.displayLabel, $0.accessibilityLabel] } +
-            [SummarySignals.reactionTest(sessions: sessions, now: now, clock: utc, text: fixtureText).context,
-             Insights.reactionSignal(sessions: sessions, now: now, clock: utc, text: fixtureText).signal.context] +
-            history.records.map(\.detail) + trends.series.flatMap { $0.points.map(\.detail) } +
-            EnergySnapshot.capture(state: state, now: now, clock: utc, includeProjection: false).reactions.compactMap(\.displayLabel) +
-            [Export.vigilanceSessionsCSV(sessions)]
+        var texts: [String] = sessions.flatMap { [$0.displayLabel, $0.accessibilityLabel] }
+        texts.append(SummarySignals.reactionTest(sessions: sessions, now: now, clock: utc, text: fixtureText).context)
+        texts.append(Insights.reactionSignal(sessions: sessions, now: now, clock: utc, text: fixtureText).signal.context)
+        texts += history.records.map(\.detail)
+        texts += trends.series.flatMap { $0.points.map(\.detail) }
+        texts += EnergySnapshot.capture(state: state, now: now, clock: utc, includeProjection: false).reactions.compactMap(\.displayLabel)
+        texts.append(Export.vigilanceSessionsCSV(sessions))
         for text in texts {
             #expect(text.range(of: ratingWords, options: [String.CompareOptions.regularExpression, .caseInsensitive]) == nil, "\(text)")
         }
@@ -246,8 +247,9 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         // New exports drop the rating column and keep the raw milliseconds.
         let csv = Export.vigilanceSessionsCSV(sessions).split(separator: "\n").map(String.init)
         #expect(csv.first == "id,started_at,completed_at,duration_ms,trial_count,valid_reaction_count,false_start_count,lapse_count,median_reaction_ms,mean_reaction_ms,fastest_reaction_ms,reaction_std_dev_ms,score,data_source")
-        let median = try? #require(sessions.first?.medianReactionMs)
-        #expect(median != nil && csv[1].contains("\"\(numberText(median ?? 0))\""))
+        let median = sessions.first?.medianReactionMs
+        #expect(median != nil)
+        #expect(csv[1].contains("\"\(numberText(median ?? 0))\""))
     }
 
     @Test func todaySeriesCoversTheLocalDayAndNow() {
