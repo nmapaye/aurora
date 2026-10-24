@@ -172,17 +172,27 @@ struct ChartLegend: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: Metrics.md, alignment: .leading), count: typeSize.isAccessibilitySize ? 1 : 2)
-        LazyVGrid(columns: columns, alignment: .leading, spacing: Metrics.xs) {
-            ForEach(items) { item in
-                HStack(spacing: Metrics.xs) {
-                    item.swatch.frame(width: 18, height: 12).accessibilityHidden(true)
-                    Text(item.title)
+        // Eager, not a LazyVGrid: a lazy grid kept its titles as separate
+        // accessibility elements whatever was applied to the grid.
+        let columns = typeSize.isAccessibilitySize ? 1 : 2
+        let rows = stride(from: 0, to: items.count, by: columns).map { Array(items[$0..<min($0 + columns, items.count)]) }
+        Grid(alignment: .leading, horizontalSpacing: Metrics.md, verticalSpacing: Metrics.xs) {
+            ForEach(rows.indices, id: \.self) { row in
+                GridRow {
+                    ForEach(rows[row]) { item in
+                        HStack(spacing: Metrics.xs) {
+                            item.swatch.frame(width: 18, height: 12)
+                            Text(item.title)
+                        }
+                    }
                 }
             }
         }
         .font(.caption).foregroundStyle(Palette.textSecondary)
-        .accessibilityElement(children: .combine)
+        // A key to shapes and colors. Each chart is one element whose label
+        // and value say what it shows, so the key isn't read; combined, the
+        // lazy grid still left each short title as its own tiny element.
+        .accessibilityHidden(true)
     }
 }
 

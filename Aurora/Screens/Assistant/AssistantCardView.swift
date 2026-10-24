@@ -266,10 +266,10 @@ struct AssistantCardView: View {
     /// every card each minute.
     private var captureLabel: some View {
         TimelineView(.explicit(captionMidnight)) { _ in
-            let text = captureText(now: .now)
-            Text(text)
+            // Shown as read: a spoken label longer than the visible time
+            // read as clipped text to the accessibility audit.
+            Text("Captured \(captureText(now: .now))")
                 .font(.caption2).foregroundStyle(Palette.textSecondary)
-                .accessibilityLabel("Captured \(text)")
         }
     }
     /// The next midnight for a card captured today; empty for earlier days.

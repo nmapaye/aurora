@@ -90,6 +90,29 @@ final class ReactionTestUITests: XCTestCase {
     /// Leaves the double-tap window (300 ms) between separate gestures.
     private func settle() { Thread.sleep(forTimeInterval: 0.4) }
 
+    /// Without touch: Space and Return on a hardware keyboard answer like a
+    /// tap (Full Keyboard Access and Switch Control activate the area the
+    /// same way). Escape ends the run as Close does, but the simulator
+    /// doesn't deliver it to apps.
+    func testKeyboardAnswersWithSpaceOrReturn() {
+        _ = openFromTheCardAndStart()
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 3))
+        var want = Counts()
+        expect(want, "start")
+        app.typeKey(" ", modifierFlags: [])
+        want.touches += 1; want.early += 1
+        expect(want, "space"); settle()
+        // "\n" is the Return key's HID usage; XCUIKeyboardKey.return ("\r")
+        // never reaches the app in the simulator.
+        app.typeKey("\n", modifierFlags: [])
+        want.touches += 1; want.early += 1
+        expect(want, "return"); settle()
+        // Other keys don't answer.
+        app.typeKey("a", modifierFlags: [])
+        settle()
+        expect(want, "a letter")
+    }
+
     func testTheTestFromTheCardIsFullScreenAndEveryTouchRegisters() {
         let area = openFromTheCardAndStart()
         // Full screen: the surface covers the window and the conversation
