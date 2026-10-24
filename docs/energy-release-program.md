@@ -44,7 +44,7 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 | Health | Integrated including largest-text correction 8de9c0f; physical/live gates open | 165 baseline core UTC/LA; final combined Energy native 58/58 phone/pad; Health reachability flows pass; unsigned Release/site/tokens pass |
 | Energy | Locally integrated at 85ecd49 after independent review; full release acceptance remains open | 186 core UTC/LA; 58 native phone/pad; pad UI 20/20; phone UI 19 full plus corrected 1 focused; light phone/pad and dark phone inspected; expanded accessibility/variant/device matrix pending |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
-| Widgets/performance | Pending | Extension/App Group protection, routing/redaction/erase; local signposts and physical profiling |
+| Widgets/performance | Pending; widgets deferred to v0.1.1 by owner decision 2026-10-24 | v0.1.0: local signposts and physical profiling (no widget extension in the v0.1.0 binary). v0.1.1: extension/App Group protection, routing/redaction/erase |
 | Release polish | Pending | Gallery all states, serial phone/pad flows, screenshot critique, policies/metadata/website consistency |
 
 ## Release acceptance
@@ -55,7 +55,7 @@ calendar authority/stale approval/partial outcomes; website/token checks/remote 
 Visual matrix: light/dark, largest text, VoiceOver, Reduce Motion, keyboard,
 orientation, Stop/failure/background; use dedicated fixtures, not personal records.
 
-Hardware gates: Health allow/deny/revoke/import/export, Google production OAuth,
+Hardware gates: Health allow/deny/revoke/import/export,
 signed archive/privacy audit, real previous-version upgrade, dictation/background,
 control feedback <100 ms, scrolling/animation/thermal/battery, verified support URLs
 and contact, TestFlight feedback. No App Store submission without final authorization.
