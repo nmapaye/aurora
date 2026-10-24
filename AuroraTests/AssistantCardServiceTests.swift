@@ -48,6 +48,34 @@ import Testing
         #expect(assistant.conversation.messages.allSatisfy { $0.card?.capturedAt == 123 })
         #expect(assistant.activeCards.isEmpty && assistant.pendingDraft == nil && assistant.pendingSleep == nil)
     }
+    /// Typing in an open draft changes only the draft; its card is written
+    /// when the app goes inactive and when the draft closes.
+    @Test func draftEditsReachTheCardOnlyWhenCapturedOrClosed() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        await assistant.handle(.logCaffeine, input: "Log caffeine", app: app)
+        let id = try #require(assistant.pendingMessageID)
+        let opened = assistant.conversation
+        assistant.pendingDraft?.mg = "123"
+        assistant.pendingDraft?.source = "Tea"
+        #expect(assistant.conversation == opened)
+        func card() -> AssistantCard? { assistant.conversation.messages.first { $0.id == id }?.card }
+        func value(_ metric: String) -> String? { card()?.metrics.first { $0.id == metric }?.value }
+        // Going inactive: the open card keeps the last values for a relaunch.
+        assistant.captureDraft(app: app)
+        #expect(card()?.state == .ready && value("amount") == "123 mg" && value("source") == "Tea")
+        assistant.pendingDraft?.mg = "150"
+        assistant.discardDraft()
+        #expect(card()?.state == .discarded && value("amount") == "150 mg")
+        // A saved check-in's card shows the rating chosen, not the opening one.
+        await assistant.handle(.energyCheckIn, input: "Check in my energy", app: app)
+        let checkIn = try #require(assistant.pendingMessageID)
+        assistant.pendingCheckIn?.rating = 4
+        assistant.saveCheckIn(app: app)
+        let saved = try #require(assistant.conversation.messages.first { $0.id == checkIn }?.card)
+        #expect(saved.state == .saved && saved.metrics.first { $0.id == "rating" }?.missing == false)
+    }
     @Test func cardFocusIsReleasedOnlyByItsOwnCard() {
         let assistant = AssistantModel(calendars: calendars())
         let a = UUID(), b = UUID()
@@ -131,6 +159,18 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("conversation.v1-source.json").path))
         #expect(app.phase == .ready)
     }
+    @Test func clearedConversationOpensOnItsWelcome() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ConversationStore(directory: directory)
+        let app = app(directory.appendingPathComponent("records"))
+        let assistant = AssistantModel(calendars: calendars(), makeStore: { store })
+        await assistant.start(app: app)
+        await assistant.handle(.logCaffeine, input: "I had 80 mg tea", app: app)
+        #expect(assistant.clearConversation(app: app))
+        #expect(assistant.conversation.messages.map(\.card?.kind) == [.welcome])
+        #expect(try store.load().messages.map(\.card?.kind) == [.welcome])
+        #expect(assistant.pendingDraft == nil && assistant.failure == nil)
+    }
     @Test func briefingRefreshReadsCalendarsAndKeepsPriorSnapshot() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)
@@ -148,6 +188,19 @@ import Testing
         #expect(assistant.conversation.messages.last?.card?.commitments.first?.title == "Updated commitment")
         #expect(fixture.reads == 2 && fixture.writes == 0)
     }
+    /// A new conversation opens on the short welcome; the full capabilities
+    /// card waits for "What can you do?".
+    @Test func aNewConversationOpensOnTheWelcome() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ConversationStore(directory: directory)
+        let app = app(directory.appendingPathComponent("records"))
+        let assistant = AssistantModel(calendars: calendars(), makeStore: { store })
+        await assistant.start(app: app)
+        #expect(assistant.conversation.messages.first?.card?.kind == .welcome)
+        #expect(assistant.conversation.messages.first?.card?.title == "Ready when you are.")
+        #expect(!assistant.conversation.messages.contains { $0.card?.kind == .capabilities })
+        #expect(try store.load().messages.first?.card?.kind == .welcome)
+    }
     @Test func interruptedReadBecomesRefreshableFailureAfterRelaunch() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let store = ConversationStore(directory: directory)
@@ -160,6 +213,42 @@ import Testing
         await assistant.start(app: app)
         #expect(assistant.conversation.messages.first?.card?.state == .failed)
         #expect(assistant.conversation.messages.first?.card?.refreshIntent == .briefing)
+    }
+    /// With no usual night on record, nothing is proposed: both times start
+    /// empty, the card says so, and Save records nothing until both are set.
+    @Test func sleepReviewStartsEmptyAndSavesOnlyTheTimesAdded() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        await assistant.handle(.logSleep, input: "Log sleep", app: app)
+        #expect(assistant.pendingSleep == ManualSleep.Entry())
+        let id = try #require(assistant.pendingMessageID)
+        let card = try #require(assistant.conversation.messages.first { $0.id == id }?.card)
+        #expect(card.metrics.filter(\.missing).map(\.id) == ["start", "end"])
+        assistant.saveSleep(app: app)
+        #expect(app.state.sleeps.isEmpty)
+        #expect(assistant.failure == ManualSleep.missingTimes)
+        // Read before writing: reading pendingSleep inside its own
+        // assignment is a simultaneous access, which crashes the test host.
+        let end = ManualSleep.addedTime(now: app.now)
+        assistant.pendingSleep?.end = end
+        assistant.pendingSleep?.start = end - 7 * hourMs
+        assistant.saveSleep(app: app)
+        #expect(app.state.sleeps.count == 1)
+        #expect(app.state.sleeps.first.map { $0.end - $0.start } == 7 * hourMs)
+    }
+    @Test func reminderTimesUseTheLocaleClock() {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let app = app(directory)
+        let assistant = AssistantModel(calendars: calendars())
+        assistant.conversation.preferences.proactive = true
+        assistant.conversation.preferences.morningBriefing = true
+        assistant.conversation.preferences.briefingHour = 8
+        let metrics = assistant.reminderMetrics(app: app)
+        let hour = { (value: Int) in app.text.clockHour(Double(value), clock: app.clock) }
+        #expect(metrics.first { $0.id == "briefing" }?.value == hour(8))
+        let p = assistant.conversation.preferences
+        #expect(metrics.first { $0.id == "quiet" }?.value == "\(hour(p.quietStartHour))–\(hour(p.quietEndHour))")
     }
     @Test func invalidSleepProducesNoSuccessReceipt() async {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }

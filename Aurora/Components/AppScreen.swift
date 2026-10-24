@@ -3,10 +3,15 @@ import SwiftUI
 /// The screen scaffold: a scrolling column on the screen color with a large
 /// title, optional subtitle, and a trailing settings button. Content is
 /// capped at a readable width and centered on wide windows.
+///
+/// Pushed (inside the Your records sheet) it keeps the system bar instead,
+/// so Back, the edge swipe and the sheet's own actions stay; the title goes
+/// in the bar, trailing actions in the toolbar, and there's no gear.
 struct AppScreen<Content: View, Trailing: View>: View {
     let title: String
     var subtitle: String?
     var showsSettings = true
+    var pushed = false
     @ViewBuilder var trailing: () -> Trailing
     @ViewBuilder var content: () -> Content
 
@@ -14,6 +19,16 @@ struct AppScreen<Content: View, Trailing: View>: View {
     @Environment(Router.self) private var router
 
     var body: some View {
+        scroll
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(pushed ? .automatic : .hidden, for: .navigationBar)
+            .toolbar {
+                if pushed { ToolbarItem(placement: .primaryAction) { trailing() } }
+            }
+    }
+
+    private var scroll: some View {
         GeometryReader { proxy in
             let wide = proxy.size.width >= Metrics.twoColumnMinWidth && sizeClass == .regular
             ScrollView {
@@ -23,6 +38,7 @@ struct AppScreen<Content: View, Trailing: View>: View {
                 }
                 .frame(maxWidth: wide ? Metrics.wideContentMaxWidth : Metrics.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, wide ? Metrics.lg : Metrics.md)
+                .padding(.top, pushed ? Metrics.md : 0)
                 .padding(.bottom, Metrics.xxl)
                 .frame(maxWidth: .infinity)
             }
@@ -30,10 +46,21 @@ struct AppScreen<Content: View, Trailing: View>: View {
             .environment(\.isWideLayout, wide)
         }
         .background(Palette.screen.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var header: some View {
+    @ViewBuilder private var header: some View {
+        if pushed {
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+        } else {
+            rootHeader
+        }
+    }
+
+    private var rootHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
                 Text(title)
@@ -67,10 +94,11 @@ struct AppScreen<Content: View, Trailing: View>: View {
 }
 
 extension AppScreen where Trailing == EmptyView {
-    init(title: String, subtitle: String? = nil, showsSettings: Bool = true, @ViewBuilder content: @escaping () -> Content) {
+    init(title: String, subtitle: String? = nil, showsSettings: Bool = true, pushed: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.subtitle = subtitle
         self.showsSettings = showsSettings
+        self.pushed = pushed
         self.trailing = { EmptyView() }
         self.content = content
     }
@@ -88,7 +116,8 @@ extension EnvironmentValues {
     }
 }
 
-/// A raised card surface.
+/// A raised card surface. One accessibility container, so VoiceOver moves
+/// through a card's contents together and can skip past it.
 struct Card<Content: View>: View {
     var padding: CGFloat = Metrics.md
     @ViewBuilder var content: () -> Content
@@ -99,6 +128,7 @@ struct Card<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).strokeBorder(Palette.cardBorder))
+            .accessibilityElement(children: .contain)
     }
 }
 
@@ -192,7 +222,9 @@ struct StatusBadge: View {
     var tone: StatusTone = .neutral
 
     var body: some View {
-        Label(text, systemImage: tone.symbol)
+        // The text carries the meaning; the symbol's own name ("Selected",
+        // "Pencil") would only confuse VoiceOver.
+        Label { Text(text) } icon: { Image(systemName: tone.symbol).accessibilityHidden(true) }
             .font(.footnote.weight(.medium))
             .foregroundStyle(tone.foreground)
             .padding(.horizontal, Metrics.sm)
@@ -204,25 +236,73 @@ struct StatusBadge: View {
 
 /// A form field with its label above and an optional trailing unit, sharing
 /// one field surface so labels, values and units align down a card.
+///
+/// The field names itself for VoiceOver (with its unit, e.g. "Amount,
+/// milligrams"), so the visible label and unit aren't read a second time.
 struct LabeledField<Field: View>: View {
     let label: String
     var unit: String?
+    /// The field's own focus, from the caller's `FocusState`. A field bound
+    /// to its own `FocusState` doesn't report focus to the container, so
+    /// callers with one pass it here; without it the ring follows the
+    /// container's focus.
+    var isFocused: Bool?
     @ViewBuilder var field: () -> Field
+    @FocusState private var containerFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             Text(label).font(Typography.label).foregroundStyle(Palette.textSecondary)
-            HStack(spacing: Metrics.xs) {
-                field()
-                if let unit {
-                    Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
-                        .accessibilityHidden(true)
-                }
+                .accessibilityHidden(true)
+            if let isFocused {
+                surface.fieldSurface(focused: isFocused)
+            } else {
+                surface.focused($containerFocused).fieldSurface(focused: containerFocused)
             }
-            .padding(.horizontal, Metrics.sm)
-            .frame(minHeight: Metrics.minimumTouchTarget)
-            .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
         }
+    }
+
+    private var surface: some View {
+        HStack(spacing: Metrics.xs) {
+            field()
+            if let unit {
+                Text(unit).font(Typography.evidence).foregroundStyle(Palette.textSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, Metrics.sm)
+        .frame(minHeight: Metrics.minimumTouchTarget)
+    }
+}
+
+extension View {
+    /// Settings-shaped lists on Aurora's screen color, like the rest of the
+    /// sheets, instead of system grouped grey. Pair with `auroraRows()`.
+    func auroraGroupedList() -> some View {
+        scrollContentBackground(.hidden).background(Palette.screen)
+    }
+
+    /// Card rows for a list section.
+    func auroraRows() -> some View {
+        listRowBackground(Palette.card).listRowSeparatorTint(Palette.separator)
+    }
+
+    /// Page size on iPad, where the default form sheet cut Settings and
+    /// Your records off with most of the screen empty. No change on iPhone.
+    @ViewBuilder func pageSizedSheet() -> some View {
+        if #available(iOS 18, *) {
+            presentationSizing(.page)
+        } else {
+            self
+        }
+    }
+
+    /// The shared field surface: fill, a resting border the card can't
+    /// swallow, and a tint ring while the field has focus.
+    func fieldSurface(focused: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+        return background(Palette.fieldBackground, in: shape)
+            .overlay(shape.strokeBorder(focused ? Palette.tint : Palette.fieldBorder, lineWidth: focused ? 2 : 1))
     }
 }
 

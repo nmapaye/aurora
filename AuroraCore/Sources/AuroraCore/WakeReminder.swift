@@ -9,7 +9,9 @@ public struct WakeReminderSettings: Codable, Equatable, Sendable {
     /// The fallback when no wake-up is recorded, in minutes after midnight.
     public var usualWakeMinutes: Int
 
-    public static let defaults = WakeReminderSettings(enabled: false, offsetsMinutes: [60], usualWakeMinutes: 8 * 60)
+    /// Off, with no reminder time chosen: the person picks every one. Stored
+    /// settings never read this.
+    public static let defaults = WakeReminderSettings(enabled: false, offsetsMinutes: [], usualWakeMinutes: 8 * 60)
 
     public init(enabled: Bool, offsetsMinutes: [Int], usualWakeMinutes: Int) {
         self.enabled = enabled

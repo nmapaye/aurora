@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Real work lights the perimeter; its frozen final frame fades away afterward.
 /// No motion timer runs at rest, in the background, or with Reduce Motion enabled.
@@ -31,39 +32,71 @@ struct AuroraEdgeGlow: View {
         .accessibilityHidden(true)
     }
 
-    private func edge(phase: Double) -> some View {
+    /// The window's own corners on iOS 26, so the light follows an iPhone's
+    /// display, an iPad's smaller corners and a Stage Manager window alike.
+    /// Earlier, and wherever no container shape resolves, a radius for the
+    /// idiom: a fixed 42 pt was far too round on iPad.
+    @ViewBuilder private func edge(phase: Double) -> some View {
+        let fallback: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 18 : 42
+        if #available(iOS 26, *) {
+            EdgeBands(shape: ConcentricRectangle(corners: .concentric(minimum: .fixed(fallback)), isUniform: true), phase: phase)
+        } else {
+            EdgeBands(shape: RoundedRectangle(cornerRadius: fallback, style: .continuous), phase: phase)
+        }
+    }
+}
+
+/// Three bands travelling around the perimeter. The halos of all three
+/// share one blurred layer and the cores draw crisp: six full-window blurs
+/// per frame, at 30 fps, were the glow's whole cost.
+private struct EdgeBands<Perimeter: Shape>: View {
+    let shape: Perimeter
+    let phase: Double
+
+    private struct Band: Identifiable {
+        let id: Int
+        let start: Double
+        let length: Double
+        let width: Double
+        let color: Color
+    }
+
+    private var bands: [Band] {
+        (0..<3).map { band in
+            let offset = Double(band)
+            let brightness = 0.55 + 0.16 * sin(phase * 0.7 + offset)
+            return Band(
+                id: band,
+                start: (phase / 10 + offset / 3).truncatingRemainder(dividingBy: 1),
+                length: 0.19 + 0.045 * sin(phase * 0.65 + offset * 2),
+                width: 3.5 + 1.2 * sin(phase * 0.8 + offset * 2),
+                color: Palette.auroraColors[band].opacity(brightness)
+            )
+        }
+    }
+
+    var body: some View {
+        let bands = bands
         ZStack {
-            RoundedRectangle(cornerRadius: 42)
-                .stroke(Palette.auroraTeal.opacity(0.14), lineWidth: 2)
-            ForEach(0..<3) { band in
-                let offset = Double(band)
-                let start = (phase / 10 + offset / 3).truncatingRemainder(dividingBy: 1)
-                let length = 0.19 + 0.045 * sin(phase * 0.65 + offset * 2)
-                let width = 3.5 + 1.2 * sin(phase * 0.8 + offset * 2)
-                let brightness = 0.55 + 0.16 * sin(phase * 0.7 + offset)
-                let color = Palette.auroraColors[band]
-                bandShape(start: start, length: length, width: width + 10, color: color.opacity(brightness * 0.55))
-                    .blur(radius: 10)
-                bandShape(start: start, length: length, width: width, color: color.opacity(brightness))
-                    .blur(radius: 1.5)
+            shape.stroke(Palette.auroraTeal.opacity(0.14), lineWidth: 2)
+            ZStack {
+                ForEach(bands) { band in segments(band, width: band.width + 10, opacity: 0.55) }
             }
+            .compositingGroup()
+            .blur(radius: 10)
+            ForEach(bands) { band in segments(band, width: band.width, opacity: 1) }
         }
         .padding(5)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     /// Split at the perimeter seam so each traveling band wraps continuously.
-    private func bandShape(start: Double, length: Double, width: Double, color: Color) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 42)
-                .trim(from: start, to: min(start + length, 1))
-                .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round))
-            if start + length > 1 {
-                RoundedRectangle(cornerRadius: 42)
-                    .trim(from: 0, to: start + length - 1)
-                    .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round))
-            }
+    @ViewBuilder private func segments(_ band: Band, width: Double, opacity: Double) -> some View {
+        let style = StrokeStyle(lineWidth: width, lineCap: .round)
+        shape.trim(from: band.start, to: min(band.start + band.length, 1))
+            .stroke(band.color.opacity(opacity), style: style)
+        if band.start + band.length > 1 {
+            shape.trim(from: 0, to: band.start + band.length - 1)
+                .stroke(band.color.opacity(opacity), style: style)
         }
     }
 }

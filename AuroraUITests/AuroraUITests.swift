@@ -106,7 +106,11 @@ final class AuroraUITests: XCTestCase {
             XCTAssertEqual(control.label, titles[choice])
             func reachable() -> Bool {
                 if control.isEnabled { return control.isHittable }
-                return app.frame.contains(control.frame) && control.frame.minY > app.frame.minY + 100
+                // The switch's label carries its description, so at the
+                // largest text one row can be taller than the screen. A
+                // disabled row counts once it shows below the bar.
+                let shown = app.frame.insetBy(dx: 0, dy: 100)
+                return control.frame.intersects(shown) && control.frame.minY < shown.maxY - 44
             }
             // Short drags toward the switch: on iPad the sheet is small at the
             // largest text, and a full swipe scrolled past it to the end.
@@ -189,6 +193,11 @@ final class AuroraUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["setup-question-" + step].waitForExistence(timeout: 5))
         }
         XCTAssertTrue(app.staticTexts["wake-preview"].exists)
+        // Nothing is chosen for the person: no time is selected and the
+        // primary action waits for a pick.
+        XCTAssertFalse(app.buttons["wake-offset-60"].isSelected)
+        XCTAssertFalse(app.buttons["setup-next"].isEnabled)
+        tapWhenReady(app.buttons["wake-offset-60"])
         tapWhenReady(app.buttons["wake-offset-120"])
         tapWhenReady(app.buttons["setup-next"])
         // Notification permission is asked only now, after the explicit choice.
@@ -287,7 +296,12 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
         tapQuick("How is my energy?")
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Unavailable"].exists)
+        // No score: the card leads with the missing record, not "Unavailable".
+        let missing = app.descendants(matching: .any)["assistant-energy-missing"].firstMatch
+        XCTAssertTrue(missing.waitForExistence(timeout: 5))
+        XCTAssertTrue(missing.label.contains("No sleep recorded in the last 24 hours."), missing.label)
+        XCTAssertFalse(app.staticTexts["Unavailable"].exists)
+        XCTAssertTrue(app.buttons["Record sleep"].exists)
     }
     func testEnergyCurveShowsModeledLabelsWithoutRecords() {
         finishSetup()
@@ -298,8 +312,24 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(curve.label.contains("Modeled."))
         // Recorded inputs are shown only when asked for.
         XCTAssertFalse(app.staticTexts["No sleep or caffeine recorded in this window."].exists)
+        // The typed request leaves the keyboard up. On CI the row behind it
+        // still reported hittable and in place, and the tap missed; drag the
+        // keyboard away (interactive dismissal), then reach the row.
         let recorded = app.buttons["What’s recorded in this window"]
-        for _ in 0..<4 where !recorded.isHittable { app.swipeUp() }
+        let composer = app.textFields["assistant-composer"]
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists {
+            window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
+                forDuration: 0.05, thenDragTo: window().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)),
+                withVelocity: .slow, thenHoldForDuration: 0.05)
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5))
+        }
+        func reachable() -> Bool {
+            recorded.isHittable && recorded.frame.maxY <= composer.frame.minY
+                && (!keyboard.exists || recorded.frame.maxY <= keyboard.frame.minY)
+        }
+        for _ in 0..<6 where !reachable() { app.swipeUp() }
+        XCTAssertTrue(reachable(), "Row \(recorded.frame)")
         recorded.tap()
         XCTAssertTrue(app.staticTexts["No sleep or caffeine recorded in this window."].waitForExistence(timeout: 3))
     }
@@ -431,9 +461,31 @@ final class AuroraUITests: XCTestCase {
         tapQuick("Show this week")
         XCTAssertTrue(app.staticTexts["Recorded caffeine · this week"].waitForExistence(timeout: 5))
         app.buttons["assistant-history"].tap()
-        XCTAssertTrue(app.buttons["Caffeine history"].waitForExistence(timeout: 5))
-        app.buttons["Caffeine history"].tap()
+        XCTAssertTrue(app.buttons["records-caffeine"].waitForExistence(timeout: 5))
+        app.buttons["records-caffeine"].tap()
         XCTAssertTrue(app.navigationBars["Caffeine History"].waitForExistence(timeout: 5))
+    }
+    /// Screens pushed in Your records keep the system bar: sleep history
+    /// opens in the same sheet, Back returns, and Done closes the sheet.
+    func testRecordsScreensKeepBackAndDone() {
+        finishSetup()
+        app.buttons["assistant-history"].tap()
+        XCTAssertTrue(app.buttons["records-sleep"].waitForExistence(timeout: 5))
+        app.buttons["records-sleep"].tap()
+        XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
+        let data = app.buttons["sleep-data"]
+        for _ in 0..<6 where !data.isHittable { app.swipeUp() }
+        data.tap()
+        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'All sleep entries'")).firstMatch
+        for _ in 0..<6 where !all.isHittable { app.swipeUp() }
+        all.tap()
+        XCTAssertTrue(app.navigationBars["Sleep History"].waitForExistence(timeout: 5))
+        app.navigationBars["Sleep History"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
+        app.navigationBars["Sleep"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Your records"].waitForExistence(timeout: 5))
+        app.navigationBars["Your records"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
     func testCalendarNeverWritesWithoutPreviewApproval() {
         finishSetup()
@@ -452,7 +504,29 @@ final class AuroraUITests: XCTestCase {
         request("Log sleep")
         let save = app.buttons["assistant-sleep-save"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
-        app.swipeUp()
+        // Both times start empty, so Save waits for the person's own.
+        XCTAssertFalse(save.isEnabled)
+        // End, then start, at the current minute; moving the start back a
+        // day makes a night of just under (or exactly) 24 hours.
+        tapWhenReady(app.buttons["assistant-sleep-add-end"])
+        tapWhenReady(app.buttons["assistant-sleep-add-start"])
+        let startDate = app.datePickers["assistant-sleep-start-date"]
+        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !startDate.isHittable { app.swipeUp() }
+        startDate.tap()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: .now)!
+        if !Calendar.current.isDate(yesterday, equalTo: .now, toGranularity: .month) {
+            tapWhenReady(app.buttons["Previous Month"])
+        }
+        let format = DateFormatter(); format.locale = Locale(identifier: "en_US"); format.dateFormat = "MMMM d"
+        tapWhenReady(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", format.string(from: yesterday))).firstMatch)
+        // The calendar popover covers the card until dismissed.
+        let dismiss = app.descendants(matching: .any)["PopoverDismissRegion"].firstMatch
+        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+        else { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap() }
+        XCTAssertTrue(dismiss.waitForNonExistence(timeout: 5))
+        for _ in 0..<4 where !save.isHittable { app.swipeUp() }
+        XCTAssertTrue(save.isEnabled)
         save.tap()
         XCTAssertTrue(app.staticTexts["Sleep saved"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant-undo"].exists)
@@ -483,7 +557,20 @@ final class AuroraUITests: XCTestCase {
 
     private func request(_ text: String) {
         let input = app.textFields["assistant-composer"]
-        input.tap(); input.typeText(text)
+        // iPad CI once sent only "R" for "Reminders": the keystrokes after the
+        // first were lost. Type once the field has focus, and retype until it
+        // holds the whole request, clearing any partial text first.
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        let complete = NSPredicate(format: "value == %@", text)
+        for _ in 0..<3 {
+            input.tap()
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: input)], timeout: 3)
+            if let partial = input.value as? String, !partial.isEmpty, partial != text {
+                input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: partial.count))
+            }
+            input.typeText(text)
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: complete, object: input)], timeout: 2) == .completed { break }
+        }
         // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a retry can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
@@ -507,7 +594,7 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Proactive suggestions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Offer useful updates"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["Cutoff reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {
@@ -520,7 +607,16 @@ final class AuroraUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-AuroraUITestReset", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
-        finishSetup(); request("Morning briefing")
+        finishSetup()
+        // Tiles go icon-only rather than clip, keep their names, and stay
+        // inside one row above the composer.
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        let caffeine = app.buttons["assistant-quick-Log caffeine"]
+        XCTAssertTrue(caffeine.waitForExistence(timeout: 5) && caffeine.isHittable)
+        XCTAssertEqual(caffeine.label, "Log caffeine")
+        XCTAssertTrue(row.frame.insetBy(dx: -1, dy: -1).contains(caffeine.frame), "tile \(caffeine.frame) row \(row.frame)")
+        XCTAssertLessThanOrEqual(row.frame.maxY, app.textFields["assistant-composer"].frame.minY)
+        request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
         XCTAssertTrue(app.buttons["assistant-send"].exists)
@@ -574,6 +670,25 @@ final class AuroraUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)
         attachScreenshot("Long card start after insertion")
+    }
+
+    /// A draft asked for while typing takes the letter keyboard down and
+    /// shows from its title, with no "New message below" over it.
+    func testDraftFromATileWhileTypingDropsTheKeyboardAndShowsItsTitle() {
+        finishSetup()
+        let composer = app.textFields["assistant-composer"]
+        composer.tap()
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["assistant-quick-Log caffeine"])
+        let title = cardTitle("caffeineDraft")
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        XCTAssertGreaterThanOrEqual(title.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1, "Title \(title.frame)")
+        XCTAssertLessThanOrEqual(title.frame.maxY, composer.frame.minY)
+        XCTAssertFalse(app.buttons["assistant-new-below"].waitForExistence(timeout: 2))
+        attachScreenshot("Draft from a tile while typing")
     }
 
     /// Saving an earlier draft while reading it adds a receipt at the end
@@ -664,10 +779,60 @@ final class AuroraUITests: XCTestCase {
 
     // MARK: Discovery
 
+    /// A new conversation opens on the short welcome, read from its top;
+    /// the full list of capabilities is one chip away, not the first card.
+    func testNewConversationOpensOnTheWelcomeFromItsTop() {
+        finishSetup()
+        let welcome = cardTitle("welcome")
+        XCTAssertTrue(welcome.waitForExistence(timeout: 5))
+        XCTAssertEqual(welcome.label, "Ready when you are.")
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: welcome)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        XCTAssertGreaterThanOrEqual(welcome.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1)
+        XCTAssertFalse(cardTitle("capabilities").exists)
+        for chip in ["logCaffeine", "logSleep", "help"] {
+            XCTAssertTrue(app.buttons["welcome-" + chip].exists, chip)
+        }
+        let hint = app.staticTexts["Start with a quick action, or ask in your own words."]
+        XCTAssertTrue(hint.exists)
+        attachScreenshot("New conversation welcome")
+        tapWhenReady(app.buttons["welcome-help"])
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        // The hint is for an empty conversation only.
+        XCTAssertTrue(hint.waitForNonExistence(timeout: 3))
+    }
+
+    /// Clearing erases the conversation and opens it again on the welcome.
+    func testClearConversationReturnsToTheWelcome() {
+        finishSetup()
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        request("help")
+        XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
+        tapWhenReady(app.buttons["assistant-settings"])
+        let clear = app.buttons["Clear conversation"].firstMatch
+        for _ in 0..<8 where !clear.isHittable { app.swipeUp() }
+        let row = clear.frame
+        clear.tap()
+        // On iOS 26 the dialog is a menu from the row; its button is the
+        // other "Clear conversation".
+        let matches = app.buttons.matching(identifier: "Clear conversation")
+        let two = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: matches)
+        XCTAssertEqual(XCTWaiter.wait(for: [two], timeout: 3), .completed)
+        let confirm = matches.allElementsBoundByIndex.first { $0.frame != row }
+        XCTAssertNotNil(confirm)
+        confirm?.tap()
+        XCTAssertTrue(cardTitle("capabilities").waitForNonExistence(timeout: 5))
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: app.buttons["welcome-help"])
+        XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: 5), .completed)
+    }
+
     /// "help" answers with everything Aurora can do, not a clarification,
-    /// and each row sends its own request.
+    /// and each row sends its own request. The welcome came first.
     func testHelpShowsCapabilitiesAndARowSendsItsRequest() {
-        finishSetup(); request("help")
+        finishSetup()
+        XCTAssertTrue(cardTitle("welcome").waitForExistence(timeout: 5))
+        request("help")
         XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
         XCTAssertFalse(cardTitle("clarification").exists)
         let cutoff = app.buttons["capability-cutoffScenario"].firstMatch
@@ -685,6 +850,9 @@ final class AuroraUITests: XCTestCase {
         let suggestion = app.buttons["assistant-suggest-cutoffScenario"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["assistant-quick-Morning briefing"].exists)
+        // A suggestion covers a tile exactly; nothing spills onto the composer.
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        XCTAssertTrue(row.frame.insetBy(dx: -1, dy: -1).contains(suggestion.frame), "suggestion \(suggestion.frame) row \(row.frame)")
         attachScreenshot("Composer suggestions")
         suggestion.tap()
         XCTAssertTrue(cardTitle("cutoffScenario").waitForExistence(timeout: 5))
@@ -695,11 +863,15 @@ final class AuroraUITests: XCTestCase {
     /// and send their request; the everyday tiles fill the rest.
     func testNextStepsLeadTheBottomRowAfterAnEnergyAnswer() {
         finishSetup()
+        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let height = row.frame.height
         tapQuick("How is my energy?")
         XCTAssertTrue(cardTitle("energy").waitForExistence(timeout: 5))
-        let row = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
         let curve = row.buttons["assistant-follow-up-energyProjection"]
         XCTAssertTrue(curve.waitForExistence(timeout: 5))
+        // Next steps replace tiles without changing the row's height.
+        XCTAssertEqual(row.frame.height, height, accuracy: 1)
         XCTAssertTrue(row.buttons["assistant-follow-up-energyCheckIn"].exists)
         XCTAssertTrue(row.buttons["assistant-quick-Morning briefing"].exists)
         XCTAssertTrue(row.buttons["assistant-quick-Log caffeine"].exists)

@@ -9,6 +9,8 @@ enum ConversationReveal: Equatable {
     case none
     /// The opened conversation, or the person's own message: show the end.
     case end
+    /// A new conversation opening on its welcome: show it from the top.
+    case top
     /// Scroll so this message's top is visible.
     case start(UUID)
     /// Stay put and offer this message below.
@@ -19,11 +21,23 @@ enum ConversationReveal: Equatable {
     static func after(_ messages: [ConversationMessage], previousCount: Int, readingLatest: Bool) -> ConversationReveal {
         guard messages.count > previousCount else { return .none }
         // Opening the stored conversation adds everything at once.
-        if previousCount == 0 { return .end }
+        if previousCount == 0 { return opensAtWelcome(messages) ? .top : .end }
         let added = messages[previousCount...]
-        if added.contains(where: \.isUser) { return .end }
+        if let own = added.lastIndex(where: \.isUser) {
+            // The person's message and the reply can land in one update (a
+            // tile's request answers at once). Showing the end then scrolled
+            // a tall draft past its title, so show the reply's start.
+            let reply = messages.index(after: own)
+            return reply < messages.endIndex ? .start(messages[reply].id) : .end
+        }
         guard let first = added.first else { return .none }
         return readingLatest ? .start(first.id) : .hold(first.id)
+    }
+
+    /// Only the welcome and Aurora's own cards so far: the opened
+    /// conversation is read from its top, not its end.
+    static func opensAtWelcome(_ messages: [ConversationMessage]) -> Bool {
+        messages.first?.card?.kind == .welcome && !messages.hasUserMessages(atLeast: 1)
     }
 }
 
@@ -53,5 +67,72 @@ enum ConversationWindow {
     /// One batch earlier.
     static func earlier(_ start: Int?, count: Int) -> Int {
         max(0, first(start, count: count) - batch)
+    }
+}
+
+/// The cap on how much the plain stack lays out, and the rows it renders.
+extension ConversationWindow {
+    /// Most messages rendered at once. Past it, showing an earlier batch
+    /// leaves out the newest revealed batch rather than the latest, and a
+    /// control where they were shows them again a batch at a time.
+    static let cap = 120
+
+    /// Indices rendered: the revealed earlier messages, then the latest.
+    /// Two ranges when the cap left messages out between them.
+    static func shown(_ start: Int?, count: Int) -> [Range<Int>] {
+        let top = first(start, count: count)
+        let latestStart = max(0, count - latest)
+        let earlierEnd = top + cap - latest
+        guard earlierEnd < latestStart else { return [top..<count] }
+        return [top..<earlierEnd, latestStart..<count]
+    }
+
+    /// One batch later: brings back the left-out batch next to the shown
+    /// earlier messages, and drops as many from the top. No change without
+    /// a gap.
+    static func later(_ start: Int?, count: Int) -> Int {
+        let top = first(start, count: count)
+        return max(top, min(top + batch, count - cap))
+    }
+
+    /// The rendered rows, in order. One pass over the shown messages, each
+    /// compared only with the message before it.
+    static func rows(_ messages: [ConversationMessage], start: Int?) -> [ConversationRow] {
+        var rows: [ConversationRow] = []
+        let ranges = shown(start, count: messages.count)
+        rows.reserveCapacity(ranges.reduce(0) { $0 + $1.count })
+        for (part, range) in ranges.enumerated() {
+            for index in range {
+                let message = messages[index]
+                let afterGap = part > 0 && index == range.lowerBound
+                let startsGroup = index == 0 || afterGap
+                    || message.createdAt.timeIntervalSince(messages[index - 1].createdAt) > ConversationRow.groupGap
+                rows.append(ConversationRow(message: message, startsGroup: startsGroup, afterGap: afterGap))
+            }
+        }
+        return rows
+    }
+}
+
+/// One rendered message.
+struct ConversationRow: Identifiable {
+    /// Messages further apart than this start a new group under their time.
+    static let groupGap: TimeInterval = 300
+
+    let message: ConversationMessage
+    /// Shows its time: the first message, the first after left-out ones, or
+    /// one more than five minutes after the message before it.
+    let startsGroup: Bool
+    /// The first of the latest messages, with left-out messages above it.
+    let afterGap: Bool
+    var id: UUID { message.id }
+}
+
+extension Collection where Element == ConversationMessage {
+    /// Whether at least `count` of these are the person's own. Stops at the
+    /// `count`th, so checking for the first few stays cheap however long the
+    /// conversation is.
+    func hasUserMessages(atLeast count: Int) -> Bool {
+        lazy.filter(\.isUser).prefix(count).count == count
     }
 }

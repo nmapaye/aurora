@@ -53,7 +53,28 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
             let projection = AssistantCards.make(.energyProjection, state: AppState(), now: now, clock: clock, text: text(clock))
             #expect(projection.energy?.projection?.points.allSatisfy { $0.modeledScore == nil } == true)
             #expect(projection.metrics.first?.value == "Unavailable")
+            // With no score the source names what's missing, never a scale.
+            let alertness = try #require(card.metrics.first { $0.id == "alertness" })
+            #expect(alertness.source == "No sleep recorded in the last 24 hours.")
+            #expect(projection.metrics.first?.source == alertness.source)
         }
+    }
+
+    @Test func missingSleepNamesTheDayOfTheLastRecord() throws {
+        // Ended 2026-09-25 06:41 UTC: Friday in UTC, Thursday evening in Los Angeles.
+        let older = SleepSession(id: "manual:sleep:2:a", start: now - 60 * hourMs, end: now - 58 * hourMs)
+        for clock in [utc, pacific] {
+            let card = AssistantCards.make(.energy, state: state(sleeps: [older]), now: now, clock: clock, text: text(clock))
+            let alertness = try #require(card.metrics.first { $0.id == "alertness" })
+            #expect(alertness.value == "Unavailable" && alertness.missing)
+            #expect(alertness.source == "No sleep recorded since \(text(clock).weekdayDate(older.end)).")
+            #expect(CopyRules.violations(in: alertness.source).isEmpty)
+        }
+        // A record that hasn't ended by capture isn't known yet.
+        let unfinished = SleepSession(id: "manual:sleep:3:a", start: now - hourMs, end: now + hourMs)
+        #expect(EnergyEstimate.missingSleepText(sleeps: [unfinished], at: now, text: text(utc)) == "No sleep recorded in the last 24 hours.")
+        let scored = AssistantCards.make(.energy, state: state(sleeps: [night]), now: now, clock: utc, text: text(utc))
+        #expect(scored.metrics.first { $0.id == "alertness" }?.source == EnergyEstimate.scaleLabel)
     }
 
     @Test func contributionsShowSleepCaffeineAndTimeOfDay() throws {

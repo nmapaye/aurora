@@ -97,8 +97,7 @@ struct WakeRemindersView: View {
             }
             if case .denied = model.wakeReminderStatus {
                 Section {
-                    Label("Notifications are off for Aurora in Settings.", systemImage: StatusTone.warning.symbol)
-                        .foregroundStyle(StatusTone.warning.foreground)
+                    NotificationsOffNotice()
                 }
             }
         }

@@ -18,6 +18,9 @@ struct SettingsView: View {
 
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
+    /// The one name for the links into this screen from Aurora settings and
+    /// Your records.
+    static let recordsTitle = "Records, exports and privacy"
 
     /// True when pushed onto another screen's NavigationStack. A second
     /// stack nested inside it crashed iPadOS 26's focus system as soon as
@@ -28,7 +31,7 @@ struct SettingsView: View {
         if pushed {
             settings
         } else {
-            NavigationStack { settings }
+            NavigationStack { settings }.pageSizedSheet()
         }
     }
 
@@ -65,11 +68,12 @@ struct SettingsView: View {
                     }
                     footnote("A daily amount you choose for your own reference. It is not a recommended or safe amount.")
                     Divider()
-                    stepper("Cutoff hour", value: jsRound(prefs.cutoffHour), in: 0...23, step: 1, text: { model.text.clockHour($0, clock: model.clock) }) { v in
-                        model.setPrefs { $0.cutoffHour = v }
+                    HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(prefs.cutoffHour) }, set: { v in
+                        model.setPrefs { $0.cutoffHour = Double(v) }
                         Task { await model.resyncReminder() }
-                    }
-                    footnote("The time you choose for the cutoff marker and optional reminder.")
+                    }), id: "settings-cutoff-hour")
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    footnote("The time you choose for the cutoff marker and optional reminder. On the hour.")
                 }
 
                 group("Notifications") {
@@ -152,7 +156,7 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
             .padding(Metrics.md)
         }
-        .background(Palette.modalBackground)
+        .background(Palette.screen)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -229,23 +233,31 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func reminderStatusRow(enabled: Bool) -> some View {
+        let denied = !reminderBusy && model.reminderStatus == .denied
         let status: (text: String, failed: Bool) = {
             if reminderBusy { return ("Updating reminder…", false) }
             switch model.reminderStatus {
             case .off: return (enabled ? "Updating reminder…" : "Reminder off.", false)
             case .scheduled: return ("Reminder scheduled.", false)
-            case .denied: return ("Notification permission is off. Allow notifications in system Settings, then retry.", true)
+            case .denied: return ("", true)
             case .failed: return ("The reminder couldn’t be scheduled. Retry.", true)
             }
         }()
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Reminder status")
-            Text(status.text)
-                .font(.footnote)
-                .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+        if denied {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                NotificationsOffNotice()
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                Text(status.text)
+                    .font(.footnote)
+                    .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(status.failed ? .isStaticText : [])
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(status.failed ? .isStaticText : [])
         if status.failed {
             Button("Retry reminder") {
                 Task { await model.setReminder(enabled: true) }
