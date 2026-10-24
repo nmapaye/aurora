@@ -70,6 +70,7 @@ does not authorize changing personal events; test only explicitly approved fixtu
 
 Final tag/commit, test logs and xcresults, signed archive validation/privacy report,
 device checklist, Google production approval (only once Google Calendar ships, not
-v0.1.0), methodology/claims review, real support contact and working URLs, actual screenshots, age rating, export compliance, accurate
-privacy/accessibility answers, price/storefronts and reviewer instructions.
+v0.1.0), methodology/claims review, real support contact and working URLs, actual
+screenshots, age rating, export compliance, accurate privacy/accessibility answers,
+price/storefronts and reviewer instructions.
 No blocking data-loss, unauthorized-write, crash or accessibility defects may remain.
