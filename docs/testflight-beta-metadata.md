@@ -33,4 +33,4 @@ Beta feedback and access requests: nmapaye@outlook.com (owner approved 2026-10-2
 
 ## Beta sign-up
 
-The website's "Request beta access" link opens an email to nmapaye@outlook.com (subject "Aurora beta request") asking for the tester's Apple ID email and device. First wave: small and invite-only; no dates promised. Addresses are used only to send a TestFlight invite and beta updates, aren't shared or sold, and testers can ask to be removed any time by replying.
+The website's "Request beta access" link opens an email to nmapaye@outlook.com (subject "Aurora beta request") asking for name or handle, device, iOS or iPadOS version, and whether they'd test with VoiceOver and do one guided session. First wave: small and invite-only; no dates promised. Addresses are used only to send a TestFlight invite and beta updates, aren't sold, and are shared only with Apple to send the invite; testers can ask to be removed any time by replying.
