@@ -137,6 +137,19 @@ jobs:
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
           exit $status
 
+      # The Debug simulator app from Build for testing must keep the
+      # local networking exception that the simulator-only Ollama path uses.
+      - name: Simulator Info.plist keeps local networking
+        run: |
+          set -euo pipefail
+          sim=build/DerivedData/Build/Products/Debug-iphonesimulator/Aurora.app/Info.plist
+          if [ "$(plutil -extract NSAppTransportSecurity.NSAllowsLocalNetworking raw -o - "$sim")" != "true" ]; then
+            echo "::error::Simulator Info.plist must set NSAllowsLocalNetworking"
+            plutil -p "$sim"
+            exit 1
+          fi
+          echo "Simulator Info.plist keeps NSAllowsLocalNetworking."
+
       - name: Test
         run: |
           set +e
@@ -157,28 +170,12 @@ jobs:
             | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
           exit $status
 
-      - name: Release build
+      # The only Release build. It targets a generic iOS device, so CI checks
+      # the Info.plist that would ship: no local networking exception.
+      - name: Release device build
         if: matrix.device == 'iPhone'
         run: |
           mkdir -p build
-          set +e
-          xcodebuild build \
-            -project Aurora.xcodeproj \
-            -scheme Aurora \
-            -configuration Release \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            > build/xcodebuild-release.log 2>&1
-          status=$?
-          grep -E "error:|\*\* .* \*\*" build/xcodebuild-release.log | head -200
-          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release.log
-          exit $status
-
-      # Device builds must not allow local networking; simulator builds keep it.
-      - name: Release device build has no local networking exception
-        if: matrix.device == 'iPhone'
-        run: |
           set +e
           xcodebuild build \
             -project Aurora.xcodeproj \
@@ -194,14 +191,12 @@ jobs:
           [ $status -eq 0 ] || exit $status
           set -e
           device=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist
-          sim=build/DerivedData/Build/Products/Release-iphonesimulator/Aurora.app/Info.plist
           if plutil -extract NSAppTransportSecurity xml1 -o - "$device" >/dev/null 2>&1; then
             echo "::error::Release device Info.plist contains NSAppTransportSecurity"
             plutil -p "$device"
             exit 1
           fi
-          plutil -extract NSAppTransportSecurity.NSAllowsLocalNetworking raw -o - "$sim"
-          echo "Release device Info.plist has no NSAppTransportSecurity; simulator keeps NSAllowsLocalNetworking."
+          echo "Release device Info.plist has no NSAppTransportSecurity."
 
       - name: Upload logs
         if: always()
