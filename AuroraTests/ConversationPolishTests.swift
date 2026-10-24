@@ -27,6 +27,21 @@ import Testing
         #expect(ConversationReveal.after(messages(6), previousCount: 0, readingLatest: false) == .end)
     }
 
+    /// CI (main, 73199d4): "Show my energy curve" and its card were added in
+    /// one update, so the conversation went to the end and the long card's
+    /// title sat under the navigation bar.
+    @Test func aSentMessageAndItsReplyInOneUpdateShowTheReplysStart() {
+        let list = messages(5, userAt: [3])
+        #expect(ConversationReveal.after(list, previousCount: 3, readingLatest: true) == .start(list[4].id))
+        #expect(ConversationReveal.after(list, previousCount: 3, readingLatest: false) == .start(list[4].id))
+        // Several replies after the message: the first of them.
+        let two = messages(6, userAt: [3])
+        #expect(ConversationReveal.after(two, previousCount: 3, readingLatest: true) == .start(two[4].id))
+        // An earlier reply and a later message in the same update: the end.
+        let replyThenSent = messages(5, userAt: [4])
+        #expect(ConversationReveal.after(replyThenSent, previousCount: 3, readingLatest: true) == .end)
+    }
+
     @Test func removalsAndClearsMoveNothing() {
         let list = messages(2)
         #expect(ConversationReveal.after(list, previousCount: 2, readingLatest: true) == .none)

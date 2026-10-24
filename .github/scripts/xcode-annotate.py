@@ -8,7 +8,11 @@ import sys
 
 LOCATED = re.compile(r"^(/[^:]+):(\d+):(?:\d+:)? error: (.*)$")
 PLAIN = re.compile(r"(?:^|\s)error: (.*)$")
-FAILED = re.compile(r"(Test Case .* failed.*|Test case .* failed.*|✘ .*|.*Suite .* failed.*)")
+# XCTest quotes the test name ("Test Case '-[A b]' failed"). Swift Testing
+# prints "Test case passing 1 argument outcome → .failed to t() started." for
+# a passing parameterized case, so an unquoted "Test case … failed" is not a
+# failure; Swift Testing failures start with ✘.
+FAILED = re.compile(r"(Test [Cc]ase '.*' failed.*|✘ .*|Test Suite '.*' failed.*)")
 
 
 def escape(text):
