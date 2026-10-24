@@ -231,7 +231,8 @@ final class AuroraUITests: XCTestCase {
         // Nothing is pre-selected: no stepper and Continue disabled until a choice.
         XCTAssertFalse(app.steppers["setup-sleep-target"].exists)
         XCTAssertFalse(app.buttons["setup-next"].isEnabled)
-        XCTAssertTrue(app.otherElements["setup-sleep-target-context"].exists || app.staticTexts["setup-sleep-target-context"].exists)
+        // No health-claim context line under the picker.
+        XCTAssertFalse(app.otherElements["setup-sleep-target-context"].exists || app.staticTexts["setup-sleep-target-context"].exists)
         // Pick and adjust a value, then decline: nothing is stored.
         tapWhenReady(app.buttons["setup-sleep-target-8"])
         app.steppers["setup-sleep-target"].buttons.element(boundBy: 1).tap()

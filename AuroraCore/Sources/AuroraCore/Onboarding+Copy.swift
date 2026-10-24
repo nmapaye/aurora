@@ -10,8 +10,6 @@ public enum OnboardingCopy {
     public static let sleepTargetStep: Double = 0.5
     /// Offered with none selected: the person chooses.
     public static let sleepTargetPresets: [Double] = [7, 8, 9]
-    /// Shown under the picker. Makes no health claim and gives no range.
-    public static let sleepTargetContext = "Choose a nightly sleep target. Aurora compares your logged sleep with it. You can change it anytime in Settings."
     public static let noSleepTargetNote = "No sleep target set. You can choose one in Settings."
     /// Two columns need this much width, and text no larger than this scale.
     public static let splitLayoutMinWidth: Double = 800

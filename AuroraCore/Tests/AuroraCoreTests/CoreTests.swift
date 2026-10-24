@@ -238,7 +238,7 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
                 }
             } +
             [Summary.noCaffeineBody, HealthImport.noSleepMessage,
-             OnboardingCopy.sleepTargetContext, OnboardingCopy.noSleepTargetNote]
+             OnboardingCopy.noSleepTargetNote]
         for text in texts {
             #expect(CopyRules.violations(in: text).isEmpty, "\(text)")
         }

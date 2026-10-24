@@ -242,12 +242,6 @@ struct SetupConversationView: View {
                 .accessibilityValue(formatted.spoken)
                 .accessibilityIdentifier("setup-sleep-target")
             }
-            Text(OnboardingCopy.sleepTargetContext)
-            .font(.footnote)
-            .foregroundStyle(Palette.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("setup-sleep-target-context")
             // Continue saves the chosen target; Not now leaves it unset.
             actionRow(primary: "Continue", primaryDisabled: target == nil, primaryAction: {
                 guard let target else { return }

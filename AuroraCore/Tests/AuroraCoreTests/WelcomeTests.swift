@@ -213,7 +213,7 @@ struct WelcomeTests {
         #expect(encoded.contains(#""targetSleep":8"#))
         #expect(encoded.contains(#""sleepTargetFormat":1"#))
         #expect(OnboardingCopy.sleepTargetRange == 5...11)
-        #expect(CopyRules.violations(in: OnboardingCopy.sleepTargetContext + OnboardingCopy.noSleepTargetNote).isEmpty)
+        #expect(CopyRules.violations(in: OnboardingCopy.stepCopy(step: 0, source: .manual).body + OnboardingCopy.noSleepTargetNote).isEmpty)
     }
 
     @Test func eightHoursKeptByNotNowGoesBackToUnset() throws {
