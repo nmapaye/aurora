@@ -334,7 +334,7 @@ struct AssistantCardView: View {
         case .calendar: EmptyView()
         case .reaction:
             metricRows
-            Button(card.state == .saved ? "Take another test" : "Start 60-second test") { assistant.historySheet = .reactionTest }
+            Button(card.state == .saved ? "Take another test" : "Start 30-second test") { assistant.historySheet = .reactionTest }
                 .buttonStyle(.auroraPrimary).accessibilityIdentifier("assistant-reaction-start")
         case .history: history
         case .exports: exports

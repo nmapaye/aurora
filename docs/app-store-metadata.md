@@ -13,7 +13,7 @@ A little clarity for your day. Aurora helps you explore recorded sleep, caffeine
 - Review and save caffeine or manual sleep entries, with editable times and Undo.
 - Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice.
 - Explore recorded trends and missing information without invented measurements.
-- Run a 60-second reaction test and compare against your recorded baseline when enough evidence exists.
+- Run a 30-second reaction test and compare against your recorded baseline when enough evidence exists.
 - Review selected Apple and Google calendars. Changes require a specific preview and your approval.
 - Export records through the native share sheet.
 - Opt into morning briefings and cutoff reminders.

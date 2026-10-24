@@ -208,7 +208,10 @@ public enum Insights {
     }
 
     /// The latest test is an observation with its date and source. A
-    /// baseline (median of recent tests) appears only once there are enough.
+    /// baseline (median of recent tests) appears only once there are enough,
+    /// and counts only tests from the same version of the test as the latest
+    /// (`VigilanceSession.protocolVersion`), so a new baseline starts with the
+    /// 30-second test. A latest test from the earlier version is labeled.
     public static func reactionSignal(
         sessions: [VigilanceSession],
         now: Millis,
@@ -227,7 +230,7 @@ public enum Insights {
             return ReactionInsight(
                 signal: SignalCardModel(
                     id: id, label: label, period: "No test yet", status: .empty,
-                    context: "A 60-second test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
+                    context: "A 30-second test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
                     destination: destination
                 ),
                 baseline: .none,
@@ -235,9 +238,9 @@ public enum Insights {
             )
         }
         let windowStart = clock.addingDays(-(reactionBaselineWindowDays - 1), to: clock.startOfDay(now))
-        let recent = valid.filter { $0.completedAt >= windowStart }
+        let recent = valid.filter { $0.completedAt >= windowStart && $0.isComparable(with: latest) }
         let source = RecordSource.of(ids: [latest.id]) == .sample ? "Sample Data" : "Recorded"
-        let detail = latest.medianReactionMs.map { "\(latest.rating.rawValue) · \(jsRoundInt($0)) ms median" } ?? latest.rating.rawValue
+        let detail = reactionDetail(latest)
         let status: SignalStatus = source == "Sample Data" ? .sample : .observed
         let period = formatSignalDay(latest.completedAt, now: now, clock: clock, text: text)
         if recent.count < reactionBaselineTests {
@@ -266,6 +269,13 @@ public enum Insights {
             baseline: .established,
             recentTests: recent.count
         )
+    }
+
+    /// "Steady · 286 ms median", led by the version label for a session
+    /// from another version of the test.
+    public static func reactionDetail(_ session: VigilanceSession) -> String {
+        let rating = session.medianReactionMs.map { "\(session.rating.rawValue) · \(jsRoundInt($0)) ms median" } ?? session.rating.rawValue
+        return [session.protocolLabel, rating].compactMap { $0 }.joined(separator: " · ")
     }
 
     public static func describeChartDay(_ point: InsightsChartPoint, text: DateText) -> (title: String, value: String, text: String) {
