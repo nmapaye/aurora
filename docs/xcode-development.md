@@ -98,9 +98,7 @@ Release numbering:
 archives with `xcodebuild` using cloud-managed automatic signing and uploads to
 App Store Connect. The `release` environment requires the owner's approval and
 holds `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8` (base64 of the team API
-key's `.p8`, Admin role). Before the first run, set the Team ID in
-`Config/Signing.xcconfig` and `Config/ExportOptions.plist`, and create the App
-Store Connect app record for `com.nmapaye.aurora`.
+key's `.p8`, Admin role).
 
 Owner setup, before the first dispatch:
 
