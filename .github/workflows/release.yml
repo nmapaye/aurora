@@ -62,7 +62,7 @@ jobs:
           # run_number is fixed across re-runs, so the attempt is appended:
           # 12.1 < 12.2 < 13.1, and every attempt gets an unused number.
           BUILD_NUMBER_OFFSET="${BUILD_NUMBER_OFFSET:-0}"
-          [[ "$BUILD_NUMBER_OFFSET" =~ ^[0-9]+$ ]] || { echo "::error::BUILD_NUMBER_OFFSET must be a non-negative integer"; exit 1; }
+          [[ "$BUILD_NUMBER_OFFSET" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "::error::BUILD_NUMBER_OFFSET must be a non-negative integer without leading zeros"; exit 1; }
           build="$((RUN_NUMBER + BUILD_NUMBER_OFFSET)).${RUN_ATTEMPT}"
           echo "build=$build" >> "$GITHUB_OUTPUT"
           echo "Build number: $build"
@@ -232,6 +232,20 @@ jobs:
           path: ${{ runner.temp }}/Aurora.xcarchive/dSYMs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Redact logs
+        # Runs on success, failure and cancellation (including timeout), so a
+        # partial log left by an interrupted xcodebuild is redacted before upload.
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          for log in build/*.log; do
+            [ -f "$log" ] || continue
+            if [ -n "$ASC_KEY_ID" ]; then sed -i '' -e "s/${ASC_KEY_ID}/[REDACTED]/g" "$log"; fi
+            if [ -n "$ASC_ISSUER_ID" ]; then sed -i '' -e "s/${ASC_ISSUER_ID}/[REDACTED]/g" "$log"; fi
+          done
 
       - name: Upload logs
         if: always()
