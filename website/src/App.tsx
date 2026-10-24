@@ -192,8 +192,7 @@ export default function App() {
             <p className="eyebrow">TestFlight beta</p>
             <h2 id="beta-title">Request beta access.</h2>
             <p>
-              The first wave is small and invite-only, with room for up to 25 testers. There are no
-              dates yet.
+              The first wave is small and invite-only. There are no dates yet.
             </p>
           </div>
           <div className="card beta-card">
