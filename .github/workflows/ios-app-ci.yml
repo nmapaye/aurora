@@ -133,7 +133,7 @@ jobs:
             -resultBundlePath build/AuroraTests.xcresult \
             > build/xcodebuild-test.log 2>&1
           status=$?
-          grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
+          grep -E "error:|warning: .*/Aurora|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
           # Launch and runner failures don't use the error: format; surface them
           # too, within the ten error annotations a step keeps.

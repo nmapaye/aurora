@@ -21,7 +21,14 @@ enum ConversationReveal: Equatable {
         // Opening the stored conversation adds everything at once.
         if previousCount == 0 { return .end }
         let added = messages[previousCount...]
-        if added.contains(where: \.isUser) { return .end }
+        if let lastUser = added.lastIndex(where: \.isUser) {
+            // The person's message and Aurora's reply can land in one update
+            // when the reply is ready at once (quick actions). They just sent
+            // it, so they are at the latest: show the reply's start, as when
+            // it arrives on its own, not the end of a long card.
+            let replyIndex = messages.index(after: lastUser)
+            return replyIndex < messages.endIndex ? .start(messages[replyIndex].id) : .end
+        }
         guard let first = added.first else { return .none }
         return readingLatest ? .start(first.id) : .hold(first.id)
     }
