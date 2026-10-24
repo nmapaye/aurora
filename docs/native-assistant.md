@@ -7,7 +7,7 @@ at `1e7a1d8`. Existing React Native worktrees remain unchanged.
 
 The primary screen is a native SwiftUI conversation. Quick actions work
 without AI or a network connection. Requests can propose editable caffeine
-entries, edit sleep inline, show recorded energy evidence, explore caffeine/
+entries, edit sleep inline, show modeled energy evidence, explore caffeine/
 sleep/reaction charts, review calendars, browse history, export CSVs, and manage
 reminders. Routine responses use native cards; prose is reserved for clarification
 and failures.
