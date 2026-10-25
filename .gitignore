@@ -25,6 +25,7 @@ yarn-error.log*
 
 **/*.mobileprovision
 **/AuthKey_*.p8
+**/*.p8
 
 # Xcode
 xcuserdata/
