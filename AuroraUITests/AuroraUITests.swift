@@ -488,17 +488,30 @@ final class AuroraUITests: XCTestCase {
 
     private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
-        input.tap()
-        // A visible keyboard can still belong to the previous field. Wait
-        // for this field to own focus before sending any keystrokes.
-        let focused = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: input)
-        guard XCTWaiter.wait(for: [focused], timeout: 5) == .completed else {
-            XCTFail("Composer did not receive keyboard focus; not typing or sending", file: file, line: line)
+        // As in enter(_:into:), the keyboard and bottom-area transition on
+        // iPad can move the field under the initial tap. Acquire focus with
+        // bounded fresh taps before typing; never retry typing or send a
+        // partial request. A visible keyboard may belong to another field.
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        var ownsFocus = false
+        for _ in 0..<3 {
+            tapWhenReady(input)
+            let expectation = XCTNSPredicateExpectation(predicate: focused, object: input)
+            if XCTWaiter.wait(for: [expectation], timeout: 2) == .completed {
+                ownsFocus = true
+                break
+            }
+        }
+        guard ownsFocus else {
+            attachScreenshot("Composer focus failed")
+            XCTFail("Composer did not receive keyboard focus; not typing or sending. \(input.debugDescription)",
+                    file: file, line: line)
             return
         }
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
-                      "request(\"\(text)\"): keyboard never appeared", file: file, line: line)
+        guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): keyboard never appeared; not typing or sending", file: file, line: line)
+            return
+        }
         input.typeText(text)
         // Never send a partial request. CI has lost keystrokes after typeText
         // returned (field showed "R" for "Reminders", "Show t" for "Show this
