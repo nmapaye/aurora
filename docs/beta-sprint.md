@@ -74,7 +74,7 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 | Website build/dependency health | P2 | Type-check/build pass; npm audit reports zero known vulnerabilities in production and full locked tree |
 
 Final validation caveat: a narrow Swift Testing method filter selected zero tests
-while xcodebuild exited 0. `2f8ce603` adds an actual-xcresult guard (20 total
+while xcodebuild exited 0. `2f8ce603` adds an actual-xcresult guard (26 total
 Python tests) to reject zero tests, skips and failures in CI. The real zero-test
 bundle is rejected; the two 172-test bundles are accepted. The corrected whole-native-target
 control executes 131 tests and fails exactly the refresh race assertions (four
@@ -111,7 +111,7 @@ New fixes:
 - `253b0829`: explain ongoing-sleep eligibility consistently in energy/summary
   copy, including accessibility, without changing the three/eighteen-hour rule.
 - `24d36e5c`: discard late Google responses after disconnect and validate session/token before sending, closing the newly executed late-read regression.
-- `2f8ce603`: reject zero-test/skipped/failed xcresult receipts in native, stress and Release smoke CI; 17 evidence-guard tests pass.
+- `2f8ce603`: reject zero-test/skipped/failed xcresult receipts in native, stress and Release smoke CI; current evidence-guard suite has 26 passing tests.
 - `9050bad2`: distinguish the missing-night eligibility model in new estimates and projections, while preserving historical `alertness-1` snapshot values and schema. Compatibility tests pass in both zones.
 - `60f9622a`: invalidate pending Google refresh/sign-in work on disconnect;
   expose credential-deletion failures; inject transport/storage for deterministic
@@ -127,7 +127,7 @@ New fixes:
 | Baseline iPad long-card repeat, stop on failure | 10/10 pass; CI intermittency remains unresolved | `baseline-longcard-repeat-ipad.xcresult` |
 | Candidate core, UTC and America/Los_Angeles | 342/342 each pass after provenance fix | `model-version-core-{utc,la}-final.log` |
 | Missing-night regression tests with pristine-main Summary/EnergyEstimate | Expected red: 5 test functions, 9 issues; 24 tests run | `core-old-code-control.log` |
-| Release and xcresult guards | 20 tests pass; actual zero-test bundle rejected; both 172-test bundles accepted | `evidence-guard-tests.log` |
+| Release and xcresult guards | 26 tests pass; actual zero-test bundle rejected; both 172-test bundles accepted | `evidence-guard-tests.log` |
 | Workflow YAML and bash syntax | 7 YAML files / 38 shell bodies parse | `workflow-syntax.json` |
 | Privacy source and unsigned archive | Pass, zero warnings | `privacy-source.log`, `privacy-archive.log` |
 | Website type-check/build, locked dependency audits | Pass; 0 reported vulnerabilities | `website-*.log`, `website-audit-*.json` |
@@ -149,7 +149,7 @@ actual integrated head; a green check on another branch is insufficient.
 | Priority / PRs | Disposition and dependency |
 |---|---|
 | P1 #51, #58 | Locally combined; require full suite and 40 stop-on-first-failure iterations on each device before accepting either as solved. Overlap in workflow edits resolved by keeping both stress steps and full tests after either failure. |
-| P1 #61 | Guard and tests integrated; motion test correction reused; new disconnect fix additionally needs red/green evidence. Do not call the remote PR green. |
+| P1 #61 | Guard and tests integrated; motion correction reused; disconnect refresh/read fixes have executed red/green evidence. Do not call the remote PR green. |
 | P1 missing-night | Integrated for review; owner must accept 3h/18h, ongoing sleep, merged gaps and projection cutoff. Original branch remains untouched. |
 | P1 #48 → #55 → #56 | Integrated locally; actual device archive inspected, not just simulator plist. #56 is stacked on #55. |
 | P1 #52 → #62 | Integrated locally, with additional exact-commit evidence guard; no workflow dispatch or signing material accessed. #62 is stacked on #52. |
@@ -178,9 +178,10 @@ than spawning another agent or replacing their histories.
 - **P1, mitigated locally:** release workflow lacked a head-specific evidence
   preflight. New guard requires completed successful native/core/security/privacy
   checks and rejects skipped results before any signing key is installed.
-- **P1, fix pending test:** disconnect could restore OAuth credentials after a
-  successful late refresh. Generation invalidation now covers disconnect and
-  successful sign-in callbacks; credential deletion failure is surfaced.
+- **P1, fixed and tested locally:** disconnect could restore OAuth credentials after a
+  late refresh or expose late calendar data. Generation invalidation now covers
+  refresh, read and sign-in callbacks; credential deletion failure is surfaced.
+  Red controls fail as expected; all seven provider regressions pass on both simulators.
 - **P1, externally open:** a shared owner GitHub identity cannot distinguish bot
   approval from human approval. Use a separate scoped bot/app principal without
   merge/release-approval permissions. The owner retains the release reviewer role.
@@ -276,7 +277,16 @@ Stress correction: the original combined iPhone run was interrupted without a
 final receipt. Its log has 40 briefing and 40 long-card passes, then an unfinished
 trends case; last write was 10:53:52 UTC and no worker/Xcode process remained at
 15:04 UTC. Cause is not established. These are partial observations, not an active
-or accepted complete run. A detached finite worker with per-test/process time
-bounds and live PID/heartbeat state will resume auditable per-flow validation.
+or accepted complete run. A detached finite worker started at 15:13 UTC with per-test/process time
+bounds and live PID/heartbeat state (`stress-worker-state.json`, PID 41632).
+It runs one simulator lane and stops at the first failure; all six per-flow
+receipts must pass before accepting the repeat gate.
 The original log and incomplete bundle are preserved; no app assertion failure
 is being rerun until green.
+
+Iteration acceptance was strengthened after finding CI only printed counts.
+The guard now requires exactly forty actual passed case endings for every
+selected stress method, with no failures. Its real-bundle control accepts the
+preserved ten-pass run when ten are required and rejects it when forty are
+required (`iteration-guard-control.json`). All 26 guard tests and 38 workflow
+shell bodies pass local checks. This change does not rebuild the app binary.
