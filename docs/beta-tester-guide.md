@@ -59,3 +59,7 @@ resolved until the stress and final integration gates pass. See
 
 Aurora describes records and estimates; it does not prescribe caffeine doses or
 sleep schedules. An estimate is not a measurement or a diagnosis.
+
+Owner-assisted hardware gates and evidence fields are in the
+[device acceptance protocol](beta-device-acceptance.md). These checks are not
+marked passed by the existence of a checklist.
