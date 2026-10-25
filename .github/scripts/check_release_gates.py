@@ -28,6 +28,10 @@ def failures(pages, sha):
     return errors
 
 
+def reporting_failures(settings):
+    return [] if settings.get("enabled") is True else ["Private vulnerability reporting is disabled or unverified; enable the documented private channel before beta"]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", required=True)
@@ -40,6 +44,9 @@ def main():
         result = subprocess.run(["gh", "api", "--method", "GET", "--paginate", "--slurp", endpoint],
                                 check=True, capture_output=True, text=True, timeout=60)
         errors = failures(json.loads(result.stdout), args.sha)
+        reporting = subprocess.run(["gh", "api", "--method", "GET", f"repos/{args.repository}/private-vulnerability-reporting"],
+                                   check=True, capture_output=True, text=True, timeout=60)
+        errors += reporting_failures(json.loads(reporting.stdout))
     except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError):
         # Do not print provider output: failure diagnostics need no credentials.
         print("::error::Could not verify release checks; signing and upload remain blocked")

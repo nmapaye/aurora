@@ -1,7 +1,7 @@
 import unittest
 from copy import deepcopy
 
-from check_release_gates import REQUIRED, failures
+from check_release_gates import REQUIRED, failures, reporting_failures
 
 SHA = "a" * 40
 
@@ -10,6 +10,15 @@ class ReleaseGateTests(unittest.TestCase):
     def setUp(self):
         self.pages = [{"check_runs": [dict(name=n, head_sha=SHA, app={"id": 15368},
                                             status="completed", conclusion="success") for n in REQUIRED]}]
+
+    def test_private_reporting_must_be_enabled(self):
+        self.assertEqual(reporting_failures({"enabled": True}), [])
+
+    def test_disabled_reporting_blocks_release(self):
+        self.assertTrue(reporting_failures({"enabled": False}))
+
+    def test_unverified_reporting_blocks_release(self):
+        self.assertTrue(reporting_failures({}))
 
     def test_executed_checks_at_exact_commit_pass(self):
         self.assertEqual(failures(self.pages, SHA), [])
