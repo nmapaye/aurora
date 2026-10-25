@@ -16,7 +16,7 @@ The checkpoint outside this repository is
   Earlier complete UI/native baseline: `253b0829`. Build provenance is retained.
 - Installed toolchain: Xcode 27.0 (27A266a), per-command `DEVELOPER_DIR`.
   Global Xcode selection was not changed. Simulator runtime: iOS 26.5.
-- All 48 prior worktrees, including dirty work, preserved. No pushes, remote
+- All 49 other baseline worktrees, including dirty work, preserved (fresh HEAD/status comparison retained). No pushes, remote
   merges, releases, force-pushes or Grok messages. The only external change was
   owner-approved private-reporting enablement; verification is retained.
 
@@ -67,7 +67,7 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 | Google unconfigured means no requests; disconnect cannot restore credentials | P1 | #61 plus refresh/read generation fixes pass seven provider tests inside 132 native tests on each device; no real Google calls |
 | CI, iPhone/iPad and repeated regressions all green at final head | P1 | Live PR gates remain red; full 172 per device and final native/gallery 134 per device pass; 40-iteration stress checks running |
 | iOS 17+ compatibility, physical VoiceOver, largest text, Reduce Motion, background lifecycle | P1 | iOS 26.5 simulator Release/UI and largest-text captures pass; physical VoiceOver/motion/older-OS evidence pending |
-| Reproducible installable distribution and signed archive validation | P1 | Two clean final unsigned archives at `24d36e5c` and strict artifact/privacy checks pass; signed archive/device upgrade/TestFlight unproven |
+| Reproducible installable distribution and signed archive validation | P1 | Two clean final unsigned archives at `24d36e5c` and strict artifact/privacy checks pass; signed archive/device upgrade/TestFlight unproven; ASC signing secrets absent at both repository/environment scope |
 | Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; Private reporting enabled with owner approval and GET verified true; actual TestFlight/support setup pending |
 | Rollback, incident owner and non-destructive recovery | P1 | Procedure below prepared; owner rehearsal pending |
 | Owner control of Git and release actions | P1 | Local safeguards added; external bypass/shared identity risks require owner action |
@@ -255,7 +255,13 @@ clean archive commands and strict privacy checks succeed; embedded Info.plists
 and privacy-manifest hashes match. This is build-procedure reproducibility, not
 bit-for-bit executable equivalence or signed distribution. Physical iPhone/iPad
 are listed as unavailable. No signed archive, device HealthKit, Organizer,
-TestFlight upload or external installation has been certified.
+TestFlight upload or external installation has been certified. Read-only signing
+metadata confirms a valid development identity for the Aurora team and an
+existing HealthKit profile expiring October 30 at 05:23:54 UTC. A local signed
+archive attempt is awaiting macOS key access; it does not enable provisioning
+updates. Both repository and release-environment secret-name lists are empty:
+`ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` are absent. No secret values were
+read. Owner setup is required for the TestFlight workflow; no upload was attempted.
 
 `stress40-{iphone,ipad}` run serially against app `24d36e5c` and stop on failure.
 They require forty actual passes of each long-card/briefing/trends flow and a
@@ -290,3 +296,12 @@ selected stress method, with no failures. Its real-bundle control accepts the
 preserved ten-pass run when ten are required and rejects it when forty are
 required (`iteration-guard-control.json`). All 26 guard tests and 38 workflow
 shell bodies pass local checks. This change does not rebuild the app binary.
+
+
+## Concrete owner review actions (prepared, not executed)
+
+- Review `git diff 5a516963..codex/beta-consolidation-2026-10-25` and the source-specific evidence above. The candidate is not approved for merge or distribution.
+- When ready to authorize hosted verification, the exact proposed push is `git -C /Users/nmapaye/Developer/aurora-beta-consolidation-2026-10-25 push -u origin codex/beta-consolidation-2026-10-25`. This creates/updates only the new branch. No push, PR creation, protected merge or workflow dispatch has been performed by this sprint.
+- The owner must configure `ASC_KEY_ID`, `ASC_ISSUER_ID` and base64-encoded `ASC_KEY_P8` directly in the protected GitHub `release` environment, choose a scoped App Store Connect key, and confirm account/team/App Store Connect app eligibility. Do not paste key contents into a public issue or chat. Existing local development signing is not TestFlight distribution signing.
+- Ratify the missing-night eligibility assumptions and the direct-Google versus Apple-synced-calendar beta scope. Physical Health, accessibility, migration and installed-build testing still require available devices and dedicated fixtures.
+- Review the exact proposed force-push/ruleset and release-environment changes above. Only the separately approved private-reporting enablement has been applied.
