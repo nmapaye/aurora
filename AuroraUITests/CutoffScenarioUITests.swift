@@ -34,13 +34,21 @@ final class CutoffScenarioUITests: XCTestCase {
         func clear() -> Bool {
             // A fixed row of tiles, not a scroll view.
             let strip = app.descendants(matching: .any)["assistant-quick-actions"].firstMatch
-            let floor = strip.exists ? strip.frame.minY - 8 : app.windows.firstMatch.frame.maxY
-            return element.isHittable && element.frame.maxY < floor
+            let window = app.windows.firstMatch
+            let navigation = app.navigationBars.firstMatch
+            let ceiling = navigation.exists ? navigation.frame.maxY + 8 : window.frame.minY + 8
+            let floor = strip.exists ? strip.frame.minY - 8 : window.frame.maxY
+            return element.isHittable && element.frame.minY > ceiling && element.frame.maxY < floor
         }
         for _ in 0..<10 where !clear() {
             let window = app.windows.firstMatch
+            let navigation = app.navigationBars.firstMatch
+            let ceiling = navigation.exists ? navigation.frame.maxY + 8 : window.frame.minY + 8
+            // A previous reveal can leave the next control above the viewport.
+            // Always dragging up moves it farther away (CI #48: y = -80.3).
+            let targetY: CGFloat = element.frame.minY <= ceiling ? 0.75 : 0.3
             window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 0.05,
-                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: targetY)))
         }
         XCTAssertTrue(clear(), element.debugDescription)
     }
