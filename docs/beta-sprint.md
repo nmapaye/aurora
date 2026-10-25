@@ -17,7 +17,8 @@ The checkpoint outside this repository is
 - Installed toolchain: Xcode 27.0 (27A266a), per-command `DEVELOPER_DIR`.
   Global Xcode selection was not changed. Simulator runtime: iOS 26.5.
 - All 48 prior worktrees, including dirty work, preserved. No pushes, remote
-  merges, releases, account changes, force-pushes, or Grok messages.
+  merges, releases, force-pushes or Grok messages. The only external change was
+  owner-approved private-reporting enablement; verification is retained.
 
 Evidence receipts and result bundles take precedence over these summaries.
 Temporary build output is not permanent archival storage; retain the selected
@@ -67,7 +68,7 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 | CI, iPhone/iPad and repeated regressions all green at final head | P1 | Live PR gates remain red; full 172 per device and final native/gallery 134 per device pass; 40-iteration stress checks running |
 | iOS 17+ compatibility, physical VoiceOver, largest text, Reduce Motion, background lifecycle | P1 | iOS 26.5 simulator Release/UI and largest-text captures pass; physical VoiceOver/motion/older-OS evidence pending |
 | Reproducible installable distribution and signed archive validation | P1 | Two clean final unsigned archives at `24d36e5c` and strict artifact/privacy checks pass; signed archive/device upgrade/TestFlight unproven |
-| Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; GitHub private security reporting verified DISABLED; owner must enable/verify it; real TestFlight/support setup pending |
+| Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; Private reporting enabled with owner approval and GET verified true; actual TestFlight/support setup pending |
 | Rollback, incident owner and non-destructive recovery | P1 | Procedure below prepared; owner rehearsal pending |
 | Owner control of Git and release actions | P1 | Local safeguards added; external bypass/shared identity risks require owner action |
 | Website build/dependency health | P2 | Type-check/build pass; npm audit reports zero known vulnerabilities in production and full locked tree |
@@ -171,7 +172,7 @@ than spawning another agent or replacing their histories.
 
 ## Security findings and exact owner actions
 
-- **P1, externally open:** private vulnerability reporting is disabled on the public repository, contradicting the old SECURITY.md route. `59220039` corrects the policy and release preflight checks the setting without enabling it. Proposed owner-only action: `gh api --method PUT repos/nmapaye/aurora/private-vulnerability-reporting`, followed by GET verification and a private-form availability check. Not executed; no external security setting changed.
+- **P1 configuration blocker resolved with owner approval:** private reporting was disabled despite SECURITY.md. The owner explicitly approved enablement; PUT succeeded and fresh GET verified `enabled: true` on October 25 at 15:02:58 UTC. `59220039` adds fail-closed release verification. No report was submitted; notification delivery/response is not certified.
 
 
 - **P1, mitigated locally:** release workflow lacked a head-specific evidence
@@ -270,3 +271,12 @@ stress/CI defects; Day 3 completes the owner-chosen integration/security deltas;
 Day 4 supplies physical and complete end-to-end evidence; Day 5 prepares the
 signed owner-reviewed candidate and final gate decision without publishing.
 Unelapsed days, owner decisions and unexecuted tests remain open.
+
+Stress correction: the original combined iPhone run was interrupted without a
+final receipt. Its log has 40 briefing and 40 long-card passes, then an unfinished
+trends case; last write was 10:53:52 UTC and no worker/Xcode process remained at
+15:04 UTC. Cause is not established. These are partial observations, not an active
+or accepted complete run. A detached finite worker with per-test/process time
+bounds and live PID/heartbeat state will resume auditable per-flow validation.
+The original log and incomplete bundle are preserved; no app assertion failure
+is being rerun until green.
