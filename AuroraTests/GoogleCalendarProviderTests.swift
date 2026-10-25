@@ -64,6 +64,7 @@ import Testing
     @Test func disconnectDuringRefreshCannotRestoreCredentials() async throws {
         let info = configuredInfo
         var provider: GoogleCalendarProvider!
+        defer { provider = nil }
         var requests: [URL] = []
         var writes = 0
         provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in staleToken },
@@ -88,6 +89,20 @@ import Testing
         let provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in liveToken },
             removeToken: { throw GoogleCalendarProvider.CredentialDeletionFailure(status: -50) })
         #expect(throws: GoogleCalendarProvider.CredentialDeletionFailure.self) { try provider.disconnect() }
+        #expect(!provider.connected)
+    }
+
+    @Test func disconnectDuringReadDiscardsLateCalendarResponse() async throws {
+        let info = configuredInfo
+        var provider: GoogleCalendarProvider!
+        defer { provider = nil }
+        provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in liveToken },
+            transport: { request in
+                let url = try #require(request.url)
+                try provider.disconnect()
+                return (Data(#"{"items":[]}"#.utf8), try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            }, removeToken: {})
+        await #expect(throws: CalendarActionError.unavailable) { try await provider.calendars() }
         #expect(!provider.connected)
     }
 }
