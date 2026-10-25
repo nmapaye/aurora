@@ -13,6 +13,8 @@ on:
       - 'Config/**'
       - '.github/workflows/ios-app-ci.yml'
       - '.github/scripts/xcode-annotate.py'
+      - '.github/scripts/verify_xcresult.py'
+      - '.github/scripts/test_xcresult.py'
   pull_request:
   workflow_dispatch:
 
@@ -52,7 +54,7 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
+          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult)\.py$)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -241,6 +243,7 @@ jobs:
             -resultBundlePath build/LongCardRepeat.xcresult \
             > build/xcodebuild-repeat.log 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/LongCardRepeat.xcresult || status=$?; fi
           grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-repeat.log | head -200
           echo "Iterations run: $(grep -cE "Test Case '.*testLongCardArrivesShowingItsStart\]' (passed|failed)" build/xcodebuild-repeat.log)"
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-repeat.log
@@ -275,6 +278,7 @@ jobs:
             -resultBundlePath build/TypedRequestRepeat.xcresult \
             > build/xcodebuild-typed-repeat.log 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/TypedRequestRepeat.xcresult || status=$?; fi
           grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-typed-repeat.log | head -200
           for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
             echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" build/xcodebuild-typed-repeat.log)"
@@ -297,6 +301,7 @@ jobs:
             -resultBundlePath build/AuroraTests.xcresult \
             > build/xcodebuild-test.log 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/AuroraTests.xcresult || status=$?; fi
           grep -E "error:|warning: .*/Aurora|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
           # Launch and runner failures don't use the error: format; surface them
@@ -324,6 +329,7 @@ jobs:
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             > build/xcodebuild-release-smoke.log 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/ReleaseSmoke.xcresult || status=$?; fi
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-smoke.log
           exit $status
 

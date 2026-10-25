@@ -18,5 +18,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test release evidence guard
-        run: python3 -m unittest discover -s .github/scripts -p 'test_release_gates.py' -v
+      - name: Test release and result evidence guards
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
