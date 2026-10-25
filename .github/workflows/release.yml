@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
   group: release-testflight
@@ -40,6 +41,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Require executed checks at this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/check_release_gates.py --repository "$RELEASE_REPOSITORY" --sha "$RELEASE_SHA"
 
       - name: Select Xcode and set paths
         run: |
@@ -155,17 +163,17 @@ jobs:
           [ "$build" = "$BUILD_NUMBER" ] || { echo "::error::CFBundleVersion is $build, expected $BUILD_NUMBER"; fail=1; }
           [ "$bundle" = "com.nmapaye.aurora" ] || { echo "::error::Bundle identifier is $bundle"; fail=1; }
 
-          # Arbitrary loads must never ship. Aurora/Info.plist deliberately
-          # allows local networking for the simulator-only Ollama option, so
-          # that is reported, not failed.
+          # Device archives may not contain the simulator's ATS exception.
           if pb NSAppTransportSecurity "$info" >/dev/null; then
             for key in NSAllowsArbitraryLoads NSAllowsArbitraryLoadsInWebContent NSAllowsArbitraryLoadsForMedia NSExceptionDomains; do
               if pb "NSAppTransportSecurity:$key" "$info" >/dev/null; then
                 echo "::error::Info.plist NSAppTransportSecurity contains $key"; fail=1
               fi
             done
-            echo "::warning::Info.plist contains NSAppTransportSecurity: $(pb NSAppTransportSecurity "$info" | tr -s ' \n' ' ')"
+            echo "::error::Device archive contains NSAppTransportSecurity"; fail=1
           fi
+
+          python3 scripts/verify-privacy-manifest.py "$app" --strict || fail=1
 
           [ -f "$app/PrivacyInfo.xcprivacy" ] || { echo "::error::PrivacyInfo.xcprivacy is not embedded"; fail=1; }
 

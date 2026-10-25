@@ -118,6 +118,14 @@ uploaded or replaced. Dispatch a new run instead.
 
 ## Archive and Distribute
 
+The manual release workflow verifies executed successful core, iPhone, iPad,
+privacy, security and release-safety checks at its exact commit before signing.
+Skipped checks do not qualify. If the release commit only changed documentation,
+the owner must dispatch the Swift Core and iOS App workflows on that same `main`
+commit first. This evidence guard does not replace the owner's device acceptance
+or distribution approval. Never invoke the release workflow during local beta
+candidate preparation: its export step uploads to App Store Connect.
+
 The Release workflow is the upload path. Use Organizer to validate a local
 archive; upload one only if the workflow is unavailable:
 

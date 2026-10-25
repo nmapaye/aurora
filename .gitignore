@@ -38,3 +38,7 @@ DerivedData/
 
 # Local signing overrides (see Config/Signing.xcconfig)
 Config/Signing.local.xcconfig
+
+# Local Python validation caches
+__pycache__/
+*.pyc

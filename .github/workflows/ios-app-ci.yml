@@ -80,7 +80,7 @@ jobs:
     runs-on: macos-26
     # Build, native tests and the full serial UI suite (about 30 minutes on
     # a hosted runner per device) do not fit in an hour.
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -357,14 +357,18 @@ jobs:
       - name: Check results
         env:
           CHANGES: ${{ needs.changes.result }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
         run: |
           set -euo pipefail
           [ "$CHANGES" = "success" ] || { echo "::error::changes job: $CHANGES"; exit 1; }
           check() {
+            if [ "$RELEVANT" = "true" ] && [ "$2" != "success" ]; then
+              echo "::error::$1 must execute successfully for app changes: $2"; exit 1
+            fi
             case "$2" in
               success|skipped) echo "$1: $2" ;;
               *) echo "::error::$1: $2"; exit 1 ;;
             esac
           }
           check "build-and-test" "${{ needs.build-and-test.result }}"
-          check "privacy-manifest" "${{ needs.privacy-manifest.result }}"
+          [ "${{ needs.privacy-manifest.result }}" = success ] || { echo "::error::privacy manifest did not pass"; exit 1; }

@@ -1,0 +1,22 @@
+name: Release safety
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safeguards:
+    name: Release safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test release evidence guard
+        run: python3 -m unittest discover -s .github/scripts -p 'test_release_gates.py' -v
