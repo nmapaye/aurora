@@ -484,6 +484,14 @@ final class AuroraUITests: XCTestCase {
     private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
         input.tap()
+        // A visible keyboard can still belong to the previous field. Wait
+        // for this field to own focus before sending any keystrokes.
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: input)
+        guard XCTWaiter.wait(for: [focused], timeout: 5) == .completed else {
+            XCTFail("Composer did not receive keyboard focus; not typing or sending", file: file, line: line)
+            return
+        }
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
                       "request(\"\(text)\"): keyboard never appeared", file: file, line: line)
         input.typeText(text)
