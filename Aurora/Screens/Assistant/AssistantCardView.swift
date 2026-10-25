@@ -131,8 +131,12 @@ struct AssistantCardView: View {
         }
     }
     private var title: some View {
-        Label(card.title, systemImage: symbol).font(Typography.cardTitle)
+        Label { Text(card.title) } icon: { Image(systemName: symbol).accessibilityHidden(true) }
+            .font(Typography.cardTitle)
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            // One header element: automation can otherwise find the symbol
+            // with this identifier before the readable title (#38).
+            .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
     }
     /// Drafts say where they stand; receipts already do through their title.
