@@ -27,11 +27,26 @@ final class CutoffGalleryCaptureUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 15))
             let title = app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch
             XCTAssertTrue(title.waitForExistence(timeout: 10), fixture)
-            // Card start, then one screen further for the result and actions.
+            // Card start, then the actual result. At the largest text one
+            // swipe still showed the inputs, despite the attachment's name.
             for _ in 0..<12 where title.frame.minY > app.windows.firstMatch.frame.height * 0.3 { app.swipeUp() }
             capture("\(label) · \(fixture) · start")
-            app.swipeUp()
-            capture("\(label) · \(fixture) · result")
+            let destination = fixture == "Empty inputs"
+                ? app.buttons["cutoff-calculate"]
+                : app.staticTexts.matching(NSPredicate(format: "label == 'Result' OR label == 'RESULT'")).firstMatch
+            XCTAssertTrue(destination.waitForExistence(timeout: 10), fixture)
+            let window = app.windows.firstMatch
+            for _ in 0..<40 where !destination.isHittable || destination.frame.minY > window.frame.height * 0.45 {
+                // Short drags avoid flinging a large-type heading above the
+                // viewport while trying to reveal it.
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+                    forDuration: 0.05,
+                    thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.05)
+            }
+            XCTAssertTrue(destination.isHittable, "\(fixture): expected the captured result/Calculate control on screen")
+            XCTAssertGreaterThanOrEqual(destination.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1)
+            capture("\(label) · \(fixture) · \(fixture == "Empty inputs" ? "Calculate inputs" : "result heading")")
             app.terminate()
         }
     }
