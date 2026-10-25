@@ -67,13 +67,13 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 | CI, iPhone/iPad and repeated regressions all green at final head | P1 | Live PR gates remain red; full 172 per device and final native/gallery 134 per device pass; 40-iteration stress checks running |
 | iOS 17+ compatibility, physical VoiceOver, largest text, Reduce Motion, background lifecycle | P1 | iOS 26.5 simulator Release/UI and largest-text captures pass; physical VoiceOver/motion/older-OS evidence pending |
 | Reproducible installable distribution and signed archive validation | P1 | Two clean final unsigned archives at `24d36e5c` and strict artifact/privacy checks pass; signed archive/device upgrade/TestFlight unproven |
-| Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; real TestFlight/support setup must be verified |
+| Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; GitHub private security reporting verified DISABLED; owner must enable/verify it; real TestFlight/support setup pending |
 | Rollback, incident owner and non-destructive recovery | P1 | Procedure below prepared; owner rehearsal pending |
 | Owner control of Git and release actions | P1 | Local safeguards added; external bypass/shared identity risks require owner action |
 | Website build/dependency health | P2 | Type-check/build pass; npm audit reports zero known vulnerabilities in production and full locked tree |
 
 Final validation caveat: a narrow Swift Testing method filter selected zero tests
-while xcodebuild exited 0. `2f8ce603` adds an actual-xcresult guard (17 total
+while xcodebuild exited 0. `2f8ce603` adds an actual-xcresult guard (20 total
 Python tests) to reject zero tests, skips and failures in CI. The real zero-test
 bundle is rejected; the two 172-test bundles are accepted. The corrected whole-native-target
 control executes 131 tests and fails exactly the refresh race assertions (four
@@ -126,7 +126,7 @@ New fixes:
 | Baseline iPad long-card repeat, stop on failure | 10/10 pass; CI intermittency remains unresolved | `baseline-longcard-repeat-ipad.xcresult` |
 | Candidate core, UTC and America/Los_Angeles | 342/342 each pass after provenance fix | `model-version-core-{utc,la}-final.log` |
 | Missing-night regression tests with pristine-main Summary/EnergyEstimate | Expected red: 5 test functions, 9 issues; 24 tests run | `core-old-code-control.log` |
-| Release and xcresult guards | 17 tests pass; actual zero-test bundle rejected; both 172-test bundles accepted | `evidence-guard-tests.log` |
+| Release and xcresult guards | 20 tests pass; actual zero-test bundle rejected; both 172-test bundles accepted | `evidence-guard-tests.log` |
 | Workflow YAML and bash syntax | 7 YAML files / 38 shell bodies parse | `workflow-syntax.json` |
 | Privacy source and unsigned archive | Pass, zero warnings | `privacy-source.log`, `privacy-archive.log` |
 | Website type-check/build, locked dependency audits | Pass; 0 reported vulnerabilities | `website-*.log`, `website-audit-*.json` |
@@ -170,6 +170,9 @@ than spawning another agent or replacing their histories.
 - **Test infrastructure:** Xcode’s end-of-run diagnostics collector could not resolve `simctl` under global Command Line Tools selection, despite per-command Xcode selection. The xcresult bundle and executed tests were retained. Do not change the machine-wide setting without owner direction; use explicit tool paths and retain this evidence limitation.
 
 ## Security findings and exact owner actions
+
+- **P1, externally open:** private vulnerability reporting is disabled on the public repository, contradicting the old SECURITY.md route. `59220039` corrects the policy and release preflight checks the setting without enabling it. Proposed owner-only action: `gh api --method PUT repos/nmapaye/aurora/private-vulnerability-reporting`, followed by GET verification and a private-form availability check. Not executed; no external security setting changed.
+
 
 - **P1, mitigated locally:** release workflow lacked a head-specific evidence
   preflight. New guard requires completed successful native/core/security/privacy
