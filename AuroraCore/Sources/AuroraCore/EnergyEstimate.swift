@@ -209,8 +209,10 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     /// 2 added `evidence`, the `caffeine` missing input and the
     /// `unmeasuredFactors` limitation.
     public static let currentVersion = 2
-    /// The React Native port's model, unchanged.
-    public static let currentModelVersion = "alertness-1"
+    /// Scalar terms are unchanged, but new snapshots also apply the
+    /// three-hour/eighteen-hour sleep eligibility rule. Keep this distinct
+    /// from historical `alertness-1` snapshots; their captured values stay put.
+    public static let currentModelVersion = "alertness-1-main-sleep-3h-18h"
     public static let title = "Modeled alertness"
 
     public var version: Int

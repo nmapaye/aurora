@@ -207,7 +207,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         let sleeps = [SleepSession(id: "demo:sleep:1", start: now - 9 * hourMs, end: now - 2 * hourMs)]
         let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(pacific))
         #expect(energy.version == EnergyEstimate.currentVersion)
-        #expect(energy.modelVersion == "alertness-1")
+        #expect(energy.modelVersion == "alertness-1-main-sleep-3h-18h")
         #expect(energy.capturedAt == now && energy.timeZoneIdentifier == "America/Los_Angeles")
         #expect(energy.includesSample)
         #expect(energy.missingInputs == [.caffeine])
@@ -215,6 +215,23 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(energy.evidence.sleep.map(\.source) == [.sample])
         let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: JSONEncoder().encode(energy))
         #expect(decoded == energy)
+    }
+
+    @Test func legacyModelSnapshotKeepsItsVersionAndScoreAfterRefresh() throws {
+        let sleeps = [SleepSession(id: "manual:sleep:legacy", start: now - 9 * hourMs, end: now - 2 * hourMs)]
+        var legacy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        legacy.modelVersion = "alertness-1"
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let stored = try encoder.encode(legacy)
+        let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: stored)
+        let refreshed = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        #expect(decoded == legacy)
+        #expect(decoded.modeledScore == refreshed.modeledScore)
+        #expect(decoded.modelVersion != refreshed.modelVersion)
+        let projection = EnergyProjection.build(now: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        #expect(projection.modelVersion == refreshed.modelVersion)
+        #expect(try encoder.encode(decoded) == stored)
     }
 
     @Test func timeOfDayFollowsTheLocalClockAcrossFallBack() {
