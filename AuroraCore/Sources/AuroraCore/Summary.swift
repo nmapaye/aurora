@@ -1,7 +1,7 @@
 import Foundation
 
 /// Estimated Alertness is the alertness model, nothing more. Without a single
-/// sleep of at least three hours that ended in the 18 hours before `t`, the
+/// sleep block of at least three hours reaching the 18 hours before `t`, the
 /// number would describe missing data rather than the person, so there is no
 /// score.
 public enum AlertnessEstimate: Equatable, Sendable {
@@ -44,6 +44,9 @@ public enum Summary {
         sleeps: [SleepSession],
         inputs: EstimateInputs
     ) -> AlertnessEstimate {
+        // Display eligibility constants carried from the missing-night fix;
+        // these are Aurora assumptions, not validated clinical thresholds.
+        // Count ongoing records only as far as the evaluation instant.
         let hasRecentMainSleep = SleepIntervals.merge(
             sleeps.filter { $0.start < t }.map { Interval(start: $0.start, end: min($0.end, t)) },
             gapMs: SleepIntervals.briefAwakeningMs
@@ -70,7 +73,7 @@ public enum Summary {
     public static func describe(_ estimate: AlertnessEstimate) -> String {
         switch estimate {
         case .needsSleep:
-            return "Estimated alertness unavailable. No sleep of at least 3 hours ended in the last 18 hours."
+            return "Estimated alertness unavailable. No recorded sleep block of at least 3 hours reaches the last 18 hours."
         case .estimated(let score, let sleepHours, let includesSample):
             return "Estimated alertness \(score) out of 100. Modeled from \(formatSleepHours(sleepHours)) of sleep in the last 24 hours, active caffeine, and time of day.\(includesSample ? " Includes Sample Data." : "") This is an estimate, not a measurement."
         }

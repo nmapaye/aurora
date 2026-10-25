@@ -64,7 +64,7 @@ struct ParityTests {
                     divergent.insert(key)
                     #expect(Self.expectedDivergentAlertnessProbes[key] == Self.missingNightReason, "Unexpected legacy fixture divergence: \(key)")
                     #expect(estimate == .needsSleep, "Expected needs-sleep for \(key)")
-                    #expect(Summary.describe(estimate) == "Estimated alertness unavailable. No sleep of at least 3 hours ended in the last 18 hours.")
+                    #expect(Summary.describe(estimate) == "Estimated alertness unavailable. No recorded sleep block of at least 3 hours reaches the last 18 hours.")
                 }
             }
         }

@@ -36,7 +36,7 @@ struct EnergyEvidenceSections: View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             SectionLabel(text: "What the model used")
             if estimate.contributions.isEmpty {
-                Text("No parts to show. The model needs a main sleep of at least 3 hours ending within the 18 hours before this time.")
+                Text("No parts to show. The model needs a recorded sleep block of at least 3 hours reaching the 18 hours before this time. Ongoing sleep counts only up to this time.")
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
             ForEach(estimate.contributions, id: \.kind) { part in
@@ -179,7 +179,7 @@ struct EnergyTimelineChart: View {
     }
 
     private func spoken(_ point: EnergyProjection.Point) -> String {
-        let score = point.modeledScore.map { "\(EnergyEstimate.title) \($0)" } ?? "No modeled score, no sleep of at least 3 hours ended in the 18 hours before"
+        let score = point.modeledScore.map { "\(EnergyEstimate.title) \($0)" } ?? "No modeled score, no recorded sleep block of at least 3 hours reaches the 18 hours before"
         return "\(text.fullDateTime(point.t)), \(score). \(point.kind.label)."
     }
 

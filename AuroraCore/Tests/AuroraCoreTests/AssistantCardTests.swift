@@ -35,7 +35,7 @@ import Testing
         let alertness = try #require(card.metrics.first { $0.id == "alertness" })
         #expect(alertness.value == "Needs sleep")
         #expect(alertness.missing)
-        #expect(alertness.detail.contains("No sleep of at least 3 hours ended in the 18 hours before"))
+        #expect(alertness.detail.contains("No recorded sleep block of at least 3 hours reaches the 18 hours before"))
     }
     @Test func snapshotStaysFixedWhenRecordsChange() {
         var state = AppState()
