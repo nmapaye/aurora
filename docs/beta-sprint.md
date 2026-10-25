@@ -8,7 +8,7 @@ The checkpoint outside this repository is
 ## Candidate and evidence
 
 - Branch: `codex/beta-consolidation-2026-10-25`.
-- Worktree: `/private/tmp/aurora-beta-consolidation-2026-10-25`.
+- Worktree: `/Users/nmapaye/Developer/aurora-beta-consolidation-2026-10-25`.
 - Base: refreshed `origin/main`, `5a51696375d85e0ed1e84a191a573dc501d4e720`.
 - Evidence root: `/private/tmp/aurora-beta-evidence-2026-10-25/`.
 - Full simulator run source: `253b0829`; disconnect-race correction: `60f9622a`.
@@ -55,16 +55,16 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 
 | Gate derived from repository requirements | Severity | Evidence / status |
 |---|---|---|
-| Repeated clean launch, onboarding, completed-user relaunch | P1 | Full phone/pad suites running; physical cold launch pending |
-| Caffeine/sleep/check-in Save, Undo, duplicate taps, snapshots, CSV, offline tools | P1 | Existing native/UI regression suite running; actual CSV/device inspection pending |
+| Repeated clean launch, onboarding, completed-user relaunch | P1 | Clean Release phone/pad launch, setup, relaunch/background/native navigation pass; physical cold launch pending |
+| Caffeine/sleep/check-in Save, Undo, duplicate taps, snapshots, CSV, offline tools | P1 | Earlier full suites pass 172 each; final native tests pass 132 each; actual CSV/device inspection pending |
 | No-record and Sample Data truthfulness; alertness eligibility | P1 | 342 core tests pass UTC/LA; old implementation fails regression control; product acceptance pending |
-| Corrupt/future storage preserved, migration, erase, interrupted work | P1 | Existing storage/erase suites running; real prior-version device upgrade pending |
+| Corrupt/future storage preserved, migration, erase, interrupted work | P1 | Full fixture storage/erase suites pass; real prior-version device upgrade pending |
 | Health separate opt-ins, exact sample ownership, confirmed export receipts | P1 | Core tests/source inspection; physical allow/deny/revoke/import/export/background matrix pending |
 | Calendar preview approval and stale-data revalidation | P1 | Source validator and tests exist; live dedicated-event matrix pending |
-| Google unconfigured means no requests; disconnect cannot restore credentials | P1 | #61 guard integrated; new race control/green tests prepared, execution pending |
-| CI, iPhone/iPad and repeated regressions all green at final head | P1 | Live PR gates remain red; baseline four iPad flows and 10 long-card repeats passed locally; candidate full suites running |
-| iOS 17+ compatibility, physical VoiceOver, largest text, Reduce Motion, background lifecycle | P1 | Only iOS 26.5 simulator execution so far; unsupported evidence must not be substituted |
-| Reproducible installable distribution and signed archive validation | P1 | Unsigned Release archive at `253b0829` succeeds; artifact/privacy checks pass; signed archive, install/upgrade and TestFlight unproven |
+| Google unconfigured means no requests; disconnect cannot restore credentials | P1 | #61 plus refresh/read generation fixes pass seven provider tests inside 132 native tests on each device; no real Google calls |
+| CI, iPhone/iPad and repeated regressions all green at final head | P1 | Live PR gates remain red; full 172 per device and final native/gallery 134 per device pass; 40-iteration stress checks running |
+| iOS 17+ compatibility, physical VoiceOver, largest text, Reduce Motion, background lifecycle | P1 | iOS 26.5 simulator Release/UI and largest-text captures pass; physical VoiceOver/motion/older-OS evidence pending |
+| Reproducible installable distribution and signed archive validation | P1 | Two clean final unsigned archives at `24d36e5c` and strict artifact/privacy checks pass; signed archive/device upgrade/TestFlight unproven |
 | Tester instructions, private feedback and support route | P1 | [Guide](beta-tester-guide.md) and bug template added; real TestFlight/support setup must be verified |
 | Rollback, incident owner and non-destructive recovery | P1 | Procedure below prepared; owner rehearsal pending |
 | Owner control of Git and release actions | P1 | Local safeguards added; external bypass/shared identity risks require owner action |
@@ -106,6 +106,8 @@ New fixes:
   reject partial requests. No test retyping or retry-until-green was added.
 - `253b0829`: explain ongoing-sleep eligibility consistently in energy/summary
   copy, including accessibility, without changing the three/eighteen-hour rule.
+- `24d36e5c`: discard late Google responses after disconnect and validate session/token before sending, closing the newly executed late-read regression.
+- `2f8ce603`: reject zero-test/skipped/failed xcresult receipts in native, stress and Release smoke CI; 17 evidence-guard tests pass.
 - `9050bad2`: distinguish the missing-night eligibility model in new estimates and projections, while preserving historical `alertness-1` snapshot values and schema. Compatibility tests pass in both zones.
 - `60f9622a`: invalidate pending Google refresh/sign-in work on disconnect;
   expose credential-deletion failures; inject transport/storage for deterministic
@@ -121,12 +123,12 @@ New fixes:
 | Baseline iPad long-card repeat, stop on failure | 10/10 pass; CI intermittency remains unresolved | `baseline-longcard-repeat-ipad.xcresult` |
 | Candidate core, UTC and America/Los_Angeles | 342/342 each pass after provenance fix | `model-version-core-{utc,la}-final.log` |
 | Missing-night regression tests with pristine-main Summary/EnergyEstimate | Expected red: 5 test functions, 9 issues; 24 tests run | `core-old-code-control.log` |
-| Release evidence guard | 9 tests pass; failed/skipped/missing/stale/foreign/duplicate checks block | `release-safety-tests.log` |
+| Release and xcresult guards | 17 tests pass; actual zero-test bundle rejected; both 172-test bundles accepted | `evidence-guard-tests.log` |
 | Workflow YAML and bash syntax | 7 YAML files / 38 shell bodies parse | `workflow-syntax.json` |
 | Privacy source and unsigned archive | Pass, zero warnings | `privacy-source.log`, `privacy-archive.log` |
 | Website type-check/build, locked dependency audits | Pass; 0 reported vulnerabilities | `website-*.log`, `website-audit-*.json` |
 | Full simulator suites at `253b0829` | Phone and pad: 172 passed each (129 native + 43 UI), zero skipped. Later security/provenance changes require targeted final runs | `candidate-full-*-receipt.json`, `candidate-full-*.xcresult` |
-| New disconnect-race red/green native tests | Whole native red control executes 131 tests and fails the intended refresh test with four issues; fixed run pending | `security-{red,fixed}-build.log` |
+| New disconnect-race red/green native tests | Old control: 131 executed, intended refresh test fails with four issues. Final native: 132 pass each device, including refresh/read/deletion regressions | `security-{red,fixed}-build.log` |
 
 Unsigned archive metadata confirms bundle `com.nmapaye.aurora`, version 0.1.0
 (1), iOS 17 minimum, iPhone/iPad families, embedded privacy manifest, encryption
@@ -190,7 +192,7 @@ than spawning another agent or replacing their histories.
   Google credentials use device-only Keychain protection; signposts use fixed
   names rather than private contents. Fixture tests do not certify device behavior.
 - Actions are pinned by commit; Swift package has no remote package dependencies;
-  website lockfile audit is clean. Local gitleaks/CodeQL were not executed.
+  website lockfile audit is clean. Local CodeQL was not executed. Isolated checksum-verified Gitleaks 8.30.1 scanned 48 sprint commits with full redaction and no leaks.
   Final-head hosted secret/security scans remain required. Historical SSH-key
   alert stays closed as documented in `agents.md`.
 
@@ -231,7 +233,7 @@ Visual inspection confirmed the phone numeric-keyboard Save control and long-car
 heading were on screen. It also found that the older largest-text cutoff
 “result” captures still showed inputs. `9a58d203` / `8946ce90` strengthen those
 tests to require the actual result heading (or Calculate for empty inputs) to be
-reachable before capture; their execution is pending. The earlier gallery
+reachable before capture; their execution passed on both devices. The earlier gallery
 screenshot pass alone does not establish that acceptance.
 
 The coalesced user/reply regression also has a temporary portable test using the
@@ -247,3 +249,24 @@ Day 4 supplies full end-to-end and physical-device evidence. Day 5 prepares a
 signed, owner-reviewed candidate and the final gate decision, without publishing.
 Work can advance early when independent; calendar days, approvals and unexecuted
 tests must never be marked complete merely because this file exists.
+
+Latest executed Release acceptance: after explicit boot-and-wait matching CI,
+clean Release install/onboarding, energy card, relaunch, background return and
+responsive native navigation pass once on each iPhone/iPad (1/1 each, result
+guard verifies zero skips/failures). The Release binary was rebuilt at
+`24d36e5c` before these tests. See `booted-release-smoke-*.xcresult`.
+The fixed native run at the earlier `9050bad2` correctly exposed the late-read
+regression on both devices; these failures are retained. `24d36e5c` fixes it;
+all-native plus strengthened gallery proof now runs against that corrected binary.
+The worktree was moved intact from temporary storage into the durable Developer
+path above, without removing any existing worktree.
+
+Final local proof: `proof-native-gallery-{iphone,ipad}` each passes 134 tests
+(132 native plus both strengthened gallery capture tests), zero skips/failures.
+The largest-text result heading was visually inspected on iPhone. Live
+`stress40-{iphone,ipad}` runs are queued/running serially, stop on failure, verify
+40 passes for each of three flows and update the external checkpoint. They are
+not yet counted passed. Source is app `24d36e5c`, core `9050bad2`, tests
+`8946ce90`. Actual final unsigned archives are 5/6 at `24d36e5c`; both strict
+privacy checks pass and their Info.plists/privacy manifests match. Earlier
+archives/binaries remain earlier-head evidence, not substitutes.
