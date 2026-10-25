@@ -59,7 +59,7 @@
     <main>
       <p class="eyebrow">Privacy Policy</p>
       <h1>Aurora Privacy Policy</h1>
-      <p>Last updated: October 8, 2026</p>
+      <p>Last updated: October 25, 2026</p>
 
       <p>
         Aurora is a native iPhone and iPad assistant for energy and daily rhythm. It records caffeine and sleep, presents estimates and reaction-test results, and optionally reviews selected calendar commitments. Aurora has no cloud AI service or required Aurora account.
@@ -73,7 +73,7 @@
         <li>Vigilance reaction-test results.</li>
         <li>Local preferences such as caffeine half-life, sleep target, appearance, and notification settings.</li>
         <li>Local conversation messages, dated response snapshots, and suggestion delivery/dismissal state.</li>
-        <li>Selected calendar identifiers and mirror preferences. Google OAuth tokens are stored in device-only Keychain storage.</li>
+        <li>Selected calendar identifiers and preferences. Credentials retained from earlier development builds remain in device-only Keychain storage until full local erase; direct Google sign-in is disabled in this beta.</li>
       </ul>
 
       <h2>Apple Health</h2>
@@ -84,10 +84,10 @@
       <h2>Local Intelligence and Dictation</h2>
       <p>When available, Apple’s on-device Foundation Models classify requests into supported tasks. Deterministic app code supplies record values and calculations. Native quick actions remain available without a model or network connection. Optional dictation requires on-device speech recognition; Aurora does not upload audio to a cloud speech service. No analytics SDK or tracking is included.</p>
       <h2>Calendars</h2>
-      <p>Calendar connections are optional. Apple Calendar access uses EventKit. Direct Google Calendar access uses Google authentication and Google’s Calendar API. Only selected calendars are included. Calendar requests and approved changes communicate with Google when that connection is used; calendar data is not sent to an AI provider. Aurora changes an event only after explicit review and approval, and does not automatically cancel appointments or notify attendees. You can disconnect Google in calendar settings and revoke access through Google’s account controls.</p>
+      <p>Calendar connections are optional. This beta uses Apple Calendar through EventKit, including Google calendars synced by iOS. Only calendars you select are included. iOS may sync calendars through your configured account provider; this beta does not sign in directly to Google or call its Calendar API. Calendar data is not sent to an AI provider. Aurora changes an event only after explicit review and approval, and does not automatically cancel appointments or notify attendees. You control calendar access in device settings.</p>
       <h2>Storage and Sharing</h2>
       <p>
-        Aurora stores app data locally on the device. Summary and CSV export features use the iOS share sheet and require explicit user action. The app does not create an Aurora cloud account or upload health logs or conversations to Aurora servers. Record and conversation storage is excluded from device backups; retained migration and recovery copies stay local until erased. There is no cross-device health or conversation sync. Google calendar access is the optional network integration described above.
+        Aurora stores app data locally on the device. Summary and CSV export features use the iOS share sheet and require explicit user action. The app does not create an Aurora cloud account or upload health logs or conversations to Aurora servers. Record and conversation storage is excluded from device backups; retained migration and recovery copies stay local until erased. There is no cross-device health or conversation sync. Calendar synchronization is controlled by the account settings on your device, as described above; this beta has no direct Google connection.
       </p>
 
       <h2>Deleting Data</h2>

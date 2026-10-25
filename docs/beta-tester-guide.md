@@ -51,8 +51,9 @@ Apple account information or credentials publicly. Security reports follow
 Current candidate limits: no signed distributed build is proven; physical Health,
 accessibility, legacy upgrade and background behavior remain unvalidated. The
 archive has no direct Google configuration; Apple-synced calendars are a separate
-connection. The candidate's 3h/18h alertness display rule, ongoing-sleep behavior
-and final beta scope await owner acceptance. CI intermittency is not considered
+connection. The owner accepted the 3h/18h alertness display rule and ongoing-sleep behavior
+as disclosed assumptions. This beta uses Apple-synced calendars only; direct
+Google sign-in is deferred. Physical acceptance remains required. CI intermittency is not considered
 resolved until the stress and final integration gates pass. See
 [the current scorecard](beta-sprint.md) for build-specific evidence and blockers.
 

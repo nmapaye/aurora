@@ -17,7 +17,7 @@ const features = [
   },
   {
     title: 'Calendar edits you approve',
-    body: 'Review selected Apple and Google calendars. Each change needs your fresh, explicit approval before it is made.',
+    body: 'Review selected calendars synced with Apple Calendar, including Google calendars synced by iOS. Each change needs your fresh, explicit approval. Direct Google sign-in is not included in this beta.',
   },
   {
     title: 'Reaction test',

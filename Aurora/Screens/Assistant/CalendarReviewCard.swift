@@ -257,11 +257,15 @@ struct CalendarConnectionsView: View {
                             } }
                         }.disabled(busy) }
                     } else {
-                        Text("Direct Google sign-in needs Aurora’s registered iOS OAuth client. Until that is configured, use a Google calendar synced through Apple. No API key is required or accepted.").font(.footnote)
+                        Text("This beta uses Apple Calendar. To include a Google calendar, sync it with Apple Calendar in device settings, then select it here. Direct Google sign-in is not included.").font(.footnote)
                     }
                 }
                 Section("Include calendars") {
-                    Text("If the same Google calendar appears through both connections, select its authoritative connection below. Do not select both copies.").font(.footnote)
+                    if service.google.connected {
+                        Text("If the same Google calendar appears through both connections, select its authoritative connection below. Do not select both copies.").font(.footnote)
+                    } else {
+                        Text("Select the calendars you want Aurora to include.").font(.footnote)
+                    }
                     ForEach(service.calendars, id: \.selfID) { calendar in
                         Toggle(isOn: Binding(get: { service.selected.contains(service.key(calendar)) }, set: { value in
                             if value != service.selected.contains(service.key(calendar)) { service.toggle(calendar) }

@@ -12,7 +12,8 @@ The checkpoint outside this repository is
 - Base: refreshed `origin/main`, `5a51696375d85e0ed1e84a191a573dc501d4e720`.
 - Active evidence: `/private/tmp/aurora-beta-evidence-2026-10-25/`.
 - Durable evidence: `/Users/nmapaye/Documents/Aurora Audits/beta-sprint-evidence-2026-10-25/`.
-- Final app source: `24d36e5c`; core: `9050bad2`; capture tests: `8946ce90`.
+- Latest validated binary: app `24d36e5c`; core `9050bad2`; capture tests `8946ce90`.
+  New beta-scope copy/UI assertions require a new build and final-suite evidence.
   Earlier complete UI/native baseline: `253b0829`. Build provenance is retained.
 - Installed toolchain: Xcode 27.0 (27A266a), per-command `DEVELOPER_DIR`.
   Global Xcode selection was not changed. Simulator runtime: iOS 26.5.
@@ -38,8 +39,8 @@ base. Its original branch was not modified. The whole sequence is locally
 integrated for testing. The current rule merges brief awakenings, clips ongoing
 records to evaluation time, requires a block spanning three hours, and withholds
 a score once its end is older than eighteen hours. These are display assumptions,
-not clinical thresholds. Owner acceptance is still required. In particular,
-reconcile them with #43's different episode rule before combining those branches.
+not clinical thresholds. The owner explicitly accepted these display assumptions on October 25.
+Do not combine #43's competing episode/model rules into this beta.
 
 The #54 force-push event exists at 2026-10-24 08:35:41 UTC under `nmapaye`.
 The audit's account of lack of authorization is historical evidence; GitHub
@@ -60,7 +61,7 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 |---|---|---|
 | Repeated clean launch, onboarding, completed-user relaunch | P1 | Clean Release phone/pad launch, setup, relaunch/background/native navigation pass; physical cold launch pending |
 | Caffeine/sleep/check-in Save, Undo, duplicate taps, snapshots, CSV, offline tools | P1 | Earlier full suites pass 172 each; final native tests pass 132 each; actual CSV/device inspection pending |
-| No-record and Sample Data truthfulness; alertness eligibility | P1 | 342 core tests pass UTC/LA; old implementation fails regression control; product acceptance pending |
+| No-record and Sample Data truthfulness; alertness eligibility | P1 | 342 core tests pass UTC/LA; old implementation fails regression control; display assumptions approved; physical-data verification pending |
 | Corrupt/future storage preserved, migration, erase, interrupted work | P1 | Full fixture storage/erase suites pass; real prior-version device upgrade pending |
 | Health separate opt-ins, exact sample ownership, confirmed export receipts | P1 | Core tests/source inspection; physical allow/deny/revoke/import/export/background matrix pending |
 | Calendar preview approval and stale-data revalidation | P1 | Source validator and tests exist; live dedicated-event matrix pending |
@@ -150,10 +151,10 @@ actual integrated head; a green check on another branch is insufficient.
 |---|---|
 | P1 #51, #58 | Locally combined; require full suite and 40 stop-on-first-failure iterations on each device before accepting either as solved. Overlap in workflow edits resolved by keeping both stress steps and full tests after either failure. |
 | P1 #61 | Guard and tests integrated; motion correction reused; disconnect refresh/read fixes have executed red/green evidence. Do not call the remote PR green. |
-| P1 missing-night | Integrated for review; owner must accept 3h/18h, ongoing sleep, merged gaps and projection cutoff. Original branch remains untouched. |
+| P1 missing-night | Integrated for review; owner accepted 3h/18h and ongoing-sleep assumptions; preserve merged gaps, clipping and historical model versions. Original branch remains untouched. |
 | P1 #48 → #55 → #56 | Integrated locally; actual device archive inspected, not just simulator plist. #56 is stacked on #55. |
 | P1 #52 → #62 | Integrated locally, with additional exact-commit evidence guard; no workflow dispatch or signing material accessed. #62 is stacked on #52. |
-| P1 #54, #60 | Ratify Apple-only release scope and reconcile reviewer/privacy statements with actual unconfigured archive; #60's claims depend on #61, not copy alone. Existing main docs still call Google a requirement. |
+| P1 #54, #60 | Apple-only beta scope approved. Reconcile reviewer/privacy statements with the guarded unconfigured archive; retain #61 provider defenses. Direct Google remains deferred, and competing main docs are corrected locally. |
 | P1 #42, #43 | Review model/default/notification acceptance before integration. Both based on #38; #42 still has a red iPad gate. #43 modifies the sleep model and snapshot versioning and must be reconciled with missing-night. |
 | P2 #38 → #39 → #44 | Large UI, reaction and accessibility stack; not duplicates of narrow #51/#58 fixes. Reconcile shared files first. Physical touch/VoiceOver remains mandatory if adopting it. |
 | P2 #40, #41 | Research #40 can be reviewed independently; #41 changes caffeine kinetics and depends on #38. Do not add a new model merely to consolidate inventory. |
@@ -303,5 +304,29 @@ shell bodies pass local checks. This change does not rebuild the app binary.
 - Review `git diff 5a516963..codex/beta-consolidation-2026-10-25` and the source-specific evidence above. The candidate is not approved for merge or distribution.
 - When ready to authorize hosted verification, the exact proposed push is `git -C /Users/nmapaye/Developer/aurora-beta-consolidation-2026-10-25 push -u origin codex/beta-consolidation-2026-10-25`. This creates/updates only the new branch. No push, PR creation, protected merge or workflow dispatch has been performed by this sprint.
 - The owner must configure `ASC_KEY_ID`, `ASC_ISSUER_ID` and base64-encoded `ASC_KEY_P8` directly in the protected GitHub `release` environment, choose a scoped App Store Connect key, and confirm account/team/App Store Connect app eligibility. Do not paste key contents into a public issue or chat. Existing local development signing is not TestFlight distribution signing.
-- Ratify the missing-night eligibility assumptions and the direct-Google versus Apple-synced-calendar beta scope. Physical Health, accessibility, migration and installed-build testing still require available devices and dedicated fixtures.
+- Owner decisions recorded: tested missing-night display assumptions accepted; Apple-synced-calendar-only beta approved; physical iPhone and iPad will be made available. Physical Health, accessibility, migration and installed-build tests still need execution with dedicated fixtures.
 - Review the exact proposed force-push/ruleset and release-environment changes above. Only the separately approved private-reporting enablement has been applied.
+
+
+## Approved beta scope implementation
+
+The owner approved Apple-synced calendars only, the tested missing-night display
+assumptions, and availability of both physical device families. App connection
+copy, product truth, unpublished metadata, website/privacy source and tester
+instructions now reflect that scope. HealthKit descriptions distinguish the
+three separate opt-ins and Aurora-owned caffeine export; they no longer claim
+the whole integration is read-only. No Google implementation or defensive test
+was removed. Eight new scope-guard tests reject Google client/callback keys and
+Google OAuth URL schemes, including malformed metadata. CI checks source plists,
+the built device plist and the archive before upload. Current Python guard suite
+has 34 passing tests; the retained final unsigned archive also passes the scope
+check. The existing calendar UI test now verifies reachable Apple connection controls and the
+absence of direct-Google connection actions without requesting permissions.
+Its new assertions are pending execution, not passed evidence. The prior full
+suite queue is superseded with a rebuild of this changed app/test source;
+ongoing old-source stress receipts remain explicitly labelled.
+
+The local development-signed archive attempt timed out (exit 124) at 15:40:22
+UTC while waiting at codesign/SecurityAgent. No accepted signed archive or
+installation resulted. The failed manual-profile attempt and timed-out corrected
+attempt are retained separately; no Keychain permission workaround was used.

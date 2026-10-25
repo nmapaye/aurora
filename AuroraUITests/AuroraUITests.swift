@@ -438,8 +438,13 @@ final class AuroraUITests: XCTestCase {
     func testCalendarNeverWritesWithoutPreviewApproval() {
         finishSetup()
         tapQuick("Review calendar")
-        XCTAssertTrue(app.buttons["Calendar connections"].waitForExistence(timeout: 5))
+        let connections = app.buttons["Calendar connections"]
+        XCTAssertTrue(connections.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["calendar-approve"].exists)
+        tapWhenReady(connections)
+        XCTAssertTrue(app.buttons["Connect Apple Calendar"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Connect Google directly"].exists)
+        XCTAssertFalse(app.buttons["Reconnect Google"].exists)
     }
     func testNoAPIKeyEntryInSettings() {
         finishSetup()

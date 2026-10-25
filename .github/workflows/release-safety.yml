@@ -20,3 +20,5 @@ jobs:
           persist-credentials: false
       - name: Test release and result evidence guards
         run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Verify approved beta calendar scope
+        run: python3 .github/scripts/verify_beta_scope.py Aurora/Info.plist Aurora/Info-Simulator.plist
