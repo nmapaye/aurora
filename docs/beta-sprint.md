@@ -70,6 +70,17 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 | Owner control of Git and release actions | P1 | Local safeguards added; external bypass/shared identity risks require owner action |
 | Website build/dependency health | P2 | Type-check/build pass; npm audit reports zero known vulnerabilities in production and full locked tree |
 
+Final validation caveat: a narrow Swift Testing method filter selected zero tests
+while xcodebuild exited 0. `2f8ce603` adds an actual-xcresult guard (17 total
+Python tests) to reject zero tests, skips and failures in CI. The real zero-test
+bundle is rejected; the two 172-test bundles are accepted. The corrected whole-native-target
+control executes 131 tests and fails exactly the refresh race assertions (four
+issues), proving the old behavior restores credentials and sends a later API call. The first later-binary tests failed before
+launch: SpringBoard explicitly reported the app/runner was still being updated.
+Both signatures and deployment targets verified; boot-and-wait was omitted from
+that local follow-up harness, unlike CI. It is being corrected and the failures
+remain retained. This is not evidence that the final app passed.
+
 No P0 incident is currently confirmed. Passing unit tests alone cannot make
 the recommendation GO. GO requires evidence for every mandatory row and owner
 authorization; CONDITIONAL GO can apply only after all P0/P1 close and the owner
@@ -114,8 +125,8 @@ New fixes:
 | Workflow YAML and bash syntax | 7 YAML files / 38 shell bodies parse | `workflow-syntax.json` |
 | Privacy source and unsigned archive | Pass, zero warnings | `privacy-source.log`, `privacy-archive.log` |
 | Website type-check/build, locked dependency audits | Pass; 0 reported vulnerabilities | `website-*.log`, `website-audit-*.json` |
-| Full simulator suites at `253b0829` | Phone: 172 passed (129 native + 43 UI), zero skipped; pad RUNNING. Later security/provenance changes require targeted final runs | `candidate-full-*-receipt.json`, `candidate-full-*.xcresult` |
-| New disconnect-race red/green native tests | Binaries built; tests pending | `security-{red,fixed}-build.log` |
+| Full simulator suites at `253b0829` | Phone and pad: 172 passed each (129 native + 43 UI), zero skipped. Later security/provenance changes require targeted final runs | `candidate-full-*-receipt.json`, `candidate-full-*.xcresult` |
+| New disconnect-race red/green native tests | Whole native red control executes 131 tests and fails the intended refresh test with four issues; fixed run pending | `security-{red,fixed}-build.log` |
 
 Unsigned archive metadata confirms bundle `com.nmapaye.aurora`, version 0.1.0
 (1), iOS 17 minimum, iPhone/iPad families, embedded privacy manifest, encryption
