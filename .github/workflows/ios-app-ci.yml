@@ -305,7 +305,29 @@ jobs:
             | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
           exit $status
 
-      # The only Release build. It targets a generic iOS device, so CI checks
+      # An actual optimized Release launch without Debug reset/gallery hooks.
+      # The simulator is disposable CI infrastructure; remove only its fixture
+      # app so this exercises first install rather than a Debug-state upgrade.
+      - name: Release clean-install smoke test
+        if: ${{ !cancelled() && (success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure') }}
+        run: |
+          mkdir -p build
+          xcrun simctl uninstall "${{ steps.sim.outputs.udid }}" com.nmapaye.aurora || true
+          set +e
+          xcodebuild test \
+            -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/ReleaseSmokeDerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/ReleaseSmokeUITests \
+            -resultBundlePath build/ReleaseSmoke.xcresult \
+            ENABLE_TESTABILITY=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            > build/xcodebuild-release-smoke.log 2>&1
+          status=$?
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-smoke.log
+          exit $status
+
+      # It targets a generic iOS device, so CI checks
       # the Info.plist that would ship: no local networking exception.
       - name: Release device build
         if: ${{ !cancelled() && matrix.device == 'iPhone' }}
@@ -344,6 +366,7 @@ jobs:
             build/AuroraTests.xcresult
             build/LongCardRepeat.xcresult
             build/TypedRequestRepeat.xcresult
+            build/ReleaseSmoke.xcresult
 
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
