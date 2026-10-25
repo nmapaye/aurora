@@ -250,10 +250,12 @@ struct CalendarConnectionsView: View {
                             Task { await perform { try await service.google.connect() } }
                         }.disabled(busy)
                         if service.google.connected { Button("Disconnect Google", role: .destructive) {
-                            service.google.disconnect()
-                            service.selected = Set(service.selected.filter { !$0.hasPrefix("google:") })
-                            Task { await service.refreshCalendars(); await service.refresh() }
-                        } }
+                            Task { await perform {
+                                try service.google.disconnect()
+                                service.selected = Set(service.selected.filter { !$0.hasPrefix("google:") })
+                                await service.refreshCalendars(); await service.refresh()
+                            } }
+                        }.disabled(busy) }
                     } else {
                         Text("Direct Google sign-in needs Aurora’s registered iOS OAuth client. Until that is configured, use a Google calendar synced through Apple. No API key is required or accepted.").font(.footnote)
                     }

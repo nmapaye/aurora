@@ -57,6 +57,39 @@ import Testing
         let provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in nil })
         #expect(provider.configured && !provider.connected)
     }
+
+    /// The transport suspends in production. Inject the equivalent ordering:
+    /// Disconnect happens after refresh starts but before its successful reply.
+    /// No network, credentials or wall-clock delays are needed for this control.
+    @Test func disconnectDuringRefreshCannotRestoreCredentials() async throws {
+        let info = configuredInfo
+        var provider: GoogleCalendarProvider!
+        var requests: [URL] = []
+        var writes = 0
+        provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in staleToken },
+            transport: { request in
+                let url = try #require(request.url)
+                requests.append(url)
+                if url.path == "/token" {
+                    try provider.disconnect()
+                    let body = Data(#"{"access_token":"fixture-after-disconnect","expires_in":3600}"#.utf8)
+                    return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+                }
+                return (Data(#"{"items":[]}"#.utf8), try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            }, persistToken: { _, _ in writes += 1 }, removeToken: {})
+        await #expect(throws: CalendarActionError.unavailable) { try await provider.calendars() }
+        #expect(!provider.connected)
+        #expect(writes == 0)
+        #expect(requests.map(\.path) == ["/token"])
+    }
+
+    @Test func disconnectReportsCredentialDeletionFailure() throws {
+        let info = configuredInfo
+        let provider = GoogleCalendarProvider(infoValue: { info[$0] }, storedToken: { _ in liveToken },
+            removeToken: { throw GoogleCalendarProvider.CredentialDeletionFailure(status: -50) })
+        #expect(throws: GoogleCalendarProvider.CredentialDeletionFailure.self) { try provider.disconnect() }
+        #expect(!provider.connected)
+    }
 }
 
 /// Answers Google requests locally with 401 and records them, so a test never
