@@ -131,16 +131,19 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     private func request(path: String, query: [URLQueryItem] = [], method: String = "GET", body: Data? = nil, etag: String? = nil) async throws -> Data {
         // Every Google call, the token refresh included, needs a configured build.
         guard connected, let existing = token else { throw CalendarActionError.unavailable }
+        let generation = sessionGeneration
         if existing.expiresAt < .now.addingTimeInterval(60) {
             guard let refresh = existing.refreshToken, let clientID else { throw CalendarActionError.unavailable }
             try await exchange(["client_id": clientID, "refresh_token": refresh, "grant_type": "refresh_token"])
         }
+        guard generation == sessionGeneration, connected, let current = token else { throw CalendarActionError.unavailable }
         var url = URLComponents(string: "https://www.googleapis.com/calendar/v3/\(path)")!; url.queryItems = query
         var request = URLRequest(url: url.url!); request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 20
-        request.setValue("Bearer \(token!.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(current.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-Match") }
         let (data, response) = try await transport(request)
+        guard generation == sessionGeneration, connected else { throw CalendarActionError.unavailable }
         let status = (response as? HTTPURLResponse)?.statusCode
         if status == 412 { throw CalendarActionError.stale }
         guard let status, (200..<300).contains(status) else { throw CalendarActionError.unavailable }
