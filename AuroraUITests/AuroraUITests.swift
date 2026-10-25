@@ -608,7 +608,14 @@ final class AuroraUITests: XCTestCase {
         let title = cardTitle("energyProjection")
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
-        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        let result = XCTWaiter.wait(for: [shown], timeout: 3)
+        if result != .completed {
+            attachScreenshot("Long card title not hittable")
+            print("Long-card title: \(title.debugDescription)")
+            print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
+            print(app.debugDescription)
+        }
+        XCTAssertEqual(result, .completed)
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)

@@ -115,6 +115,16 @@ struct AssistantView: View {
                     case .none, .hold: break
                     }
                 }
+                // Dismissing the keyboard can shift a revealed title under
+                // the bar without changing the composer's measured height.
+                // Wait for UIKit's completion rather than guessing a delay.
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterKeyboardDismissed(
+                            latestMessage: assistant.conversation.messages.last?.id, holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
+                }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
             .background(Palette.screen)

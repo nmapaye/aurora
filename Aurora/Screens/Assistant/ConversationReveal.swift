@@ -64,6 +64,14 @@ struct ConversationFollow: Equatable {
         if let revealedStart { return .start(revealedStart) }
         return .end
     }
+
+    /// Keyboard dismissal changes the viewport independently of the bottom
+    /// area's height. Keep only the latest reply's previously revealed start;
+    /// a held reply or the person's own scrolling must never be overridden.
+    func afterKeyboardDismissed(latestMessage: UUID?, holding: Bool) -> ConversationReveal {
+        guard !holding, let revealedStart, revealedStart == latestMessage else { return .none }
+        return .start(revealedStart)
+    }
 }
 
 /// Which messages the conversation renders. It is a plain stack, not a lazy

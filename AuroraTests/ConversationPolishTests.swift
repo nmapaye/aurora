@@ -72,6 +72,20 @@ import Testing
         #expect(follow.afterBottomAreaGrew(from: 196, to: 252, atEnd: true, holding: false) == .end)
     }
 
+    @Test func aDismissedKeyboardKeepsOnlyTheLatestRevealedReplysStart() {
+        let id = UUID()
+        var follow = ConversationFollow()
+        follow.revealed(.start(id))
+        #expect(follow.afterKeyboardDismissed(latestMessage: id, holding: false) == .start(id))
+        #expect(follow.afterKeyboardDismissed(latestMessage: UUID(), holding: false) == .none)
+        #expect(follow.afterKeyboardDismissed(latestMessage: nil, holding: false) == .none)
+        #expect(follow.afterKeyboardDismissed(latestMessage: id, holding: true) == .none)
+        follow.stopFollowing()
+        #expect(follow.afterKeyboardDismissed(latestMessage: id, holding: false) == .none)
+        follow.revealed(.end)
+        #expect(follow.afterKeyboardDismissed(latestMessage: id, holding: false) == .none)
+    }
+
     @Test func removalsAndClearsMoveNothing() {
         let list = messages(2)
         #expect(ConversationReveal.after(list, previousCount: 2, readingLatest: true) == .none)
