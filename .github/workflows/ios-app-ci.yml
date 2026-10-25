@@ -315,13 +315,13 @@ jobs:
           xcrun simctl uninstall "${{ steps.sim.outputs.udid }}" com.nmapaye.aurora || true
           set +e
           xcodebuild test \
-            -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+            -project Aurora.xcodeproj -scheme AuroraReleaseSmoke -configuration Release \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/ReleaseSmokeDerivedData \
             -parallel-testing-enabled NO \
             -only-testing:AuroraUITests/ReleaseSmokeUITests \
             -resultBundlePath build/ReleaseSmoke.xcresult \
-            ENABLE_TESTABILITY=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             > build/xcodebuild-release-smoke.log 2>&1
           status=$?
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-smoke.log
