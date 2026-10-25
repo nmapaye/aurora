@@ -10,8 +10,10 @@ The checkpoint outside this repository is
 - Branch: `codex/beta-consolidation-2026-10-25`.
 - Worktree: `/Users/nmapaye/Developer/aurora-beta-consolidation-2026-10-25`.
 - Base: refreshed `origin/main`, `5a51696375d85e0ed1e84a191a573dc501d4e720`.
-- Evidence root: `/private/tmp/aurora-beta-evidence-2026-10-25/`.
-- Full simulator run source: `253b0829`; disconnect-race correction: `60f9622a`.
+- Active evidence: `/private/tmp/aurora-beta-evidence-2026-10-25/`.
+- Durable evidence: `/Users/nmapaye/Documents/Aurora Audits/beta-sprint-evidence-2026-10-25/`.
+- Final app source: `24d36e5c`; core: `9050bad2`; capture tests: `8946ce90`.
+  Earlier complete UI/native baseline: `253b0829`. Build provenance is retained.
 - Installed toolchain: Xcode 27.0 (27A266a), per-command `DEVELOPER_DIR`.
   Global Xcode selection was not changed. Simulator runtime: iOS 26.5.
 - All 48 prior worktrees, including dirty work, preserved. No pushes, remote
@@ -78,8 +80,9 @@ control executes 131 tests and fails exactly the refresh race assertions (four
 issues), proving the old behavior restores credentials and sends a later API call. The first later-binary tests failed before
 launch: SpringBoard explicitly reported the app/runner was still being updated.
 Both signatures and deployment targets verified; boot-and-wait was omitted from
-that local follow-up harness, unlike CI. It is being corrected and the failures
-remain retained. This is not evidence that the final app passed.
+that local follow-up harness, unlike CI. Explicit boot-and-wait corrected the
+launch precondition; final native/gallery and Release runs then passed on both
+devices. The earlier failures remain retained, not relabelled as passes.
 
 No P0 incident is currently confirmed. Passing unit tests alone cannot make
 the recommendation GO. GO requires evidence for every mandatory row and owner
@@ -218,55 +221,49 @@ than spawning another agent or replacing their histories.
    passes acceptance, and the owner records the incident resolution. A simulator
    pass cannot substitute for physical Health/migration verification.
 
-Release smoke coverage is added in `4aa9fb92` / `db349257`; dedicated scheme
-`1279ba56` keeps production Debug hooks disabled and excludes the unit target that
-requires Debug fixtures. The first ordinary Release test-build attempt correctly
-failed on those unavailable fixtures; it is not counted as a passing check. The
-dedicated scheme build and actual clean-install run still need their receipts.
+## Validation details and limits
 
-Two clean independent unsigned archives at source `9050bad2` (archives 3/4) succeeded; embedded
-Info.plists and privacy-manifest hashes match. This verifies the build procedure,
-not bit-for-bit executable reproducibility, signing or installation. Physical
-iPhone/iPad discovery lists both physical devices as unavailable.
+`AuroraReleaseSmoke` exercises optimized Release without Debug reset/gallery
+hooks or testability overrides. The first ordinary Release test-build attempt
+failed because its native unit target requires Debug fixtures; it is retained as
+a failed attempt. The dedicated UI-only scheme keeps that target separate from
+the mandatory full Debug suite. Actual clean install/setup, energy card,
+relaunch, background return and responsive native navigation pass 1/1 on each
+simulator, with the nonzero result guard confirming no skips/failures.
 
-Visual inspection confirmed the phone numeric-keyboard Save control and long-card
-heading were on screen. It also found that the older largest-text cutoff
-“result” captures still showed inputs. `9a58d203` / `8946ce90` strengthen those
-tests to require the actual result heading (or Calculate for empty inputs) to be
-reachable before capture; their execution passed on both devices. The earlier gallery
-screenshot pass alone does not establish that acceptance.
+Final `proof-native-gallery-{iphone,ipad}` bundles each pass 134 tests (132
+native plus both strengthened capture tests). Visual review confirmed phone
+numeric-keyboard Save and the long-card heading. It found older largest-text
+“result” images still showed inputs; `9a58d203` / `8946ce90` now require the actual
+result heading (Calculate for empty inputs) on screen. Both devices pass that
+stricter check, and a final phone largest-text result image was inspected.
 
-The coalesced user/reply regression also has a temporary portable test using the
-exact `ConversationReveal.swift`: pristine main fails, integrated source passes
-(`conversation-control-{old,fixed}.log`). This is logic evidence, not reproduction
-of the intermittent simulator failure.
+The temporary portable control with the exact `ConversationReveal.swift` fails
+on pristine main and passes integrated source (`conversation-control-{old,fixed}.log`).
+This is logic proof, not local reproduction of the intermittent CI renderer race.
+The original missing-night control and Google refresh control fail as intended.
+The later native run additionally caught stale calendar data after disconnect;
+`24d36e5c` fixes it and all seven provider regressions pass on both simulators.
+
+Actual final unsigned archives are 5/6 at app source `24d36e5c`. Both independent
+clean archive commands and strict privacy checks succeed; embedded Info.plists
+and privacy-manifest hashes match. This is build-procedure reproducibility, not
+bit-for-bit executable equivalence or signed distribution. Physical iPhone/iPad
+are listed as unavailable. No signed archive, device HealthKit, Organizer,
+TestFlight upload or external installation has been certified.
+
+`stress40-{iphone,ipad}` run serially against app `24d36e5c` and stop on failure.
+They require forty actual passes of each long-card/briefing/trends flow and a
+nonzero, clean xcresult. The worker updates the external checkpoint and preserves
+results. These long runs are **pending**, not passed. Check the checkpoint before
+starting any new simulator lane. Earlier binaries/archives retain their original
+source labels in `BUILD-PROVENANCE.md`.
 
 ## Remaining day boundaries
 
-Day 1 reconnaissance and stabilization is active. Day 2 closes UI/stress and
-confirmed P0/P1 defects. Day 3 completes chosen integration/security deltas.
-Day 4 supplies full end-to-end and physical-device evidence. Day 5 prepares a
-signed, owner-reviewed candidate and the final gate decision, without publishing.
-Work can advance early when independent; calendar days, approvals and unexecuted
-tests must never be marked complete merely because this file exists.
-
-Latest executed Release acceptance: after explicit boot-and-wait matching CI,
-clean Release install/onboarding, energy card, relaunch, background return and
-responsive native navigation pass once on each iPhone/iPad (1/1 each, result
-guard verifies zero skips/failures). The Release binary was rebuilt at
-`24d36e5c` before these tests. See `booted-release-smoke-*.xcresult`.
-The fixed native run at the earlier `9050bad2` correctly exposed the late-read
-regression on both devices; these failures are retained. `24d36e5c` fixes it;
-all-native plus strengthened gallery proof now runs against that corrected binary.
-The worktree was moved intact from temporary storage into the durable Developer
-path above, without removing any existing worktree.
-
-Final local proof: `proof-native-gallery-{iphone,ipad}` each passes 134 tests
-(132 native plus both strengthened gallery capture tests), zero skips/failures.
-The largest-text result heading was visually inspected on iPhone. Live
-`stress40-{iphone,ipad}` runs are queued/running serially, stop on failure, verify
-40 passes for each of three flows and update the external checkpoint. They are
-not yet counted passed. Source is app `24d36e5c`, core `9050bad2`, tests
-`8946ce90`. Actual final unsigned archives are 5/6 at `24d36e5c`; both strict
-privacy checks pass and their Info.plists/privacy manifests match. Earlier
-archives/binaries remain earlier-head evidence, not substitutes.
+Only October 25 Day 1 is claimed executed. Critical fixes, integration/security
+preparation and Release simulation advanced early. Day 2 closes any remaining
+stress/CI defects; Day 3 completes the owner-chosen integration/security deltas;
+Day 4 supplies physical and complete end-to-end evidence; Day 5 prepares the
+signed owner-reviewed candidate and final gate decision without publishing.
+Unelapsed days, owner decisions and unexecuted tests remain open.
