@@ -34,7 +34,12 @@ final class CutoffGalleryCaptureUITests: XCTestCase {
             let destination = fixture == "Empty inputs"
                 ? app.buttons["cutoff-calculate"]
                 : app.staticTexts.matching(NSPredicate(format: "label == 'Result' OR label == 'RESULT'")).firstMatch
-            XCTAssertTrue(destination.waitForExistence(timeout: 10), fixture)
+            guard destination.waitForExistence(timeout: 10) else {
+                XCTFail("\(fixture): expected result/Calculate control is missing")
+                capture("\(label) · \(fixture) · missing result")
+                app.terminate()
+                continue
+            }
             let window = app.windows.firstMatch
             for _ in 0..<40 where !destination.isHittable || destination.frame.minY > window.frame.height * 0.45 {
                 // Short drags avoid flinging a large-type heading above the
