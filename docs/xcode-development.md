@@ -70,9 +70,7 @@ The iOS App workflow runs the tests on an iPhone and an iPad simulator, and a
 Release build. Don't accept Xcode's "recommended settings" migration as one
 bulk change; review each setting after both configurations are green.
 
-## Signing and Versions
-
-### Production Release smoke test
+## Production Release smoke test
 
 Create a fresh disposable iPhone or iPad simulator named `Aurora Beta Release QA`
 using an installed iOS runtime. Do not use an installation with needed records:
@@ -92,6 +90,8 @@ fixtures, and selects the clean-install/lifecycle UI test. It does not enable
 testability or reset hooks in the app. The full Debug native/UI suites and core
 time-zone suites remain separate mandatory checks. Simulator signing is ad hoc;
 this is not signed-device HealthKit acceptance or TestFlight distribution.
+
+## Signing and Versions
 
 The bundle identifier is `com.nmapaye.aurora`, the same as the React Native
 build, so the new app reads that build's container and imports its records.
