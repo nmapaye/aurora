@@ -784,16 +784,25 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<16 where !phase.isHittable { app.swipeUp() }
         XCTAssertTrue(phase.isHittable)
         let preview = app.descendants(matching: .any)["gallery-motion-preview"].firstMatch
+        // A tap returns before SwiftUI's accessibility snapshot necessarily
+        // reflects the new state. Wait for the same required caption rather
+        // than immediately reading a stale label (seen on iPad CI in #61).
+        func expectCaption(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+            let expectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label CONTAINS %@", text), object: preview)
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed,
+                           "Expected \(text); observed \(preview.label)", file: file, line: line)
+        }
         phase.buttons["Working"].tap()
-        XCTAssertTrue(preview.label.contains("light moves only while work runs"), preview.label)
+        expectCaption("light moves only while work runs")
         phase.buttons["Stopped"].tap()
-        XCTAssertTrue(preview.label.contains("last frame fades out"), preview.label)
+        expectCaption("Stopped · last frame fades out")
         phase.buttons["Failed"].tap()
-        XCTAssertTrue(preview.label.contains("Failed"), preview.label)
+        expectCaption("Failed · last frame fades out")
         let still = app.switches["Static, as with Reduce Motion"]
         still.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         phase.buttons["Working"].tap()
-        XCTAssertTrue(preview.label.contains("static light"), preview.label)
+        expectCaption("Working · static light")
         attachScreenshot("Static processing light")
     }
 
