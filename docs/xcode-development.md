@@ -142,8 +142,9 @@ uploaded or replaced. Dispatch a new run instead.
 The manual release workflow verifies executed successful core, iPhone, iPad,
 privacy, security and release-safety checks at its exact commit before signing.
 Skipped checks do not qualify. If the release commit only changed documentation,
-the owner must dispatch the Swift Core and iOS App workflows on that same `main`
-commit first. This evidence guard does not replace the owner's device acceptance
+the owner must dispatch Swift Core, iOS App and Website Demo on that same
+`main` commit first. Website Demo defaults to build-only: leave `publish` false.
+Publishing requires a separate explicit choice and runs only on main. This evidence guard does not replace the owner's device acceptance
 or distribution approval. Never invoke the release workflow during local beta
 candidate preparation: its export step uploads to App Store Connect.
 

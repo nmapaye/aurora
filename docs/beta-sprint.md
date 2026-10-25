@@ -330,3 +330,15 @@ The local development-signed archive attempt timed out (exit 124) at 15:40:22
 UTC while waiting at codesign/SecurityAgent. No accepted signed archive or
 installation resulted. The failed manual-profile attempt and timed-out corrected
 attempt are retained separately; no Keychain permission workaround was used.
+
+
+## Safe website verification
+
+Website Demo previously deployed whenever manually dispatched, even from a
+non-main branch. It now defaults to build-only; deployment requires explicit
+`publish: true` on main. No dispatch or publication was performed. The exact-SHA
+release preflight additionally requires the uniquely named `Website build` check.
+For a documentation-only release commit, manually dispatch Core, iOS App and
+Website Demo with publishing off at that same commit; never use a publishing
+workflow as a build probe. This preserves the existing explicit publication
+path and environment while preventing accidental publication during validation.

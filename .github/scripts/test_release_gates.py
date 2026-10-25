@@ -41,8 +41,8 @@ class ReleaseGateTests(unittest.TestCase):
     def test_stale_sha_blocks(self):
         self.assertTrue(failures(self.pages, "b" * 40))
 
-    def test_missing_check_blocks(self):
-        self.pages[0]["check_runs"].pop()
+    def test_missing_website_build_blocks(self):
+        self.pages[0]["check_runs"] = [c for c in self.pages[0]["check_runs"] if c["name"] != "Website build"]
         self.assertTrue(failures(self.pages, SHA))
 
     def test_name_from_other_app_does_not_satisfy_gate(self):

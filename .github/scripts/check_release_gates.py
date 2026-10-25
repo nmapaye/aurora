@@ -10,7 +10,7 @@ REQUIRED = (
     "Swift Core gate", "swift-core (Linux)", "swift-core (macOS)",
     "iOS App gate", "ios-app (iPhone)", "ios-app (iPad)",
     "gitleaks", "Analyze (actions)", "Analyze (javascript-typescript)", "Analyze (swift)",
-    "privacy manifest", "Release safety",
+    "privacy manifest", "Release safety", "Website build",
 )
 
 
