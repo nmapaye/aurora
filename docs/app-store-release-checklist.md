@@ -1,5 +1,10 @@
 # Aurora release checklist
 
+October 25 beta sprint: use the [current evidence ledger](beta-sprint.md) for
+test counts, exact candidate revisions and open blockers. Older receipts below
+are historical baselines. The candidate is **NO-GO** pending final CI, physical
+acceptance, approved scope and signed distribution evidence.
+
 ## Locked release
 
 Native iPhone/iPad, English, paid US$4.99 upfront with no in-app purchases, free

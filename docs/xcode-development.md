@@ -72,6 +72,27 @@ bulk change; review each setting after both configurations are green.
 
 ## Signing and Versions
 
+### Production Release smoke test
+
+Create a fresh disposable iPhone or iPad simulator named `Aurora Beta Release QA`
+using an installed iOS runtime. Do not use an installation with needed records:
+the smoke test expects first launch and persists completed setup. Then run:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test \
+  -project Aurora.xcodeproj -scheme AuroraReleaseSmoke \
+  -destination 'platform=iOS Simulator,name=Aurora Beta Release QA' \
+  -parallel-testing-enabled NO \
+  -resultBundlePath /private/tmp/AuroraReleaseSmoke.xcresult \
+  CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
+```
+
+The dedicated scheme uses optimized Release, excludes Debug-only native test
+fixtures, and selects the clean-install/lifecycle UI test. It does not enable
+testability or reset hooks in the app. The full Debug native/UI suites and core
+time-zone suites remain separate mandatory checks. Simulator signing is ad hoc;
+this is not signed-device HealthKit acceptance or TestFlight distribution.
+
 The bundle identifier is `com.nmapaye.aurora`, the same as the React Native
 build, so the new app reads that build's container and imports its records.
 Device and archive builds use automatic signing with the Apple Developer team

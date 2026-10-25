@@ -57,7 +57,7 @@ Every open P0/P1 blocks beta; P2 acceptance cannot be inferred from this ledger.
 |---|---|---|
 | Repeated clean launch, onboarding, completed-user relaunch | P1 | Full phone/pad suites running; physical cold launch pending |
 | Caffeine/sleep/check-in Save, Undo, duplicate taps, snapshots, CSV, offline tools | P1 | Existing native/UI regression suite running; actual CSV/device inspection pending |
-| No-record and Sample Data truthfulness; alertness eligibility | P1 | 341 core tests pass UTC/LA; old implementation fails regression control; product acceptance pending |
+| No-record and Sample Data truthfulness; alertness eligibility | P1 | 342 core tests pass UTC/LA; old implementation fails regression control; product acceptance pending |
 | Corrupt/future storage preserved, migration, erase, interrupted work | P1 | Existing storage/erase suites running; real prior-version device upgrade pending |
 | Health separate opt-ins, exact sample ownership, confirmed export receipts | P1 | Core tests/source inspection; physical allow/deny/revoke/import/export/background matrix pending |
 | Calendar preview approval and stale-data revalidation | P1 | Source validator and tests exist; live dedicated-event matrix pending |
@@ -95,6 +95,7 @@ New fixes:
   reject partial requests. No test retyping or retry-until-green was added.
 - `253b0829`: explain ongoing-sleep eligibility consistently in energy/summary
   copy, including accessibility, without changing the three/eighteen-hour rule.
+- `9050bad2`: distinguish the missing-night eligibility model in new estimates and projections, while preserving historical `alertness-1` snapshot values and schema. Compatibility tests pass in both zones.
 - `60f9622a`: invalidate pending Google refresh/sign-in work on disconnect;
   expose credential-deletion failures; inject transport/storage for deterministic
   race tests that make no network requests or real credential writes.
@@ -107,13 +108,13 @@ New fixes:
 | Baseline simulator test build | Pass, ad hoc signed | `baseline-build.log` |
 | Baseline iPad motion, long card, two typed flows | 4/4 pass; no local failure reproduced | `baseline-ipad.xcresult` |
 | Baseline iPad long-card repeat, stop on failure | 10/10 pass; CI intermittency remains unresolved | `baseline-longcard-repeat-ipad.xcresult` |
-| Candidate core, UTC and America/Los_Angeles | 341/341 each pass | `final-core-{utc,la}.log` |
+| Candidate core, UTC and America/Los_Angeles | 342/342 each pass after provenance fix | `model-version-core-{utc,la}-final.log` |
 | Missing-night regression tests with pristine-main Summary/EnergyEstimate | Expected red: 5 test functions, 9 issues; 24 tests run | `core-old-code-control.log` |
 | Release evidence guard | 9 tests pass; failed/skipped/missing/stale/foreign/duplicate checks block | `release-safety-tests.log` |
-| Workflow YAML and bash syntax | 7 YAML files / 37 shell bodies parse | `workflow-syntax.json` |
+| Workflow YAML and bash syntax | 7 YAML files / 38 shell bodies parse | `workflow-syntax.json` |
 | Privacy source and unsigned archive | Pass, zero warnings | `privacy-source.log`, `privacy-archive.log` |
 | Website type-check/build, locked dependency audits | Pass; 0 reported vulnerabilities | `website-*.log`, `website-audit-*.json` |
-| Full simulator suites at `253b0829` | RUNNING, phone then pad; not yet accepted | `candidate-full-*-receipt.json`, `candidate-full-*.xcresult` |
+| Full simulator suites at `253b0829` | Phone: 172 passed (129 native + 43 UI), zero skipped; pad RUNNING. Later security/provenance changes require targeted final runs | `candidate-full-*-receipt.json`, `candidate-full-*.xcresult` |
 | New disconnect-race red/green native tests | Binaries built; tests pending | `security-{red,fixed}-build.log` |
 
 Unsigned archive metadata confirms bundle `com.nmapaye.aurora`, version 0.1.0
@@ -139,13 +140,18 @@ actual integrated head; a green check on another branch is insufficient.
 | P1 #42, #43 | Review model/default/notification acceptance before integration. Both based on #38; #42 still has a red iPad gate. #43 modifies the sleep model and snapshot versioning and must be reconciled with missing-night. |
 | P2 #38 → #39 → #44 | Large UI, reaction and accessibility stack; not duplicates of narrow #51/#58 fixes. Reconcile shared files first. Physical touch/VoiceOver remains mandatory if adopting it. |
 | P2 #40, #41 | Research #40 can be reviewed independently; #41 changes caffeine kinetics and depends on #38. Do not add a new model merely to consolidate inventory. |
-| P2 #50, #53, #59 | Reconcile overlapping website/Health/reaction/notification copy once with #42/#43. #53 includes functional changes, not only prose. #59 is an isolated calendar write-disclosure correction. Support availability needs an actual check. |
+| P2 #50, #53; #59 integrated | Reconcile overlapping website/Health/reaction/notification copy once with #42/#43. #53 includes functional changes, not only prose. #59's isolated calendar write-disclosure correction is integrated as `767a0d82`. Support availability needs an actual check. |
 | P2 #57 | Records deferred widgets and beta structure; owner ratifies scope, no widget implementation in this candidate. |
 | P3 #31 | Conflicting Plus/IAP PR; inconsistent with paid-upfront/no-IAP v0.1.0. Recommend park/close after owner review; no close performed. |
 
 No PR was marked obsolete simply because it is old. #51/#58 and the remediation
 motion commit address related symptoms; their useful deltas were reused rather
 than spawning another agent or replacing their histories.
+
+## Known issues requiring explicit owner acceptance
+
+- **P2 / Codex technical follow-up:** the passing phone bundle retains three “Invalid frame dimension (negative or non-finite)” SwiftUI runtime warnings in cutoff result/reminder flows. No failing assertion or crash accompanies them. Source location is absent; cause is not established. Do not silently accept them for beta. Owner acceptance or a verified fix is required.
+- **Test infrastructure:** Xcode’s end-of-run diagnostics collector could not resolve `simctl` under global Command Line Tools selection, despite per-command Xcode selection. The xcresult bundle and executed tests were retained. Do not change the machine-wide setting without owner direction; use explicit tool paths and retain this evidence limitation.
 
 ## Security findings and exact owner actions
 
@@ -198,6 +204,29 @@ than spawning another agent or replacing their histories.
 5. Reopen access only after the regression has a red/green test, the final build
    passes acceptance, and the owner records the incident resolution. A simulator
    pass cannot substitute for physical Health/migration verification.
+
+Release smoke coverage is added in `4aa9fb92` / `db349257`; dedicated scheme
+`1279ba56` keeps production Debug hooks disabled and excludes the unit target that
+requires Debug fixtures. The first ordinary Release test-build attempt correctly
+failed on those unavailable fixtures; it is not counted as a passing check. The
+dedicated scheme build and actual clean-install run still need their receipts.
+
+Two clean independent unsigned archives at source `9050bad2` (archives 3/4) succeeded; embedded
+Info.plists and privacy-manifest hashes match. This verifies the build procedure,
+not bit-for-bit executable reproducibility, signing or installation. Physical
+iPhone/iPad discovery lists both physical devices as unavailable.
+
+Visual inspection confirmed the phone numeric-keyboard Save control and long-card
+heading were on screen. It also found that the older largest-text cutoff
+“result” captures still showed inputs. `9a58d203` / `8946ce90` strengthen those
+tests to require the actual result heading (or Calculate for empty inputs) to be
+reachable before capture; their execution is pending. The earlier gallery
+screenshot pass alone does not establish that acceptance.
+
+The coalesced user/reply regression also has a temporary portable test using the
+exact `ConversationReveal.swift`: pristine main fails, integrated source passes
+(`conversation-control-{old,fixed}.log`). This is logic evidence, not reproduction
+of the intermittent simulator failure.
 
 ## Remaining day boundaries
 
