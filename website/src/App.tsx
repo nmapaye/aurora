@@ -24,7 +24,7 @@ const features = [
   },
   {
     title: "Calendar edits you approve",
-    body: "Review selected Apple and Google calendars. Each change needs your fresh, explicit approval before it is made.",
+    body: "Review selected Apple calendars. Each change needs your fresh, explicit approval before it is made.",
   },
   {
     title: "Reaction test",
