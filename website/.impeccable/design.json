@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T13:36:01.197221+00:00",
+  "title": "Design System: Aurora website",
+  "extensions": {
+    "breakpoints": [
+      {
+        "name": "stack-headings",
+        "value": "1000px"
+      },
+      {
+        "name": "single-column",
+        "value": "700px"
+      }
+    ],
+    "motion": [
+      {
+        "name": "control",
+        "value": "160ms ease-out",
+        "purpose": "Hover inversion and switch state; removed under Reduced Motion."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "native-illustration",
+        "value": "0 16px 32px #0004",
+        "purpose": "Only the inset native product illustration."
+      }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "An honest product in the developer editorial family",
+    "keyCharacteristics": [
+      "Black, white and vivid yellow",
+      "Condensed display with Space Grotesk body",
+      "Square website controls and native illustration",
+      "Explicit synthetic and missing-record labels"
+    ]
+  }
+}
