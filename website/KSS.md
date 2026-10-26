@@ -79,9 +79,10 @@ Browser interaction and responsive evidence are recorded in `review/kss/`.
 ## Follow-up request: a sleep/caffeine-responsive prediction
 
 The requested automatic behavior is not implemented by modifying a person's
-KSS answer. It requires a separately defined prediction outcome. Pending a
-choice between a calibrated KSS prediction project and an explicitly separate
-modeled metric, this branch retains the tested self-report implementation.
+KSS answer. It requires a separately defined prediction outcome. The user selected research and validation of a KSS-specific predictor with richer
+timing inputs. The resulting [research checkpoint](research/README.md) reproduces
+a published sleep-only baseline but does not validate a caffeine effect. This
+branch retains the tested self-report implementation; automatic KSS is not enabled.
 
 A follow-up literature check found Puckeridge et al. (2011),
 [Incorporation of caffeine into a quantitative model of fatigue and sleep](https://pubmed.ncbi.nlm.nih.gov/21176782/).
@@ -93,3 +94,7 @@ a validated KSS conversion for this preview's 95 mg coffee and one sleep duratio
 A KSS-specific implementation needs appropriate equations, timed sleep/wake and
 dose history, parameters, independent numerical fixtures, and scope/limitations
 matched to the original validation data. No effect coefficients have been invented.
+
+Research verification: 38 software tests now pass, including 16 independent
+numerical cases. See research/validation-results.json. This is equation
+verification, not empirical prediction validation or clinical validation.
