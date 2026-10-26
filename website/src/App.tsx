@@ -1,4 +1,11 @@
 import { useId, useState } from "react";
+import {
+  KSS_LABEL,
+  KSS_OPTIONS,
+  kssRating,
+  parseKssSelection,
+  type KssValue,
+} from "./kss";
 
 const githubUrl = "https://github.com/nmapaye/aurora";
 
@@ -8,8 +15,8 @@ const features = [
     body: "Caffeine and manual sleep entries are drafts until you tap Save, and a saved entry can be undone from its receipt.",
   },
   {
-    title: "Evidence, not guesses",
-    body: "Cards separate missing records from estimates. No record is never shown as zero, and estimates say they are estimates.",
+    title: "See your records clearly",
+    body: "Records, estimates, and reaction-test results each have a clear place. Missing records stay visible.",
   },
   {
     title: "Apple Health, your choice",
@@ -33,6 +40,9 @@ type SleepState = "missing" | "recorded";
 type CaffeineState = "missing" | "recorded";
 
 export default function App() {
+  const [kss, setKss] = useState<KssValue | null>(null);
+  const kssInputId = useId();
+  const kssHelpId = useId();
   const [sleep, setSleep] = useState<SleepState>("missing");
   const [caffeine, setCaffeine] = useState<CaffeineState>("missing");
 
@@ -92,10 +102,6 @@ export default function App() {
                 Release status
               </a>
             </div>
-            <p className="hero-note">
-              Aurora does not diagnose fatigue or prescribe caffeine or sleep
-              schedules.
-            </p>
           </div>
           <figure className="hero-product">
             <div className="product-frame">
@@ -104,7 +110,12 @@ export default function App() {
                 <span>Aurora</span>
                 <span className="product-time">Today</span>
               </div>
-              <EnergyCard sleep="recorded" caffeine="recorded" />
+              <EnergyCard
+                sleep="recorded"
+                caffeine="recorded"
+                kss={kss}
+                announce={false}
+              />
               <div className="product-footer">
                 <span>Sleep</span>
                 <span>Caffeine</span>
@@ -112,7 +123,8 @@ export default function App() {
               </div>
             </div>
             <figcaption>
-              Synthetic illustration. Not an app screenshot.
+              Interactive illustration: sample sleep and caffeine, your own KSS
+              rating. Nothing is saved or sent.
             </figcaption>
           </figure>
           <div className="hero-meta">
@@ -170,18 +182,35 @@ export default function App() {
               never zero.
             </h2>
             <p>
-              This is an illustration built for this page. It uses made-up
-              values held only in your browser tab, sends nothing anywhere, and
-              does not run Aurora's model.
+              Rate how sleepy you feel. Explore sleep and caffeine records
+              alongside your check-in.
             </p>
           </div>
 
           <div className="preview-layout">
             <fieldset className="card preview-controls">
-              <legend>Try synthetic records</legend>
-              <p className="control-help">
-                Switch a record on. See what changes.
-              </p>
+              <legend>Explore your day</legend>
+              <div className="kss-field">
+                <label htmlFor={kssInputId}>Your sleepiness rating</label>
+                <p id={kssHelpId} className="control-help">
+                  Think about the last five minutes. Higher means sleepier.
+                </p>
+                <select
+                  id={kssInputId}
+                  aria-describedby={kssHelpId}
+                  value={kss ?? ""}
+                  onChange={(event) =>
+                    setKss(parseKssSelection(event.target.value))
+                  }
+                >
+                  <option value="">Choose your rating</option>
+                  {KSS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value} — {option.interpretation}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <ToggleRow
                 label="Last night's sleep"
                 checked={sleep === "recorded"}
@@ -200,14 +229,36 @@ export default function App() {
                 onClick={() => {
                   setSleep("missing");
                   setCaffeine("missing");
+                  setKss(null);
                 }}
               >
                 Clear preview
               </button>
             </fieldset>
 
-            <EnergyCard sleep={sleep} caffeine={caffeine} />
+            <EnergyCard sleep={sleep} caffeine={caffeine} kss={kss} />
           </div>
+          <details className="preview-notes">
+            <summary>About KSS and this preview</summary>
+            <p>
+              The Karolinska Sleepiness Scale (1–9) records how sleepy you feel.
+              It is not calculated from sleep or caffeine, and it does not
+              measure performance or diagnose a condition. This demo does not
+              run Aurora’s model or connect to Apple Health. Aurora does not
+              prescribe caffeine or sleep schedules.
+            </p>
+            <p>
+              Scale labels: Åkerstedt Miley, Kecklund &amp; Åkerstedt (2016),{" "}
+              <a href="https://doi.org/10.1007/s41105-016-0048-8">
+                KSS versions A and B
+              </a>
+              ,{" "}
+              <a href="https://creativecommons.org/licenses/by/4.0/">
+                CC BY 4.0
+              </a>
+              .
+            </p>
+          </details>
         </section>
 
         <section
@@ -233,10 +284,7 @@ export default function App() {
             </article>
             <article className="release-card">
               <h3>Not open yet</h3>
-              <p>
-                TestFlight and the App Store listing are not available. There is
-                no download or sign-up on this page.
-              </p>
+              <p>App Store and free TestFlight access are coming soon.</p>
             </article>
             <article className="release-card">
               <h3>Private by design</h3>
@@ -285,7 +333,7 @@ function ToggleRow({
     <label className="toggle-row">
       <span className="toggle-copy">
         <span>{label}</span>
-        <small>{checked ? `Synthetic: ${onText}` : "No record"}</small>
+        <small>{checked ? onText : "No record"}</small>
       </span>
       <input
         type="checkbox"
@@ -299,47 +347,48 @@ function ToggleRow({
   );
 }
 
-function EnergyCard({
+export function EnergyCard({
   sleep,
   caffeine,
+  kss,
+  announce = true,
 }: {
   sleep: SleepState;
   caffeine: CaffeineState;
+  kss: KssValue | null;
+  announce?: boolean;
 }) {
   const titleId = useId();
   const hasSleep = sleep === "recorded";
   const hasCaffeine = caffeine === "recorded";
-  const illustrativeScore = hasCaffeine ? 74 : 68;
+  const rating = kssRating(kss);
 
   return (
     <article
       className="card energy-card"
       aria-labelledby={titleId}
-      aria-live="polite"
+      aria-live={announce ? "polite" : undefined}
     >
       <div className="energy-card-header">
         <h3 id={titleId}>Energy</h3>
-        <span className="badge">Synthetic preview</span>
+        <span className="badge">Demo</span>
       </div>
 
       <div className="energy-lead">
-        <span className="metric-label">Estimated alertness</span>
-        {hasSleep ? (
+        <span className="metric-label">{KSS_LABEL}</span>
+        {rating ? (
           <>
             <strong className="hero-value">
-              {illustrativeScore}
-              <span className="unit"> / 100</span>
+              {rating.value}
+              <span className="unit"> / 9</span>
             </strong>
-            <p className="evidence">
-              Illustrative number for this page. In Aurora, this is an estimate,
-              not a measurement.
-            </p>
+            <p className="evidence">{rating.interpretation}</p>
           </>
         ) : (
           <>
-            <strong className="hero-value muted">Unavailable</strong>
+            <strong className="hero-value muted">Not rated</strong>
             <p className="evidence">
-              No sleep is recorded in the last 24 hours.
+              Choose your sleepiness rating in the preview.
             </p>
           </>
         )}
@@ -359,12 +408,6 @@ function EnergyCard({
           </dd>
         </div>
       </dl>
-
-      <p className="source">
-        {hasSleep || hasCaffeine
-          ? "Source: synthetic values on this page only."
-          : "Missing records are shown as missing, never as zero."}
-      </p>
     </article>
   );
 }

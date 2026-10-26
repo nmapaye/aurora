@@ -39,7 +39,7 @@ components:
 
 **Creative North Star: An honest product, in the developer's editorial family.**
 The marketing frame uses firm typography, large yellow and ink fields, and
-visible rules. The synthetic native illustration retains Aurora's warm surfaces
+visible rules. The interactive native illustration retains Aurora's warm surfaces
 and wave. The website is a sibling to the portfolio, with its own product story.
 This specification applies only within website/. Native design.md is unchanged.
 
@@ -49,15 +49,17 @@ Yellow leads the hero and interactive preview. Ink supplies rules, text and the
 release section. Paper carries reading sections; white gives the evidence card
 and footer contrast. Muted text is reserved for secondary supporting content.
 
-**The Evidence Rule.** Color never replaces the text distinguishing a synthetic
-value, an estimate, or a missing record.
+**The Evidence Rule.** Color never replaces the distinction between sample
+sleep/caffeine, a self-reported KSS rating, and a missing record. Consolidate the
+demo disclosure beneath the hero; keep detailed limitations in the preview’s
+expandable explanation.
 
 ## Typography
 
 Self-hosted Barlow Condensed Extra Bold supplies uppercase headings, with a
 maximum hero size of 96px. Space Grotesk matches the portfolio's body face.
 Section headings range from 44 to 72px. Body copy ranges from 14 to 17px;
-small source labels remain supporting content. Values use tabular numerals.
+small supporting labels remain secondary to records. Values use tabular numerals.
 
 ## Layout
 
@@ -86,7 +88,10 @@ Primary buttons have an ink ground and white text; secondary buttons are
 outlined. Both have a 48px minimum height. Semantic switches have square tracks
 and a contrasting moving indicator, with a full clickable text label.
 EnergyCard is reused for the hero illustration and interactive preview;
-useId keeps their headings unique. The interactive card announces updates.
+useId keeps their headings unique. The interactive card announces updates; the synchronized hero does not repeat
+the announcement. KSS uses a labeled native select with no default rating, a
+48px minimum height, square border and a full interpretation in the result.
+Its options and both cards share the same version-B anchor table.
 The keyboard skip link is visually clipped until focused. Teal focus outlines
 contrast on light grounds; yellow outlines contrast on the release section.
 Reduced Motion removes transitions. Privacy/support work without JavaScript.

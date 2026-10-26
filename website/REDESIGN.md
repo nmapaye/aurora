@@ -1,5 +1,9 @@
 # Aurora website redesign — October 26, 2026
 
+Historical design validation at e960d2f9. The subsequent copy/KSS update replaces
+the earlier 0–100 demo score; current behavior and validation are in [KSS.md](KSS.md).
+The captures and JSON below remain the original redesign evidence.
+
 Implemented in `nmapaye-bot/aurora-website-brand`, based on verified `origin/main`
 `b9887ac9`. The original checkout was `main` at `a59e6486` with unrelated
 untracked .expo/, ios/, and HANDOFF-2026-10-13.md; those remain unchanged.

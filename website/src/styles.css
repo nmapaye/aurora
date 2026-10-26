@@ -80,11 +80,6 @@ h1 {
   flex-wrap: wrap;
   margin-top: 32px;
 }
-.hero-note {
-  font-size: 12px;
-  max-width: 52ch;
-  margin-top: 24px;
-}
 .hero-product {
   margin: 0;
   padding: 52px 36px 24px;
@@ -380,11 +375,6 @@ h3 {
 .muted {
   color: var(--muted);
 }
-.source {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--muted);
-}
 .product-frame .energy-card {
   border: 1px solid #d9d9cf;
   border-radius: 16px;
@@ -594,4 +584,50 @@ h3 {
 
 .release-section :focus-visible {
   outline-color: var(--yellow);
+}
+
+/* KSS is an explicit self-rating, independent of the sample record switches. */
+.kss-field {
+  margin: 16px 0 28px;
+}
+.kss-field label {
+  font-size: 15px;
+  font-weight: 600;
+}
+.kss-field .control-help {
+  margin: 6px 0 12px;
+}
+.kss-field select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 32px 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  color: var(--ink);
+  background: var(--white);
+  font: inherit;
+  font-size: 14px;
+}
+.preview-notes {
+  border-top: 1px solid var(--ink);
+  margin-top: 32px;
+  padding-top: 12px;
+  font-size: 13px;
+}
+.preview-notes summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.preview-notes p {
+  max-width: 75ch;
+  margin-top: 12px;
+}
+.preview-notes a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
