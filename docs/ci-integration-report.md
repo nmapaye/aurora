@@ -105,3 +105,33 @@ requesting final owner review. Preserve all original PRs and feature-session
 worktrees. Pending checks/reviews and physical beta acceptance remain blockers.
 
 Hosted candidate: pending creation; final URL/status will be recorded below.
+
+## October 27 integration repair
+
+This section supersedes the October 25 pending snapshot above.
+Owner-approved PR #65 repair `8e084fd3f6ee7392732137dce35effbb85311f95` was
+incorporated verbatim by fast-forward, preserving its four commits. Its required
+gates and both full device jobs passed in hosted run 40476809922; those receipts
+are evidence for that repair only, not the new integrated candidate. No GitHub
+review approval was fabricated or submitted.
+
+Current main `4cb47dc98230c9e660353be305092854a4450c21` was merged without
+rewriting history. The only conflict was website/src/App.tsx calendar feature
+copy; the resolved file exactly matches main, retaining #68 KSS redesign and
+#69 Apple-calendar wording. Privacy HTML combines main styling with candidate
+Apple-only beta/retained-credential disclosures. All app/core/native/UI test
+files, workflow stress counts, timeouts, result guards, release and privacy
+safeguards remain identical to approved #65.
+
+New local validation: website TypeScript check, all 38 website tests, production
+build, all 38 Python safety tests, privacy/encryption verification, native brand
+tokens, beta-scope checks and candidate diff whitespace check against current
+main pass. Main's imported font license has pre-existing trailing whitespace;
+its licensed text was retained unchanged. No local simulator or physical device
+was used; remediation owns the subsequent isolated iPad verification.
+
+Fresh hosted CI must pass on the resulting merge candidate before acceptance.
+No main merge, force-push, release/deployment or review bypass is authorized.
+Live candidate SHA, run URLs, terminal results and remediation handoff are kept
+in `/private/tmp/aurora-ci-integration/integration-report.md` so recording later
+check progress does not mutate and invalidate the tested candidate.

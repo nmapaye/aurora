@@ -1,0 +1,26 @@
+[
+  {
+    "state": "neither",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\nUnavailable\n\nNo sleep is recorded in the last 24 hours.\n\nSleep, last 24 h\nNo record\nCaffeine today\nNo record\n\nMissing records are shown as missing, never as zero."
+  },
+  {
+    "state": "caffeine only",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\nUnavailable\n\nNo sleep is recorded in the last 24 hours.\n\nSleep, last 24 h\nNo record\nCaffeine today\n95 mg\n\nSource: synthetic values on this page only."
+  },
+  {
+    "state": "both",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\n74 / 100\n\nIllustrative number for this page. In Aurora, this is an estimate, not a measurement.\n\nSleep, last 24 h\n7 h 10 m\nCaffeine today\n95 mg\n\nSource: synthetic values on this page only."
+  },
+  {
+    "state": "sleep only",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\n68 / 100\n\nIllustrative number for this page. In Aurora, this is an estimate, not a measurement.\n\nSleep, last 24 h\n7 h 10 m\nCaffeine today\nNo record\n\nSource: synthetic values on this page only."
+  },
+  {
+    "state": "cleared",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\nUnavailable\n\nNo sleep is recorded in the last 24 hours.\n\nSleep, last 24 h\nNo record\nCaffeine today\nNo record\n\nMissing records are shown as missing, never as zero."
+  },
+  {
+    "state": "keyboard space toggles sleep",
+    "text": "Energy\nSynthetic preview\nEstimated alertness\n68 / 100\n\nIllustrative number for this page. In Aurora, this is an estimate, not a measurement.\n\nSleep, last 24 h\n7 h 10 m\nCaffeine today\nNo record\n\nSource: synthetic values on this page only."
+  }
+]

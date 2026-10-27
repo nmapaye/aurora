@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-10-26T17:32:44.130Z",
+  "referenceCases": 16,
+  "maxComponentDifference": 1.6721326545621196e-9,
+  "maxKssDifference": 1.0032792374659039e-9,
+  "tolerance": 3e-7,
+  "softwareTestsPassed": 38,
+  "empiricalCalibrationPerformed": false,
+  "heldOutHumanPredictionValidationPerformed": false,
+  "caffeineEffectValidated": false,
+  "readyForMarketing": false
+}
