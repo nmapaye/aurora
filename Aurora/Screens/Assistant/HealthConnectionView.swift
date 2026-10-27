@@ -92,7 +92,7 @@ struct HealthConnectionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.accessibilityIdentifier("assistant-health-done")
+                    Button("Done") { dismiss() }.accessibilityIdentifier("assistant-health-done").keyboardShortcut(.cancelAction)
                 }
             }
         }

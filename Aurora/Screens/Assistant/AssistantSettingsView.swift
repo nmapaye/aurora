@@ -25,7 +25,7 @@ struct AssistantSettingsView: View {
             }
             .auroraGroupedList()
             .navigationTitle("Aurora settings").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistant.save(); dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistant.save(); dismiss() }.keyboardShortcut(.cancelAction) } }
             .onChange(of: assistant.conversation.preferences) { _, _ in
                 assistant.save()
                 // The briefing decides whether follow-ups may notify, and

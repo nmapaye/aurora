@@ -52,9 +52,14 @@ struct SetupConversationView: View {
                             AuroraMark().frame(width: 40, height: 40)
                             Spacer()
                             if step != .finish {
-                                Button("Skip to the end", action: skipToEnd)
-                                    .font(.subheadline.weight(.medium))
-                                    .frame(minHeight: Metrics.minimumTouchTarget)
+                                // The frame inside the label, so the whole 44 pt
+                                // is the target, not just the text.
+                                Button(action: skipToEnd) {
+                                    Text("Skip to the end")
+                                        .frame(minHeight: Metrics.minimumTouchTarget)
+                                        .contentShape(Rectangle())
+                                }
+                                .font(.subheadline.weight(.medium))
                                     .accessibilityHint("Keeps what you’ve answered and goes to the last step.")
                                     .accessibilityIdentifier("setup-skip-all")
                             }

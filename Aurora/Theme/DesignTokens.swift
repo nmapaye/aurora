@@ -59,6 +59,9 @@ struct PressFeedback: ViewModifier {
             .opacity(isPressed ? (reduceMotion ? 0.7 : 0.88) : 1)
             .animation(reduceMotion ? Motion.press : Motion.pressSpring, value: isPressed)
             .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.55), trigger: isPressed) { _, pressed in pressed && isEnabled }
+            // Bars that can't grow cap their text size (the composer, setup's
+            // controls); a long press shows the control at full size there.
+            .accessibilityShowsLargeContentViewer()
     }
 }
 

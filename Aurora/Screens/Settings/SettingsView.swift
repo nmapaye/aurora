@@ -158,7 +158,7 @@ struct SettingsView: View {
         .toolbar {
             if !pushed {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
                 }
             }
         }
@@ -222,7 +222,14 @@ struct SettingsView: View {
         onChange: @escaping (Double) -> Void
     ) -> some View {
         Stepper(value: Binding(get: { value }, set: onChange), in: range, step: step) {
-            LabeledContent(title, value: text(value))
+            // Stacked: title, value and the stepper on one line cut longer
+            // titles off ("Personal caffeine refer…").
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(text(value)).foregroundStyle(Palette.textSecondary).monospacedDigit()
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
         }
         .accessibilityValue(text(value))
     }

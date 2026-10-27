@@ -396,3 +396,33 @@ struct VigilanceProtocolTests {
         }
     }
 }
+
+/// Keyboard and assistive responses have different latencies from touch, so
+/// sessions only compare with the same input.
+struct VigilanceInputTests {
+    private func session(_ input: VigilanceInput?) -> VigilanceSession {
+        Vigilance.buildSession(id: "v", startedAt: 0, completedAt: 30_000,
+                               trials: [VigilanceTrial(cueAt: 2_000, reactionMs: 280)], falseStarts: [], input: input)
+    }
+
+    @Test func touchAndKeyboardSessionsDontCompare() {
+        #expect(session(.touch).isComparable(with: session(.touch)))
+        #expect(session(.keyboard).isComparable(with: session(.keyboard)))
+        #expect(!session(.touch).isComparable(with: session(.keyboard)))
+    }
+
+    @Test func sessionsSavedBeforeInputWasKeptReadAsTouch() {
+        #expect(session(nil).isComparable(with: session(.touch)))
+        #expect(!session(nil).isComparable(with: session(.keyboard)))
+    }
+
+    @Test func inputRoundTripsAndAnUnknownValueReadsAsUnknown() throws {
+        let data = try JSONEncoder().encode(session(.keyboard))
+        #expect(try JSONDecoder().decode(VigilanceSession.self, from: data).input == .keyboard)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object["input"] = "stylus"
+        let later = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(VigilanceSession.self, from: later)
+        #expect(decoded.input == nil && decoded.score == session(.keyboard).score)
+    }
+}
