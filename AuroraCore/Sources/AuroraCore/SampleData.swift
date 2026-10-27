@@ -50,25 +50,23 @@ public enum SampleData {
                 type: .sleep
             )
         }
-        let tests = (0..<3).map { index -> VigilanceSession in
+        // Current-version tests: ten cues each, built and scored the way a
+        // real run is, so they plot and compare with the person's own tests.
+        let reactions: [[Double?]] = [
+            [248, 262, 271, 239, 285, 256, 266, 252, 291, 244],
+            [266, 281, 412, 259, 290, 274, 301, 268, 285, 277],
+            [281, 305, nil, 298, 322, 276, 311, 445, 293, 288],
+        ]
+        let tests = reactions.enumerated().map { index, times -> VigilanceSession in
             let completedAt = today - Double(index) * 2 * dayMs + 15 * hourMs
-            let median = Double(258 + index * 18)
-            let score = 78 - index * 5
-            return VigilanceSession(
-                id: "demo:vigilance:\(index)",
-                startedAt: completedAt - 60_000,
-                completedAt: completedAt,
-                durationMs: 60_000,
-                trialCount: 14,
-                validReactionCount: 13 - index,
-                falseStartCount: index == 2 ? 1 : 0,
-                lapseCount: index,
-                medianReactionMs: median,
-                meanReactionMs: median + 8,
-                fastestReactionMs: median - 47,
-                reactionStdDevMs: Double(54 + index * 9),
-                score: score,
-                rating: score >= 80 ? .sharp : score >= 60 ? .steady : .slipping
+            let startedAt = completedAt - Vigilance.testDurationMs
+            let trials = times.enumerated().map { trial, reaction in
+                VigilanceTrial(cueAt: startedAt + 1_500 + Double(trial) * 2_800, reactionMs: reaction, cueLatencyMs: 8)
+            }
+            let falseStarts = index == 2 ? [VigilanceFalseStart(at: startedAt + 9_000)] : []
+            return Vigilance.buildSession(
+                id: "demo:vigilance:\(index)", startedAt: startedAt, completedAt: completedAt,
+                trials: trials, falseStarts: falseStarts, deviceModel: nil
             )
         }
         return SampleSnapshot(doses: doses, sleeps: sleeps, vigilanceSessions: tests)

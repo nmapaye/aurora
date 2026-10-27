@@ -160,7 +160,7 @@ export const siteSections = [
   {
     title: 'A short attentiveness check',
     body:
-      'A 60-second reaction test gives a repeatable alertness signal.',
+      'A 30-second reaction test gives a repeatable alertness signal.',
   },
   {
     title: 'Private by design',
