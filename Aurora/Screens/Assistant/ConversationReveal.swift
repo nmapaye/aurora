@@ -72,6 +72,30 @@ struct ConversationFollow: Equatable {
         guard !holding, let revealedStart, revealedStart == latestMessage else { return .none }
         return .start(revealedStart)
     }
+
+    /// UIKit's keyboard completion can precede SwiftUI's final scroll insets
+    /// and card layout. Reapply the latest reply's anchor when that layout
+    /// changes, but never on a content-offset change or after manual scrolling.
+    func afterLayoutChanged(from old: ConversationLayout, to new: ConversationLayout,
+                            latestMessage: UUID?, holding: Bool) -> ConversationReveal {
+        guard old.isMeasured, new.isMeasured, old != new else { return .none }
+        return afterKeyboardDismissed(latestMessage: latestMessage, holding: holding)
+    }
+}
+
+/// Layout only: scrolling itself must not cause another automatic reveal.
+struct ConversationLayout: Equatable {
+    var container: CGSize
+    var contentHeight: CGFloat
+    var topInset: CGFloat
+    var bottomInset: CGFloat
+
+    var isMeasured: Bool {
+        container.width.isFinite && container.height.isFinite
+            && container.width > 0 && container.height > 0
+            && contentHeight.isFinite && contentHeight >= 0
+            && topInset.isFinite && bottomInset.isFinite
+    }
 }
 
 /// Which messages the conversation renders. It is a plain stack, not a lazy

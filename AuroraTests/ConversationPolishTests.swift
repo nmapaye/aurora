@@ -86,6 +86,45 @@ import Testing
         #expect(follow.afterKeyboardDismissed(latestMessage: id, holding: false) == .none)
     }
 
+    @Test func finalScrollInsetsAndCardLayoutKeepTheLatestReplysStart() {
+        let id = UUID()
+        var follow = ConversationFollow()
+        follow.revealed(.start(id))
+        let before = ConversationLayout(container: CGSize(width: 402, height: 874),
+                                        contentHeight: 2187, topInset: 62, bottomInset: 500)
+        var after = before
+        after.topInset = 116
+        after.bottomInset = 196
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: id, holding: false) == .start(id))
+        var tallerCard = after
+        tallerCard.contentHeight += 100
+        #expect(follow.afterLayoutChanged(from: after, to: tallerCard, latestMessage: id, holding: false) == .start(id))
+        #expect(follow.afterLayoutChanged(from: after, to: after, latestMessage: id, holding: false) == .none)
+    }
+
+    @Test func layoutChangesCannotReclaimManualHeldOrStaleReadingPositions() {
+        let id = UUID()
+        var follow = ConversationFollow()
+        follow.revealed(.start(id))
+        let before = ConversationLayout(container: CGSize(width: 402, height: 874),
+                                        contentHeight: 2187, topInset: 116, bottomInset: 500)
+        var after = before
+        after.bottomInset = 196
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: id, holding: true) == .none)
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: UUID(), holding: false) == .none)
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: nil, holding: false) == .none)
+        var unmeasured = before
+        unmeasured.container = .zero
+        #expect(follow.afterLayoutChanged(from: unmeasured, to: after, latestMessage: id, holding: false) == .none)
+        var invalid = after
+        invalid.topInset = .infinity
+        #expect(follow.afterLayoutChanged(from: before, to: invalid, latestMessage: id, holding: false) == .none)
+        follow.stopFollowing()
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: id, holding: false) == .none)
+        follow.revealed(.end)
+        #expect(follow.afterLayoutChanged(from: before, to: after, latestMessage: id, holding: false) == .none)
+    }
+
     @Test func removalsAndClearsMoveNothing() {
         let list = messages(2)
         #expect(ConversationReveal.after(list, previousCount: 2, readingLatest: true) == .none)

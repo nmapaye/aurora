@@ -625,7 +625,17 @@ final class AuroraUITests: XCTestCase {
         tapQuick("Show my energy curve")
         let title = cardTitle("energyProjection")
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
+        // CI can briefly expose an infinite, empty AX frame while the reply
+        // settles. Asking that snapshot for a hit point aborts XCTest before
+        // the visibility timeout/diagnostics. Wait for geometry first; keep
+        // the same hittability requirement and three-second deadline.
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard title.exists else { return false }
+            let frame = title.frame
+            guard frame.minX.isFinite, frame.minY.isFinite,
+                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
+            return title.isHittable
+        }, object: title)
         let result = XCTWaiter.wait(for: [shown], timeout: 3)
         if result != .completed {
             attachScreenshot("Long card title not hittable")

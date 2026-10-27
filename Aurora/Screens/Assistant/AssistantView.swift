@@ -33,6 +33,7 @@ struct AssistantView: View {
         var userScrolling = false
         /// What a taller bottom area keeps in view (`ConversationFollow`).
         var follow = ConversationFollow()
+        var revealTask: Task<Void, Never>?
     }
     @State private var viewportHeight: CGFloat = 0
     /// The first message added while earlier messages were being read.
@@ -94,8 +95,16 @@ struct AssistantView: View {
                 // kept the conversation re-laying out so the main thread never
                 // went idle.
                 .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
+                .onDisappear { visibility.revealTask?.cancel() }
                 .coordinateSpace(.named(Self.viewport))
-                .trackingConversationEnd(visibility) { end, nearEnd in
+                .trackingConversationEnd(visibility, layoutChanged: { old, new in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterLayoutChanged(
+                            from: old, to: new, latestMessage: assistant.conversation.messages.last?.id,
+                            holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
+                }) { end, nearEnd in
                     if visibility.userScrolling || end {
                         visibility.end = end
                         visibility.nearEnd = nearEnd || end
@@ -285,7 +294,10 @@ struct AssistantView: View {
     }
 
     private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
-        Task { @MainActor in
+        visibility.revealTask?.cancel()
+        visibility.revealTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
             withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
         }
     }
@@ -477,18 +489,27 @@ private extension View {
     /// end of the conversation is on screen, and whether it is within most of
     /// a screen of it (still reading the latest message).
     @ViewBuilder
-    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
+    func trackingConversationEnd(_ visibility: AssistantView.Visibility,
+                                 layoutChanged: @escaping (ConversationLayout, ConversationLayout) -> Void,
+                                 _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
         if #available(iOS 18, *) {
             onScrollPhaseChange { _, phase in
                 visibility.userScrolling = phase == .interacting || phase == .decelerating
-                if visibility.userScrolling { visibility.follow.stopFollowing() }
+                if visibility.userScrolling {
+                    visibility.follow.stopFollowing()
+                    visibility.revealTask?.cancel()
+                }
             }
             .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
                 let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height
                 let gap = max(0, maxOffset - geometry.contentOffset.y - geometry.contentInsets.top)
-                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75)
-            } action: { _, now in
+                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75,
+                    layout: ConversationLayout(container: geometry.containerSize,
+                        contentHeight: geometry.contentSize.height, topInset: geometry.contentInsets.top,
+                        bottomInset: geometry.contentInsets.bottom))
+            } action: { old, now in
                 action(now.end, now.nearEnd)
+                layoutChanged(old.layout, now.layout)
             }
         } else {
             self
@@ -499,6 +520,7 @@ private extension View {
 private struct ConversationEnd: Equatable {
     var end: Bool
     var nearEnd: Bool
+    var layout: ConversationLayout
 }
 
 /// The conversation's sheets. A modifier of its own: chained on the body
