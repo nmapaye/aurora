@@ -1,0 +1,126 @@
+{
+  "ratingSelections": [
+    {
+      "rating": 1,
+      "values": [
+        "1 / 9",
+        "1 / 9"
+      ]
+    },
+    {
+      "rating": 2,
+      "values": [
+        "2 / 9",
+        "2 / 9"
+      ]
+    },
+    {
+      "rating": 3,
+      "values": [
+        "3 / 9",
+        "3 / 9"
+      ]
+    },
+    {
+      "rating": 4,
+      "values": [
+        "4 / 9",
+        "4 / 9"
+      ]
+    },
+    {
+      "rating": 5,
+      "values": [
+        "5 / 9",
+        "5 / 9"
+      ]
+    },
+    {
+      "rating": 6,
+      "values": [
+        "6 / 9",
+        "6 / 9"
+      ]
+    },
+    {
+      "rating": 7,
+      "values": [
+        "7 / 9",
+        "7 / 9"
+      ]
+    },
+    {
+      "rating": 8,
+      "values": [
+        "8 / 9",
+        "8 / 9"
+      ]
+    },
+    {
+      "rating": 9,
+      "values": [
+        "9 / 9",
+        "9 / 9"
+      ]
+    }
+  ],
+  "recordIndependence": true,
+  "clearResetsAll": true,
+  "reloadClearsRating": true,
+  "keyboardSelection": "1 to 2 using ArrowDown and Enter",
+  "layouts": [
+    {
+      "duplicateIds": [],
+      "full": {
+        "height": 3157,
+        "scale": 1,
+        "width": 1440,
+        "x": 0,
+        "y": 0
+      },
+      "preview": {
+        "height": 853,
+        "scale": 1,
+        "width": 1440,
+        "x": 0,
+        "y": 1705.875
+      },
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "full": {
+        "height": 4678,
+        "scale": 1,
+        "width": 390,
+        "x": 0,
+        "y": 0
+      },
+      "overflow": [],
+      "preview": {
+        "height": 1250,
+        "scale": 1,
+        "width": 390,
+        "x": 0,
+        "y": 2556.4140625
+      },
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "overflow": [],
+      "scroll": 305,
+      "width": 320
+    },
+    {
+      "overflow": [],
+      "scroll": 753,
+      "width": 768
+    }
+  ],
+  "consoleErrors": [],
+  "screenshots": {
+    "desktop": "test input 6, sample records enabled",
+    "mobile": "test input 9, sample records enabled"
+  }
+}

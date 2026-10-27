@@ -42,8 +42,9 @@ These are edited and reviewed directly:
   HealthKit usage strings, and the launch screen color. The build also
   generates keys from `INFOPLIST_KEY_*` settings.
 - `Aurora/Aurora.entitlements`: HealthKit only, with no APNs.
-- `Aurora/PrivacyInfo.xcprivacy`: no tracking, no collected data, and no
-  required-reason APIs.
+- `Aurora/PrivacyInfo.xcprivacy`: no tracking and no collected data. It
+  declares one required-reason API: `NSPrivacyAccessedAPICategoryUserDefaults`
+  with reason `CA92.1` (app-only UserDefaults access).
 - `Aurora/Assets.xcassets`: the app icon (light, dark and tinted), the accent
   color, and the launch background.
 
