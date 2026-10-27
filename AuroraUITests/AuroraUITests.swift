@@ -493,9 +493,27 @@ final class AuroraUITests: XCTestCase {
         // bounded fresh taps before typing; never retry typing or send a
         // partial request. A visible keyboard may belong to another field.
         let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        // A focus tap can finish after the two-second focus wait. CI's iPad
+        // recording shows the caret and keyboard while AX briefly reports
+        // an infinite, empty frame for the entire window. Do not ask AX to
+        // hit-test that frame, or re-tap a field that already owns focus.
+        let readyForFocus = NSPredicate { _, _ in
+            guard input.exists else { return false }
+            if focused.evaluate(with: input) { return true }
+            let frame = input.frame
+            guard frame.minX.isFinite, frame.minY.isFinite, !frame.isEmpty else { return false }
+            return input.isHittable
+        }
         var ownsFocus = false
         for _ in 0..<3 {
-            tapWhenReady(input)
+            guard input.waitForExistence(timeout: 5),
+                  XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 5) == .completed
+            else { break }
+            if focused.evaluate(with: input) {
+                ownsFocus = true
+                break
+            }
+            input.tap()
             let expectation = XCTNSPredicateExpectation(predicate: focused, object: input)
             if XCTWaiter.wait(for: [expectation], timeout: 2) == .completed {
                 ownsFocus = true
