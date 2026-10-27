@@ -21,6 +21,14 @@ Apple Health is optional, with three separate choices: read sleep, read caffeine
 
 Aurora is informational, not a medical device. Estimates cannot establish the cause of fatigue or prescribe caffeine doses or sleep schedules.
 
+Intelligence is local. On devices where Apple Intelligence is available (iOS 26 or later), Aurora uses Apple's on-device Foundation Models only to understand typed requests; explicit quick actions remain available elsewhere. Dictation requires on-device speech recognition. The local Ollama developer option exists only in Simulator builds and is unavailable in device builds.
+
+No Aurora account or sign-in is needed, and Aurora has no server.
+
+To test HealthKit: add a Sleep sample and a Caffeine sample in the Health app. In Aurora settings, open Connections → Apple Health and enable the separate choices to read sleep, read caffeine, and add caffeine saved in Aurora. Imported samples appear as read-only records. Log a caffeine entry in Aurora and inspect its separate Apple Health status before checking Health → Nutrition → Caffeine for Aurora's sample. Denied or revoked access leaves manual entry available; an empty read does not establish whether Health read access was granted.
+
+App Privacy: Data Not Collected. Aurora includes no tracking, analytics or advertising SDK. Health records and conversation are not sent to the developer or an AI provider. CSV export happens only when the person shares a file. Calendar synchronization follows the device's configured account provider, as described above.
+
 ## Access and gates
 
 Free TestFlight access; public release defaults to paid upfront. Supply actual reviewer access through App Store Connect only if required, never repository credentials. Distribution signing, physical-device acceptance, independent installation and privacy/support verification remain pending. Direct Google sign-in is deferred from this beta, not a beta setup requirement. See app-store-release-checklist.md.
