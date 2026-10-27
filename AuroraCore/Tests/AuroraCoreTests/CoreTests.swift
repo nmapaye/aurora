@@ -226,6 +226,11 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(CopyRules.violations(in: "You have 120 mg remaining today.").isEmpty == false)
         #expect(CopyRules.violations(in: "Suggested bedtime: 10 PM").isEmpty == false)
         #expect(CopyRules.violations(in: "Personal caffeine reference. It is not a recommended or safe amount.").isEmpty)
+        // The reaction test is never named after the research instrument,
+        // and reminders never give the old directive.
+        for banned in ["Take a PVT", "A 60-second psychomotor vigilance test", "Last call for caffeine", "Your safe level today"] {
+            #expect(!CopyRules.violations(in: banned).isEmpty, "\(banned)")
+        }
         let texts = Walkthrough.steps.flatMap { [$0.title, $0.body] } +
             (0..<3).flatMap { step in
                 [OnboardingSource.healthkit, .manual].flatMap { source -> [String] in
@@ -236,6 +241,20 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
             [Summary.noCaffeineBody, HealthImport.noSleepMessage]
         for text in texts {
             #expect(CopyRules.violations(in: text).isEmpty, "\(text)")
+        }
+    }
+
+    /// The daily cutoff reminder names the person's own time and nothing
+    /// else: no directive, no prediction about sleep, no amount.
+    @Test func cutoffReminderStatesTheTimeTheySet() {
+        let content = CutoffReminder.content(cutoffHour: 15, clock: utc, text: fixtureText)
+        #expect(content.title == "Your cutoff time")
+        #expect(content.body == "\(fixtureText.clockHour(15, clock: utc)) · the time you set.")
+        #expect(content.hour == 15 && content.minute == 0)
+        let copy = content.title + " " + content.body
+        #expect(CopyRules.violations(in: copy).isEmpty)
+        for word in ["last call", "likely", "sleep", "should", "mg"] {
+            #expect(!copy.lowercased().contains(word), "\(word)")
         }
     }
 

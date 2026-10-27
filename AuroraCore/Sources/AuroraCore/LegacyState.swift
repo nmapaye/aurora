@@ -210,9 +210,11 @@ public enum LegacyState {
         var normalizedPrefs = Prefs.defaults
         if let value = prefs["halfLife"]?.finite { normalizedPrefs.halfLife = value }
         if let value = prefs["targetSleep"]?.finite { normalizedPrefs.targetSleep = value }
-        if let value = prefs["dailyLimitMg"]?.finite { normalizedPrefs.dailyLimitMg = value }
+        // `dailyLimitMg` is no longer kept. A stored cutoff is kept as it
+        // is; a file that never stored one never had the person set it, so
+        // it stays unset instead of taking the old 4 PM default.
         if let value = prefs["cutoffHour"]?.finite { normalizedPrefs.cutoffHour = value }
-        if let value = prefs["notifyCutoff"]?.bool { normalizedPrefs.notifyCutoff = value }
+        if let value = prefs["notifyCutoff"]?.bool { normalizedPrefs.notifyCutoff = value && normalizedPrefs.cutoffHour != nil }
         if let value = prefs["tz"]?.string { normalizedPrefs.tz = value }
         result.prefs = normalizedPrefs
 

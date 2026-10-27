@@ -67,11 +67,13 @@ struct WakeReminderEditor: View {
         var settings = draft
         settings.enabled = true
         guard !settings.offsetsMinutes.isEmpty else { return "Pick at least one time." }
-        let plan = WakeReminders.plan(settings: settings, cutoffHour: model.state.prefs.cutoffHour, sleeps: model.state.sleeps, now: model.now, clock: model.clock, text: model.text)
-        let cutoff = model.text.clockHour(model.state.prefs.cutoffHour, clock: model.clock)
-        guard let next = plan.min(by: { $0.fireAt < $1.fireAt }) else { return "Nothing before your \(cutoff) cutoff." }
+        let plan = WakeReminders.plan(settings: settings, cutoffHour: model.state.prefs.cutoffHour, sleeps: model.state.sleeps, now: model.now, clock: model.clock, text: model.text, quietHours: model.quietHours?())
+        let cutoff = model.state.prefs.cutoffHour.map { model.text.clockHour($0, clock: model.clock) }
+        guard let next = plan.min(by: { $0.fireAt < $1.fireAt }) else {
+            return cutoff.map { "Nothing before your \($0) cutoff." } ?? "Nothing outside quiet hours."
+        }
         let day = model.clock.dayKey(next.fireAt) == model.clock.dayKey(model.now) ? "" : "Tomorrow "
-        return "Next: \(day)\(model.text.clockTime(next.fireAt)) · none after \(cutoff)"
+        return "Next: \(day)\(model.text.clockTime(next.fireAt))" + (cutoff.map { " · none after \($0)" } ?? "")
     }
 }
 

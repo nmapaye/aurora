@@ -356,7 +356,7 @@ struct AssistantCardView: View {
         case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
-                Button("Review entry") { assistant.reviewRepeatDrink(message, app: app) }
+                Button("Log it") { assistant.reviewRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraPrimary).disabled(assistant.processing)
                     .accessibilityIdentifier("repeat-drink-review")
                 Button("Not today") { assistant.dismissRepeatDrink(message, app: app) }
@@ -393,13 +393,13 @@ struct AssistantCardView: View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             Toggle("Offer useful updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
-                Task { await assistant.syncBriefingNotification(prompt: enabled) }
+                Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
             }))
             .accessibilityIdentifier("assistant-proactive")
             if prefs.proactive {
                 Toggle("Morning briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
                     assistant.conversation.preferences.morningBriefing = enabled; assistant.save()
-                    Task { await assistant.syncBriefingNotification(prompt: enabled) }
+                    Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
                 }))
                 .padding(.leading, Metrics.md)
                 .accessibilityIdentifier("assistant-morning-briefing")
@@ -407,9 +407,13 @@ struct AssistantCardView: View {
                 Text("Morning briefing is available once this is on.").font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
-        Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.notifyCutoff }, set: { enabled in
+        Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.cutoffReminderOn }, set: { enabled in
             Task { await app.setReminder(enabled: enabled) }
         }))
+        .disabled(app.state.prefs.cutoffHour == nil)
+        if app.state.prefs.cutoffHour == nil {
+            Text("Set a cutoff time in Settings first.").font(.footnote).foregroundStyle(Palette.textSecondary)
+        }
         if app.reminderStatus == .denied { NotificationsOffNotice() }
         Button("Manage reminders") { assistant.showAssistantSettings = true }
             .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-manage-reminders")

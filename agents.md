@@ -51,8 +51,13 @@ app's resources in the project file.
   or a sleep-cycle schedule, and never frame caffeine against a limit,
   allowance or "remaining" amount. `CopyRules.violations(in:)` lists the
   banned phrasing, and core tests run user-facing copy through it.
-- The stored `dailyLimitMg` is the user's "Personal caffeine reference". It
-  is never a safe amount or a goal.
+- No setting starts with a value Aurora picked. The cutoff time starts unset
+  and its reminder turns on only after the person sets one (stored values
+  from older builds are kept). The old "Personal caffeine reference"
+  (`dailyLimitMg`) is gone; old files still decode.
+- At most one notification Aurora starts itself per day (briefing first,
+  then drink follow-ups); reminders the person set don't count. See
+  `NotificationBudget` and `docs/native-assistant.md`.
 - A day with no record is "No record", never 0 mg. Averages count recorded
   days only.
 - Caffeine timing before sleep shows a number only at 14 paired nights in
@@ -92,7 +97,8 @@ app's resources in the project file.
 - Never add an AI API-key field, a remote/cloud model, or automatic calendar
   writes. A calendar preview must be explicitly approved and revalidated.
 - Wake reminders fire at offsets the person chose after their recorded wake-up
-  (or their usual wake time), never at or after their own cutoff. Aurora never
+  (or their usual wake time, outside quiet hours), never at or after their
+  own cutoff when one is set. Aurora never
   suggests the offsets; copy says "your reminder", not why or how much.
 - Day math goes through `LocalClock` and number rounding through `jsRound`,
   so DST and halves behave as they did in the old build.

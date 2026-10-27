@@ -16,7 +16,8 @@ A little clarity for your day. Aurora helps you explore recorded sleep, caffeine
 - Run a 30-second reaction test and compare against your recorded baseline when enough evidence exists.
 - Review selected Apple and Google calendars. Changes require a specific preview and your approval.
 - Export records through the native share sheet.
-- Opt into morning briefings and cutoff reminders.
+- Opt into a morning briefing and reminders at times you set, including times after you wake.
+- Optionally follow up on yesterday’s drinks, so logging one takes a tap.
 
 Your health records and calculations stay on your device. Supported devices can classify requests using local intelligence; explicit quick actions remain available when local models are unavailable. Google Calendar uses Google authentication and network requests. Aurora has no cloud AI inference, API keys, subscription, or Aurora account.
 

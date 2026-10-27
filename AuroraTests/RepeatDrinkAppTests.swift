@@ -77,13 +77,14 @@ import UserNotifications
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let backend = Backend()
         let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: false))
-        let drip = yesterday(app, "Drip", mg: 95, offset: -30 * minuteMs)
+        // Asked an hour after yesterday's time, so 90 minutes ago is due now.
+        let drip = yesterday(app, "Drip", mg: 95, offset: -90 * minuteMs)
         await assistant.start(app: app)
         let shown = followUps(assistant)
         #expect(shown.count == 1)
         let message = try #require(shown.first)
         #expect(message.card?.repeatDrink?.doseID == drip.id)
-        #expect(message.card?.title.hasPrefix("Had your ") == true && message.card?.title.hasSuffix(" Drip today?") == true)
+        #expect(message.card?.title.hasPrefix("Did you have a Drip around ") == true && message.card?.title.hasSuffix("?") == true)
         #expect(message.card?.summary == "Yesterday · 95 mg")
 
         // Another foreground doesn't ask again.
@@ -93,8 +94,8 @@ import UserNotifications
         assistant.dismissRepeatDrink(message, app: app)
         #expect(followUps(assistant).first?.card?.state == .discarded)
         #expect(assistant.conversation.dismissedSuggestions.contains(RepeatDrinks.key(doseID: drip.id)))
-        // Nothing was recorded and nothing was scheduled.
-        #expect(app.state.doses.count == 1)
+        // "Not today" records nothing, never a zero, and schedules nothing.
+        #expect(app.state.doses.count == 1 && !app.state.doses.contains { $0.mg == 0 })
         #expect(backend.pending.isEmpty)
 
         // After a relaunch the dismissed follow-up stays answered.
@@ -108,7 +109,7 @@ import UserNotifications
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let backend = Backend()
         let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: false))
-        yesterday(app, "Drip", mg: 95, offset: -30 * minuteMs)
+        yesterday(app, "Drip", mg: 95, offset: -90 * minuteMs)
         await assistant.start(app: app)
         let message = try #require(followUps(assistant).first)
         assistant.reviewRepeatDrink(message, app: app)
@@ -121,25 +122,31 @@ import UserNotifications
         #expect(app.state.doses.count == 1)
     }
 
-    @Test func notificationsCoverOnlyFollowUpsStillAheadToday() async throws {
+    @Test func oneSilentNotificationWithoutAmountsAnHourAfterYesterdaysTime() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let backend = Backend()
         let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: true))
-        yesterday(app, "Drip", mg: 95, offset: -30 * minuteMs)
+        yesterday(app, "Drip", mg: 95, offset: -90 * minuteMs)
         let matcha = yesterday(app, "Matcha", mg: 70, offset: 2 * hourMs)
+        let cola = yesterday(app, "Cola", mg: 40, offset: 2 * hourMs + 30 * minuteMs)
         await assistant.start(app: app)
 
         // The Drip is due now, so it's in the conversation, not a notification.
         #expect(followUps(assistant).count == 1)
-        let id = RepeatDrinks.notificationPrefix + matcha.id
-        #expect(Set(backend.pending.keys) == [id])
-        #expect(assistant.repeatDrinkStatus == .scheduled(count: 1))
-        let request = try #require(backend.pending[id])
-        #expect(request.content.title.hasSuffix(" Matcha today?"))
-        #expect(request.content.body == "Yesterday · 70 mg")
-        let planned = try #require(RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock).first { $0.doseID == matcha.id })
+        // The two still ahead share one notification.
+        #expect(backend.pending.count == 1)
+        let (id, request) = try #require(backend.pending.first)
+        #expect(id.hasPrefix(RepeatDrinks.notificationPrefix))
+        #expect(assistant.repeatDrinkStatus == .scheduled(count: 2))
+        #expect(request.content.title == "Log yesterday’s drinks?")
+        #expect(request.content.body == "Matcha · around \(app.text.clockTime(matcha.timestamp)).\nCola · around \(app.text.clockTime(cola.timestamp)).")
+        #expect(!request.content.body.contains("mg") && !request.content.title.contains("mg"))
+        #expect(request.content.interruptionLevel == .passive && request.content.sound == nil)
+        // At the later due time, an hour after yesterday's cola.
+        let planned = try #require(RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock).first { $0.doseID == cola.id })
+        #expect(planned.dueAt == planned.sameTimeAt + hourMs)
         let fires = try #require((request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate())
-        #expect(abs(fires.timeIntervalSince1970 * 1000 - planned.dueAt) < 1000)
+        #expect(abs(fires.timeIntervalSince1970 * 1000 - planned.dueAt) < 60_000)
 
         // A matcha logged now, two hours before its time, doesn't answer it.
         app.tick()
@@ -152,6 +159,68 @@ import UserNotifications
         await assistant.syncRepeatDrinkNotifications(app: app)
         #expect(backend.pending.isEmpty)
         #expect(assistant.repeatDrinkStatus == .off)
+    }
+
+    @Test func theMorningBriefingUsesAurorasOneNotification() async {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let backend = Backend()
+        let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: true))
+        yesterday(app, "Matcha", mg: 70, offset: 2 * hourMs)
+        await assistant.start(app: app)
+        #expect(backend.pending.count == 1)
+        assistant.conversation.preferences.proactive = true
+        assistant.conversation.preferences.morningBriefing = true
+        assistant.conversation.preferences.quietStartHour = 22
+        assistant.conversation.preferences.quietEndHour = 6
+        assistant.conversation.preferences.briefingHour = 7
+        await assistant.syncRepeatDrinkNotifications(app: app)
+        #expect(backend.pending.isEmpty)
+        #expect(assistant.repeatDrinkStatus == .off)
+        // The follow-up still appears in the conversation when it's due.
+        #expect(RepeatDrinks.upcoming(RepeatDrinks.planned(doses: app.state.doses, now: app.now, clock: app.clock), conversation: assistant.conversation, now: app.now, clock: app.clock).count == 1)
+        assistant.conversation.preferences.morningBriefing = false
+        await assistant.syncRepeatDrinkNotifications(app: app)
+        #expect(backend.pending.count == 1)
+    }
+
+    @Test func noFollowUpAtOrAfterTheirCutoffTime() async {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let backend = Backend()
+        let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: true))
+        // Asked about three hours from now, after a cutoff two hours ahead.
+        yesterday(app, "Matcha", mg: 70, offset: 2 * hourMs)
+        await app.setCutoffHour(Double(app.clock.hour(app.now) + 2))
+        await assistant.start(app: app)
+        #expect(backend.pending.isEmpty)
+        #expect(assistant.repeatDrinkStatus == .scheduled(count: 0))
+        await app.setCutoffHour(nil)
+        await assistant.syncRepeatDrinkNotifications(app: app)
+        #expect(backend.pending.count == 1)
+    }
+
+    @Test func notificationsPauseAfterFiveUnansweredDaysAndResume() async throws {
+        let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
+        let backend = Backend()
+        let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: true))
+        yesterday(app, "Matcha", mg: 70, offset: 2 * hourMs)
+        await assistant.start(app: app)
+        #expect(backend.pending.count == 1 && !assistant.repeatDrinksPaused)
+        // Five earlier days with a follow-up offered and none answered.
+        let today = app.clock.startOfDay(app.now)
+        var engagement = RepeatDrinks.Engagement()
+        for back in 1...5 {
+            let day = app.clock.addingDays(-back, to: today)
+            let due = app.clock.setTime(day, hour: 10)
+            engagement.recordOffered([.init(doseID: "old-\(back)", source: "Tea", mg: 30, yesterdayAt: due - dayMs - hourMs, dueAt: due)], now: due, clock: app.clock)
+        }
+        assistant.conversation.repeatDrinkEngagement = engagement
+        await assistant.syncRepeatDrinkNotifications(app: app)
+        #expect(backend.pending.isEmpty && assistant.repeatDrinksPaused)
+        #expect(assistant.repeatDrinkStatus == .off)
+        // Turning notifications on again resumes them.
+        assistant.resumeRepeatDrinkNotifications()
+        await assistant.syncRepeatDrinkNotifications(app: app)
+        #expect(backend.pending.count == 1 && !assistant.repeatDrinksPaused)
     }
 
     @Test func deniedPermissionSchedulesNothing() async {
