@@ -493,12 +493,17 @@ final class AuroraUITests: XCTestCase {
         // bounded fresh taps before typing; never retry typing or send a
         // partial request. A visible keyboard may belong to another field.
         let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        // Evaluate the same attribute in the native query. Resolving the
+        // field and then fetching it through KVC can consume an outer
+        // waiter's whole deadline and cancel the nested AX request.
+        let focusedInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(focused).element
         // A focus tap can finish after the two-second focus wait. CI's iPad
         // recording shows the caret and keyboard while AX briefly reports
         // an infinite, empty frame for the entire window. Do not ask AX to
         // hit-test that frame, or re-tap a field that already owns focus.
         let readyForFocus = NSPredicate { _, _ in
-            if focused.evaluate(with: input) { return true }
+            if focusedInput.exists { return true }
             // Resolve existence and geometry together. Separate `exists`
             // and `frame` queries consumed the five-second readiness wait
             // on CI before XCTest could even attempt a focus tap.
@@ -512,13 +517,12 @@ final class AuroraUITests: XCTestCase {
             guard input.waitForExistence(timeout: 5),
                   XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 5) == .completed
             else { break }
-            if focused.evaluate(with: input) {
+            if focusedInput.exists {
                 ownsFocus = true
                 break
             }
             input.tap()
-            let expectation = XCTNSPredicateExpectation(predicate: focused, object: input)
-            if XCTWaiter.wait(for: [expectation], timeout: 2) == .completed {
+            if focusedInput.waitForExistence(timeout: 2) {
                 ownsFocus = true
                 break
             }
@@ -539,8 +543,12 @@ final class AuroraUITests: XCTestCase {
         // week"), and the app then answered the fragment. Fail here, naming
         // what the field holds, instead of timing out later on a missing card.
         let typed = NSPredicate(format: "value == %@", text)
-        guard XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: typed, object: input)], timeout: 5) == .completed else {
-            XCTFail("request(\"\(text)\"): composer shows \"\(input.value as? String ?? "nil")\" after typeText; keystrokes were lost, not sending",
+        // One native query checks identity and the entire value together;
+        // no partial-text match, retry typing, or longer deadline.
+        let exactInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(typed).element
+        guard exactInput.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
                     file: file, line: line)
             return
         }
@@ -562,6 +570,30 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("History")
         XCTAssertTrue(app.textFields["assistant-history-search"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].waitForExistence(timeout: 5))
+    }
+    func testComposerQueryRejectsAnotherFieldsFocus() {
+        finishSetup(); tapQuick("Log caffeine")
+        let amount = app.textFields["assistant-dose-amount"]
+        enter("25", into: amount)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        XCTAssertTrue(focused.evaluate(with: amount), "The draft field must own the keyboard for this regression")
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let focusedComposer = composerFields.matching(focused).element
+        XCTAssertFalse(focusedComposer.exists, "Another field's focus must not authorize composer typing")
+    }
+    func testComposerQueryRejectsPartialText() {
+        finishSetup()
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let composer = composerFields.element
+        let focusedComposer = composerFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        tapWhenReady(composer)
+        XCTAssertTrue(focusedComposer.waitForExistence(timeout: 2))
+        composer.typeText("Remind")
+        XCTAssertTrue(composerFields.matching(NSPredicate(format: "value == %@", "Remind")).element.waitForExistence(timeout: 5))
+        XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
+                       "A partial request must never satisfy the complete-text guard")
     }
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
