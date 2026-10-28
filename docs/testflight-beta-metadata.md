@@ -8,22 +8,30 @@ Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. I
 
 ## What to test
 
-- Manual setup, missing records, sample labels, and optional read-only Apple Health connection.
+- Manual setup, missing records, sample labels, and separate optional Apple Health sleep/caffeine reads and Aurora-owned caffeine export.
 - Caffeine/sleep draft edits, invalid values, duplicate taps, Save, Undo, history corrections, exports, and relaunch snapshots.
 - Full local-data erase and onboarding after relaunch.
 - Offline use and unavailable local models through explicit quick actions.
-- Apple/Google calendars, read-only access, recurrence scope, stale proposals, and partial failures. Never approve a real change you do not intend.
+- Selected Apple-synced calendars, read-only access, recurrence scope, stale proposals, and partial failures. Never approve a real change you do not intend.
 - Largest text, VoiceOver, Reduce Motion, light/dark, keyboard, Stop, and interrupted processing on real iPhone and iPad.
 
 ## Beta review notes
 
-HealthKit is read-only and optional. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. Google Calendar requires direct Google authentication and network requests; local account tokens are protected in Keychain. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
+Apple Health is optional, with three separate choices: read sleep, read caffeine, and add caffeine saved in Aurora. Imported records stay read-only; Aurora changes or deletes only caffeine samples it wrote. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. This beta uses Apple Calendar through EventKit, including Google calendars synced by iOS. Direct Google OAuth and Calendar API access are disabled. Calendar changes require a fresh approved preview. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
 
 Aurora is informational, not a medical device. Estimates cannot establish the cause of fatigue or prescribe caffeine doses or sleep schedules.
 
+Intelligence is local. On devices where Apple Intelligence is available (iOS 26 or later), Aurora uses Apple's on-device Foundation Models only to understand typed requests; explicit quick actions remain available elsewhere. Dictation requires on-device speech recognition. The local Ollama developer option exists only in Simulator builds and is unavailable in device builds.
+
+No Aurora account or sign-in is needed, and Aurora has no server.
+
+To test HealthKit: add a Sleep sample and a Caffeine sample in the Health app. In Aurora settings, open Connections → Apple Health and enable the separate choices to read sleep, read caffeine, and add caffeine saved in Aurora. Imported samples appear as read-only records. Log a caffeine entry in Aurora and inspect its separate Apple Health status before checking Health → Nutrition → Caffeine for Aurora's sample. Denied or revoked access leaves manual entry available; an empty read does not establish whether Health read access was granted.
+
+App Privacy: Data Not Collected. Aurora includes no tracking, analytics or advertising SDK. Health records and conversation are not sent to the developer or an AI provider. CSV export happens only when the person shares a file. Calendar synchronization follows the device's configured account provider, as described above.
+
 ## Access and gates
 
-Free TestFlight access; public release defaults to paid upfront. Supply actual reviewer access through App Store Connect only if required, never repository credentials. Production Google configuration, signed archive, physical-device acceptance, and privacy/support deployment remain pending. See app-store-release-checklist.md.
+Free TestFlight access; public release defaults to paid upfront. Supply actual reviewer access through App Store Connect only if required, never repository credentials. Distribution signing, physical-device acceptance, independent installation and privacy/support verification remain pending. Direct Google sign-in is deferred from this beta, not a beta setup requirement. See app-store-release-checklist.md.
 
 Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
 Proposed support: https://nmapaye.github.io/aurora/support.html

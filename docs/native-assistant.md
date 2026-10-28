@@ -50,6 +50,11 @@ general conversational competence. Reasoning is disabled for this short task.
 
 ## Calendar connections
 
+The owner-approved October 25 beta uses Apple-synced calendars only. Direct
+Google OAuth is deferred: keep its client/callback configuration out of beta
+artifacts. The retained provider and race-regression tests support later work;
+they do not establish public Google sign-in readiness.
+
 Apple calendars use EventKit full access with a disclosed purpose. Google
 calendars synced to Apple can use this connection. Users explicitly select
 included calendars; no calendar is automatically included.

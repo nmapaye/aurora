@@ -117,10 +117,14 @@ jobs:
       - name: Check results
         env:
           CHANGES: ${{ needs.changes.result }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
         run: |
           set -euo pipefail
           [ "$CHANGES" = "success" ] || { echo "::error::changes job: $CHANGES"; exit 1; }
           check() {
+            if [ "$RELEVANT" = "true" ] && [ "$2" != "success" ]; then
+              echo "::error::$1 must execute successfully for core changes: $2"; exit 1
+            fi
             case "$2" in
               success|skipped) echo "$1: $2" ;;
               *) echo "::error::$1: $2"; exit 1 ;;

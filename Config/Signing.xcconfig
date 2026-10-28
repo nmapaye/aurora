@@ -1,0 +1,20 @@
+// Signing for the Aurora app target (Debug and Release).
+//
+// Attached as the target's base configuration in Aurora.xcodeproj, so it
+// overrides the project-level DEVELOPMENT_TEAM = "" and is overridden by
+// anything set in the target's own Build Settings. Keep team and signing
+// style here; don't pick a team in Xcode's Signing & Capabilities pane, which
+// writes DEVELOPMENT_TEAM into the target and silently wins over this file.
+//
+// TODO(owner): once the Apple Developer membership is active, replace the
+// empty value with the 10-character Team ID from
+// https://developer.apple.com/account (Membership details). The Team ID is
+// not a secret; it is embedded in every signed build. It must match teamID
+// in Config/ExportOptions.plist; the Release workflow checks both.
+DEVELOPMENT_TEAM = 72DC9RVDYJ
+
+CODE_SIGN_STYLE = Automatic
+
+// Local, uncommitted overrides (for example a personal team for device runs).
+// Config/Signing.local.xcconfig is gitignored; the "?" makes it optional.
+#include? "Signing.local.xcconfig"

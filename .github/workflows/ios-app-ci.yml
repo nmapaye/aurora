@@ -10,8 +10,13 @@ on:
       - 'AuroraTests/**'
       - 'AuroraUITests/**'
       - 'Aurora.xcodeproj/**'
+      - 'Config/**'
       - '.github/workflows/ios-app-ci.yml'
       - '.github/scripts/xcode-annotate.py'
+      - '.github/scripts/verify_xcresult.py'
+      - '.github/scripts/test_xcresult.py'
+      - '.github/scripts/verify_beta_scope.py'
+      - '.github/scripts/test_beta_scope.py'
   pull_request:
   workflow_dispatch:
 
@@ -51,11 +56,26 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
+          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult|verify_beta_scope|test_beta_scope)\.py$)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
           fi
+
+  # Linux-only, about 10 seconds: checks Aurora/PrivacyInfo.xcprivacy against
+  # the code (required-reason APIs, tracking, collected data, network hosts).
+  # Runs on every pull request so a change that adds a required-reason API
+  # fails here even when nothing else in the app changed.
+  privacy-manifest:
+    name: privacy manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify privacy manifest
+        run: python3 scripts/verify-privacy-manifest.py --verbose
 
   build-and-test:
     needs: changes
@@ -64,7 +84,7 @@ jobs:
     runs-on: macos-26
     # Build, native tests and the full serial UI suite (about 30 minutes on
     # a hosted runner per device) do not fit in an hour.
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -75,6 +95,22 @@ jobs:
 
       - name: Check native brand tokens
         run: python3 scripts/check-design-tokens.py
+
+      # Simulator builds use Info-Simulator.plist, which must equal Info.plist
+      # plus only NSAllowsLocalNetworking (for the simulator Ollama path).
+      - name: Check simulator Info.plist parity
+        run: |
+          python3 - <<'PY'
+          import plistlib, sys
+          device = plistlib.load(open('Aurora/Info.plist', 'rb'))
+          sim = plistlib.load(open('Aurora/Info-Simulator.plist', 'rb'))
+          if 'NSAppTransportSecurity' in device:
+              sys.exit('Aurora/Info.plist must not contain NSAppTransportSecurity')
+          if sim.pop('NSAppTransportSecurity', None) != {'NSAllowsLocalNetworking': True}:
+              sys.exit('Info-Simulator.plist must set only NSAllowsLocalNetworking under NSAppTransportSecurity')
+          if sim != device:
+              sys.exit('Info-Simulator.plist differs from Info.plist beyond NSAppTransportSecurity')
+          PY
 
       - name: Pick a simulator
         id: sim
@@ -94,6 +130,26 @@ jobs:
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # typeText has been losing keystrokes in the composer (see the repeat
+      # step below). Simulator.app's "Connect Hardware Keyboard" is a known
+      # cause of dropped typeText characters, so turn it off globally and for
+      # this device before it boots. CI boots headless with simctl, so this
+      # may be a no-op here; it keeps a Simulator.app launch from changing it.
+      - name: Disconnect the hardware keyboard
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          plist="$RUNNER_TEMP/iphonesimulator.plist"
+          defaults export com.apple.iphonesimulator "$plist"
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid dict" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :DevicePreferences:$udid:ConnectHardwareKeyboard bool false" "$plist"
+          defaults import com.apple.iphonesimulator "$plist"
+          echo "ConnectHardwareKeyboard (global): $(defaults read com.apple.iphonesimulator ConnectHardwareKeyboard)"
+          echo "ConnectHardwareKeyboard ($udid): $(/usr/libexec/PlistBuddy -c "Print :DevicePreferences:$udid:ConnectHardwareKeyboard" "$plist")"
+
       # Boot the simulator and wait until it is fully up before any test
       # launches the app; a cold iPad simulator booting during the first
       # launch timed out the launch.
@@ -102,6 +158,35 @@ jobs:
           set -euo pipefail
           xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
           xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      # Fix the software keyboard's state before any UI test types: no
+      # predictive text or autocorrection (the app log shows the predictive
+      # engine's CandidateGeneration timing out while typeText runs), no
+      # slide-to-type, and the first-use keyboard introductions marked shown.
+      # Key names are the ones WebDriverAgent sets through TIPreferencesController
+      # and Appium writes with simctl; iOS 15+ keeps them in
+      # com.apple.keyboard.preferences, older releases in com.apple.Preferences.
+      - name: Set simulator keyboard preferences
+        run: |
+          set -euo pipefail
+          udid="${{ steps.sim.outputs.udid }}"
+          for domain in com.apple.keyboard.preferences com.apple.Preferences; do
+            for key in KeyboardPrediction KeyboardAutocorrection KeyboardShowPredictionBar KeyboardContinuousPathEnabled; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool NO
+            done
+            for key in DidShowContinuousPathIntroduction DidShowGestureKeyboardIntroduction; do
+              xcrun simctl spawn "$udid" defaults write "$domain" "$key" -bool YES
+            done
+          done
+          xcrun simctl spawn "$udid" defaults write com.apple.keyboard.ContinuousPath KeyboardContinuousPathEnabled -bool NO
+          # Fail if a write didn't stick, rather than run on unknown settings.
+          for check in KeyboardPrediction=0 KeyboardAutocorrection=0 KeyboardShowPredictionBar=0 \
+                       KeyboardContinuousPathEnabled=0 DidShowContinuousPathIntroduction=1 DidShowGestureKeyboardIntroduction=1; do
+            key=${check%=*}; want=${check#*=}
+            got=$(xcrun simctl spawn "$udid" defaults read com.apple.keyboard.preferences "$key")
+            echo "com.apple.keyboard.preferences $key = $got"
+            [ "$got" = "$want" ] || { echo "::error title=keyboard prefs::$key is $got, wanted $want"; exit 1; }
+          done
 
       # Tests are signed ad hoc: unsigned, the Keychain erase test fails
       # with errSecMissingEntitlement (-34018).
@@ -121,7 +206,92 @@ jobs:
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-build.log
           exit $status
 
+      # The Debug simulator app from Build for testing must keep the
+      # local networking exception that the simulator-only Ollama path uses.
+      - name: Simulator Info.plist keeps local networking
+        run: |
+          set -euo pipefail
+          sim=build/DerivedData/Build/Products/Debug-iphonesimulator/Aurora.app/Info.plist
+          if [ "$(plutil -extract NSAppTransportSecurity.NSAllowsLocalNetworking raw -o - "$sim")" != "true" ]; then
+            echo "::error::Simulator Info.plist must set NSAllowsLocalNetworking"
+            plutil -p "$sim"
+            exit 1
+          fi
+          echo "Simulator Info.plist keeps NSAllowsLocalNetworking."
+
+      # testLongCardArrivesShowingItsStart failed intermittently on iPhone
+      # (about 2 in 25 runs). Run it alone up to 40 times on both devices and
+      # stop at the first failure. Never -retry-tests-on-failure here: a retry
+      # would turn the flake green and hide it. Each iteration launches the
+      # app (about 40 to 65 seconds in CI), so 40 fit inside the timeout.
+      - name: Repeat the long-card UI test
+        id: repeat
+        timeout-minutes: 50
+        run: |
+          set +e
+          if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
+            echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
+            exit 1
+          fi
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testLongCardArrivesShowingItsStart \
+            -test-iterations 40 \
+            -run-tests-until-failure \
+            -resultBundlePath build/LongCardRepeat.xcresult \
+            > build/xcodebuild-repeat.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/LongCardRepeat.xcresult --iteration-log build/xcodebuild-repeat.log --test-case testLongCardArrivesShowingItsStart --expected-iterations 40 || status=$?; fi
+          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-repeat.log | head -200
+          echo "Iterations run: $(grep -cE "Test Case '.*testLongCardArrivesShowingItsStart\]' (passed|failed)" build/xcodebuild-repeat.log)"
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-repeat.log
+          exit $status
+
+      # request() types into the composer. CI has lost keystrokes there: the
+      # field held "R" for "Reminders" (3 runs) and "Show t" for "Show this
+      # week" (1 run), then the app answered the fragment. Repeat the two tests
+      # that failed that way up to 40 times on both devices and stop at the
+      # first failure. Never -retry-tests-on-failure: a retry would turn the
+      # flake green and hide it. About 70-80 s per iteration of both tests.
+      - name: Repeat the typed-request UI tests
+        id: repeat-typed
+        if: success() || steps.repeat.outcome == 'failure'
+        timeout-minutes: 60
+        run: |
+          set +e
+          if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
+            echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
+            exit 1
+          fi
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testBriefingAndReminderCards \
+            -only-testing:AuroraUITests/AuroraUITests/testTrendsSwitchSignalsAndRange \
+            -test-iterations 40 \
+            -run-tests-until-failure \
+            -resultBundlePath build/TypedRequestRepeat.xcresult \
+            > build/xcodebuild-typed-repeat.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/TypedRequestRepeat.xcresult --iteration-log build/xcodebuild-typed-repeat.log --test-case testBriefingAndReminderCards --test-case testTrendsSwitchSignalsAndRange --expected-iterations 40 || status=$?; fi
+          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-typed-repeat.log | head -200
+          for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
+            echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" build/xcodebuild-typed-repeat.log)"
+          done
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-typed-repeat.log
+          exit $status
+
+      # Still runs after the repeat step fails, so a flake doesn't hide the
+      # rest of the suite's results; not after a failed build.
       - name: Test
+        if: success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure'
         run: |
           set +e
           xcodebuild test-without-building \
@@ -133,7 +303,8 @@ jobs:
             -resultBundlePath build/AuroraTests.xcresult \
             > build/xcodebuild-test.log 2>&1
           status=$?
-          grep -E "error:|warning: .*/Aurora|Test Case .* failed|Test case .* failed|Suite .* failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/AuroraTests.xcresult || status=$?; fi
+          grep -E "error:|warning: .*/Aurora|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
           python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
           # Launch and runner failures don't use the error: format; surface them
           # too, within the ten error annotations a step keeps.
@@ -141,8 +312,33 @@ jobs:
             | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
           exit $status
 
-      - name: Release build
-        if: matrix.device == 'iPhone'
+      # An actual optimized Release launch without Debug reset/gallery hooks.
+      # The simulator is disposable CI infrastructure; remove only its fixture
+      # app so this exercises first install rather than a Debug-state upgrade.
+      - name: Release clean-install smoke test
+        if: ${{ !cancelled() && (success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure') }}
+        run: |
+          mkdir -p build
+          xcrun simctl uninstall "${{ steps.sim.outputs.udid }}" com.nmapaye.aurora || true
+          set +e
+          xcodebuild test \
+            -project Aurora.xcodeproj -scheme AuroraReleaseSmoke -configuration Release \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/ReleaseSmokeDerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/ReleaseSmokeUITests \
+            -resultBundlePath build/ReleaseSmoke.xcresult \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            > build/xcodebuild-release-smoke.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/ReleaseSmoke.xcresult || status=$?; fi
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-smoke.log
+          exit $status
+
+      # It targets a generic iOS device, so CI checks
+      # the Info.plist that would ship: no local networking exception.
+      - name: Release device build
+        if: ${{ !cancelled() && matrix.device == 'iPhone' }}
         run: |
           mkdir -p build
           set +e
@@ -150,14 +346,24 @@ jobs:
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -configuration Release \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            > build/xcodebuild-release.log 2>&1
+            > build/xcodebuild-release-device.log 2>&1
           status=$?
-          grep -E "error:|\*\* .* \*\*" build/xcodebuild-release.log | head -200
-          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release.log
-          exit $status
+          grep -E "error:|\*\* .* \*\*" build/xcodebuild-release-device.log | head -200
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-device.log
+          [ $status -eq 0 ] || exit $status
+          set -e
+          device=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist
+          [ -f "$device" ] || { echo "::error::missing $device"; exit 1; }
+          if plutil -extract NSAppTransportSecurity xml1 -o - "$device" >/dev/null 2>&1; then
+            echo "::error::Release device Info.plist contains NSAppTransportSecurity"
+            plutil -p "$device"
+            exit 1
+          fi
+          echo "Release device Info.plist has no NSAppTransportSecurity."
+          python3 .github/scripts/verify_beta_scope.py "$device"
 
       - name: Upload logs
         if: always()
@@ -167,12 +373,15 @@ jobs:
           path: |
             build/*.log
             build/AuroraTests.xcresult
+            build/LongCardRepeat.xcresult
+            build/TypedRequestRepeat.xcresult
+            build/ReleaseSmoke.xcresult
 
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
   gate:
     name: iOS App gate
-    needs: [changes, build-and-test]
+    needs: [changes, privacy-manifest, build-and-test]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -180,13 +389,18 @@ jobs:
       - name: Check results
         env:
           CHANGES: ${{ needs.changes.result }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
         run: |
           set -euo pipefail
           [ "$CHANGES" = "success" ] || { echo "::error::changes job: $CHANGES"; exit 1; }
           check() {
+            if [ "$RELEVANT" = "true" ] && [ "$2" != "success" ]; then
+              echo "::error::$1 must execute successfully for app changes: $2"; exit 1
+            fi
             case "$2" in
               success|skipped) echo "$1: $2" ;;
               *) echo "::error::$1: $2"; exit 1 ;;
             esac
           }
           check "build-and-test" "${{ needs.build-and-test.result }}"
+          [ "${{ needs.privacy-manifest.result }}" = success ] || { echo "::error::privacy manifest did not pass"; exit 1; }

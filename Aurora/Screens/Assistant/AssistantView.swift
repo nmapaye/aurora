@@ -31,6 +31,9 @@ struct AssistantView: View {
         /// Aurora revealing a long card's start doesn't move them away from
         /// the latest message.
         var userScrolling = false
+        /// What a taller bottom area keeps in view (`ConversationFollow`).
+        var follow = ConversationFollow()
+        var revealTask: Task<Void, Never>?
     }
     @State private var viewportHeight: CGFloat = 0
     /// The first message added while earlier messages were being read.
@@ -70,6 +73,7 @@ struct AssistantView: View {
                         Color.clear.frame(height: 1).id("bottom")
                             .trackingVisibility(onScreen) { visible in
                                 visibility.end = visible
+                                if visible { visibility.follow.stopFollowing() }
                                 if visible && heldMessage != nil { heldMessage = nil }
                             }
                             .onDisappear { visibility.end = false }
@@ -91,8 +95,16 @@ struct AssistantView: View {
                 // kept the conversation re-laying out so the main thread never
                 // went idle.
                 .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
+                .onDisappear { visibility.revealTask?.cancel() }
                 .coordinateSpace(.named(Self.viewport))
-                .trackingConversationEnd(visibility) { end, nearEnd in
+                .trackingConversationEnd(visibility, layoutChanged: { old, new in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterLayoutChanged(
+                            from: old, to: new, latestMessage: assistant.conversation.messages.last?.id,
+                            holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
+                }) { end, nearEnd in
                     if visibility.userScrolling || end {
                         visibility.end = end
                         visibility.nearEnd = nearEnd || end
@@ -103,10 +115,24 @@ struct AssistantView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: heldMessage)
-                // A taller bottom area would otherwise cover the end the person
-                // was reading; keep the end above it.
+                // A taller bottom area would otherwise cover what the person
+                // was reading: the end, or the start of the reply just revealed.
                 .onChange(of: composerHeight) { old, new in
-                    if new > old && visibility.end && heldMessage == nil { reveal(proxy, "bottom", anchor: .bottom) }
+                    switch visibility.follow.afterBottomAreaGrew(from: old, to: new, atEnd: visibility.end, holding: heldMessage != nil) {
+                    case .start(let id): reveal(proxy, id, anchor: .top)
+                    case .end: reveal(proxy, "bottom", anchor: .bottom)
+                    case .none, .hold: break
+                    }
+                }
+                // Dismissing the keyboard can shift a revealed title under
+                // the bar without changing the composer's measured height.
+                // Wait for UIKit's completion rather than guessing a delay.
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterKeyboardDismissed(
+                            latestMessage: assistant.conversation.messages.last?.id, holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
                 }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
@@ -162,7 +188,9 @@ struct AssistantView: View {
         let messages = assistant.conversation.messages
         let readingLatest = visibility.end || visibility.nearEnd || (old > 0 && old <= messages.count && visibility.messages.contains(messages[old - 1].id))
         windowStart = ConversationWindow.start(windowStart, count: messages.count, previousCount: old)
-        switch ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest) {
+        let next = ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest)
+        visibility.follow.revealed(next)
+        switch next {
         case .none:
             if messages.isEmpty { heldMessage = nil }
         case .end:
@@ -266,7 +294,10 @@ struct AssistantView: View {
     }
 
     private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
-        Task { @MainActor in
+        visibility.revealTask?.cancel()
+        visibility.revealTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
             withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
         }
     }
@@ -458,17 +489,27 @@ private extension View {
     /// end of the conversation is on screen, and whether it is within most of
     /// a screen of it (still reading the latest message).
     @ViewBuilder
-    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
+    func trackingConversationEnd(_ visibility: AssistantView.Visibility,
+                                 layoutChanged: @escaping (ConversationLayout, ConversationLayout) -> Void,
+                                 _ action: @escaping (_ end: Bool, _ nearEnd: Bool) -> Void) -> some View {
         if #available(iOS 18, *) {
             onScrollPhaseChange { _, phase in
                 visibility.userScrolling = phase == .interacting || phase == .decelerating
+                if visibility.userScrolling {
+                    visibility.follow.stopFollowing()
+                    visibility.revealTask?.cancel()
+                }
             }
             .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
                 let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height
                 let gap = max(0, maxOffset - geometry.contentOffset.y - geometry.contentInsets.top)
-                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75)
-            } action: { _, now in
+                return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75,
+                    layout: ConversationLayout(container: geometry.containerSize,
+                        contentHeight: geometry.contentSize.height, topInset: geometry.contentInsets.top,
+                        bottomInset: geometry.contentInsets.bottom))
+            } action: { old, now in
                 action(now.end, now.nearEnd)
+                layoutChanged(old.layout, now.layout)
             }
         } else {
             self
@@ -479,6 +520,7 @@ private extension View {
 private struct ConversationEnd: Equatable {
     var end: Bool
     var nearEnd: Bool
+    var layout: ConversationLayout
 }
 
 /// The conversation's sheets. A modifier of its own: chained on the body
