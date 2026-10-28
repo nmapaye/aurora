@@ -96,7 +96,7 @@ struct EnergyRecordedByYou: View {
             }
             ForEach(snapshot.reactions) { test in
                 VStack(alignment: .leading, spacing: Metrics.xxs) {
-                    Text("Reaction Test · \(test.score) · \(test.rating)").font(.subheadline.weight(.medium)).monospacedDigit()
+                    Text("Reaction Test · \(test.score)" + (test.displayLabel.map { " · \($0)" } ?? "")).font(.subheadline.weight(.medium)).monospacedDigit()
                     Text((test.sample ? "Sample Data" : "Recorded") + " · " + text.fullDateTime(test.completedAt))
                         .font(Typography.source).foregroundStyle(Palette.textSecondary)
                 }

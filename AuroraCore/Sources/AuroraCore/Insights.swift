@@ -227,7 +227,7 @@ public enum Insights {
             return ReactionInsight(
                 signal: SignalCardModel(
                     id: id, label: label, period: "No test yet", status: .empty,
-                    context: "A 60-second test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
+                    context: "A \(Vigilance.durationAdjective) test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
                     destination: destination
                 ),
                 baseline: .none,
@@ -237,7 +237,7 @@ public enum Insights {
         let windowStart = clock.addingDays(-(reactionBaselineWindowDays - 1), to: clock.startOfDay(now))
         let recent = valid.filter { $0.completedAt >= windowStart }
         let source = RecordSource.of(ids: [latest.id]) == .sample ? "Sample Data" : "Recorded"
-        let detail = latest.medianReactionMs.map { "\(latest.rating.rawValue) · \(jsRoundInt($0)) ms median" } ?? latest.rating.rawValue
+        let detail = latest.displayLabel
         let status: SignalStatus = source == "Sample Data" ? .sample : .observed
         let period = formatSignalDay(latest.completedAt, now: now, clock: clock, text: text)
         if recent.count < reactionBaselineTests {

@@ -121,11 +121,13 @@ public enum Export {
         return (["id,wake_local_date,start,end,duration_hours,type,data_source,note"] + rows).joined(separator: "\n")
     }
 
+    /// No rating column: results show no rating word, so exports don't carry
+    /// one. The raw milliseconds stay.
     public static func vigilanceSessionsCSV(_ sessions: [VigilanceSession]) -> String {
         let header = [
             "id", "started_at", "completed_at", "duration_ms", "trial_count", "valid_reaction_count",
             "false_start_count", "lapse_count", "median_reaction_ms", "mean_reaction_ms",
-            "fastest_reaction_ms", "reaction_std_dev_ms", "score", "rating", "data_source",
+            "fastest_reaction_ms", "reaction_std_dev_ms", "score", "data_source",
         ].joined(separator: ",")
         let lines = sessions.map { session in
             row([
@@ -142,7 +144,6 @@ public enum Export {
                 session.fastestReactionMs.map(numberText) ?? "",
                 session.reactionStdDevMs.map(numberText) ?? "",
                 "\(session.score)",
-                session.rating.rawValue,
                 RecordID.isSample(session.id) ? "Sample Data" : "Recorded",
             ])
         }

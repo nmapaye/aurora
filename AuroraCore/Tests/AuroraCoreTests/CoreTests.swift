@@ -220,6 +220,38 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         }
     }
 
+    @Test func reactionResultsShowNoRatingWords() {
+        // The stored rating stays for decoding; display copy and exports never carry the word.
+        let ratingWords = #"\b(sharp|steady|slipping|sluggish|fatigued)\b"#
+        var state = AppState()
+        state.loadSampleData(now: now, clock: utc)
+        let noTaps = VigilanceSession(id: "none", startedAt: now - minuteMs, completedAt: now, durationMs: minuteMs, trialCount: 3,
+                                      validReactionCount: 0, falseStartCount: 3, lapseCount: 0, medianReactionMs: nil,
+                                      meanReactionMs: nil, fastestReactionMs: nil, reactionStdDevMs: nil, score: 0, rating: .sluggish)
+        let sessions = state.vigilanceSessions + [noTaps]
+        #expect(!state.vigilanceSessions.isEmpty)
+        state.vigilanceSessions = sessions
+        let history = AssistantCards.make(.history, state: state, now: now, clock: utc, text: fixtureText)
+        let trends = AssistantCards.make(.trends, state: state, now: now, clock: utc, text: fixtureText)
+        var texts: [String] = sessions.flatMap { [$0.displayLabel, $0.accessibilityLabel] }
+        texts.append(SummarySignals.reactionTest(sessions: sessions, now: now, clock: utc, text: fixtureText).context)
+        texts.append(Insights.reactionSignal(sessions: sessions, now: now, clock: utc, text: fixtureText).signal.context)
+        texts += history.records.map(\.detail)
+        texts += trends.series.flatMap { $0.points.map(\.detail) }
+        texts += EnergySnapshot.capture(state: state, now: now, clock: utc, includeProjection: false).reactions.compactMap(\.displayLabel)
+        texts.append(Export.vigilanceSessionsCSV(sessions))
+        for text in texts {
+            #expect(text.range(of: ratingWords, options: [String.CompareOptions.regularExpression, .caseInsensitive]) == nil, "\(text)")
+        }
+        #expect(noTaps.displayLabel == "No valid taps recorded")
+        // New exports drop the rating column and keep the raw milliseconds.
+        let csv = Export.vigilanceSessionsCSV(sessions).split(separator: "\n").map(String.init)
+        #expect(csv.first == "id,started_at,completed_at,duration_ms,trial_count,valid_reaction_count,false_start_count,lapse_count,median_reaction_ms,mean_reaction_ms,fastest_reaction_ms,reaction_std_dev_ms,score,data_source")
+        let median = sessions.first?.medianReactionMs
+        #expect(median != nil)
+        #expect(csv[1].contains("\"\(numberText(median ?? 0))\""))
+    }
+
     @Test func todaySeriesCoversTheLocalDayAndNow() {
         let doses = [Dose(id: "a", timestamp: pacific.startOfDay(now) + 8 * hourMs, mg: 100)]
         let series = TodayCaffeineSeries.make(doses: doses, halfLifeHours: 5, now: now, clock: pacific)

@@ -131,6 +131,17 @@ struct WakeReminderTests {
         #expect(WakeReminders.offsetText(120) == "2h")
     }
 
+    @Test func savedNonPresetOffsetStaysVisibleInTheEditor() {
+        #expect(!WakeReminders.presetOffsets.contains(90))
+        #expect(WakeReminders.editorOffsets(saved: []) == WakeReminders.presetOffsets)
+        #expect(WakeReminders.editorOffsets(saved: [60]) == WakeReminders.presetOffsets)
+        // An offset saved by an older build still gets a chip, so it can be turned off.
+        #expect(WakeReminders.editorOffsets(saved: [90, 60]) == [30, 60, 90, 120, 180, 240, 300, 360])
+        #expect(WakeReminders.editorOffsets(saved: [5, 900]) == WakeReminders.presetOffsets)
+        // A saved 90 is still kept and planned; nothing migrates it away.
+        #expect(settings([90]).normalized().offsetsMinutes == [90])
+    }
+
     @Test func olderPrefsDecodeWithoutWakeReminders() throws {
         let prefs = try JSONDecoder().decode(Prefs.self, from: Data(#"{"halfLife":5,"targetSleep":8,"dailyLimitMg":400,"cutoffHour":16,"notifyCutoff":false}"#.utf8))
         #expect(prefs.wakeReminders == nil)

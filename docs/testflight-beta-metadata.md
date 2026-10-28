@@ -19,7 +19,7 @@ Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. I
 
 Apple Health is optional, with three separate choices: read sleep, read caffeine, and add caffeine saved in Aurora. Imported records stay read-only; Aurora changes or deletes only caffeine samples it wrote. Records and conversation storage remain on-device and are excluded from Aurora's backup storage. This beta uses Apple Calendar through EventKit, including Google calendars synced by iOS. Direct Google OAuth and Calendar API access are disabled. Calendar changes require a fresh approved preview. No API keys or cloud AI inference are accepted. Model availability does not prevent explicit native logging and review.
 
-Aurora is informational, not a medical device. Estimates cannot establish the cause of fatigue or prescribe caffeine doses or sleep schedules.
+Estimates can’t establish the cause of fatigue, and Aurora doesn’t prescribe caffeine doses or sleep schedules. It is not a medical device. Informational only. Doesn’t diagnose, treat, cure or prevent any condition. Check with a doctor before medical decisions.
 
 Intelligence is local. On devices where Apple Intelligence is available (iOS 26 or later), Aurora uses Apple's on-device Foundation Models only to understand typed requests; explicit quick actions remain available elsewhere. Dictation requires on-device speech recognition. The local Ollama developer option exists only in Simulator builds and is unavailable in device builds.
 

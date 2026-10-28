@@ -1,10 +1,10 @@
 import AuroraCore
 import SwiftUI
 
-/// The 60-second Reaction Test. One timer aims at the next event (cue due,
-/// response window over, countdown second, end of test), so a cue appears
-/// on time and reaction times aren't inflated by polling. Leaving the app
-/// mid-test discards the run.
+/// The Reaction Test (length: `Vigilance.testDurationMs`). One timer aims at
+/// the next event (cue due, response window over, countdown second, end of
+/// test), so a cue appears on time and reaction times aren't inflated by
+/// polling. Leaving the app mid-test discards the run.
 struct ReactionTestView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -93,7 +93,7 @@ struct ReactionTestView: View {
             Text("Wait for the cue, then tap the active area as quickly as you can.")
                 .foregroundStyle(Palette.textSecondary)
             if interrupted {
-                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 60 seconds.")
+                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for \(Vigilance.durationPhrase).")
                     .foregroundStyle(Palette.textPrimary)
                     .onAppear {
                         UIAccessibility.post(notification: .announcement, argument: "Test interrupted. This run was not saved.")
@@ -128,7 +128,8 @@ struct ReactionTestView: View {
         VStack(spacing: Metrics.sm) {
             Text("Session complete").foregroundStyle(Palette.textSecondary)
             Text("\(session.score)").font(.system(size: 56, weight: .bold).monospacedDigit()).foregroundStyle(Palette.textPrimary)
-            Text(session.rating.rawValue).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
+            Text(session.displayLabel).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
+                .accessibilityLabel(session.accessibilityLabel)
             VStack(spacing: 2) {
                 Text("Median reaction: \(reaction(session.medianReactionMs))")
                 Text("Fastest reaction: \(reaction(session.fastestReactionMs))")

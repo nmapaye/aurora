@@ -171,12 +171,12 @@ public enum AssistantCards {
                 let signal = Insights.reactionSignal(sessions: state.vigilanceSessions, now: now, clock: clock, text: text)
                 card.series.append(.init(metric: "Reaction", days: days, unit: "score", summary: signal.signal.accessibilityDescription, comparison: signal.signal.context, points: clock.dayStarts(endingAt: now, days: days).map { date in
                     let latest = state.vigilanceSessions.filter { clock.dayKey($0.completedAt) == clock.dayKey(date) && $0.completedAt <= now }.max { $0.completedAt < $1.completedAt }
-                    return .init(date: date, value: latest.map { Double($0.score) }, detail: latest.map { "\($0.score) · \($0.rating.rawValue)" } ?? "No record", sample: latest.map { RecordID.isSample($0.id) } ?? false)
+                    return .init(date: date, value: latest.map { Double($0.score) }, detail: latest.map { "\($0.score) · \($0.displayLabel)" } ?? "No record", sample: latest.map { RecordID.isSample($0.id) } ?? false)
                 }))
             }
         case .reaction:
             let r = Insights.reactionSignal(sessions: state.vigilanceSessions, now: now, clock: clock, text: text)
-            card.summary = "A 60-second reaction test."
+            card.summary = "A \(Vigilance.durationAdjective) reaction test."
             card.metrics = [.init(id: "reaction", label: "Latest recorded test", value: r.signal.value ?? "No record", source: r.signal.metaLine, detail: r.signal.context, missing: r.signal.status == .empty)]
         case .history:
             card.records = state.doses.filter { $0.timestamp <= now }.map {
@@ -184,7 +184,7 @@ public enum AssistantCards {
             } + state.sleeps.filter { $0.end <= now }.map {
                 .init(id: $0.id, kind: "sleep", title: $0.type == .nap ? "Nap" : "Sleep", date: $0.end, source: SleepModel.sourceLabel(id: $0.id), detail: "\(text.clockTime($0.start)) – \(text.clockTime($0.end)) · \(formatHoursMinutes(durationMs: $0.end - $0.start))", editable: RecordID.isManualSleep($0.id), revision: "\($0.start)|\($0.end)|\($0.type.rawValue)|\($0.note ?? "")")
             } + state.vigilanceSessions.filter { $0.completedAt <= now }.map {
-                .init(id: $0.id, kind: "reaction", title: "Reaction Test", date: $0.completedAt, source: RecordID.isSample($0.id) ? "Sample Data" : "Recorded", detail: "\($0.score) · \($0.rating.rawValue)", editable: false)
+                .init(id: $0.id, kind: "reaction", title: "Reaction Test", date: $0.completedAt, source: RecordID.isSample($0.id) ? "Sample Data" : "Recorded", detail: "\($0.score) · \($0.displayLabel)", editable: false)
             }
             card.records.sort { $0.date > $1.date }
         case .exports:
