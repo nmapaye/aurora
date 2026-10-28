@@ -1,0 +1,47 @@
+name: Beta bug
+description: Report an Aurora beta issue using synthetic, non-sensitive details.
+title: "[Beta] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security issues, follow SECURITY.md instead of posting publicly.
+        Do not include Health records, calendar details, conversation dumps, CSVs,
+        account information or credentials. Use Sample Data or synthetic examples.
+  - type: input
+    id: build
+    attributes:
+      label: Aurora version and build
+      placeholder: "0.1.0 (build number from TestFlight)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and iOS or iPadOS version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic values. Say whether this was a fresh install or an upgrade.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+      description: Include frequency and any visible error text with private details removed.
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Data used
+      options:
+        - Sample Data
+        - Synthetic manual records
+        - Optional connection (describe without sharing private records)
+    validations:
+      required: true

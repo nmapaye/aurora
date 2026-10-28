@@ -4,7 +4,7 @@
 
 Aurora is a native SwiftUI app for iPhone and iPad (iOS 17+). It tracks
 caffeine against sleep and alertness through optional HealthKit sleep and
-caffeine import, optional export of caffeine saved in Aurora, manual logging, a 30-second Reaction Test, and an alertness
+caffeine import, optional export of caffeine saved in Aurora, manual logging, a 60-second Reaction Test, and an alertness
 estimate. A standalone Vite showcase site lives in `website/`.
 
 The app was rewritten from React Native and Expo in October 2026. The rules,
@@ -42,8 +42,10 @@ and an optional Gumroad companion guide.
 
 `Aurora.xcodeproj` uses folder-synchronized groups. New files under
 `Aurora/`, `AuroraTests/` or `AuroraUITests/` join their target without
-project edits. `Info.plist` and `Aurora.entitlements` are excluded from the
-app's resources in the project file.
+project edits. `Info.plist`, `Info-Simulator.plist` and `Aurora.entitlements` are
+excluded from the app's resources in the project file. Simulator builds use
+`Info-Simulator.plist` (`INFOPLIST_FILE[sdk=iphonesimulator*]`), which adds
+only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
 
 ## Rules that must hold
 

@@ -18,19 +18,41 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     /// maps it the same way.
     private var colors: [String: String] = [:]
     private struct Token: Codable { var accessToken: String; var refreshToken: String?; var expiresAt: Date }
+    /// Info.plist lookup; tests inject values instead of the app bundle's.
+    private let infoValue: (String) -> Any?
+    typealias Transport = @MainActor (URLRequest) async throws -> (Data, URLResponse)
+    private let transport: Transport
+    private let persistToken: (String, Data) throws -> Void
+    private let removeToken: () throws -> Void
     var configured: Bool {
         guard let clientID, let callbackScheme, !clientID.isEmpty, !callbackScheme.isEmpty else { return false }
-        let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
+        let types = infoValue("CFBundleURLTypes") as? [[String: Any]] ?? []
         return types.contains { ($0["CFBundleURLSchemes"] as? [String])?.contains(callbackScheme) == true }
     }
-    var connected: Bool { token != nil }
-    private var clientID: String? { Bundle.main.object(forInfoDictionaryKey: "AuroraGoogleClientID") as? String }
-    private var callbackScheme: String? { Bundle.main.object(forInfoDictionaryKey: "AuroraGoogleCallbackScheme") as? String }
-    override init() {
+    /// A token left in the Keychain by a build that had a client ID does not
+    /// count when this build has none, so an unconfigured build never calls Google.
+    var connected: Bool { configured && token != nil }
+    private var clientID: String? { infoValue("AuroraGoogleClientID") as? String }
+    private var callbackScheme: String? { infoValue("AuroraGoogleCallbackScheme") as? String }
+    override convenience init() {
+        self.init(infoValue: { Bundle.main.object(forInfoDictionaryKey: $0) }, storedToken: GoogleCalendarProvider.keychainToken)
+    }
+    /// Test seam: Info.plist values and the stored token come from the caller.
+    init(infoValue: @escaping (String) -> Any?, storedToken: (_ account: String) -> Data?,
+         transport: @escaping Transport = { try await URLSession.shared.data(for: $0) },
+         persistToken: @escaping (String, Data) throws -> Void = GoogleCalendarProvider.saveKeychainToken,
+         removeToken: @escaping () throws -> Void = GoogleCalendarProvider.deleteLocalCredentials) {
+        self.infoValue = infoValue
+        self.transport = transport
+        self.persistToken = persistToken
+        self.removeToken = removeToken
         super.init()
+        if let data = storedToken(account) { token = try? JSONDecoder().decode(Token.self, from: data) }
+    }
+    private static func keychainToken(account: String) -> Data? {
         var result: CFTypeRef?
-        if SecItemCopyMatching([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne] as CFDictionary, &result) == errSecSuccess,
-           let data = result as? Data { token = try? JSONDecoder().decode(Token.self, from: data) }
+        guard SecItemCopyMatching([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne] as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first { $0.isKeyWindow } ?? ASPresentationAnchor()
@@ -38,6 +60,7 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
     private func base64URL(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
     func connect() async throws {
         guard configured, let clientID, let callbackScheme else { throw CalendarActionError.unavailable }
+        let generation = sessionGeneration
         var bytes = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw CalendarActionError.unavailable }
         let verifier = base64URL(Data(bytes)), state = UUID().uuidString
@@ -58,15 +81,18 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
             authSession = session
             if !session.start() { continuation.resume(throwing: CalendarActionError.unavailable) }
         }
+        guard generation == sessionGeneration else { throw CalendarActionError.unavailable }
         authSession = nil
         let query = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
         guard callback.scheme == callbackScheme, query.first(where: { $0.name == "state" })?.value == state,
               let code = query.first(where: { $0.name == "code" })?.value else { throw CalendarActionError.unavailable }
         try await exchange(["client_id": clientID, "code": code, "code_verifier": verifier, "redirect_uri": redirect, "grant_type": "authorization_code"])
     }
-    func disconnect() {
-        token = nil
-        SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account] as CFDictionary)
+    func disconnect() throws {
+        // An in-flight refresh or sign-in must not restore credentials after
+        // the person disconnected, even if its response arrives successfully.
+        forgetLocalSession()
+        try removeToken()
     }
     struct CredentialDeletionFailure: LocalizedError {
         let status: OSStatus
@@ -84,33 +110,40 @@ final class GoogleCalendarProvider: NSObject, CommitmentProvider, ASWebAuthentic
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var body = URLComponents(); body.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
         request.httpBody = body.percentEncodedQuery?.data(using: .utf8)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await transport(request)
         guard generation == sessionGeneration else { throw CalendarActionError.unavailable }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CalendarActionError.unavailable }
         struct Result: Decodable { let access_token: String; let refresh_token: String?; let expires_in: Double }
         let result = try JSONDecoder().decode(Result.self, from: data)
         let next = Token(accessToken: result.access_token, refreshToken: result.refresh_token ?? token?.refreshToken, expiresAt: .now.addingTimeInterval(result.expires_in))
         let bytes = try JSONEncoder().encode(next)
+        try persistToken(account, bytes)
+        token = next
+    }
+    private static func saveKeychainToken(account: String, bytes: Data) throws {
         let query = [kSecClass: kSecClassGenericPassword, kSecAttrAccount: account] as CFDictionary
         let status = SecItemUpdate(query, [kSecValueData: bytes] as CFDictionary)
         if status == errSecItemNotFound {
             guard SecItemAdd([kSecClass: kSecClassGenericPassword, kSecAttrAccount: account, kSecValueData: bytes,
                 kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly] as CFDictionary, nil) == errSecSuccess else { throw CalendarActionError.unavailable }
         } else if status != errSecSuccess { throw CalendarActionError.unavailable }
-        token = next
     }
     private func request(path: String, query: [URLQueryItem] = [], method: String = "GET", body: Data? = nil, etag: String? = nil) async throws -> Data {
-        guard let existing = token else { throw CalendarActionError.unavailable }
+        // Every Google call, the token refresh included, needs a configured build.
+        guard connected, let existing = token else { throw CalendarActionError.unavailable }
+        let generation = sessionGeneration
         if existing.expiresAt < .now.addingTimeInterval(60) {
             guard let refresh = existing.refreshToken, let clientID else { throw CalendarActionError.unavailable }
             try await exchange(["client_id": clientID, "refresh_token": refresh, "grant_type": "refresh_token"])
         }
+        guard generation == sessionGeneration, connected, let current = token else { throw CalendarActionError.unavailable }
         var url = URLComponents(string: "https://www.googleapis.com/calendar/v3/\(path)")!; url.queryItems = query
         var request = URLRequest(url: url.url!); request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 20
-        request.setValue("Bearer \(token!.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(current.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-Match") }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await transport(request)
+        guard generation == sessionGeneration, connected else { throw CalendarActionError.unavailable }
         let status = (response as? HTTPURLResponse)?.statusCode
         if status == 412 { throw CalendarActionError.stale }
         guard let status, (200..<300).contains(status) else { throw CalendarActionError.unavailable }

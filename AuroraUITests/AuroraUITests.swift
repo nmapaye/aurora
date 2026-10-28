@@ -287,7 +287,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
         tapQuick("How is my energy?")
         XCTAssertTrue(app.otherElements["assistant-card-energy"].waitForExistence(timeout: 5) || app.staticTexts["Your energy signals"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Unavailable"].exists)
+        XCTAssertTrue(app.staticTexts["Needs sleep"].exists)
     }
     func testEnergyCurveShowsModeledLabelsWithoutRecords() {
         finishSetup()
@@ -438,8 +438,13 @@ final class AuroraUITests: XCTestCase {
     func testCalendarNeverWritesWithoutPreviewApproval() {
         finishSetup()
         tapQuick("Review calendar")
-        XCTAssertTrue(app.buttons["Calendar connections"].waitForExistence(timeout: 5))
+        let connections = app.buttons["Calendar connections"]
+        XCTAssertTrue(connections.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["calendar-approve"].exists)
+        tapWhenReady(connections)
+        XCTAssertTrue(app.buttons["Connect Apple Calendar"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Connect Google directly"].exists)
+        XCTAssertFalse(app.buttons["Reconnect Google"].exists)
     }
     func testNoAPIKeyEntryInSettings() {
         finishSetup()
@@ -481,11 +486,74 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String) {
+    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
-        input.tap(); input.typeText(text)
+        // As in enter(_:into:), the keyboard and bottom-area transition on
+        // iPad can move the field under the initial tap. Acquire focus with
+        // bounded fresh taps before typing; never retry typing or send a
+        // partial request. A visible keyboard may belong to another field.
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        // Evaluate the same attribute in the native query. Resolving the
+        // field and then fetching it through KVC can consume an outer
+        // waiter's whole deadline and cancel the nested AX request.
+        let focusedInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(focused).element
+        // A focus tap can finish after the two-second focus wait. CI's iPad
+        // recording shows the caret and keyboard while AX briefly reports
+        // an infinite, empty frame for the entire window. Do not ask AX to
+        // hit-test that frame, or re-tap a field that already owns focus.
+        let readyForFocus = NSPredicate { _, _ in
+            if focusedInput.exists { return true }
+            // Resolve existence and geometry together. Separate `exists`
+            // and `frame` queries consumed the five-second readiness wait
+            // on CI before XCTest could even attempt a focus tap.
+            guard let snapshot = try? input.snapshot() else { return false }
+            let frame = snapshot.frame
+            guard frame.minX.isFinite, frame.minY.isFinite, !frame.isEmpty else { return false }
+            return input.isHittable
+        }
+        var ownsFocus = false
+        for _ in 0..<3 {
+            guard input.waitForExistence(timeout: 5),
+                  XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 5) == .completed
+            else { break }
+            if focusedInput.exists {
+                ownsFocus = true
+                break
+            }
+            input.tap()
+            if focusedInput.waitForExistence(timeout: 2) {
+                ownsFocus = true
+                break
+            }
+        }
+        guard ownsFocus else {
+            attachScreenshot("Composer focus failed")
+            XCTFail("Composer did not receive keyboard focus; not typing or sending. \(input.debugDescription)",
+                    file: file, line: line)
+            return
+        }
+        guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): keyboard never appeared; not typing or sending", file: file, line: line)
+            return
+        }
+        input.typeText(text)
+        // Never send a partial request. CI has lost keystrokes after typeText
+        // returned (field showed "R" for "Reminders", "Show t" for "Show this
+        // week"), and the app then answered the fragment. Fail here, naming
+        // what the field holds, instead of timing out later on a missing card.
+        let typed = NSPredicate(format: "value == %@", text)
+        // One native query checks identity and the entire value together;
+        // no partial-text match, retry typing, or longer deadline.
+        let exactInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(typed).element
+        guard exactInput.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
+                    file: file, line: line)
+            return
+        }
         // The keyboard can still be moving the composer when the tap lands.
-        // Sending clears the field, so a retry can never send twice.
+        // Sending clears the field, so a re-tap can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
         for _ in 0..<3 {
             app.buttons["assistant-send"].tap()
@@ -502,6 +570,30 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("History")
         XCTAssertTrue(app.textFields["assistant-history-search"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].waitForExistence(timeout: 5))
+    }
+    func testComposerQueryRejectsAnotherFieldsFocus() {
+        finishSetup(); tapQuick("Log caffeine")
+        let amount = app.textFields["assistant-dose-amount"]
+        enter("25", into: amount)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        XCTAssertTrue(focused.evaluate(with: amount), "The draft field must own the keyboard for this regression")
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let focusedComposer = composerFields.matching(focused).element
+        XCTAssertFalse(focusedComposer.exists, "Another field's focus must not authorize composer typing")
+    }
+    func testComposerQueryRejectsPartialText() {
+        finishSetup()
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let composer = composerFields.element
+        let focusedComposer = composerFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        tapWhenReady(composer)
+        XCTAssertTrue(focusedComposer.waitForExistence(timeout: 2))
+        composer.typeText("Remind")
+        XCTAssertTrue(composerFields.matching(NSPredicate(format: "value == %@", "Remind")).element.waitForExistence(timeout: 5))
+        XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
+                       "A partial request must never satisfy the complete-text guard")
     }
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
@@ -535,7 +627,25 @@ final class AuroraUITests: XCTestCase {
     // MARK: Polish regressions
 
     private func cardTitle(_ kind: String) -> XCUIElement {
-        app.descendants(matching: .any)["assistant-card-\(kind)"].firstMatch
+        // Headers are unique combined StaticTexts. `firstMatch` walks the
+        // hierarchy lazily for every attribute; retained CI diagnostics show
+        // the three-second waiter interrupting that walk before hit testing.
+        app.staticTexts["assistant-card-\(kind)"]
+    }
+
+    func testCardTitlesResolveAsUniqueReadableHeaders() {
+        finishSetup()
+        for (request, kind, label) in [
+            ("Show this week", "trends", "Recorded trends"),
+            ("Show my energy curve", "energyProjection", "Modeled alertness · 24 hours")
+        ] {
+            tapQuick(request)
+            let title = cardTitle(kind)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts.matching(identifier: "assistant-card-\(kind)").count, 1)
+            XCTAssertEqual(title.label, label)
+            XCTAssertEqual(title.elementType, .staticText)
+        }
     }
 
     /// The composer sits in the cards' column: its field starts where card
@@ -568,8 +678,25 @@ final class AuroraUITests: XCTestCase {
         tapQuick("Show my energy curve")
         let title = cardTitle("energyProjection")
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
-        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        // CI can briefly expose an infinite, empty AX frame while the reply
+        // settles. Asking that snapshot for a hit point aborts XCTest before
+        // the visibility timeout/diagnostics. Wait for geometry first; keep
+        // the same hittability requirement and three-second deadline.
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard let snapshot = try? title.snapshot() else { return false }
+            let frame = snapshot.frame
+            guard frame.minX.isFinite, frame.minY.isFinite,
+                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
+            return title.isHittable
+        }, object: title)
+        let result = XCTWaiter.wait(for: [shown], timeout: 3)
+        if result != .completed {
+            attachScreenshot("Long card title not hittable")
+            print("Long-card title: \(title.debugDescription)")
+            print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
+            print(app.debugDescription)
+        }
+        XCTAssertEqual(result, .completed)
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)
@@ -771,16 +898,25 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<16 where !phase.isHittable { app.swipeUp() }
         XCTAssertTrue(phase.isHittable)
         let preview = app.descendants(matching: .any)["gallery-motion-preview"].firstMatch
+        // A tap returns before SwiftUI's accessibility snapshot necessarily
+        // reflects the new state. Wait for the same required caption rather
+        // than immediately reading a stale label (seen on iPad CI in #61).
+        func expectCaption(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+            let expectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label CONTAINS %@", text), object: preview)
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed,
+                           "Expected \(text); observed \(preview.label)", file: file, line: line)
+        }
         phase.buttons["Working"].tap()
-        XCTAssertTrue(preview.label.contains("light moves only while work runs"), preview.label)
+        expectCaption("light moves only while work runs")
         phase.buttons["Stopped"].tap()
-        XCTAssertTrue(preview.label.contains("last frame fades out"), preview.label)
+        expectCaption("Stopped · last frame fades out")
         phase.buttons["Failed"].tap()
-        XCTAssertTrue(preview.label.contains("Failed"), preview.label)
+        expectCaption("Failed · last frame fades out")
         let still = app.switches["Static, as with Reduce Motion"]
         still.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         phase.buttons["Working"].tap()
-        XCTAssertTrue(preview.label.contains("static light"), preview.label)
+        expectCaption("Working · static light")
         attachScreenshot("Static processing light")
     }
 

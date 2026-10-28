@@ -91,10 +91,10 @@ struct SummaryView: View {
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             case .needsSleep:
-                Text("No recent sleep")
+                Text("No recent main sleep")
                     .font(.headline)
                     .foregroundStyle(Palette.textPrimary)
-                Text("Add sleep from the last 24 hours to see an estimate.")
+                Text("An estimate needs a recorded sleep block of at least 3 hours reaching the last 18 hours. Ongoing sleep counts only up to now.")
                     .font(.footnote)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

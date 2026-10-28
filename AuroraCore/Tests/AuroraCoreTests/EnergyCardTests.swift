@@ -33,7 +33,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
                 #expect(snapshot.estimate.modeledScore == existing.score)
                 #expect(snapshot.estimate.timeZoneIdentifier == context.clock.timeZone.identifier)
                 let card = AssistantCards.make(.energy, state: s, now: t, clock: context.clock, text: text(context.clock))
-                #expect(card.metrics.first { $0.id == "alertness" }?.value == existing.score.map { "\($0)" } ?? "Unavailable")
+                #expect(card.metrics.first { $0.id == "alertness" }?.value == existing.score.map { "\($0)" } ?? "Needs sleep")
                 probes += 1
             }
         }
@@ -52,7 +52,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
             #expect(card.metrics.first { $0.id == "activeCaffeine" }?.value == "No record")
             let projection = AssistantCards.make(.energyProjection, state: AppState(), now: now, clock: clock, text: text(clock))
             #expect(projection.energy?.projection?.points.allSatisfy { $0.modeledScore == nil } == true)
-            #expect(projection.metrics.first?.value == "Unavailable")
+            #expect(projection.metrics.first?.value == "Needs sleep")
         }
     }
 
@@ -117,7 +117,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
             let projection = try #require(snapshot.projection)
             #expect(projection.current.modeledScore == snapshot.estimate.modeledScore, "\(name)")
             #expect(projection.current.includesSample == snapshot.estimate.includesSample, "\(name)")
-            #expect(projectionCard.metrics.first?.value == snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable", "\(name)")
+            #expect(projectionCard.metrics.first?.value == snapshot.estimate.modeledScore.map { "\($0)" } ?? "Needs sleep", "\(name)")
             // Parity with the baseline on the same eligible inputs.
             let baseline = Summary.estimateAlertness(at: now, doses: known.doses, sleeps: known.sleeps, inputs: EstimateInputs(prefs: s.prefs, clock: clock))
             #expect(snapshot.estimate.modeledScore == baseline.score, "\(name)")
