@@ -153,8 +153,8 @@ struct AssistantCardView: View {
         Label { Text(card.title) } icon: { Image(systemName: symbol).accessibilityHidden(true) }
             .font(Typography.cardTitle)
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-            // One element: automation still finds the hidden symbol, and it
-            // took the card's identifier ahead of the title.
+            // One header element: automation can otherwise find the symbol
+            // with this identifier before the readable title (#38).
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader).accessibilityIdentifier("assistant-card-\(card.kind.rawValue)")
     }

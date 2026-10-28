@@ -1,10 +1,18 @@
 # Aurora release checklist
 
+October 25 beta sprint: use the [current evidence ledger](beta-sprint.md) for
+test counts, exact candidate revisions and open blockers. Older receipts below
+are historical baselines. The candidate is **NO-GO** pending final CI, physical
+acceptance, approved scope and signed distribution evidence.
+
 ## Locked release
 
-Native iPhone/iPad, English, paid US$4.99, free TestFlight. Initial storefronts:
+Native iPhone/iPad, English, paid US$4.99 upfront with no in-app purchases, free
+TestFlight. App Privacy label: Data Not Collected. Initial storefronts:
 US, Canada, UK, Australia, New Zealand after regional business/privacy checks.
-Google Calendar is a launch requirement. No cloud AI, keys, subscriptions, analytics
+The current beta uses Apple-synced calendars only, including Google calendars
+synced through iOS. Direct Google OAuth is deferred; revisit paid App Store
+calendar scope before submission. No in-app purchases in v0.1.0. No cloud AI, keys, subscriptions, analytics
 SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
 
 ## Owners and milestones
@@ -18,10 +26,10 @@ SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
 | Core UTC/LA, native, phone/pad UI, Release | Codex | 64/64 both zones, 39/39 native and 16/16 UI per device, unsigned Release passed; xcresults in verification doc |
 | Public CI | Codex | Serial ad-hoc simulator tests, time-zone parity, token checks and xcresult artifacts configured; remote run unverified |
 | Apple enrollment / paid agreements | User | Pending; user completes legal agreements and payment |
-| Signing and App Store Connect record | User + Codex | Team unset; no signed archive or upload yet |
-| Google public iOS client / consent / verification | User + Codex | Client ID, callback registration, verified project/domain pending |
-| Health allow/deny/revoke/empty/import | User + Codex | Physical signed-device tests pending; sleep read-only |
-| Apple/Google calendars | User + Codex | Live account matrix pending; fixtures do not establish live acceptance |
+| Signing and App Store Connect record | User + Codex | Team 72DC9RVDYJ configured; local development archive timed out at signing; distribution signing/ASC setup and upload remain unproven |
+| Direct Google OAuth | User + Codex | Deferred from beta; client/callback configuration must remain absent. Public-client eligibility is required before a future Google-enabled release |
+| Health read/write opt-ins, allow/deny/revoke/empty/import | User + Codex | Physical signed-device tests pending; imports read-only, export changes only Aurora-owned caffeine samples |
+| Apple-synced calendars | User + Codex | Live EventKit account matrix pending, including an OS-synced Google calendar where available; no direct Google sign-in |
 | Migration / storage recovery | Codex + User | Fixtures plus real prior-version device upgrade required |
 | VoiceOver / large text / Reduce Motion | Claude + User | Physical phone/pad acceptance pending |
 | Dictation / notifications / background refresh | User + Codex | Real-device allow/deny/interruption tests pending |
@@ -36,7 +44,7 @@ SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
   Save/Undo, duplicates, failed writes, snapshots/Refresh and expired proposals.
 - Models: available/unavailable, unsupported language/device, offline, cancelled,
   ambiguous/unsupported/invented requests; no model-supplied values or controls.
-- Calendar: Apple-only, Google-only, mirrored authority, readonly/revoked, pagination,
+- Calendar: selected Apple-synced calendars, read-only/revoked,
   recurrence occurrence scope, DST/timezones, stale versions, conflicts, ambiguous
   transport failure, outcome/reversal. Use dedicated test events; no attendee notices.
 - Storage: verified legacy import, version-1 conversation migration, corrupt/future
@@ -53,7 +61,8 @@ The user enrolls with Apple and completes agreements/payment/tax/banking. Then s
 the real Developer team for bundle `com.nmapaye.aurora`, validate HealthKit capability,
 archive for generic iOS hardware, validate in Organizer, and upload internally.
 
-For Google, register an iOS OAuth client for this bundle, enable Calendar API, use
+Direct Google is outside this beta. Do not configure it in beta artifacts.
+For a future Google-enabled release, register an iOS OAuth client for this bundle, enable Calendar API, use
 the reversed client callback scheme, and configure AuroraGoogleClientID and
 AuroraGoogleCallbackScheme in Info.plist plus that scheme in CFBundleURLTypes.
 These are public OAuth identifiers, not API keys or client secrets. Keep a separate
@@ -64,7 +73,7 @@ does not authorize changing personal events; test only explicitly approved fixtu
 ## Publication evidence
 
 Final tag/commit, test logs and xcresults, signed archive validation/privacy report,
-device checklist, Google production approval, methodology/claims review, real support
+device checklist, Apple-only scope verification, methodology/claims review, real support
 contact and working URLs, actual screenshots, age rating, export compliance, accurate
 privacy/accessibility answers, price/storefronts and reviewer instructions.
 No blocking data-loss, unauthorized-write, crash or accessibility defects may remain.

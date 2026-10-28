@@ -299,7 +299,7 @@ final class AuroraUITests: XCTestCase {
         // No score: the card leads with the missing record, not "Unavailable".
         let missing = app.descendants(matching: .any)["assistant-energy-missing"].firstMatch
         XCTAssertTrue(missing.waitForExistence(timeout: 5))
-        XCTAssertTrue(missing.label.contains("No sleep recorded in the last 24 hours."), missing.label)
+        XCTAssertTrue(missing.label.contains("No sleep of 3 hours or more in the last 18 hours."), missing.label)
         XCTAssertFalse(app.staticTexts["Unavailable"].exists)
         XCTAssertTrue(app.buttons["Record sleep"].exists)
     }
@@ -490,8 +490,13 @@ final class AuroraUITests: XCTestCase {
     func testCalendarNeverWritesWithoutPreviewApproval() {
         finishSetup()
         tapQuick("Review calendar")
-        XCTAssertTrue(app.buttons["Calendar connections"].waitForExistence(timeout: 5))
+        let connections = app.buttons["Calendar connections"]
+        XCTAssertTrue(connections.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["calendar-approve"].exists)
+        tapWhenReady(connections)
+        XCTAssertTrue(app.buttons["Connect Apple Calendar"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Connect Google directly"].exists)
+        XCTAssertFalse(app.buttons["Reconnect Google"].exists)
     }
     func testNoAPIKeyEntryInSettings() {
         finishSetup()
@@ -555,24 +560,74 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String) {
+    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
-        // iPad CI once sent only "R" for "Reminders": the keystrokes after the
-        // first were lost. Type once the field has focus, and retype until it
-        // holds the whole request, clearing any partial text first.
+        // As in enter(_:into:), the keyboard and bottom-area transition on
+        // iPad can move the field under the initial tap. Acquire focus with
+        // bounded fresh taps before typing; never retry typing or send a
+        // partial request. A visible keyboard may belong to another field.
         let focused = NSPredicate(format: "hasKeyboardFocus == true")
-        let complete = NSPredicate(format: "value == %@", text)
+        // Evaluate the same attribute in the native query. Resolving the
+        // field and then fetching it through KVC can consume an outer
+        // waiter's whole deadline and cancel the nested AX request.
+        let focusedInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(focused).element
+        // A focus tap can finish after the two-second focus wait. CI's iPad
+        // recording shows the caret and keyboard while AX briefly reports
+        // an infinite, empty frame for the entire window. Do not ask AX to
+        // hit-test that frame, or re-tap a field that already owns focus.
+        let readyForFocus = NSPredicate { _, _ in
+            if focusedInput.exists { return true }
+            // Resolve existence and geometry together. Separate `exists`
+            // and `frame` queries consumed the five-second readiness wait
+            // on CI before XCTest could even attempt a focus tap.
+            guard let snapshot = try? input.snapshot() else { return false }
+            let frame = snapshot.frame
+            guard frame.minX.isFinite, frame.minY.isFinite, !frame.isEmpty else { return false }
+            return input.isHittable
+        }
+        var ownsFocus = false
         for _ in 0..<3 {
-            input.tap()
-            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: input)], timeout: 3)
-            if let partial = input.value as? String, !partial.isEmpty, partial != text {
-                input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: partial.count))
+            guard input.waitForExistence(timeout: 5),
+                  XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 5) == .completed
+            else { break }
+            if focusedInput.exists {
+                ownsFocus = true
+                break
             }
-            input.typeText(text)
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: complete, object: input)], timeout: 2) == .completed { break }
+            input.tap()
+            if focusedInput.waitForExistence(timeout: 2) {
+                ownsFocus = true
+                break
+            }
+        }
+        guard ownsFocus else {
+            attachScreenshot("Composer focus failed")
+            XCTFail("Composer did not receive keyboard focus; not typing or sending. \(input.debugDescription)",
+                    file: file, line: line)
+            return
+        }
+        guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): keyboard never appeared; not typing or sending", file: file, line: line)
+            return
+        }
+        input.typeText(text)
+        // Never send a partial request. CI has lost keystrokes after typeText
+        // returned (field showed "R" for "Reminders", "Show t" for "Show this
+        // week"), and the app then answered the fragment. Fail here, naming
+        // what the field holds, instead of timing out later on a missing card.
+        let typed = NSPredicate(format: "value == %@", text)
+        // One native query checks identity and the entire value together;
+        // no partial-text match, retry typing, or longer deadline.
+        let exactInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(typed).element
+        guard exactInput.waitForExistence(timeout: 5) else {
+            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
+                    file: file, line: line)
+            return
         }
         // The keyboard can still be moving the composer when the tap lands.
-        // Sending clears the field, so a retry can never send twice.
+        // Sending clears the field, so a re-tap can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
         for _ in 0..<3 {
             app.buttons["assistant-send"].tap()
@@ -589,6 +644,30 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("History")
         XCTAssertTrue(app.textFields["assistant-history-search"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["No matching records in this snapshot."].waitForExistence(timeout: 5))
+    }
+    func testComposerQueryRejectsAnotherFieldsFocus() {
+        finishSetup(); tapQuick("Log caffeine")
+        let amount = app.textFields["assistant-dose-amount"]
+        enter("25", into: amount)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        XCTAssertTrue(focused.evaluate(with: amount), "The draft field must own the keyboard for this regression")
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let focusedComposer = composerFields.matching(focused).element
+        XCTAssertFalse(focusedComposer.exists, "Another field's focus must not authorize composer typing")
+    }
+    func testComposerQueryRejectsPartialText() {
+        finishSetup()
+        let composerFields = app.textFields.matching(identifier: "assistant-composer")
+        XCTAssertEqual(composerFields.count, 1)
+        let composer = composerFields.element
+        let focusedComposer = composerFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        tapWhenReady(composer)
+        XCTAssertTrue(focusedComposer.waitForExistence(timeout: 2))
+        composer.typeText("Remind")
+        XCTAssertTrue(composerFields.matching(NSPredicate(format: "value == %@", "Remind")).element.waitForExistence(timeout: 5))
+        XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
+                       "A partial request must never satisfy the complete-text guard")
     }
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
@@ -640,7 +719,25 @@ final class AuroraUITests: XCTestCase {
     // MARK: Polish regressions
 
     private func cardTitle(_ kind: String) -> XCUIElement {
-        app.descendants(matching: .any)["assistant-card-\(kind)"].firstMatch
+        // Headers are unique combined StaticTexts. `firstMatch` walks the
+        // hierarchy lazily for every attribute; retained CI diagnostics show
+        // the three-second waiter interrupting that walk before hit testing.
+        app.staticTexts["assistant-card-\(kind)"]
+    }
+
+    func testCardTitlesResolveAsUniqueReadableHeaders() {
+        finishSetup()
+        for (request, kind, label) in [
+            ("Show this week", "trends", "Recorded trends"),
+            ("Show my energy curve", "energyProjection", "Modeled alertness · 24 hours")
+        ] {
+            tapQuick(request)
+            let title = cardTitle(kind)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts.matching(identifier: "assistant-card-\(kind)").count, 1)
+            XCTAssertEqual(title.label, label)
+            XCTAssertEqual(title.elementType, .staticText)
+        }
     }
 
     /// The composer sits in the cards' column: its field starts where card
@@ -673,8 +770,25 @@ final class AuroraUITests: XCTestCase {
         tapQuick("Show my energy curve")
         let title = cardTitle("energyProjection")
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: title)
-        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 3), .completed)
+        // CI can briefly expose an infinite, empty AX frame while the reply
+        // settles. Asking that snapshot for a hit point aborts XCTest before
+        // the visibility timeout/diagnostics. Wait for geometry first; keep
+        // the same hittability requirement and three-second deadline.
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard let snapshot = try? title.snapshot() else { return false }
+            let frame = snapshot.frame
+            guard frame.minX.isFinite, frame.minY.isFinite,
+                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
+            return title.isHittable
+        }, object: title)
+        let result = XCTWaiter.wait(for: [shown], timeout: 3)
+        if result != .completed {
+            attachScreenshot("Long card title not hittable")
+            print("Long-card title: \(title.debugDescription)")
+            print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
+            print(app.debugDescription)
+        }
+        XCTAssertEqual(result, .completed)
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)

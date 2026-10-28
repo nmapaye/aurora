@@ -115,14 +115,17 @@ Set `VITE_AURORA_APP_STORE_URL`, `VITE_AURORA_GUMROAD_URL`, and
 
 ## App Store and TestFlight
 
-Aurora targets a paid App Store v0.1.0 release, with free TestFlight beta
+Aurora targets a paid App Store v0.1.0 release (US$4.99 upfront, no in-app
+purchases; App Privacy label "Data Not Collected"), with free TestFlight beta
 testing and an optional Gumroad companion guide. TestFlight access must not be
 sold, and a raw IPA must not be distributed as the product.
 
-See `docs/demo-release.md` for release checks and device smoke tests. Create
-releases with Product → Archive in Xcode, Validate App in Organizer, then
-Distribute App → App Store Connect. Increment the build number before every
-upload.
+See `docs/demo-release.md` for release checks and device smoke tests. Upload
+TestFlight builds with the Release (TestFlight) workflow: dispatch it manually
+from `main`, and it waits in the `release` environment until the owner
+approves. The environment holds the secrets `ASC_KEY_ID`, `ASC_ISSUER_ID` and
+`ASC_KEY_P8`; the workflow sets the build number. Setup is in
+`docs/xcode-development.md`.
 
 ## Icons
 

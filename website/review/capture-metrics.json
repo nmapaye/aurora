@@ -1,0 +1,32 @@
+[
+  {
+    "site": "after",
+    "scroll": 1425,
+    "width": 1440
+  },
+  {
+    "site": "after",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "site": "after",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "site": "before",
+    "scroll": 1425,
+    "width": 1440
+  },
+  {
+    "site": "before",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "site": "before",
+    "scroll": 375,
+    "width": 390
+  }
+]

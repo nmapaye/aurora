@@ -33,7 +33,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
                 #expect(snapshot.estimate.modeledScore == existing.score)
                 #expect(snapshot.estimate.timeZoneIdentifier == context.clock.timeZone.identifier)
                 let card = AssistantCards.make(.energy, state: s, now: t, clock: context.clock, text: text(context.clock))
-                #expect(card.metrics.first { $0.id == "alertness" }?.value == existing.score.map { "\($0)" } ?? "Unavailable")
+                #expect(card.metrics.first { $0.id == "alertness" }?.value == existing.score.map { "\($0)" } ?? "Needs sleep")
                 probes += 1
             }
         }
@@ -52,27 +52,28 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
             #expect(card.metrics.first { $0.id == "activeCaffeine" }?.value == "No record")
             let projection = AssistantCards.make(.energyProjection, state: AppState(), now: now, clock: clock, text: text(clock))
             #expect(projection.energy?.projection?.points.allSatisfy { $0.modeledScore == nil } == true)
-            #expect(projection.metrics.first?.value == "Unavailable")
+            #expect(projection.metrics.first?.value == "Needs sleep")
             // With no score the source names what's missing, never a scale.
             let alertness = try #require(card.metrics.first { $0.id == "alertness" })
-            #expect(alertness.source == "No sleep recorded in the last 24 hours.")
+            #expect(alertness.source == EnergyEstimate.missingSleepLine)
             #expect(projection.metrics.first?.source == alertness.source)
         }
     }
 
-    @Test func missingSleepNamesTheDayOfTheLastRecord() throws {
-        // Ended 2026-09-25 06:41 UTC: Friday in UTC, Thursday evening in Los Angeles.
+    /// The line names what the model needs, so an older night or a short
+    /// nap doesn't read as "no sleep recorded".
+    @Test func missingSleepNamesWhatTheModelNeeds() throws {
         let older = SleepSession(id: "manual:sleep:2:a", start: now - 60 * hourMs, end: now - 58 * hourMs)
+        let nap = SleepSession(id: "manual:sleep:3:a", start: now - 3 * hourMs, end: now - 2 * hourMs)
         for clock in [utc, pacific] {
-            let card = AssistantCards.make(.energy, state: state(sleeps: [older]), now: now, clock: clock, text: text(clock))
-            let alertness = try #require(card.metrics.first { $0.id == "alertness" })
-            #expect(alertness.value == "Unavailable" && alertness.missing)
-            #expect(alertness.source == "No sleep recorded since \(text(clock).weekdayDate(older.end)).")
-            #expect(CopyRules.violations(in: alertness.source).isEmpty)
+            for sleeps in [[older], [nap], []] {
+                let card = AssistantCards.make(.energy, state: state(sleeps: sleeps), now: now, clock: clock, text: text(clock))
+                let alertness = try #require(card.metrics.first { $0.id == "alertness" })
+                #expect(alertness.value == "Needs sleep" && alertness.missing)
+                #expect(alertness.source == EnergyEstimate.missingSleepLine)
+            }
         }
-        // A record that hasn't ended by capture isn't known yet.
-        let unfinished = SleepSession(id: "manual:sleep:3:a", start: now - hourMs, end: now + hourMs)
-        #expect(EnergyEstimate.missingSleepText(sleeps: [unfinished], at: now, text: text(utc)) == "No sleep recorded in the last 24 hours.")
+        #expect(CopyRules.violations(in: EnergyEstimate.missingSleepLine).isEmpty)
         let scored = AssistantCards.make(.energy, state: state(sleeps: [night]), now: now, clock: utc, text: text(utc))
         #expect(scored.metrics.first { $0.id == "alertness" }?.source == EnergyEstimate.scaleLabel)
     }
@@ -138,7 +139,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
             let projection = try #require(snapshot.projection)
             #expect(projection.current.modeledScore == snapshot.estimate.modeledScore, "\(name)")
             #expect(projection.current.includesSample == snapshot.estimate.includesSample, "\(name)")
-            #expect(projectionCard.metrics.first?.value == snapshot.estimate.modeledScore.map { "\($0)" } ?? "Unavailable", "\(name)")
+            #expect(projectionCard.metrics.first?.value == snapshot.estimate.modeledScore.map { "\($0)" } ?? "Needs sleep", "\(name)")
             // Parity with the baseline on the same eligible inputs.
             let baseline = Summary.estimateAlertness(at: now, doses: known.doses, sleeps: known.sleeps, inputs: EstimateInputs(prefs: s.prefs, clock: clock))
             #expect(snapshot.estimate.modeledScore == baseline.score, "\(name)")

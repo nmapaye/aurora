@@ -13,6 +13,152 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
 }
 
 @Suite struct EnergyEstimateTests {
+    @Test func noSleepNeedsSleep() {
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [], inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func napsUnderThreeHoursNeedSleep() {
+        let naps = [
+            SleepSession(id: "manual:sleep:nap:a", start: now - 8 * hourMs, end: now - 6 * hourMs, type: .nap),
+            SleepSession(id: "manual:sleep:nap:b", start: now - 4 * hourMs, end: now - 2 * hourMs, type: .nap),
+        ]
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: naps, inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func mainSleepOlderThanEighteenHoursNeedsSleep() {
+        let sleep = SleepSession(
+            id: "manual:sleep:old:a",
+            start: now - 26 * hourMs - 1,
+            end: now - 18 * hourMs - 1
+        )
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func exactlyThreeHoursCountsAsMainSleep() {
+        let sleep = SleepSession(id: "manual:sleep:boundary-duration:a", start: now - 5 * hourMs, end: now - 2 * hourMs)
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func mainSleepEndingExactlyEighteenHoursAgoStillScores() {
+        let sleep = SleepSession(id: "manual:sleep:boundary-recency:a", start: now - 21 * hourMs, end: now - 18 * hourMs)
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func recentMainSleepStillScores() {
+        let sleep = SleepSession(id: "manual:sleep:recent:a", start: now - 9 * hourMs, end: now - 2 * hourMs)
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func inProgressSleepOfFourHoursScores() {
+        let sleep = SleepSession(id: "manual:sleep:in-progress-main", start: now - 4 * hourMs, end: now + hourMs)
+
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: [sleep], inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func inProgressSleepDoesNotMergeIntoRecentCompletedMainSleep() {
+        let t = now
+        let nightEnd = t - hourMs
+        let sleeps = [
+            SleepSession(id: "manual:sleep:completed-night", start: nightEnd - 7 * hourMs, end: nightEnd),
+            SleepSession(id: "manual:sleep:in-progress", start: nightEnd + 20 * minuteMs, end: t + 2 * hourMs),
+        ]
+
+        #expect(Summary.estimateAlertness(at: t, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+        #expect(EnergyEstimate.capture(at: t, doses: [], sleeps: sleeps, inputs: inputs(utc)).modeledScore != nil)
+    }
+
+    @Test func touchingFragmentsCountAsOneMainSleep() {
+        let sleeps = [
+            SleepSession(id: "manual:sleep:fragment:a", start: now - 8 * hourMs, end: now - 6 * hourMs),
+            SleepSession(id: "manual:sleep:fragment:b", start: now - 6 * hourMs, end: now - 4 * hourMs),
+        ]
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+    }
+
+    @Test func briefAwakeningFragmentsCountAsRecentMainSleepInEstimateAndProjection() {
+        let gap = SleepIntervals.briefAwakeningMs - 1
+        let end = now - hourMs
+        let secondStart = end - 90 * minuteMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap < SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).score != nil)
+        #expect(EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)).modeledScore != nil)
+    }
+
+    @Test func longAwakeningFragmentsDoNotCountAsMainSleep() {
+        let gap = 45 * minuteMs
+        let end = now - hourMs
+        let secondStart = end - 2 * hourMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:long-fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:long-fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap > SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func briefAwakeningFragmentsOutsideEighteenHoursNeedSleep() {
+        let gap = SleepIntervals.briefAwakeningMs - 1
+        let end = now - 18 * hourMs - 1
+        let secondStart = end - 90 * minuteMs
+        let firstEnd = secondStart - gap
+        let sleeps = [
+            SleepSession(id: "healthkit:sleep:old-fragment:a", start: firstEnd - 2 * hourMs, end: firstEnd),
+            SleepSession(id: "healthkit:sleep:old-fragment:b", start: secondStart, end: end),
+        ]
+
+        #expect(gap < SleepIntervals.briefAwakeningMs)
+        #expect(Summary.estimateAlertness(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc)) == .needsSleep)
+    }
+
+    @Test func overlappingPhoneAndWatchSleepCountsOnceForEligibilityAndScore() {
+        let watch = SleepSession(id: "healthkit:sleep:watch", start: now - 9 * hourMs, end: now - 2 * hourMs)
+        let phone = SleepSession(id: "healthkit:sleep:phone", start: now - 9 * hourMs + minuteMs, end: now - 2 * hourMs + minuteMs)
+        let alone = Summary.estimateAlertness(at: now, doses: [], sleeps: [watch], inputs: inputs(utc))
+        let phoneAlone = Summary.estimateAlertness(at: now, doses: [], sleeps: [phone], inputs: inputs(utc))
+        let duplicate = Summary.estimateAlertness(at: now, doses: [], sleeps: [watch, phone], inputs: inputs(utc))
+        #expect(alone.score != nil)
+        #expect(phoneAlone.score == alone.score)
+        #expect(duplicate.score == alone.score)
+    }
+
+    @Test func needsSleepCopyIsAccessibleAcrossEnergyAndAssistantSurfaces() throws {
+        let text = Summary.describe(.needsSleep)
+        #expect(text.localizedCaseInsensitiveContains("unavailable"))
+        #expect(text.contains("at least 3 hours") && text.contains("18 hours"))
+        #expect(text.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+
+        let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: [], inputs: inputs(utc))
+        #expect(energy.modeledScore == nil)
+        #expect(energy.summary.localizedCaseInsensitiveContains("unavailable"))
+        #expect(energy.summary.localizedCaseInsensitiveContains("sleep"))
+        #expect(energy.summary.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+
+        for kind in [AssistantCard.Kind.energy, .briefing] {
+            let card = AssistantCards.make(kind, state: AppState(), now: now, clock: utc, text: .localized(locale: Locale(identifier: "en_US"), timeZone: utc.timeZone))
+            let metric = try #require(card.metrics.first { $0.id == "alertness" })
+            #expect(metric.label == "Modeled alertness")
+            #expect(metric.value == "Needs sleep")
+            #expect(metric.source == "Modeled")
+            #expect(metric.detail == energy.summary)
+            let accessibilityLabel = [metric.label, metric.value, metric.source, metric.detail].filter { !$0.isEmpty }.joined(separator: ". ")
+            #expect(accessibilityLabel.localizedCaseInsensitiveContains("needs sleep"))
+            #expect(accessibilityLabel.replacingOccurrences(of: "18", with: "").replacingOccurrences(of: "3", with: "").filter(\.isNumber).isEmpty)
+        }
+    }
+
     @Test func matchesTheExistingEstimateForEveryFixtureProbe() throws {
         var probes = 0
         for context in try ParityTests.contexts() {
@@ -61,7 +207,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         let sleeps = [SleepSession(id: "demo:sleep:1", start: now - 9 * hourMs, end: now - 2 * hourMs)]
         let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(pacific))
         #expect(energy.version == EnergyEstimate.currentVersion)
-        #expect(energy.modelVersion == "alertness-1")
+        #expect(energy.modelVersion == "alertness-1-main-sleep-3h-18h")
         #expect(energy.capturedAt == now && energy.timeZoneIdentifier == "America/Los_Angeles")
         #expect(energy.includesSample)
         #expect(energy.missingInputs == [.caffeine])
@@ -69,6 +215,23 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(energy.evidence.sleep.map(\.source) == [.sample])
         let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: JSONEncoder().encode(energy))
         #expect(decoded == energy)
+    }
+
+    @Test func legacyModelSnapshotKeepsItsVersionAndScoreAfterRefresh() throws {
+        let sleeps = [SleepSession(id: "manual:sleep:legacy", start: now - 9 * hourMs, end: now - 2 * hourMs)]
+        var legacy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        legacy.modelVersion = "alertness-1"
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let stored = try encoder.encode(legacy)
+        let decoded = try JSONDecoder().decode(EnergyEstimate.self, from: stored)
+        let refreshed = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        #expect(decoded == legacy)
+        #expect(decoded.modeledScore == refreshed.modeledScore)
+        #expect(decoded.modelVersion != refreshed.modelVersion)
+        let projection = EnergyProjection.build(now: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
+        #expect(projection.modelVersion == refreshed.modelVersion)
+        #expect(try encoder.encode(decoded) == stored)
     }
 
     @Test func timeOfDayFollowsTheLocalClockAcrossFallBack() {
@@ -148,7 +311,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
 
     @Test func sleepEvidenceNamesTheWindowAndTheLatestEpisode() throws {
         let sleeps = [
-            SleepSession(id: "healthkit:sleep:1:2", start: now - 3 * hourMs, end: now - 2 * hourMs),
+            SleepSession(id: "healthkit:sleep:1:2", start: now - 5 * hourMs, end: now - 2 * hourMs),
             SleepSession(id: "manual:sleep:2:b", start: now - 2 * hourMs + 10 * minuteMs, end: now - 30 * minuteMs),
             SleepSession(id: "demo:sleep:old", start: now - 30 * hourMs, end: now - 23 * hourMs),
             SleepSession(id: "demo:sleep:older", start: now - 50 * hourMs, end: now - 45 * hourMs),
@@ -156,7 +319,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
         #expect(energy.evidence.sleep.map(\.recordID) == ["demo:sleep:old", "healthkit:sleep:1:2", "manual:sleep:2:b"])
         #expect(energy.evidence.sleep.map(\.source) == [.sample, .health, .manual])
-        #expect(energy.evidence.sleep.map(\.hoursInWindow) == [1, 1, 80.0 / 60])
+        #expect(energy.evidence.sleep.map(\.hoursInWindow) == [1, 3, 80.0 / 60])
         #expect(energy.evidence.sleep.map(\.inLatestEpisode) == [false, true, true])
         #expect(energy.evidence.lastWakeAt == now - 30 * minuteMs)
         #expect(try #require(energy.contributions.last).term > 0)

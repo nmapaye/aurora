@@ -1,0 +1,210 @@
+/* Website brand only. Native Aurora palette and wave artwork are unchanged. */
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("./fonts/space-grotesk-latin.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("./fonts/barlow-condensed-extra-bold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  color-scheme: light;
+  --ink: #101010;
+  --paper: #f7f5ee;
+  --white: #fff;
+  --yellow: #ffeb09;
+  --muted: #55514a;
+  --font-body: "Space Grotesk", Arial, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --rule: 2px solid var(--ink);
+  --gutter: clamp(20px, 4vw, 64px);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  color: var(--ink);
+  background: var(--paper);
+  font-weight: 400;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  scrollbar-color: var(--ink) var(--paper);
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+p,
+h1,
+h2,
+h3,
+figure {
+  margin: 0;
+}
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+img {
+  max-width: 100%;
+  display: block;
+}
+button,
+input {
+  font: inherit;
+  accent-color: var(--ink);
+  caret-color: var(--ink);
+}
+button {
+  cursor: pointer;
+}
+::selection {
+  background: var(--ink);
+  color: var(--yellow);
+}
+:focus-visible {
+  outline: 3px solid #1e6b64;
+  outline-offset: 5px;
+}
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 12px 20px;
+  border: var(--rule);
+  background: var(--yellow);
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  white-space: nowrap;
+}
+.skip-link:focus {
+  clip-path: none;
+  width: auto;
+  height: auto;
+  padding: 12px 20px;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: var(--rule);
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  transition:
+    background 160ms ease-out,
+    color 160ms ease-out;
+}
+.button-primary {
+  background: var(--ink);
+  color: var(--white);
+}
+.button-secondary {
+  background: transparent;
+  color: var(--ink);
+}
+.button:hover {
+  background: var(--white);
+  color: var(--ink);
+}
+.button-secondary:hover {
+  background: var(--ink);
+  color: var(--white);
+}
+.button:active {
+  opacity: 0.75;
+}
+.arrow {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.arrow-down {
+  transform: rotate(90deg);
+}
+.full-width {
+  width: 100%;
+}
+.policy-shell {
+  max-width: 860px;
+  margin: auto;
+  padding: 48px var(--gutter) 80px;
+}
+.policy-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: var(--rule);
+  padding-bottom: 24px;
+  margin-bottom: 48px;
+  font-weight: 700;
+}
+.policy-shell h1 {
+  font-size: clamp(3rem, 8vw, 5rem);
+  margin-bottom: 24px;
+}
+.policy-shell h2 {
+  font-size: 32px;
+  margin: 40px 0 16px;
+}
+.policy-shell p,
+.policy-shell li {
+  font-size: 16px;
+  line-height: 1.75;
+  max-width: 70ch;
+}
+.policy-shell p + p {
+  margin-top: 20px;
+}
+.policy-shell a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+}
+.policy-shell nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.policy-shell .back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  margin-top: 40px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

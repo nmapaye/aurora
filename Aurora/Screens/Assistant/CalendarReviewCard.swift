@@ -271,7 +271,7 @@ struct CalendarConnectionsView: View {
         NavigationStack {
             Form {
                 Section("Apple Calendar") {
-                    Text("Includes Google calendars synced to Apple Calendar.").font(.footnote)
+                    Text("Aurora reads the calendars you select on this device, and moves an event only after you approve its preview. Google calendars synced to Apple can also be selected here.").font(.footnote)
                     Button("Connect Apple Calendar") {
                         Task { await perform { try await service.apple.connect() } }
                     }.disabled(busy)
@@ -282,16 +282,22 @@ struct CalendarConnectionsView: View {
                             Task { await perform { try await service.google.connect() } }
                         }.disabled(busy)
                         if service.google.connected { Button("Disconnect Google", role: .destructive) {
-                            service.google.disconnect()
-                            service.selected = Set(service.selected.filter { !$0.hasPrefix("google:") })
-                            Task { await service.refreshCalendars(); await service.refresh() }
-                        } }
+                            Task { await perform {
+                                try service.google.disconnect()
+                                service.selected = Set(service.selected.filter { !$0.hasPrefix("google:") })
+                                await service.refreshCalendars(); await service.refresh()
+                            } }
+                        }.disabled(busy) }
                     } else {
-                        Text("Google sign-in isn’t available in this build. Choose a Google calendar synced through Apple Calendar above.").font(.footnote)
+                        Text("This beta uses Apple Calendar. To include a Google calendar, sync it with Apple Calendar in device settings, then select it here. Direct Google sign-in is not included.").font(.footnote)
                     }
                 }
                 Section("Include calendars") {
-                    if service.google.connected { Text("Select one copy of a calendar that appears twice.").font(.footnote) }
+                    if service.google.connected {
+                        Text("If the same Google calendar appears through both connections, select its authoritative connection below. Do not select both copies.").font(.footnote)
+                    } else {
+                        Text("Select the calendars you want Aurora to include.").font(.footnote)
+                    }
                     ForEach(service.calendars, id: \.selfID) { calendar in
                         Toggle(isOn: Binding(get: { service.selected.contains(service.key(calendar)) }, set: { value in
                             if value != service.selected.contains(service.key(calendar)) { service.toggle(calendar) }

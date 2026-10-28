@@ -14,6 +14,12 @@ on:
       - 'website/**'
       - '.github/workflows/website-demo.yml'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified main website to GitHub Pages
+        required: false
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -27,6 +33,7 @@ concurrency:
 
 jobs:
   build:
+    name: Website build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -61,7 +68,7 @@ jobs:
           path: website/dist
 
   deploy:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10

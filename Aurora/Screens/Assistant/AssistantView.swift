@@ -39,13 +39,11 @@ struct AssistantView: View {
         /// Aurora revealing a long card's start doesn't move them away from
         /// the latest message.
         var userScrolling = false {
-            didSet { if userScrolling { awaitingReply = false; shownStart = nil } }
+            didSet { if userScrolling { awaitingReply = false } }
         }
-        /// The reply Aurora just showed, and when. If the bottom area grows
-        /// right after (the keyboard going down brings the quick actions
-        /// back), its start stays in view instead of the page being pulled
-        /// to the end past it. Cleared when the person scrolls.
-        var shownStart: (id: UUID, at: Date)?
+        /// What a taller bottom area keeps in view (`ConversationFollow`).
+        var follow = ConversationFollow()
+        var revealTask: Task<Void, Never>?
     }
     @State private var viewportHeight: CGFloat = 0
     /// Where the visible part of the conversation ends, in its own
@@ -84,6 +82,7 @@ struct AssistantView: View {
                         Color.clear.frame(height: 1).id("bottom")
                             .trackingVisibility(onScreen) { visible in
                                 visibility.end = visible; visibility.endOnScreen = visible
+                                if visible { visibility.follow.stopFollowing() }
                                 if visible && heldMessage != nil { heldMessage = nil }
                             }
                             .onDisappear { visibility.end = false; visibility.endOnScreen = false }
@@ -106,20 +105,41 @@ struct AssistantView: View {
                 // the lazy stack's estimated heights, kept the conversation
                 // re-laying out so the main thread never went idle.
                 .onAppear { if !ConversationReveal.opensAtWelcome(assistant.conversation.messages) { proxy.scrollTo("bottom", anchor: .bottom) } }
+                .onDisappear { visibility.revealTask?.cancel() }
                 .coordinateSpace(.named(Self.viewport))
-                .trackingConversationEnd(visibility, conversationEndChanged)
+                .trackingConversationEnd(visibility, layoutChanged: { old, new in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterLayoutChanged(
+                            from: old, to: new, latestMessage: assistant.conversation.messages.last?.id,
+                            holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
+                }, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
                 .overlay { ConversationErase(progress: erased, reduceMotion: reduceMotion) }
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)
-                // A taller bottom area would otherwise cover the end the person
-                // was reading; keep the end above it. Only when the end really
-                // is on screen, never past a reply's start.
+                // A taller bottom area would otherwise cover what the person
+                // was reading: the end, only when it really is on screen, or
+                // the start of the reply just revealed.
                 .onChange(of: composerHeight) { old, new in
-                    composerGrew(from: old, to: new, proxy)
+                    switch visibility.follow.afterBottomAreaGrew(from: old, to: new, atEnd: visibility.endOnScreen, holding: heldMessage != nil) {
+                    case .start(let id): reveal(proxy, id, anchor: .top)
+                    case .end: reveal(proxy, "bottom", anchor: .bottom)
+                    case .none, .hold, .top: break
+                    }
                 }
-                .onChange(of: keyboardOverlap) { old, new in if new < old { keyboardLowered(proxy) } }
+                // Dismissing the keyboard can shift a revealed title under
+                // the bar without changing the composer's measured height.
+                // Wait for UIKit's completion rather than guessing a delay.
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                    guard !visibility.userScrolling,
+                          case .start(let id) = visibility.follow.afterKeyboardDismissed(
+                            latestMessage: assistant.conversation.messages.last?.id, holding: heldMessage != nil)
+                    else { return }
+                    reveal(proxy, id, anchor: .top)
+                }
                 .onChange(of: assistant.conversation.messages.count) { old, _ in messagesChanged(from: old, proxy) }
             }
             .background(Palette.screen)
@@ -172,32 +192,6 @@ struct AssistantView: View {
         .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: sheetClosed))
     }
 
-    /// The bottom area grew. Keep the end above it, but only when the end
-    /// really is on screen, and never past the start of a reply that has
-    /// only just been shown: scrolling to its top is clamped at the end, so
-    /// a reply that fits still ends up fully above the taller area.
-    private func composerGrew(from old: CGFloat, to new: CGFloat, _ proxy: ScrollViewProxy) {
-        guard new > old && visibility.endOnScreen && heldMessage == nil else { return }
-        if let start = visibility.shownStart, Date.now.timeIntervalSince(start.at) < 2,
-           assistant.conversation.messages.last?.id == start.id {
-            reveal(proxy, start.id, anchor: .top)
-        } else {
-            reveal(proxy, "bottom", anchor: .bottom)
-        }
-    }
-
-    /// The keyboard went down, as it does when a draft arrives. On CI the
-    /// page settled about 20 pt past a draft shown from its title, under the
-    /// bar; once the keyboard has finished moving, show that start again.
-    private func keyboardLowered(_ proxy: ScrollViewProxy) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(350))
-            guard heldMessage == nil, let start = visibility.shownStart, Date.now.timeIntervalSince(start.at) < 3,
-                  assistant.conversation.messages.last?.id == start.id else { return }
-            withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(start.id, anchor: .top) }
-        }
-    }
-
     /// A message was added or removed: reveal it, or hold it below while
     /// earlier messages are being read.
     private func messagesChanged(from old: Int, _ proxy: ScrollViewProxy) {
@@ -206,8 +200,9 @@ struct AssistantView: View {
         let readingLatest = visibility.end || visibility.nearEnd || (previous?.isUser == true && visibility.awaitingReply)
             || previous.map { visibility.messages.contains($0.id) } == true
         windowStart = ConversationWindow.start(windowStart, count: messages.count, previousCount: old)
-        let reveal = ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest)
-        switch reveal {
+        let next = ConversationReveal.after(messages, previousCount: old, readingLatest: readingLatest)
+        visibility.follow.revealed(next)
+        switch next {
         case .none:
             if messages.isEmpty { heldMessage = nil }
         case .end:
@@ -215,24 +210,21 @@ struct AssistantView: View {
             // the plain stack doesn't grow without bound.
             heldMessage = nil; windowStart = nil
             visibility.awaitingReply = old > 0
-            // A reply that fits now may not once the bottom area grows.
-            visibility.shownStart = messages.last.flatMap { $0.isUser ? nil : (id: $0.id, at: Date.now) }
             self.reveal(proxy, "bottom", anchor: .bottom)
         case .top:
-            heldMessage = nil; visibility.shownStart = nil
+            heldMessage = nil
             Task { @MainActor in proxy.scrollTo(Self.top, anchor: .top) }
         case .start(let id):
-            heldMessage = nil; visibility.awaitingReply = false; visibility.shownStart = (id: id, at: Date.now)
+            heldMessage = nil; visibility.awaitingReply = false
             self.reveal(proxy, id, anchor: .top)
         case .hold(let id):
             // Keep the earliest unseen message; reading resumes there. The
             // capsule and its announcement wait for its measured position.
             if heldMessage == nil { heldMessage = id; heldBelow = false }
-            visibility.shownStart = nil
         }
         // A held reply is announced by its capsule instead.
         var held = false
-        if case .hold = reveal { held = true }
+        if case .hold = next { held = true }
         if old > 0, messages.count > old { repliesArrived(messages[old...], announce: !held) }
     }
 
@@ -419,7 +411,10 @@ struct AssistantView: View {
     /// Runs after this update, so a message added in it has been laid out.
     /// Short and interruptible; instant under Reduce Motion.
     private func reveal<ID: Hashable>(_ proxy: ScrollViewProxy, _ id: ID, anchor: UnitPoint) {
-        Task { @MainActor in
+        visibility.revealTask?.cancel()
+        visibility.revealTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
             withAnimation(Motion.content(reduceMotion: reduceMotion)) { proxy.scrollTo(id, anchor: anchor) }
         }
     }
@@ -680,18 +675,28 @@ private extension View {
     /// screen of it (still reading the latest message), and where the
     /// visible area ends above the bottom inset.
     @ViewBuilder
-    func trackingConversationEnd(_ visibility: AssistantView.Visibility, _ action: @escaping (ConversationEnd) -> Void) -> some View {
+    func trackingConversationEnd(_ visibility: AssistantView.Visibility,
+                                 layoutChanged: @escaping (ConversationLayout, ConversationLayout) -> Void,
+                                 _ action: @escaping (ConversationEnd) -> Void) -> some View {
         if #available(iOS 18, *) {
             onScrollPhaseChange { _, phase in
                 visibility.userScrolling = phase == .interacting || phase == .decelerating
+                if visibility.userScrolling {
+                    visibility.follow.stopFollowing()
+                    visibility.revealTask?.cancel()
+                }
             }
             .onScrollGeometryChange(for: ConversationEnd.self) { geometry in
                 let maxOffset = geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom - geometry.containerSize.height
                 let gap = max(0, maxOffset - geometry.contentOffset.y - geometry.contentInsets.top)
                 return ConversationEnd(end: gap <= 24, nearEnd: gap < geometry.containerSize.height * 0.75,
-                                       visibleBottom: geometry.containerSize.height - geometry.contentInsets.bottom)
-            } action: { _, now in
+                                       visibleBottom: geometry.containerSize.height - geometry.contentInsets.bottom,
+                                       layout: ConversationLayout(container: geometry.containerSize,
+                                           contentHeight: geometry.contentSize.height, topInset: geometry.contentInsets.top,
+                                           bottomInset: geometry.contentInsets.bottom))
+            } action: { old, now in
                 action(now)
+                layoutChanged(old.layout, now.layout)
             }
         } else {
             self
@@ -704,6 +709,7 @@ private struct ConversationEnd: Equatable {
     var nearEnd: Bool
     /// The visible area's bottom edge in the scroll view's own space.
     var visibleBottom: CGFloat
+    var layout: ConversationLayout
 }
 
 /// The conversation's sheets. A modifier of its own: chained on the body

@@ -42,8 +42,10 @@ and an optional Gumroad companion guide.
 
 `Aurora.xcodeproj` uses folder-synchronized groups. New files under
 `Aurora/`, `AuroraTests/` or `AuroraUITests/` join their target without
-project edits. `Info.plist` and `Aurora.entitlements` are excluded from the
-app's resources in the project file.
+project edits. `Info.plist`, `Info-Simulator.plist` and `Aurora.entitlements` are
+excluded from the app's resources in the project file. Simulator builds use
+`Info-Simulator.plist` (`INFOPLIST_FILE[sdk=iphonesimulator*]`), which adds
+only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
 
 ## Rules that must hold
 
