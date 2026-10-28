@@ -498,9 +498,12 @@ final class AuroraUITests: XCTestCase {
         // an infinite, empty frame for the entire window. Do not ask AX to
         // hit-test that frame, or re-tap a field that already owns focus.
         let readyForFocus = NSPredicate { _, _ in
-            guard input.exists else { return false }
             if focused.evaluate(with: input) { return true }
-            let frame = input.frame
+            // Resolve existence and geometry together. Separate `exists`
+            // and `frame` queries consumed the five-second readiness wait
+            // on CI before XCTest could even attempt a focus tap.
+            guard let snapshot = try? input.snapshot() else { return false }
+            let frame = snapshot.frame
             guard frame.minX.isFinite, frame.minY.isFinite, !frame.isEmpty else { return false }
             return input.isHittable
         }
@@ -592,7 +595,25 @@ final class AuroraUITests: XCTestCase {
     // MARK: Polish regressions
 
     private func cardTitle(_ kind: String) -> XCUIElement {
-        app.descendants(matching: .any)["assistant-card-\(kind)"].firstMatch
+        // Headers are unique combined StaticTexts. `firstMatch` walks the
+        // hierarchy lazily for every attribute; retained CI diagnostics show
+        // the three-second waiter interrupting that walk before hit testing.
+        app.staticTexts["assistant-card-\(kind)"]
+    }
+
+    func testCardTitlesResolveAsUniqueReadableHeaders() {
+        finishSetup()
+        for (request, kind, label) in [
+            ("Show this week", "trends", "Recorded trends"),
+            ("Show my energy curve", "energyProjection", "Modeled alertness · 24 hours")
+        ] {
+            tapQuick(request)
+            let title = cardTitle(kind)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts.matching(identifier: "assistant-card-\(kind)").count, 1)
+            XCTAssertEqual(title.label, label)
+            XCTAssertEqual(title.elementType, .staticText)
+        }
     }
 
     /// The composer sits in the cards' column: its field starts where card
@@ -630,8 +651,8 @@ final class AuroraUITests: XCTestCase {
         // the visibility timeout/diagnostics. Wait for geometry first; keep
         // the same hittability requirement and three-second deadline.
         let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard title.exists else { return false }
-            let frame = title.frame
+            guard let snapshot = try? title.snapshot() else { return false }
+            let frame = snapshot.frame
             guard frame.minX.isFinite, frame.minY.isFinite,
                   frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
             return title.isHittable
