@@ -56,7 +56,7 @@ public enum AssistantPlanner {
     energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means rating how energetic the user feels right now.
     cutoffScenario means exploring a what-if caffeine scenario for a bedtime and threshold the user enters; it never recommends an amount, time or bedtime.
     logCaffeine means recording a drink already consumed. Questions about amounts to drink are unsupported.
-    reactionTest means taking the 30-second reaction speed test, including requests to measure reaction speed.
+    reactionTest means taking the \(Vigilance.durationAdjective) reaction speed test, including requests to measure reaction speed.
     history means viewing previous recorded entries; settings means opening app preferences.
     logSleep means recording sleep. Do not prescribe doses, bedtimes, or wake times.
     briefing means an overview of today. reminders means managing user-selected reminder settings. exports means exporting recorded data. explainEnergy includes tiredness. weeklyTrends means viewing recorded trends.

@@ -270,7 +270,7 @@ public enum SummarySignals {
         guard let latest else {
             return SignalCardModel(
                 id: "reaction-test", label: "Reaction Test", period: "No test yet", status: .empty,
-                context: "A 30-second test of reaction speed.", destination: "Take Reaction Test"
+                context: "A \(Vigilance.durationAdjective) test of reaction speed.", destination: "Take Reaction Test"
             )
         }
         let sample = RecordID.isSample(latest.id)

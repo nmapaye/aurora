@@ -337,15 +337,15 @@ struct VigilanceProtocolTests {
         // Only old tests: the latest is labeled and its own version makes the baseline.
         let old = Insights.reactionSignal(sessions: earlier, now: now, clock: utc, text: fixtureText)
         #expect(old.baseline == .established && old.recentTests == 4)
-        #expect(old.signal.context.hasPrefix("Earlier 60-second test · Steady · 280 ms median · Baseline") == true)
+        #expect(old.signal.context.hasPrefix("Earlier 60-second test · 280 ms median · Baseline") == true)
         // One new test starts a new baseline; the earlier tests don't count toward it.
         let current = session("new", completedAt: now - 1_000, score: 82, protocolVersion: 2)
         let mixed = Insights.reactionSignal(sessions: earlier + [current], now: now, clock: utc, text: fixtureText)
         #expect(mixed.baseline == .building && mixed.recentTests == 1)
         #expect(mixed.signal.value == "82")
-        #expect(mixed.signal.context == "Sharp · 280 ms median · 1 of 3 tests toward a baseline (last 30 days)")
+        #expect(mixed.signal.context == "280 ms median · 1 of 3 tests toward a baseline (last 30 days)")
         let summary = SummarySignals.reactionTest(sessions: earlier, now: now, clock: utc, text: fixtureText)
-        #expect(summary.context == "Earlier 60-second test · Steady · 280 ms median")
+        #expect(summary.context == "Earlier 60-second test · 280 ms median")
     }
 
     @Test func trendsPlotOnlyTheLatestVersion() {
@@ -357,10 +357,10 @@ struct VigilanceProtocolTests {
         let card = AssistantCards.make(.trends, state: state, now: now, clock: utc, text: fixtureText)
         let points = card.series.first { $0.metric == "Reaction" && $0.days == 7 }?.points ?? []
         #expect(points.compactMap(\.value) == [82])
-        #expect(points.contains { $0.value == nil && $0.detail == "Earlier 60-second test · 64 · Steady" })
+        #expect(points.contains { $0.value == nil && $0.detail == "Earlier 60-second test · 64 · 280 ms median" })
         let history = AssistantCards.make(.history, state: state, now: now, clock: utc, text: fixtureText)
-        #expect(history.records.first { $0.id == "old" }?.detail == "Earlier 60-second test · 64 · Steady")
-        #expect(history.records.first { $0.id == "new" }?.detail == "82 · Sharp")
+        #expect(history.records.first { $0.id == "old" }?.detail == "Earlier 60-second test · 64 · 280 ms median")
+        #expect(history.records.first { $0.id == "new" }?.detail == "82 · 280 ms median")
         let snapshot = EnergySnapshot.capture(state: state, now: now, clock: utc, includeProjection: false)
         #expect(snapshot.reactions.map(\.title) == ["Reaction Test"])
     }

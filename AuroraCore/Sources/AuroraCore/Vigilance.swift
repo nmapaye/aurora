@@ -1,5 +1,7 @@
 import Foundation
 
+/// Stored with each session so older files keep decoding. Never shown: the
+/// words read as a verdict, so results show `VigilanceSession.displayLabel`.
 public enum VigilanceRating: String, Codable, Sendable, CaseIterable {
     case sharp = "Sharp"
     case steady = "Steady"
@@ -187,6 +189,16 @@ public struct VigilanceSession: Codable, Equatable, Hashable, Identifiable, Send
         }
         return session
     }
+
+    /// What a result shows in place of a rating word: the median, or that no
+    /// tap counted.
+    public var displayLabel: String {
+        medianReactionMs.map { "\(jsRoundInt($0)) ms median" } ?? "No valid taps recorded"
+    }
+
+    public var accessibilityLabel: String {
+        medianReactionMs.map { "Median reaction time \(jsRoundInt($0)) milliseconds." } ?? "No valid taps were recorded in this test."
+    }
 }
 
 /// The protocol-1 trial outcome, kept to rebuild the earlier test's scores.
@@ -275,7 +287,7 @@ public struct VigilanceTaskState: Equatable, Sendable {
     public var cueVisible: Bool { phase == .running && cueShownAt != nil }
 }
 
-/// The 30-second Reaction Test (protocol 2) as a pure state machine.
+/// The Reaction Test (protocol 2) as a pure state machine.
 ///
 /// The screen owns the clock and calls `advance` every display frame with
 /// the frame's presentation time, and `tap` with each touch-down's hardware
@@ -296,12 +308,16 @@ public struct VigilanceTaskState: Equatable, Sendable {
 ///   neither a false start nor a second lapse. It doesn't restart the wait.
 /// - A touch inside a cue's window that is processed after the frame clock
 ///   already closed the window still counts as that cue's response.
-/// - A cue on screen at 30 s keeps its full response window.
+/// - A cue on screen at the end of the test keeps its full response window.
 public enum Vigilance {
     /// The current test. Bump it whenever timing, thresholds or scoring
     /// change in a way that makes scores incomparable.
     public static let protocolVersion = 2
     public static let testDurationMs: Millis = 30_000
+    public static let testDurationSeconds = Int(testDurationMs / 1000)
+    /// Copy interpolates these instead of restating the length.
+    public static let durationAdjective = "\(testDurationSeconds)-second"
+    public static let durationPhrase = "\(testDurationSeconds) seconds"
     public static let minDelayMs: Millis = 1_000
     public static let maxDelayMs: Millis = 4_000
     public static let responseWindowMs: Millis = 1_000

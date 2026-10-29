@@ -230,7 +230,7 @@ public enum Insights {
             return ReactionInsight(
                 signal: SignalCardModel(
                     id: id, label: label, period: "No test yet", status: .empty,
-                    context: "A 30-second test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
+                    context: "A \(Vigilance.durationAdjective) test of reaction speed. A personal baseline appears after \(reactionBaselineTests) tests.",
                     destination: destination
                 ),
                 baseline: .none,
@@ -271,11 +271,10 @@ public enum Insights {
         )
     }
 
-    /// "Steady · 286 ms median", led by the version label for a session
+    /// "286 ms median", led by the version label for a session
     /// from another version of the test.
     public static func reactionDetail(_ session: VigilanceSession) -> String {
-        let rating = session.medianReactionMs.map { "\(session.rating.rawValue) · \(jsRoundInt($0)) ms median" } ?? session.rating.rawValue
-        return [session.protocolLabel, rating].compactMap { $0 }.joined(separator: " · ")
+        [session.protocolLabel, session.displayLabel].compactMap { $0 }.joined(separator: " · ")
     }
 
     public static func describeChartDay(_ point: InsightsChartPoint, text: DateText) -> (title: String, value: String, text: String) {

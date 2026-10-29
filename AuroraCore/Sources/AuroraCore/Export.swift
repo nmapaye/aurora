@@ -123,12 +123,13 @@ public enum Export {
 
     /// One row per Reaction Test. `protocol` is the test's version: 1 is the
     /// earlier 60-second test, 2 the 30-second test. Scores from different
-    /// versions aren't comparable.
+    /// versions aren't comparable. No rating column: results show no rating
+    /// word, so exports don't carry one. The raw milliseconds stay.
     public static func vigilanceSessionsCSV(_ sessions: [VigilanceSession]) -> String {
         let header = [
             "id", "started_at", "completed_at", "duration_ms", "trial_count", "valid_reaction_count",
             "false_start_count", "lapse_count", "median_reaction_ms", "mean_reaction_ms",
-            "fastest_reaction_ms", "reaction_std_dev_ms", "score", "rating", "data_source", "protocol",
+            "fastest_reaction_ms", "reaction_std_dev_ms", "score", "data_source", "protocol",
         ].joined(separator: ",")
         let lines = sessions.map { session in
             row([
@@ -145,7 +146,6 @@ public enum Export {
                 session.fastestReactionMs.map(numberText) ?? "",
                 session.reactionStdDevMs.map(numberText) ?? "",
                 "\(session.score)",
-                session.rating.rawValue,
                 RecordID.isSample(session.id) ? "Sample Data" : "Recorded",
                 "\(session.protocolVersion)",
             ])

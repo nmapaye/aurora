@@ -11,7 +11,7 @@ struct WakeReminderEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sm) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 200 : 104), spacing: Metrics.xs)], spacing: Metrics.xs) {
-                ForEach(WakeReminders.presetOffsets, id: \.self) { offset in
+                ForEach(WakeReminders.editorOffsets(saved: (model.state.prefs.wakeReminders?.offsetsMinutes ?? []) + draft.offsetsMinutes), id: \.self) { offset in
                     chip(offset)
                 }
             }

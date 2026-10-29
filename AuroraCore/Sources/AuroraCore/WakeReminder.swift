@@ -39,7 +39,14 @@ public enum WakeReminders {
     /// reached Aurora late, still fires right away instead of being dropped.
     public static let lateGraceMs: Millis = 30 * minuteMs
     /// Offsets offered as one-tap choices.
-    public static let presetOffsets = [30, 60, 90, 120, 180, 240, 300, 360]
+    public static let presetOffsets = [30, 60, 120, 180, 240, 300, 360]
+
+    /// The chips the editor shows: the presets plus any saved offset that
+    /// isn't one (such as 90 from an older build), so it can still be seen
+    /// and turned off.
+    public static func editorOffsets(saved: [Int]) -> [Int] {
+        Array(Set(presetOffsets + saved.filter { offsetRange.contains($0) })).sorted()
+    }
 
     public enum Basis: Equatable, Sendable {
         case recordedWake(Millis)

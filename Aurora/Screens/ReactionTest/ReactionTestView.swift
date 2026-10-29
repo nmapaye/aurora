@@ -98,7 +98,7 @@ struct ReactionTestView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Palette.textPrimary)
                 .accessibilityAddTraits(.isHeader)
-            Text("Wait for the cue, then tap anywhere on the screen as quickly as you can. It takes 30 seconds.")
+            Text("Wait for the cue, then tap anywhere on the screen as quickly as you can. It takes \(Vigilance.durationPhrase).")
                 .foregroundStyle(Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             // Only with a keyboard connected (read when the screen is drawn).
@@ -109,7 +109,7 @@ struct ReactionTestView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if interrupted {
-                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for 30 seconds.")
+                Text("Test interrupted when the app became inactive. This run was not saved. Start a new test when you can stay in the app for \(Vigilance.durationPhrase).")
                     .foregroundStyle(Palette.textPrimary)
                     .onAppear {
                         UIAccessibility.post(notification: .announcement, argument: "Test interrupted. This run was not saved.")
@@ -286,7 +286,8 @@ private struct ReactionResults: View {
             Text("\(session.score)")
                 .font(.system(size: scoreSize, weight: .bold).monospacedDigit())
                 .foregroundStyle(Palette.textPrimary)
-            Text(session.rating.rawValue).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
+            Text(session.displayLabel).font(.title3.bold()).foregroundStyle(Palette.textPrimary)
+                .accessibilityLabel(session.accessibilityLabel)
             VStack(spacing: 2) {
                 Text("Median reaction: \(reaction(session.medianReactionMs))")
                 Text("Fastest reaction: \(reaction(session.fastestReactionMs))")
