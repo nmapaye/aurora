@@ -13,7 +13,13 @@ final class AuroraUITests: XCTestCase {
     private func finishSetup() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
         tapWhenReady(app.buttons["setup-skip-all"])
-        tapWhenReady(app.buttons["setup-finish"])
+        let finish = app.buttons["setup-finish"]
+        tapWhenReady(finish)
+        // CI's iPad once dropped this tap while the finish controls were
+        // still animating in, leaving setup on screen; tap it again then.
+        if !app.textFields["assistant-composer"].waitForExistence(timeout: 5), finish.exists {
+            tapWhenReady(finish)
+        }
         XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
     }
     /// Kept for visual review; not an assertion.
