@@ -598,8 +598,10 @@ final class AuroraUITests: XCTestCase {
         }
         var ownsFocus = false
         for _ in 0..<3 {
+            // Each readiness check took ~2.5 s on a loaded CI iPhone, so a
+            // 5 s wait gave up after one or two checks of a ready composer.
             guard input.waitForExistence(timeout: 5),
-                  XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 5) == .completed
+                  XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: readyForFocus, object: input)], timeout: 10) == .completed
             else { break }
             if focusedInput.exists {
                 ownsFocus = true

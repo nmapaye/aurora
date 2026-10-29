@@ -290,16 +290,22 @@ jobs:
 
       # Still runs after the repeat step fails, so a flake doesn't hide the
       # rest of the suite's results; not after a failed build.
+      # verify_xcresult rejects skips, so suites that don't belong in this
+      # run are left out instead: UI review captures run only on request,
+      # and the accessibility audit runs on iPhone only.
       - name: Test
         if: success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure'
         run: |
           set +e
+          skip=(-skip-testing:AuroraUITests/UIReviewCaptureUITests)
+          if [ "${{ matrix.device }}" = "iPad" ]; then skip+=(-skip-testing:AuroraUITests/AccessibilityAuditUITests); fi
           xcodebuild test-without-building \
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \
             -parallel-testing-enabled NO \
+            "${skip[@]}" \
             -resultBundlePath build/AuroraTests.xcresult \
             > build/xcodebuild-test.log 2>&1
           status=$?
