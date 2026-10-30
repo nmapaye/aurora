@@ -23,9 +23,27 @@ public struct EnergyReaction: Codable, Equatable, Identifiable, Sendable {
     /// Stored for older snapshots; never shown.
     public var rating: String
     public var sample: Bool
+    /// `nil` in snapshots captured before versions were recorded, which
+    /// were all version 1.
+    public var protocolVersion: Int?
     /// The median shown instead of a rating word. Snapshots captured before
     /// it existed have none and show the score alone.
     public var displayLabel: String?
+
+    public init(id: String, completedAt: Millis, score: Int, rating: String, sample: Bool, protocolVersion: Int?, displayLabel: String?) {
+        self.id = id
+        self.completedAt = completedAt
+        self.score = score
+        self.rating = rating
+        self.sample = sample
+        self.protocolVersion = protocolVersion
+        self.displayLabel = displayLabel
+    }
+
+    /// "Reaction Test", or the earlier test's label.
+    public var title: String {
+        Vigilance.protocolLabel(protocolVersion ?? 1) ?? "Reaction Test"
+    }
 }
 
 /// Everything an energy card shows, captured once. Old cards keep this
@@ -75,7 +93,7 @@ public struct EnergySnapshot: Codable, Equatable, Sendable {
                 .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) },
             reactions: state.vigilanceSessions.filter { $0.completedAt >= windowStart && $0.completedAt <= now }
                 .sorted { ($0.completedAt, $0.id) > ($1.completedAt, $1.id) }
-                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id), displayLabel: $0.displayLabel) },
+                .map { EnergyReaction(id: $0.id, completedAt: $0.completedAt, score: $0.score, rating: $0.rating.rawValue, sample: RecordID.isSample($0.id), protocolVersion: $0.protocolVersion, displayLabel: $0.displayLabel) },
             outlook: EnergyOutlook.make(state: state, now: now, clock: clock)
         )
     }

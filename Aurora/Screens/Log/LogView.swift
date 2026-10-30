@@ -44,10 +44,12 @@ struct LogView: View {
             Text(summary.value)
                 .font(.largeTitle.bold().monospacedDigit())
                 .foregroundStyle(summary.sample ? Palette.textSecondary : Palette.textPrimary)
-            if let source = summary.source {
+            if summary.sample {
+                SampleDataBadge()
+            } else if let source = summary.source {
                 Text(source)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(summary.sample ? StatusTone.warning.foreground : Palette.textSecondary)
+                    .foregroundStyle(Palette.textSecondary)
             }
             Text(summary.detail)
                 .font(.footnote)
@@ -225,9 +227,13 @@ struct DoseRow: View {
                 }
             }
             Spacer(minLength: 0)
-            Text(CaffeineLog.sourceLabel(dose))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(sample ? StatusTone.warning.foreground : Palette.textSecondary)
+            if sample {
+                SampleDataBadge()
+            } else {
+                Text(CaffeineLog.sourceLabel(dose))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.textSecondary)
+            }
             if editable {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))

@@ -14,7 +14,9 @@ struct SetupConversationView: View {
     @Environment(AppModel.self) private var model
     @Environment(AssistantModel.self) private var assistant
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var wakeDraft = WakeReminderSettings(enabled: true, offsetsMinutes: [60], usualWakeMinutes: 8 * 60)
+    /// No reminder time is chosen for the person; "Turn on reminders" waits
+    /// for their first pick.
+    @State private var wakeDraft = WakeReminderSettings(enabled: true, offsetsMinutes: [], usualWakeMinutes: 8 * 60)
     @State private var controlsHeight: CGFloat = 0
     @State private var name = ""
     /// Edited here and saved only by Continue, so "Not now" keeps the stored target.
@@ -50,9 +52,14 @@ struct SetupConversationView: View {
                             AuroraMark().frame(width: 40, height: 40)
                             Spacer()
                             if step != .finish {
-                                Button("Skip to the end", action: skipToEnd)
-                                    .font(.subheadline.weight(.medium))
-                                    .frame(minHeight: Metrics.minimumTouchTarget)
+                                // The frame inside the label, so the whole 44 pt
+                                // is the target, not just the text.
+                                Button(action: skipToEnd) {
+                                    Text("Skip to the end")
+                                        .frame(minHeight: Metrics.minimumTouchTarget)
+                                        .contentShape(Rectangle())
+                                }
+                                .font(.subheadline.weight(.medium))
                                     .accessibilityHint("Keeps what you’ve answered and goes to the last step.")
                                     .accessibilityIdentifier("setup-skip-all")
                             }
@@ -205,7 +212,7 @@ struct SetupConversationView: View {
                 .onSubmit(saveName)
                 .padding(.horizontal, Metrics.md)
                 .frame(minHeight: Metrics.minimumTouchTarget)
-                .background(Palette.fieldBackground, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                .fieldSurface(focused: nameFocused)
                 .accessibilityLabel("First name")
                 .accessibilityIdentifier("setup-name")
             actionRow(primary: "Continue", primaryDisabled: Welcome.cleanName(name) == nil, primaryAction: saveName) {

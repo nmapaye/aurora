@@ -151,7 +151,8 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
             let metric = try #require(card.metrics.first { $0.id == "alertness" })
             #expect(metric.label == "Modeled alertness")
             #expect(metric.value == "Needs sleep")
-            #expect(metric.source == "Modeled")
+            // The source names the missing record (the 2026-10-14 UI review).
+            #expect(metric.source == EnergyEstimate.missingSleepLine)
             #expect(metric.detail == energy.summary)
             let accessibilityLabel = [metric.label, metric.value, metric.source, metric.detail].filter { !$0.isEmpty }.joined(separator: ". ")
             #expect(accessibilityLabel.localizedCaseInsensitiveContains("needs sleep"))

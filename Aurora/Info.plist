@@ -20,10 +20,8 @@
 	</array>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Aurora reads selected commitments to help review your day. It changes an event only after you approve its preview.</string>
-	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
-	<string>Aurora does not read clinical health records. It only reads Sleep Analysis and dietary caffeine from Apple Health.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>If you turn them on, Aurora reads Sleep Analysis and dietary caffeine from Apple Health to show your records and estimate sleep debt and alertness. Imported records stay read-only in Aurora and stay on this device.</string>
+	<string>If you turn them on, Aurora reads Sleep Analysis and dietary caffeine from Apple Health to show your records, compare sleep with your target and estimate alertness. Imported records stay read-only in Aurora and stay on this device.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>If you turn it on, Aurora adds caffeine you save in Aurora to Apple Health, and updates or removes only those entries. It never changes data from other apps or devices.</string>
 	<key>NSMicrophoneUsageDescription</key>

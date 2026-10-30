@@ -41,6 +41,9 @@ public struct ConversationState: Codable, Equatable, Sendable {
     public var preferences = AssistantPreferences()
     public var deliveredSuggestions: [String: Millis] = [:]
     public var dismissedSuggestions: Set<String> = []
+    /// Drink follow-up days, for pausing notifications when they go
+    /// unanswered. Nil in conversations from older builds.
+    public var repeatDrinkEngagement: RepeatDrinks.Engagement?
     public init() {}
 }
 
@@ -247,10 +250,13 @@ public enum AssistantPlanner {
         let start = clock.startOfDay(now)
         let today = state.doses.filter { $0.timestamp >= start && $0.timestamp <= now }
         let caffeine = today.isEmpty ? "Caffeine today: No record." : "Caffeine today: \(numberText(today.reduce(0) { $0 + $1.mg })) mg recorded."
-        return "\(Summary.describe(estimate))\n\n\(caffeine)"
+        // "Estimated" and "Modeled" already label it; no third reminder.
+        return "\(Summary.describe(estimate, estimateNote: false))\n\n\(caffeine)"
     }
 }
 
+/// In-app suggestions: opt-in, outside quiet hours, two a day. They never
+/// push. Notifications Aurora starts itself follow `NotificationBudget`.
 public enum ProactivePolicy {
     /// Inside the person's quiet hours. Equal start and end means always quiet.
     public static func isQuiet(hour: Int, preferences p: AssistantPreferences) -> Bool {

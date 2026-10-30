@@ -16,14 +16,15 @@ struct CalendarReviewCard: View {
     @State private var reversal: CalendarChange?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Everything loaded, hidden routines included, so a proposed move never
-    /// lands on them.
-    private var events: [Commitment] { (snapshot ?? service.commitments).sorted { $0.start < $1.start } }
     private var reference: Date { editable ? .now : (capturedAt ?? .now) }
-    /// What's left of the day, without sleep and routine blocks.
-    private var shown: [Commitment] { CalendarAgenda.restOfToday(events, now: reference, calendar: .current) }
 
     var body: some View {
+        // Sorted and filtered once per update. `events` is everything loaded,
+        // hidden routines included, so a proposed move never lands on them;
+        // `shown` is what's left of the day without sleep and routine blocks.
+        let events = (snapshot ?? service.commitments).sorted { $0.start < $1.start }
+        let shown = CalendarAgenda.restOfToday(events, now: reference, calendar: .current)
+        let today = Calendar.current.startOfDay(for: reference)
         Card {
             HStack {
                 Label("Calendar", systemImage: "calendar").font(Typography.cardTitle)
@@ -33,10 +34,15 @@ struct CalendarReviewCard: View {
                     Image(systemName: "gearshape").font(.body).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
                 }
                 .buttonStyle(.auroraPress)
+                .foregroundStyle(Palette.tint)
                 .accessibilityLabel("Calendar connections")
             }
-            if service.selected.isEmpty && editable && events.isEmpty {
-                Button("Choose calendars", action: connect).buttonStyle(.auroraSecondary)
+            if service.selected.isEmpty && events.isEmpty && snapshotMessage == nil {
+                // A connection lists calendars; none selected means nothing is read.
+                let connected = !service.calendars.isEmpty
+                Text(connected ? "No calendars selected." : "No calendars connected.").font(.subheadline).foregroundStyle(Palette.textSecondary)
+                Button(connected ? "Choose calendars" : "Connect calendars", action: connect).buttonStyle(.auroraSecondary)
+                    .accessibilityIdentifier("calendar-connect")
             }
             if let message = snapshotMessage ?? (snapshot == nil ? service.message : nil) {
                 Label(message, systemImage: StatusTone.error.symbol).font(.footnote).foregroundStyle(StatusTone.error.foreground)
@@ -46,17 +52,17 @@ struct CalendarReviewCard: View {
             }
             let clashes = CalendarAgenda.clashing(shown)
             let labelSource = CalendarAgenda.showsSource(shown)
-            ForEach(days, id: \.self) { day in
+            ForEach(Self.days(shown, today: today), id: \.day) { group in
                 VStack(alignment: .leading, spacing: Metrics.xs) {
-                    Text(dayTitle(day)).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.textSecondary)
+                    Text(dayTitle(group.day)).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.textSecondary)
                         .accessibilityAddTraits(.isHeader)
-                    ForEach(shown.filter { Calendar.current.isDate(max($0.start, Calendar.current.startOfDay(for: reference)), inSameDayAs: day) }, id: \.identity) { event in
+                    ForEach(group.events, id: \.identity) { event in
                         VStack(alignment: .leading, spacing: Metrics.xxs) {
                             if event.provider == .google { GoogleEventRow(event: event, time: time(event), showsSource: labelSource) }
                             else { AppleEventRow(event: event, time: time(event), showsSource: labelSource) }
                             // Only a clash needs moving.
                             if editable && clashes.contains(event.identity) && event.canMove && event.start > .now && proposal?.original.identity != event.identity {
-                                Button("Find a later slot") { propose(event) }
+                                Button("Find a later slot") { propose(event, among: events) }
                                     .font(.footnote.weight(.semibold))
                                     .buttonStyle(.auroraPress)
                                     .foregroundStyle(Palette.tint)
@@ -78,12 +84,19 @@ struct CalendarReviewCard: View {
         .animation(Motion.stateChange(reduceMotion: reduceMotion), value: proposal?.id)
     }
 
-    /// Today's heading; an event already running since yesterday counts as today.
-    private var days: [Date] {
-        var seen = Set<Date>()
-        let today = Calendar.current.startOfDay(for: reference)
-        return shown.map { max(Calendar.current.startOfDay(for: $0.start), today) }.filter { seen.insert($0).inserted }
+    /// Events grouped under their day, in order; an event already running
+    /// since yesterday counts as today.
+    private static func days(_ shown: [Commitment], today: Date) -> [DayGroup] {
+        var groups: [DayGroup] = []
+        for event in shown {
+            let day = max(Calendar.current.startOfDay(for: event.start), today)
+            if let index = groups.firstIndex(where: { $0.day == day }) { groups[index].events.append(event) }
+            else { groups.append(DayGroup(day: day, events: [event])) }
+        }
+        return groups
     }
+
+    private struct DayGroup { let day: Date; var events: [Commitment] }
 
     private func dayTitle(_ day: Date) -> String {
         if Calendar.current.isDateInToday(day) { return "Today" }
@@ -100,7 +113,7 @@ struct CalendarReviewCard: View {
         return "\(range) · \(zone.abbreviation(for: event.start) ?? event.timeZone)"
     }
 
-    private func propose(_ event: Commitment) {
+    private func propose(_ event: Commitment, among events: [Commitment]) {
         reversal = nil
         proposal = CalendarActionValidator.proposedMove(event, among: events, now: .now, calendar: .current)
         if proposal == nil { result = "No free later slot that day." }
@@ -155,13 +168,32 @@ extension Color {
         self.init(.sRGB, red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
     }
 
-    /// Black or white, whichever reads better on this color.
+    /// Dark or white, whichever has the higher contrast on this color.
     static func readableText(onHex hex: String?) -> Color {
-        guard let hex, let value = Int(hex.dropFirst(), radix: 16) else { return .white }
-        func linear(_ c: Int) -> Double { let v = Double(c) / 255; return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
-        let luminance = 0.2126 * linear((value >> 16) & 0xFF) + 0.7152 * linear((value >> 8) & 0xFF) + 0.0722 * linear(value & 0xFF)
-        return luminance > 0.4 ? Color(white: 0.12) : .white
+        EventInk.darkReadsBetter(onHex: hex) ? Color(white: EventInk.darkWhite) : .white
     }
+}
+
+/// Text on a calendar's own color: the WCAG contrast of each candidate
+/// against the event color, so mid-tone colors get whichever reads better.
+enum EventInk {
+    /// The dark text's gray level (sRGB).
+    static let darkWhite = 0.12
+
+    /// WCAG relative luminance of "#RRGGBB"; nil when it isn't one.
+    static func luminance(hex: String?) -> Double? {
+        guard let hex, hex.hasPrefix("#"), hex.count == 7, let value = Int(hex.dropFirst(), radix: 16) else { return nil }
+        return 0.2126 * linear(Double((value >> 16) & 0xFF) / 255) + 0.7152 * linear(Double((value >> 8) & 0xFF) / 255) + 0.0722 * linear(Double(value & 0xFF) / 255)
+    }
+
+    static func contrast(_ a: Double, _ b: Double) -> Double { (max(a, b) + 0.05) / (min(a, b) + 0.05) }
+
+    static func darkReadsBetter(onHex hex: String?) -> Bool {
+        guard let background = luminance(hex: hex) else { return false }
+        return contrast(background, linear(darkWhite)) > contrast(background, 1)
+    }
+
+    private static func linear(_ v: Double) -> Double { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
 }
 
 /// Google Calendar's schedule look: a solid block in the calendar's color.
@@ -183,8 +215,8 @@ private struct GoogleEventRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Metrics.sm)
         .padding(.vertical, Metrics.xs)
-        .background(Color(calendarHex: hex) ?? .blue, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(alignment: .topTrailing) { if showsSource { SourceTag(text: "Google", color: ink.opacity(0.8)).padding(6) } }
+        .background(Color(calendarHex: hex) ?? .blue, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+        .overlay(alignment: .topTrailing) { if showsSource { SourceTag(text: "Google", color: ink).padding(6) } }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.title), \(time)\(event.location.map { ", \($0)" } ?? ""), Google Calendar")
     }
@@ -213,7 +245,7 @@ private struct AppleEventRow: View {
         }
         .padding(.vertical, Metrics.xs)
         .padding(.trailing, Metrics.xs)
-        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.title), \(time)\(event.location.map { ", \($0)" } ?? ""), Apple Calendar")
     }
@@ -279,7 +311,7 @@ struct CalendarConnectionsView: View {
                 }
                 if service.google.connected {
                     Section("Identify a mirrored calendar") {
-                        Text("Choose two connections to the same calendar, then pick the one Aurora should use. This prevents duplicate reads and writes.").font(.footnote)
+                        Text("Pair two copies of one calendar and pick the one Aurora uses.").font(.footnote)
                         Picker("Apple connection", selection: $appleMirror) {
                             Text("Choose calendar").tag("")
                             ForEach(service.calendars.filter { $0.provider == .apple }) { Text($0.title).tag($0.id) }
@@ -301,7 +333,7 @@ struct CalendarConnectionsView: View {
                 if let error = error ?? service.message { Section { Text(error).foregroundStyle(Palette.destructive) } }
             }
             .navigationTitle("Calendar connections").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() }.keyboardShortcut(.cancelAction) } }
             .task { await service.refreshCalendars() }
         }
     }

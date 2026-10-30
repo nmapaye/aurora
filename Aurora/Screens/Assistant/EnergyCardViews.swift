@@ -23,7 +23,7 @@ struct EnergyEvidenceSections: View {
     @ViewBuilder private var status: some View {
         if snapshot.includesSample || !estimate.missingInputs.isEmpty {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                if snapshot.includesSample { StatusBadge(text: "Includes Sample Data", tone: .info) }
+                if snapshot.includesSample { SampleDataBadge() }
                 ForEach(estimate.missingInputs, id: \.self) { missing in
                     Label(missing.text, systemImage: StatusTone.warning.symbol)
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
@@ -79,6 +79,57 @@ struct EnergyEvidenceSections: View {
     }
 }
 
+/// One energy or briefing metric. A value is a hero quantity with its
+/// source; alertness with no score leads with the record that's missing
+/// instead, with no scale for a value that doesn't exist.
+struct EnergyMetricHero: View {
+    let item: AssistantCard.Metric
+
+    /// Cards captured before the missing line existed say "Modeled" there.
+    private var missingLine: String {
+        item.source.hasPrefix("No ") ? item.source : EnergyEstimate.missingSleepLine
+    }
+
+    var body: some View {
+        if item.id == "alertness" && item.missing {
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                Label(missingLine, systemImage: StatusTone.warning.symbol)
+                    .font(Typography.evidence.weight(.semibold)).foregroundStyle(Palette.textPrimary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("assistant-energy-missing")
+        } else {
+            VStack(alignment: .leading, spacing: Metrics.xxs) {
+                Text(item.label).font(Typography.label).foregroundStyle(Palette.textSecondary)
+                Text(item.value).font(Typography.heroValue).monospacedDigit()
+                if !item.source.isEmpty { Text(item.source).font(Typography.source).foregroundStyle(Palette.textSecondary) }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+/// A way to add each missing record. Sleep is the primary action when its
+/// absence is what keeps alertness from being modeled; otherwise every
+/// action is secondary.
+struct EnergyRecordActions: View {
+    let metrics: [AssistantCard.Metric]
+    /// "sleep" or "caffeine".
+    let record: (String) -> Void
+
+    var body: some View {
+        let unscored = metrics.contains { $0.id == "alertness" && $0.missing }
+        ForEach(metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
+            if item.id == "sleep" && unscored {
+                Button("Record sleep") { record("sleep") }.buttonStyle(.auroraPrimary)
+            } else {
+                Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { record(item.id) }.buttonStyle(.auroraSecondary)
+            }
+        }
+    }
+}
+
 /// Ratings and Reaction Tests captured with the card. Listed as recorded,
 /// never plotted against or compared with the model.
 struct EnergyRecordedByYou: View {
@@ -96,7 +147,7 @@ struct EnergyRecordedByYou: View {
             }
             ForEach(snapshot.reactions) { test in
                 VStack(alignment: .leading, spacing: Metrics.xxs) {
-                    Text("Reaction Test · \(test.score)" + (test.displayLabel.map { " · \($0)" } ?? "")).font(.subheadline.weight(.medium)).monospacedDigit()
+                    Text("\(test.title) · \(test.score)" + (test.displayLabel.map { " · \($0)" } ?? "")).font(.subheadline.weight(.medium)).monospacedDigit()
                     Text((test.sample ? "Sample Data" : "Recorded") + " · " + text.fullDateTime(test.completedAt))
                         .font(Typography.source).foregroundStyle(Palette.textSecondary)
                 }
@@ -139,6 +190,39 @@ struct EnergyTimelineChart: View {
         let id: Int
         let projected: Bool
         let points: [EnergyProjection.Point]
+    }
+
+    private struct Band: Identifiable {
+        let id: Int
+        let start: Millis
+        let end: Millis
+    }
+
+    /// Derived once from the frozen snapshot, not on every selection redraw.
+    private let runs: [Run]
+    private let sleepBands: [Band]
+    private let doses: [EnergyObservation]
+
+    init(snapshot: EnergySnapshot, projection: EnergyProjection, text: DateText, timeZone: TimeZone) {
+        self.snapshot = snapshot
+        self.projection = projection
+        self.text = text
+        self.timeZone = timeZone
+        let first = projection.points.first?.t
+        runs = Self.runs(projection.points)
+        sleepBands = snapshot.mergedSleep.enumerated().map { Band(id: $0.offset, start: max($0.element.start, first ?? $0.element.start), end: $0.element.end) }
+        doses = snapshot.observations.filter { $0.kind == .caffeine && $0.start >= (first ?? 0) }
+    }
+
+    /// Every mark's style, shared by the chart and its legend.
+    private enum Style {
+        static let lineWidth: CGFloat = 2
+        static let projectedDash: [CGFloat] = [5, 4]
+        static let line = Palette.tint
+        static let now = Palette.textTertiary
+        static let selection = Palette.textTertiary
+        static let caffeine = Palette.caffeineAccent
+        static let sleep = Palette.sleepAccent.opacity(0.14)
     }
 
     var body: some View {
@@ -207,7 +291,7 @@ struct EnergyTimelineChart: View {
 
     /// Contiguous scored points, split where there is no score and where
     /// modeled turns to projected. The current point joins both sides.
-    private var runs: [Run] {
+    private static func runs(_ points: [EnergyProjection.Point]) -> [Run] {
         var runs: [Run] = []
         var current: [EnergyProjection.Point] = []
         var projected = false
@@ -215,7 +299,7 @@ struct EnergyTimelineChart: View {
             if !current.isEmpty { runs.append(Run(id: runs.count, projected: projected, points: current)) }
             current = []
         }
-        for point in projection.points {
+        for point in points {
             guard point.modeledScore != nil else { close(); continue }
             let isProjected = point.kind == .projected
             if isProjected != projected {
@@ -234,41 +318,47 @@ struct EnergyTimelineChart: View {
 
     private func chart(highlight: Int) -> some View {
         Chart {
-            ForEach(Array(snapshot.mergedSleep.enumerated()), id: \.offset) { _, sleep in
+            ForEach(sleepBands) { sleep in
                 RectangleMark(
-                    xStart: .value("Sleep start", date(max(sleep.start, projection.points.first?.t ?? sleep.start))),
+                    xStart: .value("Sleep start", date(sleep.start)),
                     xEnd: .value("Sleep end", date(sleep.end)),
                     yStart: .value("Score", 0), yEnd: .value("Score", 100)
                 )
-                .foregroundStyle(Palette.sleepAccent.opacity(0.14))
+                .foregroundStyle(Style.sleep)
             }
             ForEach(runs) { run in
                 ForEach(run.points, id: \.t) { point in
                     LineMark(x: .value("Time", date(point.t)), y: .value("Modeled alertness", point.modeledScore ?? 0), series: .value("Run", "\(run.id)"))
-                        .foregroundStyle(Palette.tint)
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: run.projected ? [5, 4] : []))
+                        .foregroundStyle(Style.line)
+                        .lineStyle(StrokeStyle(lineWidth: Style.lineWidth, dash: run.projected ? Style.projectedDash : []))
                         .interpolationMethod(.linear)
                 }
             }
-            ForEach(snapshot.observations.filter { $0.kind == .caffeine && $0.start >= (projection.points.first?.t ?? 0) }) { dose in
+            ForEach(doses) { dose in
                 PointMark(x: .value("Recorded caffeine", date(dose.start)), y: .value("Score", 4))
                     .symbol(.triangle)
                     .symbolSize(50)
-                    .foregroundStyle(Palette.caffeineAccent.opacity(dose.source == .sample ? 0.5 : 1))
+                    .foregroundStyle(Style.caffeine.opacity(dose.source == .sample ? 0.5 : 1))
             }
+            // The legend and the chart's summary say where now is; as its own
+            // element this hairline was a 1 pt target.
             RuleMark(x: .value("Now", date(projection.capturedAt)))
-                .foregroundStyle(Palette.textTertiary)
+                .foregroundStyle(Style.now)
                 .lineStyle(StrokeStyle(lineWidth: 1))
+                .accessibilityHidden(true)
             if let score = projection.current.modeledScore {
+                // The score is the card's headline; as a point it was a tiny target.
                 PointMark(x: .value("Now", date(projection.capturedAt)), y: .value("Modeled alertness", score))
                     .symbolSize(70)
-                    .foregroundStyle(Palette.tint)
+                    .foregroundStyle(Style.line)
+                    .accessibilityHidden(true)
             }
             if highlight != projection.currentIndex {
                 let point = projection.points[highlight]
                 RuleMark(x: .value("Selected", date(point.t)))
-                    .foregroundStyle(Palette.separator)
+                    .foregroundStyle(Style.selection)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    .accessibilityHidden(true)
             }
         }
         .chartYScale(domain: 0...100)
@@ -287,22 +377,24 @@ struct EnergyTimelineChart: View {
         .chartXSelection(value: $selected)
     }
 
-    /// Shapes and dash patterns name each mark, so color is never the only cue.
+    /// Shapes and dash patterns name each mark, so color is never the only
+    /// cue. Each swatch uses its mark's own style, and only marks the chart
+    /// draws are listed.
     private var legend: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Metrics.md) { legendItems }
-            VStack(alignment: .leading, spacing: Metrics.xs) { legendItems }
-        }
-        .font(.caption).foregroundStyle(Palette.textSecondary)
-        .accessibilityElement(children: .combine)
+        var items: [ChartLegend.Item] = []
+        if runs.contains(where: { !$0.projected }) { items.append(.init(title: "Modeled", swatch: AnyView(Self.lineSwatch(dash: [])))) }
+        if runs.contains(where: \.projected) { items.append(.init(title: "Projected", swatch: AnyView(Self.lineSwatch(dash: Style.projectedDash)))) }
+        items.append(.init(title: "Now", swatch: AnyView(Rectangle().fill(Style.now).frame(width: 1).overlay {
+            if projection.current.modeledScore != nil { Circle().fill(Style.line).frame(width: 6, height: 6) }
+        })))
+        if !doses.isEmpty { items.append(.init(title: "Recorded caffeine", swatch: AnyView(Image(systemName: "triangle.fill").font(.caption2).foregroundStyle(Style.caffeine)))) }
+        if !sleepBands.isEmpty { items.append(.init(title: "Recorded sleep", swatch: AnyView(Rectangle().fill(Style.sleep)))) }
+        return ChartLegend(items: items)
     }
 
-    @ViewBuilder private var legendItems: some View {
-        Label("Modeled", systemImage: "line.diagonal")
-        Label("Projected", systemImage: "ellipsis")
-        Label("Now", systemImage: "circle.fill")
-        Label("Recorded caffeine", systemImage: "triangle.fill")
-        Label("Recorded sleep", systemImage: "rectangle.fill")
+    private static func lineSwatch(dash: [CGFloat]) -> some View {
+        Path { path in path.move(to: CGPoint(x: 0, y: 6)); path.addLine(to: CGPoint(x: 18, y: 6)) }
+            .stroke(Style.line, style: StrokeStyle(lineWidth: Style.lineWidth, dash: dash))
     }
 
     var observations: some View {
@@ -344,12 +436,13 @@ struct EnergyOutlookView: View {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 Text("Your day").font(Typography.label).foregroundStyle(Palette.textSecondary)
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                    Label(line, systemImage: symbol(index, line))
+                    // The line says highest or lowest; the arrow is decoration.
+                    Label { Text(line) } icon: { Image(systemName: symbol(index, line)).accessibilityHidden(true) }
                         .font(Typography.evidence.monospacedDigit())
                         .foregroundStyle(Palette.textPrimary)
                 }
                 if outlook.includesSample {
-                    Text("Includes Sample Data").font(Typography.source).foregroundStyle(Palette.caffeineAccent)
+                    SampleDataBadge()
                 }
             }
             .accessibilityElement(children: .combine)

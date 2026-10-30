@@ -15,10 +15,11 @@ A little clarity for your day. Aurora helps you explore recorded sleep, caffeine
 - Review and save caffeine or manual sleep entries, with editable times and Undo.
 - Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice.
 - Explore recorded trends and missing information without invented measurements.
-- Take a 60-second reaction test and compare it with your own recent results once you have three tests.
+- Take a 30-second reaction test and compare it with your own recent results once you have three tests.
 - Review selected calendars synced with Apple Calendar. Changes require a specific preview and your approval. Direct Google sign-in is deferred from this beta.
 - Export records through the native share sheet.
-- Opt into morning briefings and cutoff reminders.
+- Opt into a morning briefing and reminders at times you set, including times after you wake.
+- Optionally follow up on yesterday’s drinks, so logging one takes a tap.
 
 Your health records and calculations stay on your device. Supported devices can classify requests using local intelligence; explicit quick actions remain available when local models are unavailable. Calendars synced with Apple Calendar can be included; direct Google sign-in is disabled in this beta. Aurora has no cloud AI inference, API keys, subscription, or Aurora account.
 

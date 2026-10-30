@@ -281,7 +281,7 @@ public enum SummarySignals {
             source: sample ? "Sample Data" : nil,
             status: sample ? .sample : .observed,
             value: "\(latest.score)",
-            context: latest.displayLabel,
+            context: Insights.reactionDetail(latest),
             destination: "Take Reaction Test"
         )
     }

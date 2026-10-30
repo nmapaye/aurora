@@ -83,6 +83,7 @@ struct AuroraApp: App {
         model.sleepChanged = { [assistant, model] before in
             assistant.sleepChanged(app: model, before: before)
         }
+        model.quietHours = { [assistant] in assistant.conversation.preferences }
     }
 
     /// Only opted-in suggestions or a chosen Health read ask iOS for time.

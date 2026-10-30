@@ -295,4 +295,12 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
         return "\(Self.title) \(modeledScore) of 100, modeled from sleep, caffeine and time of day."
             + (includesSample ? " Includes Sample Data." : "")
     }
+
+    /// The scale beside a score. The title already says it's modeled.
+    public static let scaleLabel = "Scale 0–100"
+
+    /// What's missing when there is no score, in the model's own terms: a
+    /// sleep block of at least 3 hours reaching the 18 hours before
+    /// (`currentModelVersion`). A nap or an older night doesn't count.
+    public static let missingSleepLine = "No sleep of 3 hours or more in the last 18 hours."
 }

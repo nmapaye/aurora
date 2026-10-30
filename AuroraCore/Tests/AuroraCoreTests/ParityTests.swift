@@ -284,7 +284,7 @@ struct ParityTests {
         let expected = fixture.list("vigilance")
         #expect(expected.count == cases.count)
         for (index, (trials, want)) in zip(cases, expected).enumerated() {
-            let session = Vigilance.buildSession(
+            let session = Vigilance.protocol1Session(
                 id: "case-\(index)", startedAt: 1_000, completedAt: Double(61_000 + index), trialResults: trials, falseStartCount: index
             )
             #expect(session == vigilance(want["session"] ?? .null), "case \(index)")
@@ -308,8 +308,14 @@ struct ParityTests {
             let prefs = want["prefs"] ?? .null
             #expect(state.prefs.halfLife == prefs.double("halfLife"))
             #expect(state.prefs.targetSleep == prefs.double("targetSleep"))
-            #expect(state.prefs.dailyLimitMg == prefs.double("dailyLimitMg"))
-            #expect(state.prefs.cutoffHour == prefs.double("cutoffHour"))
+            // The old build's 400 mg reference is no longer kept, and its 4 PM
+            // cutoff default no longer fills a file that never stored a valid
+            // one: only a stored number is the person's.
+            let rawText = try #require(item.text("raw"))
+            let raw = try #require(JSONSerialization.jsonObject(with: Data(rawText.utf8)) as? [String: Any])
+            let storedPrefs = (raw["state"] as? [String: Any])?["prefs"] as? [String: Any]
+            let storedCutoff = storedPrefs?["cutoffHour"] is NSNumber
+            #expect(state.prefs.cutoffHour == (storedCutoff ? prefs.double("cutoffHour") : nil), "\(name)")
             #expect(state.prefs.notifyCutoff == prefs.flag("notifyCutoff"))
             #expect(state.prefs.tz == prefs.text("tz"))
             let onboarding = want["onboarding"] ?? .null

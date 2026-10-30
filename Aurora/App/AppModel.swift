@@ -47,6 +47,9 @@ final class AppModel {
     @ObservationIgnored var assistantRefresh: (@MainActor (Set<RefreshPolicy.Step>) async -> Void)?
     /// Recorded sleep changed during a refresh; receives the sleep before.
     @ObservationIgnored var sleepChanged: (@MainActor ([SleepSession]) -> Void)?
+    /// The person's quiet hours, kept with the assistant's preferences. Wake
+    /// reminders timed from the usual wake time skip them.
+    @ObservationIgnored var quietHours: (@MainActor () -> AssistantPreferences)?
     private var nextActionID: () -> String = { UUID().uuidString.lowercased() }
 
     init(
@@ -492,9 +495,24 @@ final class AppModel {
         update { $0.appearanceMode = mode }
     }
 
+    /// The daily cutoff reminder can only be turned on once the person has
+    /// set a cutoff time.
     func setReminder(enabled: Bool) async {
+        guard !enabled || state.prefs.cutoffHour != nil else { return }
         update { $0.prefs.notifyCutoff = enabled }
         reminderStatus = await reminders.sync(enabled: enabled, cutoffHour: state.prefs.cutoffHour, prompt: enabled)
+    }
+
+    /// Sets or clears the person's own cutoff time. Clearing it also turns
+    /// the daily reminder off. Wake reminders and follow-ups that stop at
+    /// the cutoff are planned again by their callers.
+    func setCutoffHour(_ hour: Double?) async {
+        update {
+            $0.prefs.cutoffHour = hour
+            if hour == nil { $0.prefs.notifyCutoff = false }
+        }
+        await resyncReminder()
+        await syncWakeReminders()
     }
 
     func resyncReminder() async {
@@ -523,7 +541,7 @@ final class AppModel {
         let delivered = await reminders.deliveredWakeIDs(now: now)
         let plan = WakeReminders.plan(
             settings: settings, cutoffHour: state.prefs.cutoffHour, sleeps: state.sleeps,
-            now: now, clock: clock, text: text, delivered: delivered
+            now: now, clock: clock, text: text, delivered: delivered, quietHours: quietHours?()
         )
         wakeReminderStatus = await reminders.syncWake(plan, enabled: settings.enabled && !state.demoMode, now: now, prompt: prompt)
     }
@@ -532,7 +550,7 @@ final class AppModel {
     var nextWakeReminder: WakeReminders.Reminder? {
         WakeReminders.plan(
             settings: state.prefs.wakeReminders ?? .defaults, cutoffHour: state.prefs.cutoffHour,
-            sleeps: state.sleeps, now: now, clock: clock, text: text
+            sleeps: state.sleeps, now: now, clock: clock, text: text, quietHours: quietHours?()
         ).min { $0.fireAt < $1.fireAt }
     }
 

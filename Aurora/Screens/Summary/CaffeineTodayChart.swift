@@ -126,6 +126,7 @@ struct CaffeineTodayChart: View {
             RuleMark(x: .value("Now", nowDate))
                 .foregroundStyle(Palette.textTertiary.opacity(0.6))
                 .lineStyle(StrokeStyle(lineWidth: 1))
+                .accessibilityHidden(true)
             if let point = points.first(where: { $0.date.timeIntervalSince1970 * 1000 == inspectedT }) {
                 PointMark(x: .value("Time", point.date), y: .value("Active caffeine", point.mg))
                     .foregroundStyle(Palette.tint)

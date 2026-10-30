@@ -11,6 +11,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case capabilities
         /// A next-day follow-up on yesterday's drink.
         case repeatDrink
+        /// A new conversation's first card: one line and three starting
+        /// points. The full list stays one "What can you do?" away.
+        case welcome
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -88,7 +91,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .briefing: .briefing
         case .reminders: .reminders
         case .capabilities: .help
-        case .clarification, .receipt, .repeatDrink: nil
+        case .clarification, .receipt, .repeatDrink, .welcome: nil
         }
     }
 }
@@ -113,6 +116,7 @@ public enum AssistantCards {
         case .receipt: "Saved"
         case .capabilities: "What Aurora can do"
         case .repeatDrink: "Yesterday’s drink"
+        case .welcome: "Ready when you are."
         }
         var card = AssistantCard(kind: kind, capturedAt: now, title: title)
         card.timeZone = clock.timeZone.identifier
@@ -128,7 +132,8 @@ public enum AssistantCards {
             card.metrics = [
                 .init(id: "sleep", label: "Sleep · last 24 hours", value: hours > 0 ? formatSleepHours(hours) : "No record", source: sleepIDs.contains(where: RecordID.isSample) ? "Includes Sample Data" : sleepIDs.map { SleepModel.sourceLabel(id: $0) }.uniqued().joined(separator: " · "), missing: hours <= 0),
                 .init(id: "caffeine", label: "Caffeine · today", value: today.isEmpty ? "No record" : "\(numberText(today.reduce(0) { $0 + $1.mg })) mg", source: RecordSource.of(ids: today.map(\.id))?.rawValue ?? "Recorded entries", missing: today.isEmpty),
-                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Needs sleep", source: estimate.score == nil ? "Modeled" : "Modeled · 0–100", detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
+                // With no score, the source names the missing record instead of a scale.
+                .init(id: "alertness", label: EnergyEstimate.title, value: estimate.score.map { "\($0)" } ?? "Needs sleep", source: estimate.score == nil ? EnergyEstimate.missingSleepLine : EnergyEstimate.scaleLabel, detail: EnergyEstimate.capture(at: now, doses: known.doses, sleeps: known.sleeps, inputs: .init(prefs: state.prefs, clock: clock)).summary, missing: estimate.score == nil)
             ]
             card.summary = ""
             if kind == .energy {
@@ -149,7 +154,7 @@ public enum AssistantCards {
             card.metrics = [.init(
                 id: "alertness", label: EnergyEstimate.title + " · now",
                 value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Needs sleep",
-                source: snapshot.estimate.modeledScore == nil ? "Modeled" : "Modeled · 0–100",
+                source: snapshot.estimate.modeledScore == nil ? EnergyEstimate.missingSleepLine : EnergyEstimate.scaleLabel,
                 detail: snapshot.estimate.summary, missing: snapshot.estimate.modeledScore == nil
             )]
         case .energyCheckIn:
@@ -169,9 +174,14 @@ public enum AssistantCards {
                     return .init(date: point.date, value: point.durationMs.map { $0 / hourMs }, detail: point.durationMs.map { formatHoursMinutes(durationMs: $0) } ?? "No record", sample: sources.contains { RecordID.isSample($0.id) })
                 }))
                 let signal = Insights.reactionSignal(sessions: state.vigilanceSessions, now: now, clock: clock, text: text)
+                // Only tests from the latest test's version are plotted; a day
+                // whose test came from another version names it instead.
+                let plotted = state.vigilanceSessions.filter { $0.completedAt <= now }.max { $0.completedAt < $1.completedAt }?.protocolVersion
                 card.series.append(.init(metric: "Reaction", days: days, unit: "score", summary: signal.signal.accessibilityDescription, comparison: signal.signal.context, points: clock.dayStarts(endingAt: now, days: days).map { date in
                     let latest = state.vigilanceSessions.filter { clock.dayKey($0.completedAt) == clock.dayKey(date) && $0.completedAt <= now }.max { $0.completedAt < $1.completedAt }
-                    return .init(date: date, value: latest.map { Double($0.score) }, detail: latest.map { "\($0.score) · \($0.displayLabel)" } ?? "No record", sample: latest.map { RecordID.isSample($0.id) } ?? false)
+                    let comparable = latest.map { $0.protocolVersion == plotted } ?? false
+                    let detail = latest.map { [$0.protocolLabel, "\($0.score) · \($0.displayLabel)"].compactMap { $0 }.joined(separator: " · ") } ?? "No record"
+                    return .init(date: date, value: comparable ? latest.map { Double($0.score) } : nil, detail: detail, sample: latest.map { RecordID.isSample($0.id) } ?? false)
                 }))
             }
         case .reaction:
@@ -184,21 +194,23 @@ public enum AssistantCards {
             } + state.sleeps.filter { $0.end <= now }.map {
                 .init(id: $0.id, kind: "sleep", title: $0.type == .nap ? "Nap" : "Sleep", date: $0.end, source: SleepModel.sourceLabel(id: $0.id), detail: "\(text.clockTime($0.start)) – \(text.clockTime($0.end)) · \(formatHoursMinutes(durationMs: $0.end - $0.start))", editable: RecordID.isManualSleep($0.id), revision: "\($0.start)|\($0.end)|\($0.type.rawValue)|\($0.note ?? "")")
             } + state.vigilanceSessions.filter { $0.completedAt <= now }.map {
-                .init(id: $0.id, kind: "reaction", title: "Reaction Test", date: $0.completedAt, source: RecordID.isSample($0.id) ? "Sample Data" : "Recorded", detail: "\($0.score) · \($0.displayLabel)", editable: false)
+                .init(id: $0.id, kind: "reaction", title: "Reaction Test", date: $0.completedAt, source: RecordID.isSample($0.id) ? "Sample Data" : "Recorded", detail: [$0.protocolLabel, "\($0.score) · \($0.displayLabel)"].compactMap { $0 }.joined(separator: " · "), editable: false)
             }
             card.records.sort { $0.date > $1.date }
         case .exports:
             card.summary = "Share your records as CSV."
         case .reminders:
             card.summary = "Reminders at times you choose."
-        case .caffeineDraft: card.summary = "Check the details, then save."
+        // The "Review before saving" badge already says it.
+        case .caffeineDraft: card.summary = ""
         case .sleepDraft: card.summary = "Set when you slept."
         case .calendar: card.summary = ""
         case .clarification: card.summary = "Choose one, or tell me a little more."
         case .cutoffScenario:
-            card.summary = CutoffScenario.disclaimer
+            // The "Scenario" badge labels it; the disclaimer sits under Assumptions.
+            card.summary = ""
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
-        case .receipt: break
+        case .receipt, .welcome: break
         case .capabilities: card.summary = "Tap one, or ask in your own words."
         // Built by the follow-up itself, from the prompt it carries.
         case .repeatDrink: break

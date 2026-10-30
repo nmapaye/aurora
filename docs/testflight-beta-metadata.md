@@ -9,6 +9,7 @@ Aurora is a local-first iPhone and iPad assistant for energy and daily rhythm. I
 ## What to test
 
 - Manual setup, missing records, sample labels, and separate optional Apple Health sleep/caffeine reads and Aurora-owned caffeine export.
+- Reminders: the cutoff time starts unset and its reminder turns on only after you set one; wake reminders; drink follow-ups, which ask about an hour after yesterday's time with at most one silent notification a day.
 - Caffeine/sleep draft edits, invalid values, duplicate taps, Save, Undo, history corrections, exports, and relaunch snapshots.
 - Full local-data erase and onboarding after relaunch.
 - Offline use and unavailable local models through explicit quick actions.

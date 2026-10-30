@@ -54,14 +54,16 @@ public struct AppState: Codable, Equatable, Sendable {
     }
 
     /// This state without records whose times have no calendar date
-    /// (`isValidRecordTime`), as the legacy import already drops them. Only a
-    /// hand-edited or damaged `state.json` holds such records; the app never
-    /// writes one.
+    /// (`isValidRecordTime`), as the legacy import already drops them, and
+    /// with each Reaction Test's protocol fields normalized
+    /// (`VigilanceSession.normalized`). Only a hand-edited or damaged
+    /// `state.json` holds such records; the app never writes one.
     public func droppingInvalidTimes() -> AppState {
         var state = self
         state.doses = doses.filter { isValidRecordTime($0.timestamp) }
         state.sleeps = sleeps.filter { isValidRecordTime($0.start) && isValidRecordTime($0.end) }
         state.vigilanceSessions = vigilanceSessions.filter { isValidRecordTime($0.startedAt) && isValidRecordTime($0.completedAt) }
+            .map { $0.normalized() }
         if let completedAt = onboarding.completedAt, !isValidRecordTime(completedAt) { state.onboarding.completedAt = nil }
         if let lastSyncedAt = healthSync.lastSyncedAt, !isValidRecordTime(lastSyncedAt) { state.healthSync.lastSyncedAt = nil }
         return state

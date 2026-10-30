@@ -36,7 +36,7 @@ final class ReleaseSmokeUITests: XCTestCase {
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: history)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
         history.tap()
-        tap(app.buttons["Caffeine history"])
+        tap(app.buttons["records-caffeine"])
         XCTAssertTrue(app.navigationBars["Caffeine History"].waitForExistence(timeout: 10))
         let capture = XCTAttachment(screenshot: app.screenshot())
         capture.name = "Release clean install, persisted setup and background return"

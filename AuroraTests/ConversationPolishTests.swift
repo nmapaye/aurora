@@ -27,6 +27,15 @@ import Testing
         #expect(ConversationReveal.after(messages(6), previousCount: 0, readingLatest: false) == .end)
     }
 
+    /// A new conversation is read from its welcome's top; one with the
+    /// person's messages opens at the end as before.
+    @Test func aNewConversationOpensAtItsWelcomeFromTheTop() {
+        let welcome = ConversationMessage(text: "Ready when you are.", card: .init(kind: .welcome, capturedAt: 0, title: "Ready when you are."))
+        #expect(ConversationReveal.after([welcome], previousCount: 0, readingLatest: false) == .top)
+        #expect(ConversationReveal.after([welcome] + messages(2), previousCount: 0, readingLatest: false) == .top)
+        #expect(ConversationReveal.after([welcome] + messages(2, userAt: [1]), previousCount: 0, readingLatest: false) == .end)
+    }
+
     /// CI (main, 73199d4): "Show my energy curve" and its card were added in
     /// one update, so the conversation went to the end and the long card's
     /// title sat under the navigation bar.
@@ -159,6 +168,58 @@ import Testing
         #expect(ConversationWindow.start(10, count: 99, previousCount: 100) == 10)
         #expect(ConversationWindow.first(70, count: 50) == 10)
         #expect(ConversationWindow.first(70, count: 1) == 0)
+    }
+
+    @Test func theWindowNeverRendersMoreThanTheCapAndKeepsTheLatest() {
+        let count = 400
+        var start: Int?
+        for _ in 0..<30 {
+            start = ConversationWindow.earlier(start, count: count)
+            let shown = ConversationWindow.shown(start, count: count)
+            #expect(shown.reduce(0) { $0 + $1.count } <= ConversationWindow.cap)
+            #expect(shown.last?.upperBound == count)
+            #expect(shown.last.map { $0.count >= ConversationWindow.latest } == true)
+        }
+        // Showing earlier reaches the first message; the batch beside the
+        // latest is the one left out.
+        #expect(ConversationWindow.shown(start, count: count) == [0..<80, 360..<400])
+        // Up to the cap the window is one run of messages.
+        #expect(ConversationWindow.shown(nil, count: 100) == [60..<100])
+        #expect(ConversationWindow.shown(280, count: 400) == [280..<400])
+        #expect(ConversationWindow.shown(260, count: 400) == [260..<340, 360..<400])
+    }
+
+    @Test func showingLaterClosesTheGapABatchAtATime() {
+        #expect(ConversationWindow.later(0, count: 400) == 20)
+        #expect(ConversationWindow.shown(20, count: 400) == [20..<100, 360..<400])
+        // The last step joins the two parts at exactly the cap.
+        #expect(ConversationWindow.later(270, count: 400) == 280)
+        #expect(ConversationWindow.shown(280, count: 400) == [280..<400])
+        // Without a gap nothing moves.
+        #expect(ConversationWindow.later(nil, count: 100) == 60)
+        #expect(ConversationWindow.later(280, count: 400) == 280)
+    }
+
+    @Test func rowsGroupByTimeAndMarkTheGap() {
+        var list = messages(200)
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        for index in list.indices { list[index].createdAt = base.addingTimeInterval(Double(index) * 60) }
+        list[170].createdAt = list[169].createdAt.addingTimeInterval(ConversationRow.groupGap + 1)
+        for index in 171..<200 { list[index].createdAt = list[170].createdAt.addingTimeInterval(Double(index - 170) * 60) }
+        let rows = ConversationWindow.rows(list, start: 0)
+        #expect(rows.map(\.id) == (Array(list[0..<80]) + Array(list[160..<200])).map(\.id))
+        #expect(rows.filter(\.startsGroup).map(\.message.text) == ["Message 0", "Message 160", "Message 170"])
+        #expect(rows.filter(\.afterGap).map(\.message.text) == ["Message 160"])
+        #expect(ConversationWindow.rows(list, start: nil).allSatisfy { !$0.afterGap })
+        #expect(ConversationWindow.rows([], start: nil).isEmpty)
+    }
+
+    @Test func userMessageCountStopsAtWhatItNeeds() {
+        #expect(!messages(5).hasUserMessages(atLeast: 1))
+        #expect(messages(5, userAt: [4]).hasUserMessages(atLeast: 1))
+        #expect(!messages(5, userAt: [1, 3]).hasUserMessages(atLeast: 3))
+        #expect(messages(9, userAt: [1, 3, 8]).hasUserMessages(atLeast: 3))
+        #expect([ConversationMessage]().hasUserMessages(atLeast: 0))
     }
 
     @Test func theLongConversationFixtureNeedsItsArgument() {

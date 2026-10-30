@@ -52,7 +52,7 @@ SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
   erase, no stale asynchronous reads restoring snapshots or credentials.
 - UI: iPhone/iPad light/dark, largest text, VoiceOver, Reduce Motion, keyboard,
   orientation/multitasking, touches through decoration, Stop/failure/background.
-- Export actual CSVs; run the full 60-second reaction test on hardware; confirm results
+- Export actual CSVs; run the full 30-second reaction test on hardware; confirm results
   and thresholds. Measure <100 ms local control feedback and cold/warm model costs.
 
 ## Account preparation

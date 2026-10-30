@@ -40,6 +40,9 @@ final class CutoffScenarioUITests: XCTestCase {
             let floor = strip.exists ? strip.frame.minY - 8 : window.frame.maxY
             return element.isHittable && element.frame.minY > ceiling && element.frame.maxY < floor
         }
+        // Drag toward the element: a drag that overshoots leaves it above
+        // the bar, and dragging up again only moves it further away.
+        let bar = app.navigationBars.firstMatch
         for _ in 0..<10 where !clear() {
             let window = app.windows.firstMatch
             let navigation = app.navigationBars.firstMatch

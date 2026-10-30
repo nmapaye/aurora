@@ -57,6 +57,26 @@ struct WakeReminderTests {
         // A half-hour cutoff is honored to the minute.
         let half = WakeReminders.plan(settings: settings([330]), cutoffHour: 15.5, sleeps: [sleep(end: wake)], now: now, clock: clock, text: fixtureText)
         #expect(half.filter { $0.id.contains(clock.dayKey(now)) }.isEmpty)
+        // With no cutoff set, nothing is cut off.
+        let unset = WakeReminders.plan(settings: settings([60, 360]), cutoffHour: nil, sleeps: [sleep(end: wake)], now: now, clock: clock, text: fixtureText)
+        #expect(unset.filter { $0.id.contains(clock.dayKey(now)) }.map(\.offsetMinutes) == [60, 360])
+    }
+
+    @Test(arguments: zones) func usualWakeRemindersSkipQuietHours(zone: String) {
+        let clock = clock(zone)
+        var quiet = AssistantPreferences()
+        quiet.quietStartHour = 21; quiet.quietEndHour = 8
+        // A 6:00 usual wake: +30m and +1h fall in quiet hours, +3h doesn't.
+        let now = clock.setTime(Self.base, hour: 5)
+        let early = settings([30, 60, 180], usual: 6 * 60)
+        let plan = WakeReminders.plan(settings: early, cutoffHour: nil, sleeps: [], now: now, clock: clock, text: fixtureText, quietHours: quiet)
+        #expect(plan.filter { $0.id.contains(clock.dayKey(now)) }.map(\.offsetMinutes) == [180])
+        // A recorded wake-up means the person is up: quiet hours don't apply.
+        let wake = clock.setTime(Self.base, hour: 6)
+        let recorded = WakeReminders.plan(settings: early, cutoffHour: nil, sleeps: [sleep(end: wake)], now: wake + minuteMs, clock: clock, text: fixtureText, quietHours: quiet)
+        #expect(recorded.filter { $0.id.contains(clock.dayKey(wake)) }.map(\.offsetMinutes) == [30, 60, 180])
+        // Tomorrow is planned from the usual time, so it skips them too.
+        #expect(recorded.filter { !$0.id.contains(clock.dayKey(wake)) }.map(\.offsetMinutes) == [180])
     }
 
     @Test(arguments: zones) func lateWakeDeliveryFiresSoonWithinGraceOtherwiseSkips(zone: String) {
@@ -129,6 +149,16 @@ struct WakeReminderTests {
         #expect(WakeReminders.offsetText(45) == "45m")
         #expect(WakeReminders.offsetText(90) == "1h 30m")
         #expect(WakeReminders.offsetText(120) == "2h")
+    }
+
+    @Test func defaultsChooseNoReminderTime() {
+        #expect(!WakeReminderSettings.defaults.enabled)
+        #expect(WakeReminderSettings.defaults.offsetsMinutes.isEmpty)
+    }
+
+    @Test func storedReminderTimesDecodeUnchanged() throws {
+        let stored = try JSONDecoder().decode(WakeReminderSettings.self, from: Data(#"{"enabled":true,"offsetsMinutes":[60],"usualWakeMinutes":420}"#.utf8))
+        #expect(stored == WakeReminderSettings(enabled: true, offsetsMinutes: [60], usualWakeMinutes: 420))
     }
 
     @Test func savedNonPresetOffsetStaysVisibleInTheEditor() {

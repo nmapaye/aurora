@@ -115,6 +115,56 @@ import Testing
         #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
     }
 
+    // MARK: Reaction Test versions
+
+    @Test func reactionTestsKeepTheirVersionAcrossLoadAndSave() throws {
+        try StateStore(directory: storeDirectory).prepare()
+        let completedAt: Millis = 1_790_000_000_000
+        var edited = AppState()
+        edited.onboarding.completed = true
+        var current = Vigilance.buildSession(
+            id: "vig-new", startedAt: completedAt - 30_000, completedAt: completedAt,
+            trials: [VigilanceTrial(cueAt: completedAt - 28_000, reactionMs: 286, cueLatencyMs: 8)],
+            falseStarts: [VigilanceFalseStart(at: completedAt - 29_000)], deviceModel: "iPhone18,1"
+        )
+        let earlier = VigilanceSession(
+            id: "vig-old", startedAt: completedAt - 3_600_000, completedAt: completedAt - 3_540_000, durationMs: 60_000,
+            trialCount: 14, validReactionCount: 13, falseStartCount: 0, lapseCount: 1, medianReactionMs: 301,
+            meanReactionMs: 309, fastestReactionMs: 250, reactionStdDevMs: 40, score: 64, rating: .steady
+        )
+        // A hand edit: a trial with an impossible time and a negative reaction.
+        current.trials.append(VigilanceTrial(cueAt: 1e300, reactionMs: 300))
+        current.trials.append(VigilanceTrial(cueAt: completedAt - 20_000, reactionMs: -40))
+        edited.vigilanceSessions = [current, earlier]
+        // The earlier session is stored as the 60-second build wrote it,
+        // without the new fields.
+        var json = try #require(try JSONSerialization.jsonObject(with: StateMigration.encode(edited)) as? [String: Any])
+        var sessions = try #require(json["vigilanceSessions"] as? [[String: Any]])
+        for key in ["protocolVersion", "trials", "falseStarts", "deviceModel"] { sessions[1][key] = nil }
+        json["vigilanceSessions"] = sessions
+        let original = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+        try original.write(to: stateFile)
+
+        let model = makeModel()
+        model.load()
+        #expect(model.phase == .ready)
+        let loaded = model.state.vigilanceSessions
+        #expect(loaded.map(\.id) == ["vig-new", "vig-old"])
+        #expect(loaded[0].protocolVersion == 2 && loaded[0].deviceModel == "iPhone18,1")
+        #expect(loaded[0].trials == [
+            VigilanceTrial(cueAt: completedAt - 28_000, reactionMs: 286, cueLatencyMs: 8),
+            VigilanceTrial(cueAt: completedAt - 20_000, reactionMs: nil),
+        ])
+        #expect(loaded[1].protocolVersion == 1 && loaded[1].trials.isEmpty && loaded[1].protocolLabel == "Earlier 60-second test")
+        // The damaged file is kept; the next save writes the cleaned state.
+        #expect(StateStore(directory: storeDirectory).corruptBackups().count == 1)
+        model.setPrefs { $0.cutoffHour = 13 }
+        let relaunched = makeModel()
+        relaunched.load()
+        #expect(relaunched.state.vigilanceSessions == loaded)
+        #expect(Export.vigilanceSessionsCSV(loaded).split(separator: "\n").first?.hasSuffix(",protocol") == true)
+    }
+
     // MARK: Erase
 
     @Test func eraseRemovesUnfinishedSavesAndExports() throws {

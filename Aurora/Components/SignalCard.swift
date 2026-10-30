@@ -23,14 +23,7 @@ struct SignalCard: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Palette.textSecondary)
                     Spacer(minLength: 0)
-                    if model.status == .sample {
-                        Text("Sample")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(StatusTone.warning.foreground)
-                            .padding(.horizontal, Metrics.xs)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(StatusTone.warning.background))
-                    }
+                    if model.status == .sample { SampleDataBadge() }
                 }
                 if model.status == .empty {
                     Text("No data")

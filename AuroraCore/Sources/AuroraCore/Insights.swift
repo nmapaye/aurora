@@ -208,7 +208,10 @@ public enum Insights {
     }
 
     /// The latest test is an observation with its date and source. A
-    /// baseline (median of recent tests) appears only once there are enough.
+    /// baseline (median of recent tests) appears only once there are enough,
+    /// and counts only tests from the same version of the test as the latest
+    /// (`VigilanceSession.protocolVersion`), so a new baseline starts with the
+    /// 30-second test. A latest test from the earlier version is labeled.
     public static func reactionSignal(
         sessions: [VigilanceSession],
         now: Millis,
@@ -235,9 +238,9 @@ public enum Insights {
             )
         }
         let windowStart = clock.addingDays(-(reactionBaselineWindowDays - 1), to: clock.startOfDay(now))
-        let recent = valid.filter { $0.completedAt >= windowStart }
+        let recent = valid.filter { $0.completedAt >= windowStart && $0.isComparable(with: latest) }
         let source = RecordSource.of(ids: [latest.id]) == .sample ? "Sample Data" : "Recorded"
-        let detail = latest.displayLabel
+        let detail = reactionDetail(latest)
         let status: SignalStatus = source == "Sample Data" ? .sample : .observed
         let period = formatSignalDay(latest.completedAt, now: now, clock: clock, text: text)
         if recent.count < reactionBaselineTests {
@@ -266,6 +269,12 @@ public enum Insights {
             baseline: .established,
             recentTests: recent.count
         )
+    }
+
+    /// "286 ms median", led by the version label for a session
+    /// from another version of the test.
+    public static func reactionDetail(_ session: VigilanceSession) -> String {
+        [session.protocolLabel, session.displayLabel].compactMap { $0 }.joined(separator: " · ")
     }
 
     public static func describeChartDay(_ point: InsightsChartPoint, text: DateText) -> (title: String, value: String, text: String) {

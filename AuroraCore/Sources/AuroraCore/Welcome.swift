@@ -303,7 +303,7 @@ public enum SetupCopy {
               body: "Record how you slept, from Apple Health or by hand."),
         Scene(id: 1, daypart: .afternoon, eyebrow: "Midday light",
               title: "Caffeine rises and fades through the day.",
-              body: "Log a drink in a tap and see its effect rise and fade."),
+              body: "Log a drink in a tap and see its modeled caffeine rise and fade."),
         Scene(id: 2, daypart: .evening, eyebrow: "Dusk",
               title: "Your rhythm, in your own sky.",
               body: "Sleep, caffeine and alertness together, private to this device."),

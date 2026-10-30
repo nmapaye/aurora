@@ -194,10 +194,13 @@ final class ReminderService {
 
     private var repeatGeneration = 0
 
-    /// Replaces every pending follow-up notification with `prompts`, each at
-    /// its own time today. Never prompts for permission unless `prompt` is
-    /// set (only when the person turns notifications on).
-    func syncRepeatDrinks(_ prompts: [RepeatDrinks.Prompt], enabled: Bool, prompt: Bool, text: DateText) async -> RepeatDrinkStatus {
+    /// Replaces every pending follow-up notification with today's one
+    /// `batch`: silent (`.passive`, no sound), with no amounts. Never
+    /// prompts for permission unless `prompt` is set (only when the person
+    /// turns notifications on). `enabled` is false when follow-up
+    /// notifications are off, paused, or give way to the briefing under
+    /// `NotificationBudget`.
+    func syncRepeatDrinks(_ batch: RepeatDrinks.Batch?, enabled: Bool, prompt: Bool, text: DateText) async -> RepeatDrinkStatus {
         repeatGeneration += 1
         let current = repeatGeneration
         await removeRepeatDrinks(delivered: false)
@@ -209,26 +212,24 @@ final class ReminderService {
         }
         guard current == repeatGeneration else { return .off }
         guard [.authorized, .provisional, .ephemeral].contains(status) else { return .denied }
-        var scheduled = 0
-        for item in prompts {
-            let content = UNMutableNotificationContent()
-            content.title = RepeatDrinks.question(item, text: text)
-            content.body = RepeatDrinks.detail(item)
-            content.sound = .default
-            let date = Date(timeIntervalSince1970: item.dueAt / 1000)
-            let trigger = UNCalendarNotificationTrigger(
-                dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date), repeats: false
-            )
-            do {
-                try await center.add(UNNotificationRequest(identifier: item.notificationID, content: content, trigger: trigger))
-                scheduled += 1
-            } catch { continue }
-            guard current == repeatGeneration else {
-                await removeRepeatDrinks(delivered: false)
-                return .off
-            }
+        guard let batch, !batch.prompts.isEmpty else { return .scheduled(count: 0) }
+        let content = UNMutableNotificationContent()
+        content.title = RepeatDrinks.notificationTitle
+        content.body = RepeatDrinks.notificationBody(batch, text: text)
+        content.sound = nil
+        content.interruptionLevel = .passive
+        let date = Date(timeIntervalSince1970: batch.fireAt / 1000)
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date), repeats: false
+        )
+        do {
+            try await center.add(UNNotificationRequest(identifier: batch.identifier, content: content, trigger: trigger))
+        } catch { return .scheduled(count: 0) }
+        guard current == repeatGeneration else {
+            await removeRepeatDrinks(delivered: false)
+            return .off
         }
-        return .scheduled(count: scheduled)
+        return .scheduled(count: batch.prompts.count)
     }
 
     private func removeRepeatDrinks(delivered: Bool) async {
@@ -252,7 +253,9 @@ final class ReminderService {
     /// Settings passes `true`; foreground syncs never prompt, and one that
     /// arrives while a prompting sync is open reports the last status rather
     /// than racing the permission sheet.
-    func sync(enabled: Bool, cutoffHour: Double, prompt: Bool) async -> Status {
+    /// With no cutoff time set there is nothing to schedule: the reminder
+    /// is off whatever `enabled` says.
+    func sync(enabled: Bool, cutoffHour: Double?, prompt: Bool) async -> Status {
         if !prompt && promptingSyncs > 0 { return lastStatus }
         latestIntent += 1
         let intent = latestIntent
@@ -268,10 +271,10 @@ final class ReminderService {
         return status
     }
 
-    private func applyDaily(enabled: Bool, cutoffHour: Double, prompt: Bool, intent: Int) async -> Status {
+    private func applyDaily(enabled: Bool, cutoffHour: Double?, prompt: Bool, intent: Int) async -> Status {
         let currentGeneration = generation
         center.removePending([CutoffReminder.identifier])
-        guard enabled, intent == latestIntent else { return finish(.off) }
+        guard enabled, let cutoffHour, cutoffHour.isFinite, intent == latestIntent else { return finish(.off) }
 
         var status = await center.authorizationStatus()
         if status == .notDetermined && prompt {

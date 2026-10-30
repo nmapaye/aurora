@@ -43,8 +43,9 @@ struct DoseEntrySheet: View {
                             .keyboardType(.numberPad)
                             .focused($amountFocused)
                             .font(.title2.monospacedDigit())
+                            .accessibilityLabel("Amount, milligrams")
                             .accessibilityIdentifier("dose-amount")
-                        Text("mg").foregroundStyle(Palette.textSecondary)
+                        Text("mg").foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
                     }
                 }
                 Section("Source") {
@@ -86,11 +87,18 @@ struct DoseEntrySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { finish(.cancelled(currentDraft)) }
+                    Button("Cancel") { finish(.cancelled(currentDraft)) }.keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .accessibilityIdentifier("dose-save")
+                }
+                // The number pad has no return key.
+                if amountFocused {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { amountFocused = false }.accessibilityIdentifier("dose-keyboard-done")
+                    }
                 }
             }
             .alert("Delete this entry?", isPresented: $confirmDelete) {

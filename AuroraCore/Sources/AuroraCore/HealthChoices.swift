@@ -39,12 +39,14 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// What the choice does. That imports are read-only is said once, by
+    /// the screen showing the choices, not in every description.
     public var detail: String {
         switch self {
         case .readSleep:
-            "Imports Sleep Analysis. Imported sleep is read-only in Aurora."
+            "Imports Sleep Analysis."
         case .readCaffeine:
-            "Imports caffeine that other apps and devices saved to Apple Health. Those entries are read-only in Aurora; change them in the Health app."
+            "Imports caffeine that other apps and devices saved to Apple Health. Change those entries in the Health app."
         case .writeCaffeine:
             "Adds caffeine you save in Aurora to Apple Health, and updates or removes only those entries. Entries from other sources are never changed. Erasing Aurora leaves its copies in Apple Health."
         case .backgroundUpdates:

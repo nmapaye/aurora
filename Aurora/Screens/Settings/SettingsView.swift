@@ -3,9 +3,9 @@ import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings: appearance, the values estimates use, the user's own reference
-/// points, the cutoff reminder, About, and Data (exports and deletion). The
-/// stored caffeine reference is never framed as a safe amount or a goal.
+/// Settings: appearance, the values estimates use, the person's own cutoff
+/// time and its reminder, About, and Data (exports and deletion). Nothing
+/// here starts with a value Aurora picked for them.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(AssistantModel.self) private var assistant
@@ -16,8 +16,15 @@ struct SettingsView: View {
     @State private var reminderBusy = false
     @State private var deletedCount = 0
 
+    /// App Review 1.4.1 asks for the check-with-a-doctor reminder. It lives
+    /// here only.
+    static let medicalDisclaimer = "Informational only. Doesn’t diagnose, treat, cure or prevent any condition. Check with a doctor before medical decisions."
+
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
+    /// The one name for the links into this screen from Aurora settings and
+    /// Your records.
+    static let recordsTitle = "Records, exports and privacy"
 
     /// True when pushed onto another screen's NavigationStack. A second
     /// stack nested inside it crashed iPadOS 26's focus system as soon as
@@ -28,7 +35,7 @@ struct SettingsView: View {
         if pushed {
             settings
         } else {
-            NavigationStack { settings }
+            NavigationStack { settings }.pageSizedSheet()
         }
     }
 
@@ -60,20 +67,11 @@ struct SettingsView: View {
                     }
                     footnote("Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.")
                     Divider()
-                    stepper("Personal caffeine reference", value: prefs.dailyLimitMg, in: 0...1000, step: 20, text: { "\(numberText($0)) mg" }) { v in
-                        model.setPrefs { $0.dailyLimitMg = v }
-                    }
-                    footnote("A daily amount you choose for your own reference. It is not a recommended or safe amount.")
-                    Divider()
-                    stepper("Cutoff hour", value: jsRound(prefs.cutoffHour), in: 0...23, step: 1, text: { model.text.clockHour($0, clock: model.clock) }) { v in
-                        model.setPrefs { $0.cutoffHour = v }
-                        Task { await model.resyncReminder() }
-                    }
-                    footnote("The time you choose for the cutoff marker and optional reminder.")
+                    cutoffTime(prefs.cutoffHour)
                 }
 
                 group("Notifications") {
-                    Toggle(isOn: Binding(get: { prefs.notifyCutoff }, set: { enabled in
+                    Toggle(isOn: Binding(get: { prefs.cutoffReminderOn }, set: { enabled in
                         Task {
                             reminderBusy = true
                             await model.setReminder(enabled: enabled)
@@ -82,13 +80,15 @@ struct SettingsView: View {
                     })) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Cutoff reminder")
-                            Text("Daily at \(model.text.clockHour(prefs.cutoffHour, clock: model.clock)), the cutoff time you chose.")
+                            Text(prefs.cutoffHour.map { "Daily at \(model.text.clockHour($0, clock: model.clock)), the cutoff time you set." } ?? "Set a cutoff time first.")
                                 .font(.footnote)
                                 .foregroundStyle(Palette.textSecondary)
                         }
                     }
+                    .disabled(prefs.cutoffHour == nil)
+                    .accessibilityIdentifier("settings-cutoff-reminder")
                     Divider()
-                    reminderStatusRow(enabled: prefs.notifyCutoff)
+                    reminderStatusRow(enabled: prefs.cutoffReminderOn)
                 }
 
                 group("About") {
@@ -96,7 +96,7 @@ struct SettingsView: View {
                     Divider()
                     linkRow("Support", detail: "Get help, report issues, and avoid sharing private Health data.") { openURL(Self.supportURL) }
                     Divider()
-                    row("Medical disclaimer", detail: "Aurora is informational only and does not diagnose, treat, cure, or prevent any disease or condition.")
+                    row("Medical disclaimer", detail: Self.medicalDisclaimer)
                     Divider()
                     LabeledContent("Version", value: Self.version)
                 }
@@ -152,13 +152,13 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
             .padding(Metrics.md)
         }
-        .background(Palette.modalBackground)
+        .background(Palette.screen)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !pushed {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
                 }
             }
         }
@@ -222,30 +222,79 @@ struct SettingsView: View {
         onChange: @escaping (Double) -> Void
     ) -> some View {
         Stepper(value: Binding(get: { value }, set: onChange), in: range, step: step) {
-            LabeledContent(title, value: text(value))
+            // Stacked: title, value and the stepper on one line cut longer
+            // titles off ("Personal caffeine refer…").
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(text(value)).foregroundStyle(Palette.textSecondary).monospacedDigit()
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
         }
         .accessibilityValue(text(value))
     }
 
+    /// The cutoff time starts unset. Set adds one at the current hour, never
+    /// a proposed time; Remove clears it and turns the reminder off.
+    @ViewBuilder
+    private func cutoffTime(_ hour: Double?) -> some View {
+        if let hour {
+            HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(hour) }, set: { v in
+                setCutoff(Double(v))
+            }), id: "settings-cutoff-hour")
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            Button("Remove cutoff time") { setCutoff(nil) }
+                .frame(minHeight: Metrics.minimumTouchTarget)
+                .accessibilityIdentifier("settings-cutoff-remove")
+        } else {
+            LabeledContent("Cutoff time", value: "Not set")
+                .frame(minHeight: Metrics.minimumTouchTarget)
+            Button("Set a cutoff time") {
+                model.tick()
+                setCutoff(Double(model.clock.hour(model.now)))
+            }
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .accessibilityIdentifier("settings-cutoff-set")
+        }
+        footnote("Your own time for the cutoff marker and optional reminder. On the hour.")
+    }
+
+    /// Wake reminders and drink follow-ups stop at the cutoff, so both are
+    /// planned again with the cutoff reminder.
+    private func setCutoff(_ hour: Double?) {
+        Task {
+            await model.setCutoffHour(hour)
+            await assistant.syncRepeatDrinkNotifications(app: model)
+        }
+    }
+
     @ViewBuilder
     private func reminderStatusRow(enabled: Bool) -> some View {
+        let denied = !reminderBusy && model.reminderStatus == .denied
         let status: (text: String, failed: Bool) = {
             if reminderBusy { return ("Updating reminder…", false) }
             switch model.reminderStatus {
             case .off: return (enabled ? "Updating reminder…" : "Reminder off.", false)
             case .scheduled: return ("Reminder scheduled.", false)
-            case .denied: return ("Notification permission is off. Allow notifications in system Settings, then retry.", true)
+            case .denied: return ("", true)
             case .failed: return ("The reminder couldn’t be scheduled. Retry.", true)
             }
         }()
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Reminder status")
-            Text(status.text)
-                .font(.footnote)
-                .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+        if denied {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                NotificationsOffNotice()
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reminder status")
+                Text(status.text)
+                    .font(.footnote)
+                    .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(status.failed ? .isStaticText : [])
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(status.failed ? .isStaticText : [])
         if status.failed {
             Button("Retry reminder") {
                 Task { await model.setReminder(enabled: true) }

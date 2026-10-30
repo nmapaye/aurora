@@ -125,6 +125,30 @@ import Testing
         #expect(model.state.prefs.cutoffHour == 12)
     }
 
+    /// The cutoff starts unset; its reminder turns on only once a time is
+    /// set, and removing the time turns the reminder off.
+    @Test func cutoffReminderNeedsATimeTheyChose() async {
+        let directory = storeDirectory
+        let backend = RepeatDrinkAppTests.Backend()
+        let model = AppModel(
+            clock: LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!),
+            reminders: ReminderService(backend: backend, defaults: UserDefaults(suiteName: UUID().uuidString)!),
+            makeStore: { StateStore(directory: directory) },
+            legacy: { nil }
+        )
+        model.load()
+        #expect(model.state.prefs.cutoffHour == nil)
+        await model.setReminder(enabled: true)
+        #expect(!model.state.prefs.notifyCutoff)
+        await model.setCutoffHour(15)
+        await model.setReminder(enabled: true)
+        #expect(model.state.prefs.notifyCutoff && model.state.prefs.cutoffHour == 15)
+        #expect(backend.pending[CutoffReminder.identifier] != nil)
+        await model.setCutoffHour(nil)
+        #expect(!model.state.prefs.notifyCutoff && model.state.prefs.cutoffHour == nil)
+        #expect(backend.pending[CutoffReminder.identifier] == nil)
+    }
+
     @Test func failedSaveRestoresPreviousRecords() throws {
         let model = makeModel(); model.load()
         let first = model.addCustomDose(.init(mg: "80", source: "Tea", timestamp: AppModel.currentMillis() - 60_000, note: ""))

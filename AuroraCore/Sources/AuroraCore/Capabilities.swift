@@ -49,6 +49,10 @@ public enum Capabilities {
         all.first { $0.intent == intent }
     }
 
+    /// The welcome's three starting points: the two records Aurora is built
+    /// on, then the way to everything else.
+    public static let welcome: [AssistantIntent] = [.logCaffeine, .logSleep, .help]
+
     /// The four everyday actions on the quick tiles.
     public static let tiles: [AssistantIntent] = [.briefing, .logCaffeine, .explainEnergy, .reactionTest]
 
@@ -130,7 +134,7 @@ public enum FollowUps {
             case "checkin": card.state == .saved ? [.energyProjection] : []
             default: []
             }
-        case .reminders, .exports, .caffeineDraft, .sleepDraft, .clarification, .capabilities, .repeatDrink: []
+        case .reminders, .exports, .caffeineDraft, .sleepDraft, .clarification, .capabilities, .repeatDrink, .welcome: []
         }
         return intents.compactMap(Capabilities.capability)
     }
