@@ -14,7 +14,7 @@ Apple Intelligence. Foundation Models requires runtime availability; Mac Ollama 
 simulator-only development tooling. No cloud inference, AI keys, analytics SDK,
 cross-device health/conversation sync, or autonomous calendar edits.
 
-Launch (v0.1.0): paid upfront US$4.99 with no in-app purchases, free TestFlight;
+Launch (v0.1.1): paid upfront US$4.99 with no in-app purchases, free TestFlight;
 Current TestFlight beta uses Apple-synced calendars only; direct Google OAuth is
 deferred. Revisit paid App Store calendar scope before submission. App Privacy label: Data Not Collected (Health data never
 leaves the device; Google Calendar, when connected, exchanges data directly between

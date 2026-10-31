@@ -27,7 +27,7 @@ Alertness values are estimates, not measurements. Aurora doesn’t prescribe caf
 
 ## Commercial defaults
 
-Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases in v0.1.0.
+Paid upfront: US$4.99 base price; free TestFlight beta. Initial English storefronts: United States, Canada, United Kingdom, Australia, and New Zealand, subject to regional review. No in-app purchases in v0.1.1.
 
 App Privacy: Data Not Collected. Health, caffeine, sleep, and reaction data stay on the device and are never sent to the developer or third parties; `Aurora/PrivacyInfo.xcprivacy` declares no collected data types and no tracking. Calendar access uses EventKit; iOS may sync calendars through the account provider configured by the person. This beta does not authenticate directly with Google or call its Calendar API, and Aurora runs no server. CSV export happens only through the user-initiated share sheet.
 

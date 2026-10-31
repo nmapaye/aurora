@@ -1,7 +1,9 @@
 # Expanded Aurora release program
 
-User-approved 2026-10-09. All packages below gate the first App Store release (v0.1.0),
-except widget gates, which apply to v0.1.1 (owner decision 2026-10-24).
+User-approved 2026-10-09. All packages below gate the first App Store release (v0.1.1),
+except widget gates, which apply to v0.1.2 (owner decision 2026-10-24).
+Versions renumbered 2026-10-30 (owner): the launch build is v0.1.1 after the beta fixes, and
+widgets move to v0.1.2; earlier dated entries keep their meaning.
 Starting checkpoint: 85a3ddb on codex/native-assistant, clean before work.
 Legacy PR #19 is unmerged; remote Actions-analysis and gitleaks jobs were cancelled
 with no executed steps (2026-10-05), not reported code/security findings. JS analysis passed.
@@ -33,7 +35,7 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
   recommended threshold/dose/sleep schedule. Reminder changes require Save.
 - Refresh coalesces bounded foreground/observer/background work, invalidates stale
   results, honors quiet hours/daily limits/dismissal, never continuous reasoning.
-- Widgets (v0.1.1) open review drafts; neutral Lock Screen defaults, metrics opt-in. Minimal
+- Widgets (v0.1.2) open review drafts; neutral Lock Screen defaults, metrics opt-in. Minimal
   protected App Group snapshots, stale labels, no calendar mutation or silent logs.
 - Shared design.md/tokens; no fabricated speed, battery or accuracy claims.
 
@@ -45,7 +47,7 @@ Claude subscription only, no API keys or alternate billed provider on exhaustion
 | Health | Integrated including largest-text correction 8de9c0f; physical/live gates open | 165 baseline core UTC/LA; final combined Energy native 58/58 phone/pad; Health reachability flows pass; unsigned Release/site/tokens pass |
 | Energy | Locally integrated at 85ecd49 after independent review; full release acceptance remains open | 186 core UTC/LA; 58 native phone/pad; pad UI 20/20; phone UI 19 full plus corrected 1 focused; light phone/pad and dark phone inspected; expanded accessibility/variant/device matrix pending |
 | Planning/history | Pending | User-defined cutoff preview/reminder; impossible/past/DST scenarios, sparklines, protected edits/Undo |
-| Widgets/performance | Pending; widgets deferred to v0.1.1 by owner decision 2026-10-24 | v0.1.0: local signposts and physical profiling (no widget extension in the v0.1.0 binary). v0.1.1: extension/App Group protection, routing/redaction/erase |
+| Widgets/performance | Pending; widgets deferred to v0.1.2 by owner decision 2026-10-24 | v0.1.1: local signposts and physical profiling (no widget extension in the v0.1.1 binary). v0.1.2: extension/App Group protection, routing/redaction/erase |
 | Release polish | Pending | Gallery all states, serial phone/pad flows, screenshot critique, policies/metadata/website consistency |
 
 ## Release acceptance
@@ -61,10 +63,10 @@ signed archive/privacy audit, real previous-version upgrade, dictation/backgroun
 control feedback <100 ms, scrolling/animation/thermal/battery, verified support URLs
 and contact, TestFlight feedback. No App Store submission without final authorization.
 
-Beta structure (owner-approved 2026-10-24, "Yes"): v0.1.0 has no public wave-2 link.
+Beta structure (owner-approved 2026-10-24, "Yes"): v0.1.1 has no public wave-2 link.
 The CPO exit criteria (at least 14 days of wave 1, at least 10 feedback testers, zero
 data-safety bugs, CTO-verified migration, at least 80% comprehension with n of 8 or more)
-gate App Review submission. Wave 2 becomes the invite-only v0.1.1 widget beta,
+gate App Review submission. Wave 2 becomes the invite-only v0.1.2 widget beta,
 starting from the wave-1 panel.
 
 ## Resume instructions

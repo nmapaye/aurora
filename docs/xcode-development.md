@@ -107,7 +107,7 @@ with `DEVELOPMENT_TEAM = <your team>`.
 
 Release numbering:
 
-- Marketing version: `0.1.0`, set in the target.
+- Marketing version: `0.1.1`, set in the target.
 - Build number: set by the Release workflow as `<run number>.<attempt>`
   (plus the optional `BUILD_NUMBER_OFFSET` variable, a non-negative integer,
   default 0). Local

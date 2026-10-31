@@ -1,6 +1,6 @@
 {
   "name": "aurora",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Tooling for the Aurora repository: the website and icon generation. The iOS app is the Xcode project.",
   "engines": {

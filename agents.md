@@ -12,7 +12,7 @@ copy and estimates were ported one-to-one. The core tests still compare
 against fixtures the TypeScript code generated before it was removed, in UTC
 and America/Los_Angeles.
 
-The target is a paid App Store v0.1.0 release, free TestFlight beta testing,
+The target is a paid App Store v0.1.1 release, free TestFlight beta testing,
 and an optional Gumroad companion guide.
 
 ## Layout
