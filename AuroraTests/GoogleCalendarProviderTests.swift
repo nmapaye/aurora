@@ -15,7 +15,7 @@ import Testing
         "CFBundleURLTypes": [["CFBundleURLSchemes": ["com.googleusercontent.apps.fixture"]]]
     ] }
 
-    /// v0.1.0 ships without a Google client ID. A device that still holds a
+    /// v0.1.1 ships without a Google client ID. A device that still holds a
     /// Keychain token from a dev build must not count as connected, so the
     /// Release build never calls Google.
     @Test func unconfiguredProviderWithStoredTokenIsNotConnected() async throws {

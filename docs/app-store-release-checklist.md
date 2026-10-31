@@ -12,7 +12,7 @@ TestFlight. App Privacy label: Data Not Collected. Initial storefronts:
 US, Canada, UK, Australia, New Zealand after regional business/privacy checks.
 The current beta uses Apple-synced calendars only, including Google calendars
 synced through iOS. Direct Google OAuth is deferred; revisit paid App Store
-calendar scope before submission. No in-app purchases in v0.1.0. No cloud AI, keys, subscriptions, analytics
+calendar scope before submission. No in-app purchases in v0.1.1. No cloud AI, keys, subscriptions, analytics
 SDK, cross-device conversation/health sync, or medical/dosing prescriptions.
 
 ## Owners and milestones

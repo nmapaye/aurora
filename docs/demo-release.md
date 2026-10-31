@@ -38,7 +38,7 @@ validation and upload remain blocked.
 ## App Store Checklist
 
 - Configure the App Store Connect app record for `com.nmapaye.aurora`.
-- Set app pricing in App Store Connect for the paid v0.1.0 release.
+- Set app pricing in App Store Connect for the paid v0.1.1 release.
 - Add the production privacy policy URL: `https://nmapaye.github.io/aurora/privacy.html`.
 - Add the production support URL: `https://nmapaye.github.io/aurora/support.html`.
 - Follow the Organizer workflow above.
