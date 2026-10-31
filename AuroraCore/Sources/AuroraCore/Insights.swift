@@ -190,6 +190,19 @@ public enum Insights {
         return items
     }
 
+    /// A drink's total with its first-seen position, which breaks mg ties.
+    /// Explicit types here keep drinkMix fast to type-check on older Xcode.
+    private struct DrinkTotal {
+        let offset: Int
+        let label: String
+        let mg: Double
+
+        static func precedes(_ lhs: DrinkTotal, _ rhs: DrinkTotal) -> Bool {
+            if lhs.mg != rhs.mg { return lhs.mg > rhs.mg }
+            return lhs.offset < rhs.offset
+        }
+    }
+
     static func drinkMix(_ doses: [Dose]) -> [DrinkMixItem] {
         var order: [String] = []
         var totals: [String: Double] = [:]
@@ -198,13 +211,21 @@ public enum Insights {
             if totals[label] == nil { order.append(label) }
             totals[label, default: 0] += dose.mg
         }
-        let entries = order.enumerated()
-            .map { (offset: $0.offset, label: $0.element, mg: totals[$0.element] ?? 0) }
-            .sorted { $0.mg != $1.mg ? $0.mg > $1.mg : $0.offset < $1.offset }
-        let total = entries.reduce(0) { $0 + $1.mg }
-        return entries.map {
-            DrinkMixItem(label: $0.label, mg: $0.mg, pct: total != 0 ? jsRoundInt($0.mg / total * 100) : 0)
+        var entries: [DrinkTotal] = []
+        entries.reserveCapacity(order.count)
+        for (offset, label) in order.enumerated() {
+            entries.append(DrinkTotal(offset: offset, label: label, mg: totals[label] ?? 0))
         }
+        entries.sort(by: DrinkTotal.precedes)
+        var total: Double = 0
+        for entry in entries { total += entry.mg }
+        var items: [DrinkMixItem] = []
+        items.reserveCapacity(entries.count)
+        for entry in entries {
+            let pct: Int = total != 0 ? jsRoundInt(entry.mg / total * 100) : 0
+            items.append(DrinkMixItem(label: entry.label, mg: entry.mg, pct: pct))
+        }
+        return items
     }
 
     /// The latest test is an observation with its date and source. A
