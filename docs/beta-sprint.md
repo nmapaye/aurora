@@ -342,3 +342,19 @@ For a documentation-only release commit, manually dispatch Core, iOS App and
 Website Demo with publishing off at that same commit; never use a publishing
 workflow as a build probe. This preserves the existing explicit publication
 path and environment while preventing accidental publication during validation.
+
+## Public policy verification — October 28
+
+Read-only verified HTTPS checks returned 200 at
+`https://aurora.nmapaye.com/privacy.html` and
+`https://aurora.nmapaye.com/support.html`. The served privacy page dated October 8
+already described optional Aurora-owned Health writes, but still described direct
+Google Calendar access. The served support page dated July 9 still asked people
+to report Health read decisions Aurora cannot observe. Repository policy text
+retains the approved Apple-only beta scope; prepared support text describes chosen
+options and visible errors and links the enabled private vulnerability form.
+
+These corrections are not a publication claim. An owner-approved publication and
+post-publication content check remain required before beta. Support delivery and
+invitations remain unverified. Preserve the existing custom domain, HTTPS settings,
+and build-only workflow default; do not dispatch publishing as a validation probe.

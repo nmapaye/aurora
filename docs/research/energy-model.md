@@ -260,7 +260,7 @@ public enum ModelConfidence: String, Codable, Sendable { case high, medium, low 
 - One display point is 0.094 lapses, and one lapse is 10.6 points.
 - Label: **"Modeled alertness · 100 = this model's best on a well-rested day · 0 = after a night without sleep."**
 - Details: "≈ 3.3 lapses on a 10-minute reaction test (group average)", rounded to 0.1.
-- Never compare this with Aurora's 60-second Reaction Test. A 60-s test is not the 10-min PVT; the validated brief version is the 3-min PVT-B (Basner 2011).
+- Never compare this with Aurora's 30-second Reaction Test. A 30-s test is not the 10-min PVT; the validated brief version is the 3-min PVT-B (Basner 2011).
 - Contributions (`EnergyContribution`) become `homeostatic` (S), `sleepDebt` (L, as its share of S), `timeOfDay` (κC) and `caffeine` (`Pc − P0`), in lapses. The baseline term goes away.
 - KSS-native display was rejected for the score because the UMP does not predict KSS (Q2).
 
@@ -324,7 +324,7 @@ Unit checks:
 4. **Q4: half-life setting.** Under this spec it no longer affects the score (§4.5). Keep it for "active caffeine" only, or retire it from score-related copy?
 5. **Q5: inertia.** Is a "Just woke" flag acceptable instead of a score penalty, given there is no published UMP-scale magnitude?
 6. **Q6: confidence display.** A qualitative label only, or also a shaded band (about ±20 points of group error)?
-7. **Q7: personalisation later.** The published path needs repeated PVTs (about 27 to learn a person; Priezjev 2023). Aurora's 60-s test would need to become a validated brief PVT (for example the 3-min PVT-B) first.
+7. **Q7: personalisation later.** The published path needs repeated PVTs (about 27 to learn a person; Priezjev 2023). Aurora's 30-s test would need to become a validated brief PVT (for example the 3-min PVT-B) first.
 8. **Q8: travel and night work.** Accept the ±3 h clamp and the rolling usual-timing anchor? The UMP authors note it does not model time-zone change (2016a). The TPM literature uses about 1 h/day (Åkerstedt 2004) or 30%/day (Ingre 2014) re-entrainment.
 
 ## 9. Known limitations and failure modes

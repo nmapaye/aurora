@@ -37,9 +37,16 @@ caffeine,sleep,energy,coffee,calendar,reaction,alertness,wellness
 
 ## URLs and support
 
-Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
-Proposed support: https://nmapaye.github.io/aurora/support.html
+Privacy: https://aurora.nmapaye.com/privacy.html
+Support: https://aurora.nmapaye.com/support.html
 Verify deployed pages and configure a real private support contact before submission. These drafts have not been published.
+
+The canonical pages returned HTTPS 200 on October 28. The served privacy page
+still described direct Google Calendar access, and the support page still asked
+for Health read decisions Aurora cannot observe. Repository corrections require
+an approved website publication and a post-publication content check before beta;
+URL reachability alone does not satisfy that gate. No publication is implied by
+these metadata changes.
 
 ## Reviewer notes
 

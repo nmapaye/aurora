@@ -87,7 +87,7 @@ second-category "may help reduce the risk of" claims.
 | "improves sleep", "prevents crashes", "boosts focus" | Outcome claims need substantiation under FTC rules, even for wellness | "see how caffeine and sleep line up in your records" |
 
 **Safe wellness wording, in Aurora's voice:** "Track sleep and caffeine." "Modeled alertness,
-0–100." "Reaction speed, 60 seconds." "A time you set." "Your records." "Estimate."
+0–100." "Reaction speed, 30 seconds." "A time you set." "Your records." "Estimate."
 
 ### UK, Canada, Australia and New Zealand: what differs
 
@@ -273,9 +273,9 @@ benefit is plausible but not proven, and that argues for keeping the follow-ups 
 
 ## 7. Open questions for the product owner
 
-1. **Reaction test length.** The code says 60 s (`Vigilance.swift:113`), and so do the metadata and
-   copy. The research brief and the sleep research both say 30 s. Which is intended? Either way,
-   it is shorter than any validated PVT, so audit #16 applies.
+1. **Reaction test length.** Resolved: the test runs 30 s, as the research brief and the sleep
+   research proposed (#39; earlier 60 s sessions stay labelled "Earlier 60-second test"). It is
+   still shorter than any validated PVT, so audit #16 applies.
 2. **Defaults:** may Aurora keep *any* default cutoff time (16:00) or reference amount (400 mg)? My
    recommendation is no to both.
 3. **Follow-up shift:** is +60 minutes acceptable, or would you rather send one evening recap? The

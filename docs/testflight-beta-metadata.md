@@ -34,5 +34,12 @@ App Privacy: Data Not Collected. Aurora includes no tracking, analytics or adver
 
 Free TestFlight access; public release defaults to paid upfront. Supply actual reviewer access through App Store Connect only if required, never repository credentials. Distribution signing, physical-device acceptance, independent installation and privacy/support verification remain pending. Direct Google sign-in is deferred from this beta, not a beta setup requirement. See app-store-release-checklist.md.
 
-Proposed privacy: https://nmapaye.github.io/aurora/privacy.html
-Proposed support: https://nmapaye.github.io/aurora/support.html
+Privacy: https://aurora.nmapaye.com/privacy.html
+Support: https://aurora.nmapaye.com/support.html
+
+The canonical pages returned HTTPS 200 on October 28. The served privacy page
+still described direct Google Calendar access, and the support page still asked
+for Health read decisions Aurora cannot observe. Repository corrections require
+an approved website publication and a post-publication content check before beta;
+URL reachability alone does not satisfy that gate. No publication is implied by
+these metadata changes.
