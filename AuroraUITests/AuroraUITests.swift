@@ -12,8 +12,16 @@ final class AuroraUITests: XCTestCase {
     /// Health or calendar access, then finishes.
     private func finishSetup() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
-        tapWhenReady(app.buttons["setup-skip-all"])
+        let skipAll = app.buttons["setup-skip-all"]
+        tapWhenReady(skipAll)
         let finish = app.buttons["setup-finish"]
+        // CI's iPhone once ignored this tap at the button's centre, leaving
+        // the name question on screen. Skip only shows before the last step,
+        // so tapping it again can never skip past Finish.
+        if !finish.waitForExistence(timeout: 5), skipAll.exists {
+            attachScreenshot("First Skip to the end tap was ignored")
+            tapWhenReady(skipAll)
+        }
         tapWhenReady(finish)
         // CI's iPad once dropped this tap while the finish controls were
         // still animating in, leaving setup on screen; tap it again then.
@@ -403,8 +411,17 @@ final class AuroraUITests: XCTestCase {
         save.tap()
         let undo = app.buttons["assistant-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5), app.debugDescription)
-        undo.tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch.waitForExistence(timeout: 5))
+        tapWhenReady(undo)
+        let removed = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch
+        // CI's iPhone once ignored this tap at the still button's centre;
+        // the receipt stayed saved. Undo only shows on a saved receipt, so a
+        // second tap can never remove a second entry.
+        if !removed.waitForExistence(timeout: 3), undo.exists {
+            attachScreenshot("First Undo tap was ignored")
+            tapWhenReady(undo)
+        }
+        XCTAssertTrue(removed.waitForExistence(timeout: 5))
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 3), "The removed entry must not offer Undo again")
     }
     func testDraftFieldKeepsSaveAboveCollapsedComposer() {
         finishSetup()
