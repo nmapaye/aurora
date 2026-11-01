@@ -14,6 +14,8 @@ struct AssistantView: View {
     @State private var showHealthConnection = false
     /// How far the software keyboard reaches up from the screen's bottom.
     @State private var keyboardOverlap: CGFloat = 0
+    /// The largest keyboard overlap since a card field started being edited.
+    @State private var heldOverlap: CGFloat = 0
     /// Messages at least partly on screen, and whether the end is.
     /// Which messages, and whether the end, are on screen. Held by
     /// reference, not as view state: they change on every scroll and are
@@ -92,7 +94,7 @@ struct AssistantView: View {
                         // a card field is edited, extend the end by the keyboard
                         // overlap so Save can always be scrolled into view.
                         if editingCard && keyboardOverlap > 0 {
-                            Color.clear.frame(height: keyboardOverlap).accessibilityHidden(true)
+                            Color.clear.frame(height: editingSlack).accessibilityHidden(true)
                         }
                     }
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
@@ -117,6 +119,8 @@ struct AssistantView: View {
                 }, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
                 .scrollDismissesKeyboard(.interactively)
+                .onChange(of: keyboardOverlap) { _, new in if editingCard && new > heldOverlap { heldOverlap = new } }
+                .onChange(of: editingCard) { _, editing in heldOverlap = editing ? max(heldOverlap, keyboardOverlap) : 0 }
                 .overlay { ConversationErase(progress: erased, reduceMotion: reduceMotion) }
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)
@@ -467,6 +471,18 @@ struct AssistantView: View {
     /// keyboard. Keep only the composer field so the card's Save stays
     /// visible and swipes can't land on quick actions.
     private var editingCard: Bool { assistant.editingCardField && !composerFocused }
+
+    /// The end spacer while a card field is edited. On iPad the software
+    /// keyboard can drop to its 64 pt accessory bar while the field keeps
+    /// focus (#71: CI showed Save 251 pt lower after the first Save tap, which
+    /// then hit the amount field). Both the spacer and the viewport follow the
+    /// overlap, so the scrollable range moved by twice the change and the
+    /// offset was clamped. Holding spacer plus overlap at the largest overlap
+    /// keeps that range, and so Save, where it was.
+    private var editingSlack: CGFloat {
+        let held = max(heldOverlap, keyboardOverlap)
+        return held + (held - keyboardOverlap)
+    }
 
     /// The bottom area. Only `$input` is passed, never read here: the draft
     /// lives in `ConversationComposer` so a keystroke re-renders the bar,
