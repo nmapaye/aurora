@@ -460,6 +460,7 @@ struct AssistantCardView: View {
                     ForEach(card.metrics.filter { $0.id != "alertness" }) { EnergyMetricHero(item: $0) }
                 }
                 if let energy = card.energy {
+                    CardDisclosure(title: AlertnessExplanation.title) { WhyThisNumberCard(estimate: energy.estimate, text: snapshotText) }
                     CardDisclosure(title: "What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
                 }
             }
