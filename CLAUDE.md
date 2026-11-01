@@ -6,11 +6,8 @@ Native accessibility, Aurora's user-approved palette, and product trust rules
 override web-only skill recommendations. Skills are advisory; no automatic hooks
 are installed and no new cloud/API-key configuration is allowed.
 
-Claude owns UI/theme work in its isolated release-design worktree. Codex owns
-AuroraCore, services/storage, settings deletion, tests, CI and integration. Agree
-before touching shared files. No pushes or publications. Do not modify original
-Aurora checkouts. Use small local commits and include actual verification evidence.
+Work on an isolated branch or worktree. Do not modify other Aurora checkouts. Use
+small commits and include actual verification evidence. Nothing merges to main
+without the owner's explicit approval; main is protected, never force-push it.
 
-Only one simulator UI-test job at a time on this Mac. Codex schedules the test lane.
-Set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` per command; do not
-change global xcode-select or signing/team settings.
+Do not change global xcode-select or signing/team settings.
