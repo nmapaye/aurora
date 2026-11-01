@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-AuroraDesignGallery") { return true }
         #endif
+        // App Intents run in this process and write through this model.
+        ShortcutHost.model = model
         // Runs before the first frame, so a slow open shows only the launch
         // background, not BootView. Timed to tell that apart from rendering.
         Signposts.measure("Launch.StorageLoad") { model.load() }
