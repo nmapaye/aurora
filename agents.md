@@ -49,23 +49,32 @@ only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
 
 ## Rules that must hold
 
-- Describe what was recorded. Never prescribe a dose, a bedtime, a wake time
-  or a sleep-cycle schedule, and never frame caffeine against a limit,
-  allowance or "remaining" amount. `CopyRules.violations(in:)` lists the
-  banned phrasing, and core tests run user-facing copy through it.
-- No setting starts with a value Aurora picked. The cutoff time starts unset
-  and its reminder turns on only after the person sets one (stored values
-  from older builds are kept). The old "Personal caffeine reference"
-  (`dailyLimitMg`) is gone; old files still decode.
-- At most one notification Aurora starts itself per day (briefing first,
-  then drink follow-ups); reminders the person set don't count. See
-  `NotificationBudget` and `docs/native-assistant.md`.
+- Describe what was recorded. Personal suggestions (e.g. a caffeine cutoff
+  from the person's own logs) are allowed only when labeled as estimates,
+  explained, opt-in, and never framed as medical advice. Never frame caffeine
+  against a hard limit, allowance or "remaining" amount, and never make
+  health claims or use diagnosis/treatment language. `CopyRules.violations(in:)`
+  lists the banned phrasing, and core tests run user-facing copy through it
+  (it still needs updating to match this rule).
+- No setting is silently applied. Aurora may propose a value with its stated
+  reason; the person confirms it with one tap. Until then the cutoff time
+  starts unset and its reminder turns on only after the person sets one
+  (stored values from older builds are kept). The old "Personal caffeine
+  reference" (`dailyLimitMg`) is gone; old files still decode.
+- Logging saves immediately with a clear, reliable Undo; every log can be
+  undone. Sleep logs may use a confirm card. Calendar changes still need
+  fresh explicit approval.
+- The person chooses the daily cap on notifications Aurora starts itself
+  (default 1 until they change it; briefing first, then drink follow-ups);
+  reminders the person set don't count. See `NotificationBudget` and
+  `docs/native-assistant.md`.
 - A day with no record is "No record", never 0 mg. Averages count recorded
   days only.
-- Caffeine timing before sleep shows a number only at 14 paired nights in
-  the last 30 days. A Reaction Test baseline appears only at 3 tests in 30
-  days. A period comparison appears only when both periods have enough
-  recorded days.
+- Full-confidence caffeine timing before sleep needs 14 paired nights in
+  the last 30 days. A full Reaction Test baseline needs 3 tests in 30
+  days. Before that, an insight may appear only as an "early read" labeled
+  with the data it uses (e.g. "early read, 5 nights"). A period comparison
+  appears only when both periods have enough recorded days.
 - Sample Data (ids starting `demo:`) is labeled and read-only everywhere.
   Health sleep and Health caffeine are read-only. Only manual sleep (`manual:sleep:`) and
   recorded caffeine can be edited or deleted.
@@ -96,12 +105,18 @@ only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
   calendar refreshes or suggestions by themselves.
 - The assistant replaces the tab walkthrough and completes its legacy flag.
   Native history, settings, charts, and reaction tests remain reachable.
-- Never add an AI API-key field, a remote/cloud model, or automatic calendar
-  writes. A calendar preview must be explicitly approved and revalidated.
+- Never add an AI API-key field, a remote/cloud model, analytics, or automatic
+  calendar writes. A calendar preview must be explicitly approved and
+  revalidated. On-device generated text is allowed, but every number in it
+  comes from deterministic app code; models never invent values.
+- Health data stays on device apart from the person's own private iCloud
+  sync (CloudKit private database), allowed in principle but pending
+  verification that the App Privacy label stays Data Not Collected.
 - Wake reminders fire at offsets the person chose after their recorded wake-up
   (or their usual wake time, outside quiet hours), never at or after their
-  own cutoff when one is set. Aurora never
-  suggests the offsets; copy says "your reminder", not why or how much.
+  own cutoff when one is set. Aurora never applies offsets itself (a
+  proposal follows the one-tap rule above); copy says "your reminder", not
+  why or how much.
 - Day math goes through `LocalClock` and number rounding through `jsRound`,
   so DST and halves behave as they did in the old build.
 
@@ -135,7 +150,9 @@ See `docs/native-assistant.md` for full behavior and release gates.
 
 CI runs Swift Core (Linux and macOS), iOS App (iPhone and iPad simulators
 plus a Release build), CodeQL (Actions, JavaScript/TypeScript, Swift) and
-gitleaks. Never merge on red.
+gitleaks. Never merge on red. Work on isolated branches and keep
+verification evidence; nothing merges to main without the owner's explicit
+approval, and main is protected (never force-push it).
 
 ## Icons and brand
 
@@ -159,8 +176,9 @@ gitleaks. Never merge on red.
 
 ## Remaining release work
 
-1. Configure the Apple Developer team and the App Store Connect record for
-   `com.nmapaye.aurora`.
+1. Done: Apple Developer agreements are active, the App ID
+   `com.nmapaye.aurora` is registered, and the App Store Connect record
+   "Aurora: Energy & Daily Rhythm" exists.
 2. Run the device checklist on a physical iPhone and iPad:
    - HealthKit allow, deny and import
    - the cutoff reminder
