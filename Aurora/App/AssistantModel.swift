@@ -300,9 +300,7 @@ final class AssistantModel {
         switch intent {
         case .logCaffeine:
             expireDraft()
-            pendingDraft = AssistantPlanner.caffeineDraft(input, doses: app.state.doses, now: app.now, clock: app.clock)
-            pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
-            captureDraft(app: app)
+            logDose(AssistantPlanner.caffeineDraft(input, doses: app.state.doses, now: app.now, clock: app.clock), app: app)
         case .logSleep:
             expireDraft()
             // Only a usual night the person recorded may fill it; otherwise
@@ -595,12 +593,40 @@ final class AssistantModel {
         appendCard(card, intent: .reactionTest)
     }
 
+    /// A complete caffeine log saves at once, the dose and its queued Health
+    /// action in one change, and its receipt carries Undo. Only a log that
+    /// can't be saved as stated (no amount, or one that doesn't validate)
+    /// opens the entry card; a failed write opens it with the same values,
+    /// so Save can retry.
+    func logDose(_ draft: CustomDoseDraft, app: AppModel) {
+        app.tick()
+        if CaffeineLog.validate(draft, now: app.now).message == nil {
+            if let dose = addDose(draft, app: app) {
+                failure = nil
+                savedDose = dose
+                receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+                return
+            }
+            failure = app.mutationFailure ?? "The caffeine entry wasn't saved."
+        }
+        pendingDraft = draft
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+    }
+
+    /// The stored dose, or nil when the write didn't land.
+    private func addDose(_ draft: CustomDoseDraft, app: AppModel) -> Dose? {
+        let dose = app.addCustomDose(draft)
+        guard app.mutationFailure == nil, app.state.doses.contains(dose) else { return nil }
+        return dose
+    }
+
     func saveDose(app: AppModel) {
         guard let draft = pendingDraft else { return }
         app.tick()
         if let message = CaffeineLog.validate(draft, now: app.now).message { failure = message; return }
-        let dose = app.addCustomDose(draft)
-        guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
+        guard let dose = addDose(draft, app: app) else { failure = app.mutationFailure ?? "The caffeine entry wasn't saved."; return }
+        failure = nil
         closeDraftCard(.saved)
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
         // The card's Saved badge gives the success haptic.
@@ -651,19 +677,19 @@ final class AssistantModel {
         save()
     }
 
-    /// "Log it": a caffeine draft with yesterday's drink, timed now.
-    func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
-        guard let prompt = message.card?.repeatDrink, !processing else { return }
+    /// "Log it": logs yesterday's drink, timed now, with Undo on its receipt.
+    func logRepeatDrink(_ message: ConversationMessage, app: AppModel) {
+        // The current card, not the tapped copy: a second tap logs nothing.
+        guard let card = conversation.messages.first(where: { $0.id == message.id })?.card, card.state == .ready,
+              let prompt = card.repeatDrink, !processing else { return }
         app.tick()
         expireDraft()
-        updateCard(message.id) { $0.state = .saved; $0.summary = "Review it below before saving." }
+        updateCard(message.id) { $0.state = .saved; $0.summary = "Logged. See the receipt below." }
         activeCards.remove(message.id)
         var engagement = conversation.repeatDrinkEngagement ?? .init()
         engagement.recordAnswered(now: app.now, clock: app.clock)
         conversation.repeatDrinkEngagement = engagement
-        pendingDraft = RepeatDrinks.draft(prompt, now: app.now)
-        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
-        captureDraft(app: app)
+        logDose(RepeatDrinks.draft(prompt, now: app.now), app: app)
     }
 
     /// "Not today": not asked again for that drink. Records nothing, never
