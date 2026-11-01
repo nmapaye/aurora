@@ -116,7 +116,14 @@ struct AssistantView: View {
                     reveal(proxy, id, anchor: .top)
                 }, conversationEndChanged)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if viewportHeight != $0 { viewportHeight = $0 } }
-                .scrollDismissesKeyboard(.interactively)
+                // While a card field is edited the conversation is scrolled
+                // with the keyboard up to reach Save (#71). Letting that
+                // scroll dismiss the keyboard could end editing as Save was
+                // touched (seen on CI's iPad); the editing-only layout then
+                // collapsed and moved Save from under the finger, so the
+                // first tap saved nothing. Done, the keyboard's hide key,
+                // Save and Discard still end editing.
+                .scrollDismissesKeyboard(editingCard ? .never : .interactively)
                 .overlay { ConversationErase(progress: erased, reduceMotion: reduceMotion) }
                 .overlay(alignment: .bottom) { newMessageBelow(proxy) }
                 .animation(Motion.content(reduceMotion: reduceMotion), value: showsNewBelow)

@@ -469,18 +469,17 @@ final class AuroraUITests: XCTestCase {
 
         // Editing saved nothing; Save is the explicit step and works from here.
         XCTAssertFalse(app.buttons["assistant-undo"].exists)
+        // One tap saves with the pad up (#71): on CI's iPad the first tap
+        // used to only end editing and move the card. No second tap; keep
+        // the screen as evidence if it ever happens again.
         save.tap()
-        // On CI's iPad (Xcode 26.6) the first tap sometimes only collapses
-        // the keyboard and the card moves under the finger, so nothing
-        // saves; not seen locally. Keep evidence and tap the moved button.
-        if !app.buttons["assistant-undo"].waitForExistence(timeout: 3), save.exists {
+        if !app.buttons["assistant-undo"].waitForExistence(timeout: 5) {
             let collapsed = XCTAttachment(screenshot: app.screenshot())
-            collapsed.name = "First Save tap only ended editing"
+            collapsed.name = "First Save tap did not save"
             collapsed.lifetime = .keepAlways
             add(collapsed)
-            save.tap()
+            XCTFail("The first Save tap with the keyboard up must save. \(app.debugDescription)")
         }
-        XCTAssertTrue(app.buttons["assistant-undo"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
         XCTAssertFalse(save.exists)
         // The saved draft no longer has a field, so the keyboard leaves and
