@@ -93,7 +93,12 @@ struct AssistantView: View {
                         // its extent stopped short by about the keyboard. While
                         // a card field is edited, extend the end by the keyboard
                         // overlap so Save can always be scrolled into view.
-                        if editingCard && keyboardOverlap > 0 {
+                        // Gate on the held slack, not the live overlap: on
+                        // iPad the overlap can read 0 for a frame while the
+                        // keyboard collapses, and dropping the spacer then
+                        // clamped the scroll offset and moved Save from
+                        // under the first tap (#71).
+                        if editingCard && editingSlack > 0 {
                             Color.clear.frame(height: editingSlack).accessibilityHidden(true)
                         }
                     }
