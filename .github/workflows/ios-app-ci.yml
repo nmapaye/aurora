@@ -256,9 +256,13 @@ jobs:
       # the probe's own `log show` command line (the run-41957713689 false
       # positive), and exits 2 on a missing or unreadable capture. A clean probe does not prove the keyboard is detached (the
       # minimize was rare); keyboard-mode-test.log checks the full suite.
-      # If this fails, the owner decides (bug-1d-prompt.md 1b): no Done tap,
-      # no second tap, no test change.
-      - name: Check the hardware keyboard is detached
+      # Run 41965189274 (437a1c0) showed Simulator.app does not detach the
+      # HID keyboard, and the owner chose the app fix (1b option i): draft
+      # Save commits from UIKit's touch-up (PrimaryTouchButton), so the
+      # unchanged testDraftFieldKeepsSaveAboveCollapsedComposer must pass
+      # with the keyboard attached. A minimize here is now reported, not
+      # fatal; a failed probe test or an unreadable capture still fails.
+      - name: Probe the iPad keyboard presentation
         if: matrix.device == 'iPad'
         run: |
           set +e
@@ -283,14 +287,13 @@ jobs:
             exit 1
           fi
           if [ "$check" -eq 1 ]; then
-            echo "::error title=hardware keyboard still attached::minimize event(s) after focusing a field (listed above); see keyboard-mode-probe.log. Owner decision needed (BUG-1d 1b)."
-            exit 1
-          fi
-          if [ "$check" -ne 0 ]; then
+            echo "::warning title=hardware keyboard attached::minimize event(s) after focusing a field (listed above); see keyboard-mode-probe.log. The Test step's one-tap Save runs against this (BUG-1d 1b option i)."
+          elif [ "$check" -ne 0 ]; then
             echo "::error title=keyboard probe::keyboard-mode-probe.log is missing or not a compact log capture (check status $check)"
             exit 1
+          else
+            echo "Keyboard probe: no minimized presentation after focusing a field."
           fi
-          echo "Keyboard probe: no minimized presentation after focusing a field."
 
       # testLongCardArrivesShowingItsStart failed intermittently on iPhone
       # (about 2 in 25 runs). Run it alone up to 40 times on both devices and
