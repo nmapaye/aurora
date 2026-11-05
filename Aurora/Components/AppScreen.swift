@@ -171,10 +171,21 @@ struct PrimaryButtonStyle: ButtonStyle {
 /// wrapped by `AnyButtonStyle`, which calls `makeBody` directly.
 private struct PrimaryButtonBody: View {
     let configuration: ButtonStyleConfiguration
+
+    var body: some View {
+        PrimaryButtonSurface(label: configuration.label, isPressed: configuration.isPressed)
+    }
+}
+
+/// The primary button's look, shared by `PrimaryButtonStyle` and
+/// `PrimaryTouchButton`.
+struct PrimaryButtonSurface<Label: View>: View {
+    let label: Label
+    let isPressed: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        configuration.label
+        label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchTarget)
             .padding(.horizontal, Metrics.md)
@@ -183,7 +194,7 @@ private struct PrimaryButtonBody: View {
                 RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
                     .fill(isEnabled ? Palette.primaryButton : Palette.primaryButtonDisabled)
             )
-            .pressFeedback(configuration.isPressed)
+            .pressFeedback(isPressed)
     }
 }
 
