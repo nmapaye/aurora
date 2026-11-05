@@ -1,0 +1,8 @@
+getpwuid_r did not find a match for uid 501
+Timestamp               Ty Process[PID:TID]
+2026-11-05 03:00:19.197 Df backboardd[1473:ba9a] [com.apple.BackBoard:TouchEvents] touchstats 1017610000007-<main> events starting 0.181173s ago: [
+    down: 1,
+    up: 1,
+]
+2026-11-05 03:00:22.720 Df Aurora[13034:a435] [com.apple.UIKit:KeyboardUI] -[UIKeyboard setMinimized:] Setting keyboard minimized = 1
+2026-11-05 03:01:33.440 Df log[19144:0] [com.apple.log:] log run noninteractively, parent: 1445 (launchd_sim), args: 'log' 'show' '--style' 'compact' '--last' '5m' '--predicate' 'eventMessage CONTAINS "setMinimized" OR eventMessage CONTAINS "floating assistant" OR eventMessage CONTAINS "touchstats" OR eventMess
