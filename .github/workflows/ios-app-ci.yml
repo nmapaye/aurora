@@ -20,7 +20,10 @@ on:
       - '.github/scripts/soft_cancel_rerun.py'
       - '.github/scripts/test_soft_cancel_rerun.py'
       - '.github/scripts/keyboard-mode-log.sh'
+      - '.github/scripts/keyboard_minimize_check.py'
+      - '.github/scripts/test_keyboard_minimize_check.py'
       - '.github/scripts/fixtures/soft_cancel/**'
+      - '.github/scripts/fixtures/keyboard_minimize/**'
   pull_request:
   workflow_dispatch:
 
@@ -60,7 +63,7 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult|verify_beta_scope|test_beta_scope|soft_cancel_rerun|test_soft_cancel_rerun)\.py$|\.github/scripts/keyboard-mode-log\.sh$|\.github/scripts/fixtures/soft_cancel/)' <<< "$changed"; then
+          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult|verify_beta_scope|test_beta_scope|soft_cancel_rerun|test_soft_cancel_rerun|keyboard_minimize_check|test_keyboard_minimize_check)\.py$|\.github/scripts/keyboard-mode-log\.sh$|\.github/scripts/fixtures/(soft_cancel|keyboard_minimize)/)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -247,8 +250,11 @@ jobs:
       # probe is an unchanged existing test that types into the numberPad
       # amount field and then taps the next field: the one passing test in
       # run 41378408179 whose tap triggered -[UIKeyboard setMinimized:].
-      # After it, no setMinimized or floating-assistant presentation may be
-      # logged. A clean probe does not prove the keyboard is detached (the
+      # After it, no real minimize event may be logged: setMinimized with
+      # minimized = 1 (or no value), visualMode -> 2, or a floating-assistant
+      # presentation. keyboard_minimize_check.py ignores `minimized = 0` and
+      # the probe's own `log show` command line (the run-41957713689 false
+      # positive), and exits 2 on a missing or unreadable capture. A clean probe does not prove the keyboard is detached (the
       # minimize was rare); keyboard-mode-test.log checks the full suite.
       # If this fails, the owner decides (bug-1d-prompt.md 1b): no Done tap,
       # no second tap, no test change.
@@ -270,13 +276,18 @@ jobs:
           status=$?
           grep -E "error:|Test [Cc]ase '.*' (passed|failed)|\*\* .* \*\*|Executed" build/xcodebuild-keyboard-probe.log | head -50
           bash .github/scripts/keyboard-mode-log.sh "$udid" probe
-          minimized=$(grep -cE 'setMinimized|floating assistant' build/keyboard-mode-probe.log)
+          python3 .github/scripts/keyboard_minimize_check.py build/keyboard-mode-probe.log
+          check=$?
           if [ "$status" -ne 0 ]; then
             echo "::error title=keyboard probe::the probe test failed (status $status); see xcodebuild-keyboard-probe.log"
             exit 1
           fi
-          if [ "$minimized" -ne 0 ]; then
-            echo "::error title=hardware keyboard still attached::$minimized setMinimized/floating-assistant line(s) after focusing a field; see keyboard-mode-probe.log. Owner decision needed (BUG-1d 1b)."
+          if [ "$check" -eq 1 ]; then
+            echo "::error title=hardware keyboard still attached::minimize event(s) after focusing a field (listed above); see keyboard-mode-probe.log. Owner decision needed (BUG-1d 1b)."
+            exit 1
+          fi
+          if [ "$check" -ne 0 ]; then
+            echo "::error title=keyboard probe::keyboard-mode-probe.log is missing or not a compact log capture (check status $check)"
             exit 1
           fi
           echo "Keyboard probe: no minimized presentation after focusing a field."

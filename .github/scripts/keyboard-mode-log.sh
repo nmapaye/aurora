@@ -14,7 +14,7 @@ if [ ! -f "$stamp" ]; then
 fi
 minutes=$(( ( $(date +%s) - $(cat "$stamp") ) / 60 + 2 ))
 xcrun simctl spawn "$udid" log show --style compact --last "${minutes}m" \
-  --predicate 'eventMessage CONTAINS "setMinimized" OR eventMessage CONTAINS "floating assistant" OR eventMessage CONTAINS "touchstats" OR eventMessage CONTAINS "BKSHIDKeyboardDevice"' \
+  --predicate 'eventMessage CONTAINS "setMinimized" OR eventMessage CONTAINS "floating assistant" OR eventMessage CONTAINS "touchstats" OR eventMessage CONTAINS "BKSHIDKeyboardDevice" OR eventMessage CONTAINS "visualMode"' \
   > "$out" 2>&1 || true
 echo "Captured the last ${minutes} min into $out ($(wc -l < "$out" | tr -d ' ') lines)"
 echo "setMinimized lines: $(grep -c setMinimized "$out" || true)"
@@ -23,4 +23,7 @@ echo "BKSHIDKeyboardDevice lines: $(grep -c BKSHIDKeyboardDevice "$out" || true)
 echo "touchstats lines: $(grep -c touchstats "$out" || true)"
 echo "soft cancels: $(grep -c 'soft cancel: [1-9]' "$out" || true)"
 grep -E 'soft cancel: [1-9]' "$out" | head -20 || true
+# Real minimize events only (BUG-1d 1b): not `minimized = 0`, not this log's
+# own command line. Diagnostic here; only the iPad probe step fails on it.
+python3 "$(dirname "$0")/keyboard_minimize_check.py" "$out" || true
 exit 0
