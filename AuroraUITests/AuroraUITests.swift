@@ -823,21 +823,37 @@ final class AuroraUITests: XCTestCase {
         // settles. Asking that snapshot for a hit point aborts XCTest before
         // the visibility timeout/diagnostics. Wait for geometry first; keep
         // the same hittability requirement and three-second deadline.
+        // BUG-1d: record every evaluation (which condition was false, and how
+        // long each AX round trip took) so a timeout names its cause. The
+        // conditions, deadline and assertion are unchanged.
+        var evaluations: [String] = []
+        let started = Date()
         let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard let snapshot = try? title.snapshot() else { return false }
+            let at = String(format: "%.2f", Date().timeIntervalSince(started))
+            guard let snapshot = try? title.snapshot() else {
+                evaluations.append("\(at)s no snapshot")
+                return false
+            }
             let frame = snapshot.frame
             guard frame.minX.isFinite, frame.minY.isFinite,
-                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
-            return title.isHittable
+                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else {
+                evaluations.append("\(at)s frame \(frame)")
+                return false
+            }
+            let hittable = title.isHittable
+            let end = String(format: "%.2f", Date().timeIntervalSince(started))
+            evaluations.append("\(at)s frame \(frame) hittable \(hittable) end \(end)s")
+            return hittable
         }, object: title)
         let result = XCTWaiter.wait(for: [shown], timeout: 3)
         if result != .completed {
+            print("Long-card evaluations: \(evaluations)")
             attachScreenshot("Long card title not hittable")
             print("Long-card title: \(title.debugDescription)")
             print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
             print(app.debugDescription)
         }
-        XCTAssertEqual(result, .completed)
+        XCTAssertEqual(result, .completed, "evaluations: \(evaluations)")
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)

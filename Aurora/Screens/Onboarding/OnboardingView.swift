@@ -50,11 +50,17 @@ struct StoryScenesView: View {
                 HStack {
                     AuroraMark().frame(width: 32, height: 32)
                     Spacer()
-                    Button("Skip", action: onFinish)
-                        .font(.body.weight(.medium))
-                        .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget)
-                        .accessibilityHint("Goes to setup.")
-                        .accessibilityIdentifier("onboarding-skip-story")
+                    // The 44 pt frame and hit shape sit inside the label so
+                    // the button itself (and its accessibility frame) is a
+                    // full touch target, not just the text (BUG-1d).
+                    Button(action: onFinish) {
+                        Text("Skip")
+                            .font(.body.weight(.medium))
+                            .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityHint("Goes to setup.")
+                    .accessibilityIdentifier("onboarding-skip-story")
                 }
                 .padding(.horizontal, Metrics.lg)
                 TabView(selection: $page) {
