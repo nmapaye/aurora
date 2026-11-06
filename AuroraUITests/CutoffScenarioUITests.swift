@@ -104,8 +104,18 @@ final class CutoffScenarioUITests: XCTestCase {
         // The calendar popover covers the card until dismissed; its dismiss
         // region is a button or an other element depending on iOS.
         let dismiss = app.descendants(matching: .any)["PopoverDismissRegion"].firstMatch
-        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
-        else { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap() }
+        _ = dismiss.waitForExistence(timeout: 3)
+        // Dismiss on the navigation bar's title, never at the region's own
+        // hit point: on iPad that is (482, 688), inside cutoff-amount
+        // (y 683.5-705.5), and iPadOS can hand the dismissing tap on to the
+        // field (run 41988988325). Its decimal pad then opens in a popover
+        // with its own PopoverDismissRegion, which this check would wait on
+        // instead. The bar's center is the static "Aurora" title on iPad and
+        // iPhone; its buttons sit at the edges.
+        let bar = app.navigationBars.firstMatch
+        let above = bar.exists ? bar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            : app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
+        above.tap()
         XCTAssertTrue(dismiss.waitForNonExistence(timeout: 5), app.debugDescription)
     }
 

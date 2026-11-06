@@ -469,18 +469,32 @@ final class AuroraUITests: XCTestCase {
 
         // Editing saved nothing; Save is the explicit step and works from here.
         XCTAssertFalse(app.buttons["assistant-undo"].exists)
+        // One tap saves with the pad up (#71). On CI's iPad (run 41293549978)
+        // the tap saved nothing while the amount field kept focus and the
+        // software keyboard dropped to its 64 pt accessory bar, which moved
+        // Save down 250 pt. No second tap. Record the geometry right before
+        // the tap and the screen right after it, so a failure shows whether
+        // the keyboard changed before the touch or because of it. Queries
+        // after the tap run only on failure; a saved card has no Save.
+        func geometry() -> String {
+            let saveFrame = save.exists ? "\(save.frame)" : "gone"
+            let keyboardFrame = keyboard.exists ? "\(keyboard.frame)" : "gone"
+            return "Save \(saveFrame) keyboard \(keyboardFrame) amount focused \((amount.value(forKey: "hasKeyboardFocus") as? Bool) ?? false)"
+        }
+        let beforeTap = geometry()
         save.tap()
-        // On CI's iPad (Xcode 26.6) the first tap sometimes only collapses
-        // the keyboard and the card moves under the finger, so nothing
-        // saves; not seen locally. Keep evidence and tap the moved button.
-        if !app.buttons["assistant-undo"].waitForExistence(timeout: 3), save.exists {
+        let afterTapScreen = app.screenshot()
+        if !app.buttons["assistant-undo"].waitForExistence(timeout: 5) {
+            let touched = XCTAttachment(screenshot: afterTapScreen)
+            touched.name = "Right after the first Save tap"
+            touched.lifetime = .keepAlways
+            add(touched)
             let collapsed = XCTAttachment(screenshot: app.screenshot())
-            collapsed.name = "First Save tap only ended editing"
+            collapsed.name = "First Save tap did not save"
             collapsed.lifetime = .keepAlways
             add(collapsed)
-            save.tap()
+            XCTFail("The first Save tap with the keyboard up must save. Before tap: \(beforeTap). Now: \(geometry()). \(app.debugDescription)")
         }
-        XCTAssertTrue(app.buttons["assistant-undo"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
         XCTAssertFalse(save.exists)
         // The saved draft no longer has a field, so the keyboard leaves and
@@ -809,21 +823,37 @@ final class AuroraUITests: XCTestCase {
         // settles. Asking that snapshot for a hit point aborts XCTest before
         // the visibility timeout/diagnostics. Wait for geometry first; keep
         // the same hittability requirement and three-second deadline.
+        // BUG-1d: record every evaluation (which condition was false, and how
+        // long each AX round trip took) so a timeout names its cause. The
+        // conditions, deadline and assertion are unchanged.
+        var evaluations: [String] = []
+        let started = Date()
         let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard let snapshot = try? title.snapshot() else { return false }
+            let at = String(format: "%.2f", Date().timeIntervalSince(started))
+            guard let snapshot = try? title.snapshot() else {
+                evaluations.append("\(at)s no snapshot")
+                return false
+            }
             let frame = snapshot.frame
             guard frame.minX.isFinite, frame.minY.isFinite,
-                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else { return false }
-            return title.isHittable
+                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else {
+                evaluations.append("\(at)s frame \(frame)")
+                return false
+            }
+            let hittable = title.isHittable
+            let end = String(format: "%.2f", Date().timeIntervalSince(started))
+            evaluations.append("\(at)s frame \(frame) hittable \(hittable) end \(end)s")
+            return hittable
         }, object: title)
         let result = XCTWaiter.wait(for: [shown], timeout: 3)
         if result != .completed {
+            print("Long-card evaluations: \(evaluations)")
             attachScreenshot("Long card title not hittable")
             print("Long-card title: \(title.debugDescription)")
             print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
             print(app.debugDescription)
         }
-        XCTAssertEqual(result, .completed)
+        XCTAssertEqual(result, .completed, "evaluations: \(evaluations)")
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)

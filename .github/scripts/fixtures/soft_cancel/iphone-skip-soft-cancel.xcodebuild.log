@@ -1,0 +1,54 @@
+    t =    40.83s Tear Down
+Test Case '-[AuroraUITests.AuroraUITests testTrendsSwitchSignalsAndRange]' passed (41.137 seconds).
+Test Case '-[AuroraUITests.AuroraUITests testTrendsSwitchSignalsAndRange]' started (Iteration 15 of 40).
+    t =     0.00s Start Test at 2026-11-02 03:56:16.170
+    t =     0.05s Set Up
+    t =     0.05s     Open com.nmapaye.aurora
+    t =     0.05s         Launch com.nmapaye.aurora
+    t =     0.05s             Terminate com.nmapaye.aurora:9313
+2026-11-02 03:56:17.266 xcodebuild[13028:283765] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-02 03:56:17.266 xcodebuild[13028:283765] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.69s             Setting up automation session
+    t =     3.60s             Wait for com.nmapaye.aurora to idle
+    t =     5.47s Waiting 15.0s for "onboarding-skip-story" Button to exist
+    t =     6.53s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-skip-story" Button`
+    t =     6.53s         Checking existence of `"onboarding-skip-story" Button`
+    t =     7.81s Checking `Expect predicate `isHittable == 1` for object "onboarding-skip-story" Button`
+    t =     7.81s     Find the "onboarding-skip-story" Button
+    t =     7.95s Tap "onboarding-skip-story" Button
+    t =     7.95s     Wait for com.nmapaye.aurora to idle
+    t =     7.97s     Find the "onboarding-skip-story" Button
+    t =     8.04s     Check for interrupting elements affecting "onboarding-skip-story" Button
+    t =     8.14s     Synthesize event
+    t =     8.48s     Wait for com.nmapaye.aurora to idle
+    t =     8.49s Waiting 5.0s for "setup-skip-all" Button to exist
+    t =     9.55s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =     9.55s         Checking existence of `"setup-skip-all" Button`
+    t =     9.65s         Capturing element debug description
+    t =    10.51s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =    10.51s         Checking existence of `"setup-skip-all" Button`
+    t =    10.65s         Capturing element debug description
+    t =    11.49s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =    11.49s         Checking existence of `"setup-skip-all" Button`
+    t =    11.57s         Capturing element debug description
+    t =    12.56s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =    12.56s         Checking existence of `"setup-skip-all" Button`
+    t =    12.60s         Capturing element debug description
+    t =    13.49s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =    13.49s         Checking existence of `"setup-skip-all" Button`
+    t =    13.64s         Capturing element debug description
+    t =    13.64s     Checking existence of `"setup-skip-all" Button`
+    t =    13.69s Collecting debug information to assist test failure triage
+    t =    13.69s     Requesting snapshot of accessibility hierarchy for app with pid 10706
+/Users/runner/work/aurora/aurora/AuroraUITests/AuroraUITests.swift:41: error: -[AuroraUITests.AuroraUITests testTrendsSwitchSignalsAndRange] : XCTAssertTrue failed
+    t =    14.55s Tear Down
+Test Case '-[AuroraUITests.AuroraUITests testTrendsSwitchSignalsAndRange]' failed (14.825 seconds).
+Test Suite 'AuroraUITests' failed at 2026-11-02 03:56:30.994.
+	 Executed 55 tests, with 1 failure (0 unexpected) in 2256.950 (2257.003) seconds
+Test Suite 'AuroraUITests.xctest' failed at 2026-11-02 03:56:30.997.
+	 Executed 55 tests, with 1 failure (0 unexpected) in 2256.950 (2257.006) seconds
+
+Failing tests:
+	AuroraUITests.testTrendsSwitchSignalsAndRange()
+
+** TEST EXECUTE FAILED **

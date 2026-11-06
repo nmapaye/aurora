@@ -1,0 +1,231 @@
+Test Case '-[AuroraUITests.AuroraUITests testDraftFieldKeepsSaveAboveCollapsedComposer]' started.
+    t =     0.00s Start Test at 2026-11-02 04:22:33.815
+    t =     0.03s Set Up
+    t =     0.03s     Open com.nmapaye.aurora
+    t =     0.03s         Launch com.nmapaye.aurora
+    t =     0.03s             Terminate com.nmapaye.aurora:60213
+2026-11-02 04:22:34.859 xcodebuild[44721:597797] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-02 04:22:34.859 xcodebuild[44721:597797] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.71s             Setting up automation session
+    t =     3.93s             Wait for com.nmapaye.aurora to idle
+    t =     5.86s Waiting 15.0s for "onboarding-skip-story" Button to exist
+    t =     6.91s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-skip-story" Button`
+    t =     6.91s         Checking existence of `"onboarding-skip-story" Button`
+    t =     8.09s Checking `Expect predicate `isHittable == 1` for object "onboarding-skip-story" Button`
+    t =     8.09s     Find the "onboarding-skip-story" Button
+    t =     8.27s Tap "onboarding-skip-story" Button
+    t =     8.27s     Wait for com.nmapaye.aurora to idle
+    t =     8.28s     Find the "onboarding-skip-story" Button
+    t =     8.38s     Check for interrupting elements affecting "onboarding-skip-story" Button
+    t =     8.51s         Wait for com.apple.springboard to idle
+    t =     8.57s     Synthesize event
+    t =     8.94s     Wait for com.nmapaye.aurora to idle
+    t =     9.07s Waiting 5.0s for "setup-skip-all" Button to exist
+    t =    10.09s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-skip-all" Button`
+    t =    10.09s         Checking existence of `"setup-skip-all" Button`
+    t =    11.15s Checking `Expect predicate `isHittable == 1` for object "setup-skip-all" Button`
+    t =    11.15s     Find the "setup-skip-all" Button
+    t =    11.25s Tap "setup-skip-all" Button
+    t =    11.25s     Wait for com.nmapaye.aurora to idle
+    t =    11.26s     Find the "setup-skip-all" Button
+    t =    11.32s     Check for interrupting elements affecting "setup-skip-all" Button
+    t =    11.37s         Wait for com.apple.springboard to idle
+    t =    11.39s     Synthesize event
+    t =    11.72s     Wait for com.nmapaye.aurora to idle
+    t =    11.72s Waiting 5.0s for "setup-finish" Button to exist
+    t =    12.75s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-finish" Button`
+    t =    12.75s         Checking existence of `"setup-finish" Button`
+    t =    12.77s Waiting 5.0s for "setup-finish" Button to exist
+    t =    13.82s     Checking `Expect predicate `existsNoRetry == 1` for object "setup-finish" Button`
+    t =    13.82s         Checking existence of `"setup-finish" Button`
+    t =    14.89s Checking `Expect predicate `isHittable == 1` for object "setup-finish" Button`
+    t =    14.89s     Find the "setup-finish" Button
+    t =    14.92s Tap "setup-finish" Button
+    t =    14.92s     Wait for com.nmapaye.aurora to idle
+    t =    14.93s     Find the "setup-finish" Button
+    t =    14.94s     Check for interrupting elements affecting "setup-finish" Button
+    t =    14.96s         Wait for com.apple.springboard to idle
+    t =    14.99s     Synthesize event
+    t =    15.28s     Wait for com.nmapaye.aurora to idle
+    t =    15.61s Waiting 5.0s for "assistant-composer" TextField to exist
+    t =    16.62s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-composer" TextField`
+    t =    16.62s         Checking existence of `"assistant-composer" TextField`
+    t =    16.71s Waiting 10.0s for "assistant-composer" TextField to exist
+    t =    17.71s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-composer" TextField`
+    t =    17.71s         Checking existence of `"assistant-composer" TextField`
+    t =    17.76s Tap "assistant-quick-Log caffeine" Button
+    t =    17.76s     Wait for com.nmapaye.aurora to idle
+    t =    17.77s     Find the "assistant-quick-Log caffeine" Button
+    t =    17.84s     Check for interrupting elements affecting "assistant-quick-Log caffeine" Button
+    t =    17.89s         Wait for com.apple.springboard to idle
+    t =    17.92s     Synthesize event
+    t =    18.23s     Wait for com.nmapaye.aurora to idle
+    t =    18.42s Waiting 5.0s for "assistant-dose-amount" TextField to exist
+    t =    19.45s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-dose-amount" TextField`
+    t =    19.45s         Checking existence of `"assistant-dose-amount" TextField`
+    t =    19.55s Checking existence of `"assistant-composer" TextField`
+    t =    19.63s Find the "assistant-dose-source" TextField
+    t =    19.71s Find the "assistant-composer" TextField
+    t =    19.81s Checking existence of `"assistant-composer" TextField`
+    t =    19.91s Find the "assistant-dose-source" TextField
+    t =    19.98s Find the "assistant-composer" TextField
+    t =    20.07s Checking existence of `"assistant-composer" TextField`
+    t =    20.14s Find the "assistant-dose-source" TextField
+    t =    20.22s Find the "assistant-composer" TextField
+    t =    20.33s Checking existence of `"assistant-composer" TextField`
+    t =    20.43s Find the "assistant-dose-source" TextField
+    t =    20.50s Find the "assistant-composer" TextField
+    t =    20.57s Tap "assistant-dose-source" TextField
+    t =    20.57s     Wait for com.nmapaye.aurora to idle
+    t =    20.57s     Find the "assistant-dose-source" TextField
+    t =    20.65s     Check for interrupting elements affecting "assistant-dose-source" TextField
+    t =    20.71s         Wait for com.apple.springboard to idle
+    t =    20.74s     Synthesize event
+    t =    21.05s     Wait for com.nmapaye.aurora to idle
+    t =    22.77s Checking `Expect predicate `hasKeyboardFocus == 1` for object "assistant-dose-source" TextField`
+    t =    22.77s     Find the "assistant-dose-source" TextField
+    t =    22.94s Type 'Tea' into "assistant-dose-source" TextField
+    t =    22.94s     Wait for com.nmapaye.aurora to idle
+    t =    22.95s     Find the "assistant-dose-source" TextField
+    t =    23.05s     Check for interrupting elements affecting "assistant-dose-source" TextField
+    t =    23.17s         Wait for com.apple.springboard to idle
+    t =    23.21s     Synthesize event
+    t =    23.47s     Wait for com.nmapaye.aurora to idle
+    t =    23.48s Checking existence of `"assistant-composer" TextField`
+    t =    23.68s Find the "assistant-dose-amount" TextField
+    t =    23.88s Find the "assistant-composer" TextField
+    t =    24.10s Checking existence of `"assistant-composer" TextField`
+    t =    24.25s Find the "assistant-dose-amount" TextField
+    t =    24.37s Find the "assistant-composer" TextField
+    t =    24.50s Checking existence of `"assistant-composer" TextField`
+    t =    24.62s Find the "assistant-dose-amount" TextField
+    t =    24.78s Find the "assistant-composer" TextField
+    t =    24.94s Checking existence of `"assistant-composer" TextField`
+    t =    25.03s Find the "assistant-dose-amount" TextField
+    t =    25.17s Find the "assistant-composer" TextField
+    t =    25.30s Tap "assistant-dose-amount" TextField
+    t =    25.30s     Wait for com.nmapaye.aurora to idle
+    t =    25.32s     Find the "assistant-dose-amount" TextField
+    t =    25.44s     Check for interrupting elements affecting "assistant-dose-amount" TextField
+    t =    25.53s         Wait for com.apple.springboard to idle
+    t =    25.57s     Synthesize event
+    t =    25.88s     Wait for com.nmapaye.aurora to idle
+    t =    27.16s Checking `Expect predicate `hasKeyboardFocus == 1` for object "assistant-dose-amount" TextField`
+    t =    27.16s     Find the "assistant-dose-amount" TextField
+    t =    27.29s Type '80' into "assistant-dose-amount" TextField
+    t =    27.29s     Wait for com.nmapaye.aurora to idle
+    t =    27.30s     Find the "assistant-dose-amount" TextField
+    t =    27.42s     Check for interrupting elements affecting "assistant-dose-amount" TextField
+    t =    27.53s         Wait for com.apple.springboard to idle
+    t =    27.58s     Synthesize event
+    t =    27.82s     Wait for com.nmapaye.aurora to idle
+    t =    27.82s Waiting 5.0s for Keyboard (First Match) to exist
+    t =    28.84s     Checking `Expect predicate `existsNoRetry == 1` for object Keyboard (First Match)`
+    t =    28.84s         Checking existence of `Keyboard (First Match)`
+    t =    28.94s Checking existence of `"8" Key`
+    t =    29.07s Waiting 5.0s for "assistant-quick-Log caffeine" Button to not exist
+    t =    30.09s     Checking `Expect predicate `existsNoRetry == 0` for object "assistant-quick-Log caffeine" Button`
+    t =    30.09s         Checking existence of `"assistant-quick-Log caffeine" Button`
+    t =    30.22s Checking existence of `"assistant-composer" TextField`
+    t =    30.35s Find the "assistant-dose-save" Button
+    t =    30.52s Find the "assistant-dose-save" Button
+    t =    30.68s Find the Window (First Match)
+    t =    30.70s Find the "assistant-composer" TextField
+    t =    30.82s Find the Keyboard (First Match)
+    t =    30.88s Find the "assistant-dose-save" Button
+    t =    31.02s Find the "assistant-dose-save" Button
+    t =    31.19s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    31.22s Find the "assistant-composer" TextField
+    t =    31.38s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    31.45s Find the "assistant-dose-save" Button
+    t =    31.59s Find the "assistant-dose-save" Button
+    t =    31.76s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    31.77s Find the "assistant-composer" TextField
+    t =    31.92s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    31.97s Find the "assistant-dose-save" Button
+    t =    32.10s Find the "assistant-dose-save" Button
+    t =    32.30s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    32.35s Find the "assistant-composer" TextField
+    t =    32.50s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    32.61s Find the "assistant-dose-save" Button
+    t =    32.80s Find the "assistant-dose-save" Button
+    t =    32.97s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    33.00s Find the "assistant-composer" TextField
+    t =    33.17s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    33.25s Find the "assistant-dose-save" Button
+    t =    33.45s Find the "assistant-dose-save" Button
+    t =    33.65s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    33.70s Find the "assistant-composer" TextField
+    t =    33.85s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    33.92s Find the Target Application 'com.nmapaye.aurora'
+    t =    34.53s Added attachment named 'Draft Save with numeric keyboard'
+    t =    34.55s Checking existence of `Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}`
+    t =    34.62s Find the "assistant-dose-save" Button
+    t =    34.81s Find the "assistant-dose-save" Button
+    t =    35.03s Find the Window at {{0.0, 0.0}, {1032.0, 1376.0}}
+    t =    35.06s Find the "assistant-composer" TextField
+    t =    35.23s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    35.36s Waiting 1.0s for "assistant-quick-Log caffeine" Button to not exist
+    t =    36.37s     Checking `Expect predicate `existsNoRetry == 0` for object "assistant-quick-Log caffeine" Button`
+    t =    36.37s         Checking existence of `"assistant-quick-Log caffeine" Button`
+    t =    36.47s     Checking existence of `"assistant-quick-Log caffeine" Button`
+    t =    36.60s Checking existence of `"assistant-undo" Button`
+    t =    36.72s Checking existence of `"assistant-dose-save" Button`
+    t =    36.83s Find the "assistant-dose-save" Button
+    t =    37.02s Checking existence of `Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}`
+    t =    37.06s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    37.11s Find the "assistant-dose-amount" TextField
+    t =    37.24s Tap "assistant-dose-save" Button
+    t =    37.24s     Wait for com.nmapaye.aurora to idle
+    t =    37.24s     Find the "assistant-dose-save" Button
+    t =    37.38s     Check for interrupting elements affecting "assistant-dose-save" Button
+    t =    37.49s         Wait for com.apple.springboard to idle
+    t =    37.57s     Synthesize event
+    t =    37.91s     Wait for com.nmapaye.aurora to idle
+    t =    38.34s Find the Target Application 'com.nmapaye.aurora'
+    t =    38.82s Waiting 5.0s for "assistant-undo" Button to exist
+    t =    39.82s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-undo" Button`
+    t =    39.82s         Checking existence of `"assistant-undo" Button`
+    t =    39.98s         Capturing element debug description
+    t =    40.82s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-undo" Button`
+    t =    40.82s         Checking existence of `"assistant-undo" Button`
+    t =    40.94s         Capturing element debug description
+    t =    41.85s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-undo" Button`
+    t =    41.85s         Checking existence of `"assistant-undo" Button`
+    t =    42.00s         Capturing element debug description
+    t =    42.83s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-undo" Button`
+    t =    42.83s         Checking existence of `"assistant-undo" Button`
+    t =    42.96s         Capturing element debug description
+    t =    43.82s     Checking `Expect predicate `existsNoRetry == 1` for object "assistant-undo" Button`
+    t =    43.82s         Checking existence of `"assistant-undo" Button`
+    t =    43.96s         Capturing element debug description
+    t =    43.96s     Checking existence of `"assistant-undo" Button`
+    t =    44.10s Collecting debug information to assist test failure triage
+    t =    44.10s     Requesting snapshot of accessibility hierarchy for app with pid 60679
+    t =    44.45s Added attachment named 'Right after the first Save tap'
+    t =    44.45s Find the Target Application 'com.nmapaye.aurora'
+    t =    44.88s Added attachment named 'First Save tap did not save'
+    t =    44.88s Checking existence of `"assistant-dose-save" Button`
+    t =    45.00s Find the "assistant-dose-save" Button
+    t =    45.18s Checking existence of `Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}`
+    t =    45.22s Find the Keyboard at {{0.0, 1028.0}, {1032.0, 345.0}}
+    t =    45.27s Find the "assistant-dose-amount" TextField
+    t =    45.43s Requesting snapshot of accessibility hierarchy for app with pid 60679
+    t =    46.24s Requesting snapshot of accessibility hierarchy for app with pid 60679
+/Users/runner/work/aurora/aurora/AuroraUITests/AuroraUITests.swift:496: error: -[AuroraUITests.AuroraUITests testDraftFieldKeepsSaveAboveCollapsedComposer] : failed - The first Save tap with the keyboard up must save. Before tap: Save (232.0, 490.5, 568.0, 44.0) keyboard (0.0, 1028.0, 1032.0, 345.0) amount focused true. Now: Sav
+    Window (Main), 0x114ad3200, {{0.0, 0.0}, {1032.0, 1376.0}}
+Path to element:
+Query chain:
+  Output: {
+  }
+)
+    t =    46.85s Tear Down
+Test Case '-[AuroraUITests.AuroraUITests testDraftFieldKeepsSaveAboveCollapsedComposer]' failed (47.223 seconds).
+Test Suite 'AuroraUITests.xctest' failed at 2026-11-02 05:02:27.096.
+	 Executed 55 tests, with 1 failure (0 unexpected) in 2805.422 (2805.476) seconds
+Test Suite 'Selected tests' failed at 2026-11-02 05:02:27.098.
+	 Executed 55 tests, with 1 failure (0 unexpected) in 2805.422 (2805.479) seconds
+Failing tests:
+	AuroraUITests.testDraftFieldKeepsSaveAboveCollapsedComposer()
+
+** TEST EXECUTE FAILED **
