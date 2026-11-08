@@ -569,7 +569,7 @@ jobs:
           test ! -e "$app/_CodeSignature"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" = com.nmapaye.aurora
           test "$(/usr/libexec/PlistBuddy -c 'Print DTPlatformName' "$app/Info.plist")" = iphoneos
-          lipo -verify_arch arm64 "$app/Aurora"
+          lipo "$app/Aurora" -verify_arch arm64
           mkdir -p build/unsigned-device
           cp Aurora/Aurora.entitlements build/unsigned-device/requested-entitlements.plist
           # Requested entitlements are signing INPUTS, not a claim of granted rights.
