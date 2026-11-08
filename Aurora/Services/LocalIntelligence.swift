@@ -1,6 +1,8 @@
 import AuroraCore
 import Foundation
+#if canImport(FoundationModels)
 import FoundationModels
+#endif
 
 @MainActor
 protocol LocalIntentModel {
@@ -28,8 +30,9 @@ final class AppleIntentModel: LocalIntentModel {
     /// `available` is the caller's cached check; asking the system here would
     /// block the main thread as the keyboard appears.
     func prewarm(available: Bool) {
+        #if canImport(FoundationModels)
         guard prepared == nil, available, #available(iOS 26.0, *) else { return }
-        let session = LanguageModelSession(instructions: AssistantPlanner.modelInstructions)
+        let session = LanguageModelSession(model: SystemLanguageModel.default) { AssistantPlanner.modelInstructions }
         session.prewarm()
         preparedAt = .now
         prepared = { text in
@@ -37,15 +40,19 @@ final class AppleIntentModel: LocalIntentModel {
             try Task.checkCancellation()
             return AssistantPlanner.modelIntent(response.content)
         }
+        #endif
     }
 
     func releasePreparedSession() { prepared = nil; preparedAt = nil }
     let name = "Apple on-device model"
     nonisolated static var available: Bool {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) { return SystemLanguageModel.default.isAvailable }
+        #endif
         return false
     }
     func classify(_ text: String) async throws -> AssistantIntent {
+        #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), Self.available else { throw IntelligenceFailure.unavailable }
         if let ready = prepared, let date = preparedAt, Date.now.timeIntervalSince(date) >= 1 {
             releasePreparedSession()
@@ -54,11 +61,14 @@ final class AppleIntentModel: LocalIntentModel {
         // A rapid send never waits for warmup. Apple recommends at least one
         // second between prewarm and responding on that session.
         releasePreparedSession()
-        let session = LanguageModelSession(instructions: AssistantPlanner.modelInstructions)
+        let session = LanguageModelSession(model: SystemLanguageModel.default) { AssistantPlanner.modelInstructions }
         let response = try await session.respond(to: text, options: GenerationOptions(temperature: 0, maximumResponseTokens: 30))
         try Task.checkCancellation()
         let intent = AssistantPlanner.modelIntent(response.content)
         return intent
+        #else
+        throw IntelligenceFailure.unavailable
+        #endif
     }
 }
 

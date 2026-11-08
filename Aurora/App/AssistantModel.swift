@@ -85,6 +85,14 @@ final class AssistantModel {
     private var requestID: UUID?
     private var storageReady = false
     private let appleModel = AppleIntentModel()
+    private let onDeviceFeatures = AppleOnDeviceFeatures()
+    private(set) var localDrinkReview = LocalDrinkReview()
+    // Test seams for deterministic race/failure checks, never persisted.
+    @ObservationIgnored var extractLocalDrink: ((String) async throws -> LocalDrinkUnderstanding.Evidence)?
+    @ObservationIgnored var composeLocalExplanation: ((GroundedLocalExplanation) async throws -> String)?
+    var reviewingLocalDrink: Bool { localDrinkReview.proposal != nil }
+    func waitForCurrentRequest() async { await task?.value }
+
     private var intentCache = IntentCache()
     private var cacheGeneration = 0
 
@@ -191,6 +199,7 @@ final class AssistantModel {
         do { try store?.save(cleared) }
         catch { failure = "Couldn't clear the saved conversation. It has been preserved. Please retry."; return false }
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
+        localDrinkReview.cancel()
         closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil
         releaseWarmResources()
@@ -203,6 +212,7 @@ final class AssistantModel {
     func resetAfterErase() {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
+        localDrinkReview.cancel()
         closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
@@ -221,9 +231,24 @@ final class AssistantModel {
         save()
     }
     func send(_ input: String, app: AppModel) {
-        let text = String(input.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2000))
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !processing else { return }
-        append(text, user: true)
+        guard text.count <= 2000 else {
+            append("Please shorten this request to one task. Nothing was saved.")
+            return
+        }
+        let knownIntent = AssistantPlanner.explicitIntent(text)
+        let useDrinkUnderstanding = LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
+        append(useDrinkUnderstanding ? "Drink-entry request · text not retained" : text, user: true)
+        // A generated review is immutable. Corrections must start a new full
+        // request, never patch selected fields using the legacy manual parser.
+        if localDrinkReview.request != nil {
+            expireDraft()
+            if ["actually", "correction", "make it", "it was"].contains(where: text.lowercased().hasPrefix) {
+                append("Please state the complete single drink, caffeine amount and time again. Nothing was saved.")
+                return
+            }
+        }
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
             pendingDraft = corrected
@@ -249,13 +274,17 @@ final class AssistantModel {
                 if self.requestID == id { self.processing = false; self.status = ""; self.task = nil }
             }
             do {
+                if useDrinkUnderstanding {
+                    await self.understandDrink(text, request: id, app: app)
+                    return
+                }
                 // Route words only; the request text is never recorded.
                 var route = "explicit"
                 let classifying = Signposts.signposter.beginInterval("Assistant.Classify")
                 var classified = false
                 // Also ends the interval on failure or Stop.
                 defer { if !classified { Signposts.signposter.endInterval("Assistant.Classify", classifying, "\(route, privacy: .public) ended") } }
-                var intent = AssistantPlanner.explicitIntent(text)
+                var intent = knownIntent
                 if intent == nil {
                     let source = self.conversation.preferences.useMacModel
                         ? "mac:\(self.conversation.preferences.macModel)" : "apple"
@@ -281,7 +310,13 @@ final class AssistantModel {
                 Signposts.signposter.endInterval("Assistant.Classify", classifying, "\(route, privacy: .public)")
                 try Task.checkCancellation()
                 guard self.requestID == id else { return }
-                await Signposts.measureAsync("Assistant.Card") { await self.handle(intent ?? .unsupported, input: text, app: app) }
+                if intent == .logCaffeine, text.lowercased() != "log caffeine" {
+                    // A classifier label alone cannot turn a question into a
+                    // consumed-drink instruction or open a guessed manual draft.
+                    self.append("To record a drink, state one drink you had, its caffeine amount and time, or choose manual Log caffeine.")
+                } else {
+                    await Signposts.measureAsync("Assistant.Card") { await self.handle(intent ?? .unsupported, input: text, app: app) }
+                }
             } catch is CancellationError { }
             catch {
                 guard self.requestID == id else { return }
@@ -292,8 +327,48 @@ final class AssistantModel {
     func cancel() {
         Signposts.event("Assistant.Cancel")
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
+        if localDrinkReview.request != nil { expireDraft() }
+        for message in conversation.messages where message.card?.kind == .energy && message.card?.state == .loading {
+            updateCard(message.id) { $0.state = .ready } // Keep the labeled deterministic snapshot, never late generated text.
+        }
         append("Stopped. No proposed action was saved.")
     }
+    private func understandDrink(_ input: String, request id: UUID, app: AppModel) async {
+        expireDraft()
+        app.tick()
+        switch LocalDrinkUnderstanding.prepare(input, doses: app.state.doses, now: app.now, clock: app.clock) {
+        case .clarify(let question): append(question)
+        case .proposal(let proposal):
+            localDrinkReview.begin(id)
+            status = "Understanding one drink on device"
+            do {
+                let extracted: LocalDrinkUnderstanding.Evidence
+                if let extractLocalDrink { extracted = try await extractLocalDrink(input) }
+                else { extracted = try await onDeviceFeatures.extract(input) }
+                try Task.checkCancellation()
+                guard requestID == id, localDrinkReview.request == id else { return }
+                guard LocalDrinkUnderstanding.validate(extracted, against: proposal) else {
+                    localDrinkReview.cancel()
+                    append("I couldn't verify this drink's fields. Please use manual Log caffeine or state one drink, amount and time again.")
+                    return
+                }
+                guard localDrinkReview.offer(proposal, request: id) else { return }
+                pendingDraft = proposal.draft
+                var card = AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text)
+                card.timeZone = proposal.timeZone
+                card.summary = "On-device proposal · " + proposal.provenance + " · " + proposal.timeZone + ". Nothing saved; review then Save."
+                pendingMessageID = appendCard(card, intent: .logCaffeine)
+                captureDraft(app: app)
+                // No autosave call exists. Save is the existing durable mutation boundary.
+            } catch {
+                guard requestID == id else { return }
+                localDrinkReview.cancel()
+                guard !Task.isCancelled else { return }
+                append((error as? LocalizedError)?.errorDescription ?? "On-device understanding failed. Manual Log caffeine and quick actions still work.")
+            }
+        }
+    }
+
     func handle(_ intent: AssistantIntent, input: String, app: AppModel) async {
         let generation = cacheGeneration
         app.tick()
@@ -321,7 +396,28 @@ final class AssistantModel {
             }
             var card = AssistantCards.make(kind, state: app.state, now: app.now, clock: app.clock, text: app.text)
             if kind == .reminders { card.metrics = reminderMetrics(app: app) }
-            appendCard(card, intent: intent)
+            if intent == .explainEnergy, let estimate = card.energy?.estimate {
+                let bundle = GroundedLocalExplanation(estimate: estimate)
+                let request = requestID
+                card.summary = bundle.fallback
+                card.state = .loading
+                let message = appendCard(card, intent: intent)
+                do {
+                    let generated: String
+                    if let composeLocalExplanation { generated = try await composeLocalExplanation(bundle) }
+                    else { generated = try await onDeviceFeatures.explain(bundle) }
+                    try Task.checkCancellation()
+                    guard generation == cacheGeneration, request == requestID else { return }
+                    updateCard(message) { $0.summary = generated; $0.state = .ready }
+                } catch {
+                    guard generation == cacheGeneration, request == requestID else { return }
+                    updateCard(message) {
+                        $0.summary = bundle.fallback
+                        $0.state = .ready
+                        $0.metrics.append(.init(id: "localExplanation", label: "On-device explanation", value: "Not generated", source: "Manual recovery", detail: (error as? LocalizedError)?.errorDescription ?? "Generation failed; showing verified deterministic facts."))
+                    }
+                }
+            } else { appendCard(card, intent: intent) }
         case .briefing:
             status = "Preparing your recorded day"
             var card = AssistantCards.make(.briefing, state: app.state, now: app.now, clock: app.clock, text: app.text)
@@ -377,6 +473,7 @@ final class AssistantModel {
         change(&card); conversation.messages[index].card = card; save()
     }
     func expireDraft() {
+        localDrinkReview.cancel()
         closeDraftCard(.expired)
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
         closeCutoff()
@@ -393,7 +490,9 @@ final class AssistantModel {
     /// The inactive write keeps a relaunch's expired card showing what was
     /// last entered.
     func captureDraft(app: AppModel) {
-        draftFormat = (app.text, app.clock.timeZone.identifier)
+        if let proposal = localDrinkReview.proposal, let zone = TimeZone(identifier: proposal.timeZone) {
+            draftFormat = (.localized(timeZone: zone), proposal.timeZone)
+        } else { draftFormat = (app.text, app.clock.timeZone.identifier) }
         guard let metrics = draftMetrics(),
               let id = pendingMessageID, conversation.messages.first(where: { $0.id == id })?.card?.metrics != metrics else { return }
         updateCard(id) { $0.metrics = metrics }
@@ -433,6 +532,7 @@ final class AssistantModel {
         return nil
     }
     func discardDraft() {
+        localDrinkReview.cancel()
         closeDraftCard(.discarded)
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
         closeCutoff()
@@ -597,11 +697,16 @@ final class AssistantModel {
 
     func saveDose(app: AppModel) {
         guard let draft = pendingDraft else { return }
+        if reviewingLocalDrink, !localDrinkReview.canSave(draft) {
+            failure = "This proposal changed. Discard it and review a new complete request. Nothing was saved."
+            return
+        }
         app.tick()
         if let message = CaffeineLog.validate(draft, now: app.now).message { failure = message; return }
         let dose = app.addCustomDose(draft)
         guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
         closeDraftCard(.saved)
+        localDrinkReview.didPersist()
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
