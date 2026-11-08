@@ -460,6 +460,7 @@ jobs:
       # It targets a generic iOS device, so CI checks
       # the Info.plist that would ship: no local networking exception.
       - name: Release device build
+        id: release-device
         if: ${{ !cancelled() && matrix.device == 'iPhone' }}
         run: |
           mkdir -p build
@@ -486,6 +487,63 @@ jobs:
           fi
           echo "Release device Info.plist has no NSAppTransportSecurity."
           python3 .github/scripts/verify_beta_scope.py "$device"
+
+      # Unsigned, public-source payload only; no provisioning/keychain/ASC access.
+      # A tar preserves app executable modes and bundle layout across artifact ZIPs.
+      - name: Package unsigned device app
+        if: ${{ success() && matrix.device == 'iPhone' && steps.release-device.outcome == 'success' && github.event_name == 'workflow_dispatch' }}
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          app=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app
+          test -f "$app/Aurora"
+          test ! -e "$app/embedded.mobileprovision"
+          test ! -e "$app/_CodeSignature"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" = com.nmapaye.aurora
+          test "$(/usr/libexec/PlistBuddy -c 'Print DTPlatformName' "$app/Info.plist")" = iphoneos
+          lipo -verify_arch arm64 "$app/Aurora"
+          mkdir -p build/unsigned-device
+          cp Aurora/Aurora.entitlements build/unsigned-device/requested-entitlements.plist
+          # Requested entitlements are signing INPUTS, not a claim of granted rights.
+          xcodebuild -version > build/unsigned-device/xcode-version.txt
+          xcrun --sdk iphoneos --show-sdk-version > build/unsigned-device/sdk-version.txt
+          dwarfdump --uuid "$app/Aurora" > build/unsigned-device/binary-uuid.txt
+          tar -cf build/unsigned-device/Aurora-unsigned.tar -C build/DerivedData/Build/Products/Release-iphoneos Aurora.app
+          dsym=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app.dSYM
+          if [ -d "$dsym" ]; then
+            tar -rf build/unsigned-device/Aurora-unsigned.tar -C build/DerivedData/Build/Products/Release-iphoneos Aurora.app.dSYM
+          fi
+          python3 - <<'PYMETA'
+          import hashlib, json, os, pathlib, plistlib
+          root = pathlib.Path('build/unsigned-device')
+          info = plistlib.loads(pathlib.Path('build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist').read_bytes())
+          metadata = {
+              'schema': 1, 'signed': False, 'installReady': False,
+              'sourceSha': os.environ['SOURCE_SHA'], 'runId': os.environ['RUN_ID'],
+              'runAttempt': os.environ['RUN_ATTEMPT'],
+              'bundleId': info['CFBundleIdentifier'],
+              'version': info['CFBundleShortVersionString'], 'build': info['CFBundleVersion'],
+              'minimumOS': info.get('MinimumOSVersion'), 'platform': info['DTPlatformName'],
+              'payloadSha256': hashlib.sha256((root / 'Aurora-unsigned.tar').read_bytes()).hexdigest(),
+              'entitlementsSha256': hashlib.sha256((root / 'requested-entitlements.plist').read_bytes()).hexdigest(),
+          }
+          (root / 'provenance.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PYMETA
+
+      - name: Retain unsigned device app
+        if: ${{ success() && matrix.device == 'iPhone' && steps.release-device.outcome == 'success' && github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-iphoneos-${{ github.sha }}
+          path: build/unsigned-device/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: false
 
       - name: Upload logs
         if: always()
