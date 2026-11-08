@@ -31,11 +31,6 @@ on:
         description: Exact reviewed 40-character source SHA
         required: true
         type: string
-      storage_cost_verified:
-        description: Included storage/zero added spend verified before dispatch
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -516,9 +511,11 @@ jobs:
             build/KeyboardProbe.xcresult
             build/ReleaseSmoke.xcresult
 
+  # Standard public-repository Actions usage is free; do not use this route
+  # for a private repository without a separate cost assessment.
   unsigned-device-artifact:
     name: unsigned iphoneos artifact only
-    if: github.event_name == 'workflow_dispatch' && inputs.storage_cost_verified == true
+    if: github.event_name == 'workflow_dispatch' && github.event.repository.private == false
     runs-on: macos-26
     timeout-minutes: 30
     steps:
