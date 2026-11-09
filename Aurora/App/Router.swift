@@ -19,6 +19,12 @@ final class Router {
     var insightsPath: [HistoryRoute] = []
     var showSettings = false
     var showReactionTest = false
+    /// One source of truth for both the composer and the actual Health sheet.
+    var showHealthConnection = false
+
+    var coversCaffeineReview: Bool {
+        showReactionTest || showHealthConnection || showSettings
+    }
 
     func open(_ link: DeepLink) {
         switch link {

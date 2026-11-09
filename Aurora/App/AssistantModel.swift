@@ -230,6 +230,23 @@ final class AssistantModel {
         // Keep model prompts independent of transcript size; history remains local.
         save()
     }
+    /// Foreground-only shortcut handoff. No model input or record/Health writer.
+    /// Keep every existing review and in-flight operation; do not queue a later log.
+    func reviewCaffeineShortcut(_ request: inout CaffeineReviewShortcut, app: AppModel, foreground: Bool, coveringWork: Bool) {
+        let ready = foreground && app.phase == .ready && storageReady
+        let occupied = coveringWork || !app.state.onboarding.completed || processing || pendingMessageID != nil
+            || pendingDraft != nil || pendingSleep != nil || pendingCheckIn != nil
+            || pendingCutoff != nil || cutoffSaveOperation != nil || localDrinkReview.request != nil
+            || showSleepEntry || showCalendarSettings || showAssistantSettings || historySheet != nil
+            || eraseRequested || clearRequested || editingCardField
+        guard request.consume(ready: ready, hasOpenReview: occupied) else { return }
+        app.tick()
+        // Exactly the existing manual Log caffeine review; Save/Undo stay unchanged.
+        pendingDraft = AssistantPlanner.caffeineDraft("Log caffeine", doses: app.state.doses, now: app.now, clock: app.clock)
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+    }
+
     func send(_ input: String, app: AppModel) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !processing else { return }
