@@ -20,9 +20,12 @@ Corrections such as “Actually 120 mg yesterday at 8am” update the pending dr
 Apple's on-device Foundation Models classify unfamiliar requests when
 available (iOS 26+ and enabled Apple Intelligence). On iOS 17–25 or unsupported
 devices, the same native controls and explicit commands remain available.
-The model chooses one typed capability; it cannot execute arbitrary tools or
-write records. Explanations are deterministic, sourced from local records,
-and explicitly distinguish modeled alertness from measured reaction results.
+The model cannot execute arbitrary tools or write records. The isolated
+Apple-only feature slice adds independently verified single-drink spans with
+immutable explicit-Save review and constrained local explanation composition.
+Only app-verified clauses and app-rendered numbers may appear; deterministic
+recovery is labeled separately. See [implementation status and limits](apple-on-device-features.md).
+Explanations explicitly distinguish modeled alertness from measured reaction results.
 They do not establish causes of fatigue or prescribe doses/sleep schedules.
 
 The animated aurora reflects actual processing and stops on cancellation or

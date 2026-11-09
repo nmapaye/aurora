@@ -321,6 +321,10 @@ struct AssistantCardView: View {
         case .caffeineDraft: caffeineEditor
         case .sleepDraft: sleepEditor
         case .energy, .briefing:
+            if card.kind == .energy, !card.summary.isEmpty {
+                Text(card.summary).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
+                    .accessibilityIdentifier("assistant-grounded-explanation")
+            }
             evidence
             if card.kind == .briefing {
                 if card.state == .loading { ProgressView("Reading selected commitments…") }
@@ -581,27 +585,40 @@ struct AssistantCardView: View {
     @ViewBuilder private var caffeineEditor: some View {
         if draftActive, let draft = assistant.pendingDraft {
             VStack(alignment: .leading, spacing: Metrics.md) {
-                drinkChips(selected: draft)
-                LabeledField(label: "Amount", unit: "mg", isFocused: field == .amount) {
-                    TextField("Enter amount", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
-                        .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().focused($field, equals: .amount)
-                        .accessibilityLabel("Amount, milligrams")
-                        .accessibilityIdentifier("assistant-dose-amount")
+                if let proposal = assistant.localDrinkReview.proposal {
+                    LabeledContent("Drink", value: proposal.draft.source)
+                    LabeledContent("Caffeine", value: proposal.draft.mg + " mg")
+                    Text(proposal.provenance).font(Typography.source)
+                    Text(snapshotText.fullDateTime(proposal.draft.timestamp) + " · " + proposal.timeZone)
+                        .font(Typography.source)
+                    Text("To change these fields, Discard and state the complete drink again.").font(.footnote)
+                    draftActions(save: "Save caffeine", saveID: "assistant-dose-save",
+                                 disabled: !assistant.localDrinkReview.canSave(draft) || CaffeineLog.validate(draft, now: AppModel.currentMillis()) != .valid) {
+                        assistant.saveDose(app: app)
+                    }
+                } else {
+                    drinkChips(selected: draft)
+                    LabeledField(label: "Amount", unit: "mg", isFocused: field == .amount) {
+                        TextField("Enter amount", text: Binding(get: { assistant.pendingDraft?.mg ?? "" }, set: { assistant.pendingDraft?.mg = $0 }))
+                            .keyboardType(.numberPad).font(Typography.evidence).monospacedDigit().focused($field, equals: .amount)
+                            .accessibilityLabel("Amount, milligrams")
+                            .accessibilityIdentifier("assistant-dose-amount")
+                    }
+                    // Mirrors Save's own validation once something is typed; Save
+                    // stays enabled and still reports an empty amount itself.
+                    if !draft.mg.isEmpty, let problem = CaffeineLog.validate(draft, now: AppModel.currentMillis()).message {
+                        fieldProblem(problem)
+                    }
+                    LabeledField(label: "Drink or source", isFocused: field == .source) {
+                        TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
+                            .font(Typography.evidence).focused($field, equals: .source)
+                            .accessibilityLabel("Drink or source")
+                            .accessibilityIdentifier("assistant-dose-source")
+                    }
+                    DateTimeField(label: "Recorded time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), id: "assistant-dose-time")
+                    Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
+                    draftActions(save: "Save caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
                 }
-                // Mirrors Save's own validation once something is typed; Save
-                // stays enabled and still reports an empty amount itself.
-                if !draft.mg.isEmpty, let problem = CaffeineLog.validate(draft, now: AppModel.currentMillis()).message {
-                    fieldProblem(problem)
-                }
-                LabeledField(label: "Drink or source", isFocused: field == .source) {
-                    TextField("Drink or source", text: Binding(get: { assistant.pendingDraft?.source ?? "" }, set: { assistant.pendingDraft?.source = $0 }))
-                        .font(Typography.evidence).focused($field, equals: .source)
-                        .accessibilityLabel("Drink or source")
-                        .accessibilityIdentifier("assistant-dose-source")
-                }
-                DateTimeField(label: "Recorded time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), id: "assistant-dose-time")
-                Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
-                draftActions(save: "Save caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
             }
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
         } else { closedDraft(card.state == .saved ? "Saved. See the receipt below." : "This draft is closed. Refresh to record an entry.") }
