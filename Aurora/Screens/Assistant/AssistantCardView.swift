@@ -634,7 +634,9 @@ struct AssistantCardView: View {
     /// touch target at every text size.
     private func draftActions(save: String, saveID: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         VStack(spacing: Metrics.xxs) {
-            Button(save, action: action).buttonStyle(.auroraPrimary).accessibilityIdentifier(saveID).disabled(disabled)
+            // UIKit's touch-up, not SwiftUI's press: an iPad keyboard
+            // minimizing at the tap dropped a Button's action (#71).
+            PrimaryTouchButton(title: save, identifier: saveID, action: action).disabled(disabled)
             quietButton("Discard") { assistant.discardDraft() }
                 .accessibilityIdentifier("assistant-discard")
         }

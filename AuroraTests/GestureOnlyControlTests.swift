@@ -14,6 +14,8 @@ struct GestureOnlyControlTests {
             "The overlay is a button to accessibility (isButton trait and an accessibilityAction that skips).",
         "ReactionTouchSurface.swift|override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {":
             "Space or Return answers through pressesBegan; activating the area answers through accessibilityActivate.",
+        "PrimaryTouchButton.swift|override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {":
+            "A button to accessibility (button trait); VoiceOver, Switch Control, Voice Control and Full Keyboard Access save through accessibilityActivate.",
     ]
 
     static let patterns = [".onTapGesture", ".onLongPressGesture", "TapGesture(", "LongPressGesture(", "DragGesture(", "SpatialTapGesture(", "func touchesBegan"]

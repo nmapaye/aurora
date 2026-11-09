@@ -17,6 +17,13 @@ on:
       - '.github/scripts/test_xcresult.py'
       - '.github/scripts/verify_beta_scope.py'
       - '.github/scripts/test_beta_scope.py'
+      - '.github/scripts/soft_cancel_rerun.py'
+      - '.github/scripts/test_soft_cancel_rerun.py'
+      - '.github/scripts/keyboard-mode-log.sh'
+      - '.github/scripts/keyboard_minimize_check.py'
+      - '.github/scripts/test_keyboard_minimize_check.py'
+      - '.github/scripts/fixtures/soft_cancel/**'
+      - '.github/scripts/fixtures/keyboard_minimize/**'
   pull_request:
   workflow_dispatch:
 
@@ -56,7 +63,7 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult|verify_beta_scope|test_beta_scope)\.py$)' <<< "$changed"; then
+          if grep -qE '^(scripts/check-design-tokens\.py$|Aurora/|AuroraCore/|AuroraTests/|AuroraUITests/|Aurora\.xcodeproj/|Config/|\.github/workflows/ios-app-ci\.yml$|\.github/scripts/(xcode-annotate|verify_xcresult|test_xcresult|verify_beta_scope|test_beta_scope|soft_cancel_rerun|test_soft_cancel_rerun|keyboard_minimize_check|test_keyboard_minimize_check)\.py$|\.github/scripts/keyboard-mode-log\.sh$|\.github/scripts/fixtures/(soft_cancel|keyboard_minimize)/)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -83,8 +90,9 @@ jobs:
     name: ios-app (${{ matrix.device }})
     runs-on: macos-26
     # Build, native tests and the full serial UI suite (about 30 minutes on
-    # a hosted runner per device) do not fit in an hour.
-    timeout-minutes: 180
+    # a hosted runner per device) do not fit in an hour. 240 leaves room for
+    # the one soft-cancel rerun of a UI step (BUG-1d, see soft_cancel_rerun.py).
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
@@ -156,8 +164,26 @@ jobs:
       - name: Boot simulator
         run: |
           set -euo pipefail
-          xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
-          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+          udid="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          # BUG-1d (#71) 1b: a headless simctl boot ignores
+          # ConnectHardwareKeyboard=false, and on CI's iPad the virtual HID
+          # keyboard put UIKit into its hardware-keyboard (minimized)
+          # presentation mid-tap, which lost the first Save tap. Simulator.app
+          # applies the preference to the device it attaches to. iPad only:
+          # the iPhone job is unchanged.
+          if [ "${{ matrix.device }}" = "iPad" ]; then
+            open -a Simulator --args -CurrentDeviceUDID "$udid"
+            for _ in $(seq 1 60); do
+              if pgrep -x Simulator >/dev/null && xcrun simctl list devices booted | grep -q "$udid"; then break; fi
+              sleep 1
+            done
+            pgrep -x Simulator >/dev/null || { echo "::error title=Simulator.app::Simulator.app did not start"; exit 1; }
+            xcrun simctl list devices booted | grep -q "$udid" || { echo "::error title=Simulator.app::$udid is no longer booted"; exit 1; }
+            xcrun simctl bootstatus "$udid" -b
+            echo "Simulator.app attached to $udid"
+          fi
 
       # Fix the software keyboard's state before any UI test types: no
       # predictive text or autocorrection (the app log shows the predictive
@@ -219,6 +245,56 @@ jobs:
           fi
           echo "Simulator Info.plist keeps NSAllowsLocalNetworking."
 
+      # BUG-1d (#71) 1b: fail early, before any other UI test, if the iPad
+      # simulator still behaves as if a hardware keyboard is attached. The
+      # probe is an unchanged existing test that types into the numberPad
+      # amount field and then taps the next field: the one passing test in
+      # run 41378408179 whose tap triggered -[UIKeyboard setMinimized:].
+      # After it, no real minimize event may be logged: setMinimized with
+      # minimized = 1 (or no value), visualMode -> 2, or a floating-assistant
+      # presentation. keyboard_minimize_check.py ignores `minimized = 0` and
+      # the probe's own `log show` command line (the run-41957713689 false
+      # positive), and exits 2 on a missing or unreadable capture. A clean probe does not prove the keyboard is detached (the
+      # minimize was rare); keyboard-mode-test.log checks the full suite.
+      # Run 41965189274 (437a1c0) showed Simulator.app does not detach the
+      # HID keyboard, and the owner chose the app fix (1b option i): draft
+      # Save commits from UIKit's touch-up (PrimaryTouchButton), so the
+      # unchanged testDraftFieldKeepsSaveAboveCollapsedComposer must pass
+      # with the keyboard attached. A minimize here is now reported, not
+      # fatal; a failed probe test or an unreadable capture still fails.
+      - name: Probe the iPad keyboard presentation
+        if: matrix.device == 'iPad'
+        run: |
+          set +e
+          udid="${{ steps.sim.outputs.udid }}"
+          date +%s > build/probe.started
+          xcodebuild test-without-building \
+            -project Aurora.xcodeproj \
+            -scheme Aurora \
+            -destination "id=$udid" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
+            -only-testing:AuroraUITests/AuroraUITests/testCaffeineNeedsReviewAndUndoRemovesOnlySavedEntry \
+            -resultBundlePath build/KeyboardProbe.xcresult \
+            > build/xcodebuild-keyboard-probe.log 2>&1
+          status=$?
+          grep -E "error:|Test [Cc]ase '.*' (passed|failed)|\*\* .* \*\*|Executed" build/xcodebuild-keyboard-probe.log | head -50
+          bash .github/scripts/keyboard-mode-log.sh "$udid" probe
+          python3 .github/scripts/keyboard_minimize_check.py build/keyboard-mode-probe.log
+          check=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=keyboard probe::the probe test failed (status $status); see xcodebuild-keyboard-probe.log"
+            exit 1
+          fi
+          if [ "$check" -eq 1 ]; then
+            echo "::warning title=hardware keyboard attached::minimize event(s) after focusing a field (listed above); see keyboard-mode-probe.log. The Test step's one-tap Save runs against this (BUG-1d 1b option i)."
+          elif [ "$check" -ne 0 ]; then
+            echo "::error title=keyboard probe::keyboard-mode-probe.log is missing or not a compact log capture (check status $check)"
+            exit 1
+          else
+            echo "Keyboard probe: no minimized presentation after focusing a field."
+          fi
+
       # testLongCardArrivesShowingItsStart failed intermittently on iPhone
       # (about 2 in 25 runs). Run it alone up to 40 times on both devices and
       # stop at the first failure. Never -retry-tests-on-failure here: a retry
@@ -226,14 +302,23 @@ jobs:
       # app (about 40 to 65 seconds in CI), so 40 fit inside the timeout.
       - name: Repeat the long-card UI test
         id: repeat
-        timeout-minutes: 50
+        timeout-minutes: 100
         run: |
           set +e
           if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
             echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
             exit 1
           fi
-          xcodebuild test-without-building \
+          date +%s > build/longcard.started
+          # One in-job rerun only for a backboardd soft cancel (BUG-1d,
+          # soft_cancel_rerun.py); the rerun writes *-rerun.log/-Rerun.xcresult.
+          python3 .github/scripts/soft_cancel_rerun.py run \
+            --log build/xcodebuild-repeat.log \
+            --result build/LongCardRepeat.xcresult \
+            --verify "python3 .github/scripts/verify_xcresult.py {result} --iteration-log {log} --test-case testLongCardArrivesShowingItsStart --expected-iterations 40" \
+            --udid "${{ steps.sim.outputs.udid }}" \
+            --touch-log build/keyboard-mode-longcard \
+            -- xcodebuild test-without-building \
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
@@ -241,15 +326,20 @@ jobs:
             -parallel-testing-enabled NO \
             -only-testing:AuroraUITests/AuroraUITests/testLongCardArrivesShowingItsStart \
             -test-iterations 40 \
-            -run-tests-until-failure \
-            -resultBundlePath build/LongCardRepeat.xcresult \
-            > build/xcodebuild-repeat.log 2>&1
+            -run-tests-until-failure
           status=$?
-          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/LongCardRepeat.xcresult --iteration-log build/xcodebuild-repeat.log --test-case testLongCardArrivesShowingItsStart --expected-iterations 40 || status=$?; fi
-          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-repeat.log | head -200
-          echo "Iterations run: $(grep -cE "Test Case '.*testLongCardArrivesShowingItsStart\]' (passed|failed)" build/xcodebuild-repeat.log)"
-          python3 .github/scripts/xcode-annotate.py build/xcodebuild-repeat.log
+          for log in build/xcodebuild-repeat.log build/xcodebuild-repeat-rerun.log; do
+            [ -f "$log" ] || continue
+            echo "== $log"
+            grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" "$log" | head -200
+            echo "Iterations run: $(grep -cE "Test Case '.*testLongCardArrivesShowingItsStart\]' (passed|failed)" "$log")"
+            python3 .github/scripts/xcode-annotate.py "$log"
+          done
           exit $status
+
+      - name: Keyboard-mode and touch diagnostics (long-card repeat)
+        if: always()
+        run: bash .github/scripts/keyboard-mode-log.sh "${{ steps.sim.outputs.udid }}" longcard
 
       # request() types into the composer. CI has lost keystrokes there: the
       # field held "R" for "Reminders" (3 runs) and "Show t" for "Show this
@@ -260,14 +350,22 @@ jobs:
       - name: Repeat the typed-request UI tests
         id: repeat-typed
         if: success() || steps.repeat.outcome == 'failure'
-        timeout-minutes: 60
+        timeout-minutes: 120
         run: |
           set +e
           if ! xcodebuild -help 2>&1 | grep -q -- '-run-tests-until-failure'; then
             echo "::error title=xcodebuild::this Xcode has no -run-tests-until-failure"
             exit 1
           fi
-          xcodebuild test-without-building \
+          date +%s > build/typed.started
+          # One in-job rerun only for a backboardd soft cancel (BUG-1d).
+          python3 .github/scripts/soft_cancel_rerun.py run \
+            --log build/xcodebuild-typed-repeat.log \
+            --result build/TypedRequestRepeat.xcresult \
+            --verify "python3 .github/scripts/verify_xcresult.py {result} --iteration-log {log} --test-case testBriefingAndReminderCards --test-case testTrendsSwitchSignalsAndRange --expected-iterations 40" \
+            --udid "${{ steps.sim.outputs.udid }}" \
+            --touch-log build/keyboard-mode-typed \
+            -- xcodebuild test-without-building \
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
@@ -276,17 +374,22 @@ jobs:
             -only-testing:AuroraUITests/AuroraUITests/testBriefingAndReminderCards \
             -only-testing:AuroraUITests/AuroraUITests/testTrendsSwitchSignalsAndRange \
             -test-iterations 40 \
-            -run-tests-until-failure \
-            -resultBundlePath build/TypedRequestRepeat.xcresult \
-            > build/xcodebuild-typed-repeat.log 2>&1
+            -run-tests-until-failure
           status=$?
-          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/TypedRequestRepeat.xcresult --iteration-log build/xcodebuild-typed-repeat.log --test-case testBriefingAndReminderCards --test-case testTrendsSwitchSignalsAndRange --expected-iterations 40 || status=$?; fi
-          grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-typed-repeat.log | head -200
-          for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
-            echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" build/xcodebuild-typed-repeat.log)"
+          for log in build/xcodebuild-typed-repeat.log build/xcodebuild-typed-repeat-rerun.log; do
+            [ -f "$log" ] || continue
+            echo "== $log"
+            grep -E "error:|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" "$log" | head -200
+            for t in testBriefingAndReminderCards testTrendsSwitchSignalsAndRange; do
+              echo "Iterations run ($t): $(grep -cE "Test Case '.*$t\]' (passed|failed)" "$log")"
+            done
+            python3 .github/scripts/xcode-annotate.py "$log"
           done
-          python3 .github/scripts/xcode-annotate.py build/xcodebuild-typed-repeat.log
           exit $status
+
+      - name: Keyboard-mode and touch diagnostics (typed repeat)
+        if: always()
+        run: bash .github/scripts/keyboard-mode-log.sh "${{ steps.sim.outputs.udid }}" typed
 
       # Still runs after the repeat step fails, so a flake doesn't hide the
       # rest of the suite's results; not after a failed build.
@@ -299,24 +402,37 @@ jobs:
           set +e
           skip=(-skip-testing:AuroraUITests/UIReviewCaptureUITests)
           if [ "${{ matrix.device }}" = "iPad" ]; then skip+=(-skip-testing:AuroraUITests/AccessibilityAuditUITests); fi
-          xcodebuild test-without-building \
+          date +%s > build/test.started
+          # One in-job rerun only for a backboardd soft cancel (BUG-1d).
+          python3 .github/scripts/soft_cancel_rerun.py run \
+            --log build/xcodebuild-test.log \
+            --result build/AuroraTests.xcresult \
+            --verify "python3 .github/scripts/verify_xcresult.py {result}" \
+            --udid "${{ steps.sim.outputs.udid }}" \
+            --touch-log build/keyboard-mode-test \
+            -- xcodebuild test-without-building \
             -project Aurora.xcodeproj \
             -scheme Aurora \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \
             -parallel-testing-enabled NO \
-            "${skip[@]}" \
-            -resultBundlePath build/AuroraTests.xcresult \
-            > build/xcodebuild-test.log 2>&1
+            "${skip[@]}"
           status=$?
-          if [ "$status" -eq 0 ]; then python3 .github/scripts/verify_xcresult.py build/AuroraTests.xcresult || status=$?; fi
-          grep -E "error:|warning: .*/Aurora|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" build/xcodebuild-test.log | head -400
-          python3 .github/scripts/xcode-annotate.py build/xcodebuild-test.log
-          # Launch and runner failures don't use the error: format; surface them
-          # too, within the ten error annotations a step keeps.
-          grep -iE "failed to launch|timed out|launch timeout|crashed|lost connection|failed background assertion|signal [0-9]+" build/xcodebuild-test.log \
-            | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
+          for log in build/xcodebuild-test.log build/xcodebuild-test-rerun.log; do
+            [ -f "$log" ] || continue
+            echo "== $log"
+            grep -E "error:|warning: .*/Aurora|Test [Cc]ase '.*' failed|Test Suite '.*' failed|✘|\*\* .* \*\*|Executed" "$log" | head -400
+            python3 .github/scripts/xcode-annotate.py "$log"
+            # Launch and runner failures don't use the error: format; surface them
+            # too, within the ten error annotations a step keeps.
+            grep -iE "failed to launch|timed out|launch timeout|crashed|lost connection|failed background assertion|signal [0-9]+" "$log" \
+              | sort -u | head -6 | while IFS= read -r line; do echo "::error title=xcodebuild launch::${line//%/%25}"; done
+          done
           exit $status
+
+      - name: Keyboard-mode and touch diagnostics (Test)
+        if: always()
+        run: bash .github/scripts/keyboard-mode-log.sh "${{ steps.sim.outputs.udid }}" test
 
       # An actual optimized Release launch without Debug reset/gallery hooks.
       # The simulator is disposable CI infrastructure; remove only its fixture
@@ -378,9 +494,14 @@ jobs:
           name: xcodebuild-logs-${{ matrix.device }}
           path: |
             build/*.log
+            build/*.ndjson
             build/AuroraTests.xcresult
             build/LongCardRepeat.xcresult
             build/TypedRequestRepeat.xcresult
+            build/AuroraTests-Rerun.xcresult
+            build/LongCardRepeat-Rerun.xcresult
+            build/TypedRequestRepeat-Rerun.xcresult
+            build/KeyboardProbe.xcresult
             build/ReleaseSmoke.xcresult
 
   # The one check the main ruleset requires. It passes when every job

@@ -1,0 +1,218 @@
+getpwuid_r did not find a match for uid 501
+Timestamp               Ty Process[PID:TID]
+2026-11-05 02:59:02.859 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117c11b40> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 02:59:02.860 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117c11b40> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 02:59:18.419 Df backboardd[1473:a08b] [com.apple.BackBoard:TouchEvents] touchstats 1017610000000-<main> events starting 0.173576s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 1;
+        };
+    },
+    averageProcessingTime (µs): 2057.87
+]
+2026-11-05 02:59:21.589 Df backboardd[1473:a08b] [com.apple.BackBoard:TouchEvents] touchstats 1017610000001-<main> events starting 0.173478s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 2;
+        };
+    },
+    averageProcessingTime (µs): 146.73
+]
+2026-11-05 02:59:35.802 Df backboardd[1473:a610] [com.apple.BackBoard:TouchEvents] touchstats 1017610000002-<main> events starting 0.18284s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 3;
+        };
+    },
+    averageProcessingTime (µs): 183.00
+]
+2026-11-05 02:59:48.018 Df backboardd[1473:a9e1] [com.apple.BackBoard:TouchEvents] touchstats 1017610000003-<main> events starting 0.179051s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 4;
+        };
+    },
+    averageProcessingTime (µs): 217.17
+]
+2026-11-05 03:00:09.579 Df backboardd[1473:a9df] [com.apple.BackBoard:TouchEvents] touchstats 1017610000004-<main> events starting 0.17744s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 5;
+        };
+    },
+    averageProcessingTime (µs): 1036.48
+]
+2026-11-05 03:00:11.836 Df backboardd[1473:ba9a] [com.apple.BackBoard:TouchEvents] touchstats 1017610000005-<main> events starting 0.180959s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 6;
+        };
+    },
+    averageProcessingTime (µs): 236.35
+]
+2026-11-05 03:00:12.804 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x116700840> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:12.805 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x116700840> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:13.714 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x1166bdc40> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:13.714 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x1166bdc40> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:14.259 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117b6d9e0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:14.259 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117b6d9e0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:14.456 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117e58240> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:14.456 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117e58240> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:19.197 Df backboardd[1473:ba9a] [com.apple.BackBoard:TouchEvents] touchstats 1017610000007-<main> events starting 0.181173s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID 3CB04569: {
+            touchIDs: 7;
+        };
+    },
+    averageProcessingTime (µs): 132.49
+]
+2026-11-05 03:00:22.720 Df Aurora[13034:a435] [com.apple.UIKit:KeyboardUI] -[UIKeyboard setMinimized:] Setting keyboard minimized = 0
+2026-11-05 03:00:22.731 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x107a64260> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.732 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x107a64260> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.821 Df backboardd[1473:c0f5] [com.apple.BackBoard:TouchEvents] touchstats 1017610000008-<main> events starting 0.177327s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 8;
+        };
+    },
+    averageProcessingTime (µs): 195.26
+]
+2026-11-05 03:00:22.885 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x1166bc720> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.885 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x1166bc720> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.902 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x116702fc0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.902 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x116702fc0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.913 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x1167cfaa0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.913 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x1167cfaa0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.974 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x106f4a580> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:22.975 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x106f4a580> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:23.530 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117c11560> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:23.530 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117c11560> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:27.357 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x119603420> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:27.358 Df Aurora[13034:a435] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x119603420> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:27.373 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117fffa20> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:27.373 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117fffa20> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:29.473 Df backboardd[1473:baa0] [com.apple.BackBoard:TouchEvents] touchstats 101761000000B-<main> events starting 0.183448s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: 9;
+        };
+    },
+    averageProcessingTime (µs): 169.99
+]
+2026-11-05 03:00:33.753 Df backboardd[1473:c454] [com.apple.BackBoard:TouchEvents] touchstats 101761000000C-<main> events starting 0.182191s ago: [
+    down: 1,
+    up: 1,
+    rangeIn: 1,
+    rangeOut: 1,
+    pathsSeen: 2,
+    destinations: {
+        Aurora.13034 contextID F35E59BE: {
+            touchIDs: A;
+        };
+    },
+    averageProcessingTime (µs): 117.73
+]
+2026-11-05 03:00:59.974 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x117ac8bc0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:00:59.974 Df SpringBoard[1451:1fcc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x117ac8bc0> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-05 03:01:33.440 Df log[19144:0] [com.apple.log:] log run noninteractively, parent: 1445 (launchd_sim), args: 'log' 'show' '--style' 'compact' '--last' '5m' '--predicate' 'eventMessage CONTAINS "setMinimized" OR eventMessage CONTAINS "floating assistant" OR eventMessage CONTAINS "touchstats" OR eventMess
