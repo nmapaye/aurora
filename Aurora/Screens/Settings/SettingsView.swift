@@ -15,10 +15,9 @@ struct SettingsView: View {
     @State private var confirmErase = false
     @State private var reminderBusy = false
     @State private var deletedCount = 0
+    @State private var legal: LegalDocument?
 
-    /// App Review 1.4.1 asks for the check-with-a-doctor reminder. It lives
-    /// here only.
-    static let medicalDisclaimer = "Informational only. Doesn’t diagnose, treat, cure or prevent any condition. Check with a doctor before medical decisions."
+    static let cutoffInfo = "Your own time for the cutoff marker and optional reminder. On the hour."
 
     static let privacyPolicyURL = URL(string: "https://nmapaye.github.io/aurora/privacy.html")!
     static let supportURL = URL(string: "https://nmapaye.github.io/aurora/support.html")!
@@ -57,15 +56,17 @@ struct SettingsView: View {
                 }
 
                 group("Estimates and References") {
-                    stepper("Caffeine half-life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
-                        model.setPrefs { $0.halfLife = v }
+                    ExplainedRow(topic: "Caffeine Half-Life", info: "Used to estimate active caffeine.") {
+                        stepper("Caffeine half-life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
+                            model.setPrefs { $0.halfLife = v }
+                        }
                     }
-                    footnote("Used to estimate active caffeine.")
                     Divider()
-                    stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
-                        model.setPrefs { $0.targetSleep = v }
+                    ExplainedRow(topic: "Daily Sleep Target", info: "Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.") {
+                        stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
+                            model.setPrefs { $0.targetSleep = v }
+                        }
                     }
-                    footnote("Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.")
                     Divider()
                     cutoffTime(prefs.cutoffHour)
                 }
@@ -92,11 +93,13 @@ struct SettingsView: View {
                 }
 
                 group("About") {
-                    linkRow("Privacy Policy", detail: "Separate Health sleep and caffeine reads, optional caffeine writes, local storage, exports, and deletion.") { openURL(Self.privacyPolicyURL) }
+                    legalRow("Terms", id: "settings-terms") { legal = .terms }
+                    Divider()
+                    legalRow("Privacy Policy", id: "settings-privacy") { legal = .privacy }
+                    Divider()
+                    linkRow("Full Privacy Policy", detail: "On the web.") { openURL(Self.privacyPolicyURL) }
                     Divider()
                     linkRow("Support", detail: "Get help, report issues, and avoid sharing private Health data.") { openURL(Self.supportURL) }
-                    Divider()
-                    row("Medical disclaimer", detail: Self.medicalDisclaimer)
                     Divider()
                     LabeledContent("Version", value: Self.version)
                 }
@@ -135,7 +138,6 @@ struct SettingsView: View {
                         } message: {
                             Text("This clears current caffeine, sleep, and reaction records. Settings, conversation snapshots, and recovery copies remain. Apple Health data is not changed.")
                         }
-                    footnote("Record-only deletion keeps settings and conversation snapshots. Use Erase all local data to remove retained copies too.")
                     destructiveButton("Erase all local data", id: "erase-all-local-data") { confirmErase = true }
                         .alert("Erase all local Aurora data?", isPresented: $confirmErase) {
                             Button("Erase all local data", role: .destructive) {
@@ -162,6 +164,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .sheet(item: $legal) { LegalDocumentView(document: $0) }
         .sensoryFeedback(.warning, trigger: deletedCount)
         .task { await model.resyncReminder() }
     }
@@ -177,6 +180,22 @@ struct SettingsView: View {
     private func footnote(_ text: String) -> some View {
         Text(text).font(.footnote).foregroundStyle(Palette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Terms or Privacy, read in the app. The medical disclaimer App Review
+    /// 1.4.1 asks for is in Terms, acknowledged at first launch.
+    private func legalRow(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).foregroundStyle(Palette.textPrimary)
+                Spacer(minLength: Metrics.xs)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Palette.textTertiary).accessibilityHidden(true)
+            }
+            .frame(minHeight: Metrics.minimumTouchTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 
     private func linkRow(_ title: String, detail: String, action: @escaping () -> Void) -> some View {
@@ -239,16 +258,20 @@ struct SettingsView: View {
     @ViewBuilder
     private func cutoffTime(_ hour: Double?) -> some View {
         if let hour {
-            HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(hour) }, set: { v in
-                setCutoff(Double(v))
-            }), id: "settings-cutoff-hour")
-            .frame(minHeight: Metrics.minimumTouchTarget)
+            ExplainedRow(topic: "Cutoff Time", info: Self.cutoffInfo) {
+                HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(hour) }, set: { v in
+                    setCutoff(Double(v))
+                }), id: "settings-cutoff-hour")
+                .frame(minHeight: Metrics.minimumTouchTarget)
+            }
             Button("Remove cutoff time") { setCutoff(nil) }
                 .frame(minHeight: Metrics.minimumTouchTarget)
                 .accessibilityIdentifier("settings-cutoff-remove")
         } else {
-            LabeledContent("Cutoff time", value: "Not set")
-                .frame(minHeight: Metrics.minimumTouchTarget)
+            ExplainedRow(topic: "Cutoff Time", info: Self.cutoffInfo) {
+                LabeledContent("Cutoff time", value: "Not set")
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+            }
             Button("Set a cutoff time") {
                 model.tick()
                 setCutoff(Double(model.clock.hour(model.now)))
@@ -256,7 +279,6 @@ struct SettingsView: View {
             .frame(minHeight: Metrics.minimumTouchTarget)
             .accessibilityIdentifier("settings-cutoff-set")
         }
-        footnote("Your own time for the cutoff marker and optional reminder. On the hour.")
     }
 
     /// Wake reminders and drink follow-ups stop at the cutoff, so both are

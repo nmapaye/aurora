@@ -619,6 +619,16 @@ final class AppModel {
 
     /// Remembers the next setup question so a relaunch resumes there. False
     /// when it couldn't be saved; `mutationFailure` says why.
+    /// Leaving the first-run story: records the Terms and Privacy
+    /// acknowledgement and the first setup question as one change.
+    @discardableResult
+    func beginSetup() -> Bool {
+        update {
+            $0.onboarding.termsAcceptedVersion = LegalCopy.version
+            $0.onboarding.setupStep = SetupStep.name.rawValue
+        }
+    }
+
     @discardableResult
     func setSetupStep(_ step: SetupStep) -> Bool {
         update { $0.onboarding.setupStep = step.rawValue }

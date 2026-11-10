@@ -61,7 +61,7 @@ struct HealthConnectionView: View {
                     }
                     if let outbox = state.healthLedger.outboxSummary {
                         Card {
-                            SectionLabel(text: "Aurora’s entries in Health")
+                            SectionLabel(text: "Aurora’s Entries in Health")
                             StatusBadge(text: "Not all changes are in Apple Health", tone: .warning)
                             Text(outbox).font(.footnote).foregroundStyle(Palette.textSecondary)
                             Button {

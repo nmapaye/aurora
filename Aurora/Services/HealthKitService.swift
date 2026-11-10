@@ -91,7 +91,21 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         guard isAvailable else { throw Failure.unavailable }
         let previous = try HealthAnchorCodec.decode(anchor, kind: .sleepAnalysis)
-        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.categorySample(type: sleepType)], anchor: previous, limit: Self.pageSize)
+        // Bound the read to recent asleep samples. Without a predicate the
+        // first read starts at the beginning of Health history, oldest first,
+        // and a Watch wearer's last night can be thousands of samples (and
+        // many refreshes) away. The limit counts only matching samples, so
+        // an anchor saved part-way through old history skips ahead too.
+        let windowStart = Date(timeIntervalSince1970: HealthSleepImport.anchoredReadStart(now: Date().timeIntervalSince1970 * 1000) / 1000)
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: windowStart, end: nil, options: []),
+            HKCategoryValueSleepAnalysis.predicateForSamples(equalTo: HKCategoryValueSleepAnalysis.allAsleepValues),
+        ])
+        let descriptor = HKAnchoredObjectQueryDescriptor(
+            predicates: [.categorySample(type: sleepType, predicate: predicate)],
+            anchor: previous,
+            limit: Self.pageSize
+        )
         let result = try await descriptor.result(for: store)
         let next = try HealthAnchorCodec.encode(result.newAnchor)
         return HealthSleepChanges(

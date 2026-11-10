@@ -416,12 +416,20 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
 @Suite struct EnergyCheckInTests {
     @Test func validatesTheLabeledScaleAndTime() {
         #expect(EnergyCheckIn.validate(rating: 0, recordedAt: now, now: now).message != nil)
-        #expect(EnergyCheckIn.validate(rating: 6, recordedAt: now, now: now).message != nil)
+        #expect(EnergyCheckIn.validate(rating: 10, recordedAt: now, now: now).message != nil)
+        #expect(EnergyCheckIn.validate(rating: 9, recordedAt: now, now: now) == .valid)
+        #expect(EnergyCheckIn.validate(rating: 6, recordedAt: now, now: now, scale: .energy5).message != nil)
         #expect(EnergyCheckIn.validate(rating: 3, recordedAt: now + 1, now: now) == .invalid("Time cannot be in the future."))
         #expect(EnergyCheckIn.validate(rating: 3, recordedAt: .nan, now: now).message != nil)
         #expect(EnergyCheckIn.validate(rating: 1, recordedAt: now, now: now) == .valid)
-        #expect(EnergyCheckIn.scale.map { EnergyCheckIn.label(forRating: $0) ?? "" } == ["Very low", "Low", "Moderate", "High", "Very high"])
-        #expect(EnergyCheckIn.label(forRating: 0) == nil)
+        // KSS version B anchors, every point labeled.
+        #expect(EnergyCheckIn.scale.map { EnergyCheckIn.label(forRating: $0) ?? "" } == [
+            "Extremely alert", "Very alert", "Alert", "Rather alert", "Neither alert nor sleepy",
+            "Some signs of sleepiness", "Sleepy, but no effort to keep awake", "Sleepy, some effort to keep awake",
+            "Very sleepy, great effort keeping awake, fighting sleep",
+        ])
+        #expect(EnergyCheckIn.label(forRating: 0) == nil && EnergyCheckIn.label(forRating: 10) == nil)
+        #expect(CheckInScale.energy5.range.map { CheckInScale.energy5.label(forRating: $0) ?? "" } == ["Very low", "Low", "Moderate", "High", "Very high"])
     }
 
     @Test func appStateStoresValidCheckInsNewestFirst() {
@@ -432,7 +440,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         #expect(state.addEnergyCheckIn(older, now: now) == .valid)
         #expect(state.addEnergyCheckIn(newer, now: now) == .valid)
         #expect(state.addEnergyCheckIn(newer, now: now) != .valid)
-        #expect(state.addEnergyCheckIn(EnergyCheckIn(id: "checkin:x", recordedAt: now, rating: 9), now: now) != .valid)
+        #expect(state.addEnergyCheckIn(EnergyCheckIn(id: "checkin:x", recordedAt: now, rating: 10), now: now) != .valid)
         #expect(state.energyCheckIns == [newer, older])
         state.removeEnergyCheckIn(id: older.id)
         #expect(state.energyCheckIns == [newer])
@@ -456,6 +464,37 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
         let odd = try JSONDecoder().decode(AppState.self, from: Data(#"{"schemaVersion":2,"energyCheckIns":[{"id":"checkin:1:a","recordedAt":1,"rating":42}]}"#.utf8))
         #expect(odd.energyCheckIns.first?.rating == 42)
         #expect(odd.energyCheckIns.first?.validate(now: now) != .valid)
+    }
+
+    /// Ratings saved before KSS stay the 1–5 energy ratings they were:
+    /// same number, same label, never converted.
+    @Test func preKSSRatingsDecodeAsLegacyEnergyUnchanged() throws {
+        let legacy = try JSONDecoder().decode(AppState.self, from: Data(#"{"schemaVersion":2,"energyCheckIns":[{"id":"checkin:1:a","recordedAt":1,"rating":4}]}"#.utf8))
+        let checkIn = try #require(legacy.energyCheckIns.first)
+        #expect(checkIn.scale == nil && checkIn.recordedScale == .energy5 && checkIn.rating == 4)
+        #expect(checkIn.ratingText == "Energy 4 · High")
+        #expect(checkIn.validate(now: now) == .valid)
+        // Re-encoding keeps it legacy: no scale is written for it.
+        let reencoded = try JSONDecoder().decode(EnergyCheckIn.self, from: JSONEncoder().encode(checkIn))
+        #expect(reencoded == checkIn && reencoded.scale == nil)
+        // A correction of a legacy rating stays on its own scale.
+        var edit = EnergyCheckInDraft.editing(checkIn)
+        #expect(edit.scale == .energy5)
+        edit.rating = 6
+        #expect(edit.validate(now: now) == .invalid("Choose a rating from 1 to 5."))
+        edit.rating = 2
+        #expect(edit.checkIn?.recordedScale == .energy5 && edit.checkIn?.ratingText == "Energy 2 · Low")
+    }
+
+    @Test func newCheckInsAreSelfReportedKSS() throws {
+        var draft = EnergyCheckInDraft.new(now: now, entropy: "k")
+        #expect(draft.scale == .kss && draft.rating == nil)
+        draft.rating = 7
+        let checkIn = try #require(draft.checkIn)
+        #expect(checkIn.scale == .kss && checkIn.ratingText == "KSS 7 · Sleepy, but no effort to keep awake")
+        let json = String(decoding: try JSONEncoder().encode(checkIn), as: UTF8.self)
+        #expect(json.contains(#""scale":"kss""#))
+        #expect(EnergyCheckIn.kssInfo.contains("10.1007/s41105-016-0048-8"))
     }
 }
 

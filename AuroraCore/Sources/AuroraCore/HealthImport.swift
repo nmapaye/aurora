@@ -64,6 +64,14 @@ public enum HealthSleepImport {
         return sample.start.isFinite && sample.end.isFinite && sample.start < sample.end
     }
 
+    /// Anchored sleep reads ask Health only for asleep samples that overlap
+    /// the last `HealthImport.refreshDays`. Reading from the beginning of
+    /// Health history, oldest first in bounded pages, could take many
+    /// refreshes to reach last night.
+    public static func anchoredReadStart(now: Millis) -> Millis {
+        now - HealthImport.refreshDays * dayMs
+    }
+
     public static func session(from sample: HealthSleepSample) -> SleepSession? {
         guard isValid(sample), let provenance = sample.provenance else { return nil }
         return SleepSession(id: RecordID.healthSleepID(sampleUUID: provenance.sampleUUID), start: sample.start, end: sample.end, type: .sleep, health: provenance)

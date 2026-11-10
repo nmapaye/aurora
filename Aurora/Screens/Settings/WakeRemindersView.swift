@@ -103,7 +103,7 @@ struct WakeRemindersView: View {
                 }
             }
         }
-        .navigationTitle("Wake reminders")
+        .navigationTitle("Wake Reminders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

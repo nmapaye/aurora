@@ -19,7 +19,7 @@ struct OnboardingView: View {
                 StoryScenesView(failure: startFailure) {
                     var saved = false
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: Motion.contentDuration)) {
-                        saved = model.setSetupStep(.name)
+                        saved = model.beginSetup()
                     }
                     startFailure = saved ? nil : (model.mutationFailure ?? "Couldn’t start setup. Try again.")
                     if let startFailure { UIAccessibility.post(notification: .announcement, argument: startFailure) }
@@ -59,7 +59,7 @@ struct StoryScenesView: View {
                             .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityHint("Goes to setup.")
+                    .accessibilityHint("Agrees to the Terms and Privacy Policy and goes to setup.")
                     .accessibilityIdentifier("onboarding-skip-story")
                 }
                 .padding(.horizontal, Metrics.lg)
@@ -77,6 +77,10 @@ struct StoryScenesView: View {
                         .frame(maxWidth: Metrics.contentMaxWidth)
                         .accessibilityIdentifier("story-save-failure")
                 }
+                LegalAcknowledgement()
+                    .padding(.horizontal, Metrics.lg)
+                    .padding(.bottom, Metrics.xs)
+                    .frame(maxWidth: Metrics.contentMaxWidth)
                 Button(page == scenes.count - 1 ? "Begin setup" : "Continue") {
                     if page == scenes.count - 1 { onFinish() } else { page += 1 }
                 }

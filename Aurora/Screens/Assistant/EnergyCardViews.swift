@@ -34,9 +34,9 @@ struct EnergyEvidenceSections: View {
 
     private var contributions: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            SectionLabel(text: "What the model used")
+            SectionLabel(text: "What the Model Used")
             if estimate.contributions.isEmpty {
-                Text("No parts to show. The model needs a recorded sleep block of at least 3 hours reaching the 18 hours before this time. Ongoing sleep counts only up to this time.")
+                Text("Record a sleep of 3 hours or more to see this.")
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
             ForEach(estimate.contributions, id: \.kind) { part in
@@ -58,10 +58,6 @@ struct EnergyEvidenceSections: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(part.kind.label), \(part.pointsText) points. \(detail(part))")
             }
-            if !estimate.contributions.isEmpty {
-                Text("Points on the model scale, rounded.")
-                    .font(.footnote).foregroundStyle(Palette.textSecondary)
-            }
         }
     }
 
@@ -70,7 +66,7 @@ struct EnergyEvidenceSections: View {
         case .baseline: return "Where every estimate starts."
         case .timeOfDay: return "The same daily curve for everyone, by local time."
         case .caffeine:
-            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg modeled as active, with a \(numberText(estimate.halfLifeHours))h half-life."
+            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg active."
         case .sleepDebt:
             return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours))h."
         case .inertia:
@@ -138,7 +134,7 @@ struct EnergyRecordedByYou: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            SectionLabel(text: "Recorded by you · shown separately")
+            SectionLabel(text: "Recorded by You")
             if snapshot.checkIns.isEmpty && snapshot.reactions.isEmpty {
                 Text("No check-ins or Reaction Tests in this window.").font(.footnote).foregroundStyle(Palette.textSecondary)
             }
@@ -153,7 +149,6 @@ struct EnergyRecordedByYou: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-            Text(EnergySnapshot.separateNote).font(.footnote).foregroundStyle(Palette.textSecondary)
         }
     }
 }
@@ -165,7 +160,7 @@ struct CheckInRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.xxs) {
             Text("Check-in · \(checkIn.ratingText)").font(.subheadline.weight(.medium)).monospacedDigit()
-            Text(EnergyCheckIn.sourceLabel + " · " + text.fullDateTime(checkIn.recordedAt))
+            Text(text.fullDateTime(checkIn.recordedAt))
                 .font(Typography.source).foregroundStyle(Palette.textSecondary)
             if let note = checkIn.note { Text(note).font(.footnote).foregroundStyle(Palette.textSecondary) }
         }
@@ -459,5 +454,5 @@ struct EnergyOutlookView: View {
 
 enum EnergyExplainer {
     /// "What this means", in plain words.
-    static let meaning = "Aurora estimates your alertness from 0 to 100 using your recorded sleep, caffeine and the time of day. Higher means more alert. After now, the line assumes you add no more sleep or caffeine. It's an estimate, not a measurement."
+    static let meaning = "Aurora estimates your alertness from 0 to 100 using your recorded sleep, caffeine and the time of day. Higher means more alert. After now, the line assumes you add no more sleep or caffeine."
 }

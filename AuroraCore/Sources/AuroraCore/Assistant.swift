@@ -110,9 +110,11 @@ public enum AssistantPlanner {
     /// so the review opens with no rating; "I rated that movie 4/5" doesn't.
     public static func isSelfRating(_ input: String) -> Bool {
         let text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard text.range(of: #"(?<![\d.])-?\d+\s*(?:out of|/)\s*5\b"#, options: .regularExpression) != nil else { return false }
-        let context = ["energy", "alertness", "feel", "feeling", "tired", "awake", "energetic"].contains { text.contains($0) }
-        let standalone = text.range(of: #"^(?:i'm|i am|im)?\s*(?:a\s+)?-?\d+\s*(?:out of|/)\s*5\s*[.!]?$"#, options: .regularExpression) != nil
+        let kss = text.range(of: #"^(?:my\s+)?kss\s*(?:is|of|:)?\s*-?\d+\s*[.!]?$"#, options: .regularExpression) != nil
+        if kss { return true }
+        guard text.range(of: #"(?<![\d.])-?\d+\s*(?:out of|/)\s*[59]\b"#, options: .regularExpression) != nil else { return false }
+        let context = ["energy", "alertness", "feel", "feeling", "tired", "awake", "energetic", "sleepy", "sleepiness"].contains { text.contains($0) }
+        let standalone = text.range(of: #"^(?:i'm|i am|im)?\s*(?:a\s+)?-?\d+\s*(?:out of|/)\s*[59]\s*[.!]?$"#, options: .regularExpression) != nil
         return context || standalone
     }
 
@@ -122,32 +124,35 @@ public enum AssistantPlanner {
         isSelfRating(input) ? checkInRating(input) : nil
     }
 
-    /// A rating the person stated on the 1–5 scale: "3 out of 5", "4/5".
-    /// Anything else, including out-of-scale numbers, is nil.
+    /// A rating the person stated on the KSS 1–9 scale: "7 out of 9",
+    /// "KSS 7". A rating out of 5 is the old energy scale and is never
+    /// converted, so it prefills nothing. Out-of-scale numbers are nil.
     public static func checkInRating(_ input: String) -> Int? {
         let text = input.lowercased()
-        guard let regex = try? NSRegularExpression(pattern: #"(?<![\d.])(-?\d+)\s*(?:out of|/)\s*5\b"#),
+        guard let regex = try? NSRegularExpression(pattern: #"(?:(?<![\d.])(-?\d+)\s*(?:out of|/)\s*9\b|\bkss\s*(?:is|of|:)?\s*(-?\d+)\b)"#),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-              let range = Range(match.range(at: 1), in: text), let value = Int(text[range]),
+              let range = Range(match.range(at: 1), in: text) ?? Range(match.range(at: 2), in: text), let value = Int(text[range]),
               EnergyCheckIn.scale.contains(value) else { return nil }
         return value
     }
 
     public enum CheckInCorrection: Equatable, Sendable {
         case rating(Int)
-        /// A correction was meant, but the number is off the 1–5 scale.
+        /// A correction was meant, but the number is off the review's scale.
         case outOfScale
     }
 
     /// A short correction to an open check-in review: "actually 4",
     /// "make it 2", "3/5". Longer sentences are left to the classifier,
     /// so other requests are never read as a rating.
-    public static func checkInCorrection(_ input: String) -> CheckInCorrection? {
+    public static func checkInCorrection(_ input: String, scale: CheckInScale = .kss) -> CheckInCorrection? {
         let text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let regex = try? NSRegularExpression(pattern: #"^(?:actually|make it|change it to|it was|it's|its|rating|no,?)?\s*(-?\d+)\s*(?:(?:out of|/)\s*5)?\s*[.!]?$"#),
+        guard let regex = try? NSRegularExpression(pattern: #"^(?:actually|make it|change it to|it was|it's|its|rating|kss|no,?)?\s*(-?\d+)\s*(?:(?:out of|/)\s*(?:5|9))?\s*[.!]?$"#),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text), let value = Int(text[range]) else { return nil }
-        return EnergyCheckIn.scale.contains(value) ? .rating(value) : .outOfScale
+        let outOf = text.range(of: #"(?:out of|/)\s*(\d)"#, options: .regularExpression).map { String(text[$0].last!) }
+        if let outOf, outOf != String(scale.range.upperBound) { return .outOfScale }
+        return scale.range.contains(value) ? .rating(value) : .outOfScale
     }
 
     public static func modelIntent(_ output: String) -> AssistantIntent {

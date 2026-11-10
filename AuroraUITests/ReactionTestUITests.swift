@@ -227,7 +227,7 @@ final class ReactionTestUITests: XCTestCase {
         XCTAssertTrue(complete.waitForExistence(timeout: 5), "answered \(answered)")
         XCTAssertGreaterThan(answered, 3)
         attachScreenshot("reaction-results")
-        XCTAssertTrue(app.staticTexts["A quick check of reaction speed, not a medical assessment."].exists)
+        XCTAssertTrue(app.staticTexts["A quick check of reaction speed."].exists)
         tapWhenReady(app.buttons["Done"])
         XCTAssertTrue(app.staticTexts["Reaction Test recorded"].waitForExistence(timeout: 5))
     }
