@@ -225,16 +225,6 @@ import Testing
         #expect(model.state.sleeps.map(\.id) == [HealthSleepIdentity.id(start: end - 7 * hourMs, end: end)])
         #expect(model.state.healthSync.importedCount == 1)
     }
-}
-
-private struct SleepOnlyHealth: HealthDataProvider {
-    let samples: [HealthSleepSample]
-    var capabilities: HealthCapabilities { [.authorization, .readSleep] }
-    var isAvailable: Bool { true }
-    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {
-        guard read == [.sleepAnalysis], write.isEmpty else { throw HealthProviderError.unsupported("authorization") }
-    }
-    func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] { samples }
 
     /// An install onboarded before Terms existed is asked once; Continue is
     /// saved and the prompt isn't needed after relaunch. First-run setup
@@ -260,4 +250,14 @@ private struct SleepOnlyHealth: HealthDataProvider {
         #expect(firstRun.completeOnboarding())
         #expect(!firstRun.state.onboarding.needsTermsAcknowledgement())
     }
+}
+
+private struct SleepOnlyHealth: HealthDataProvider {
+    let samples: [HealthSleepSample]
+    var capabilities: HealthCapabilities { [.authorization, .readSleep] }
+    var isAvailable: Bool { true }
+    func requestAuthorization(read: Set<HealthDataKind>, write: Set<HealthDataKind>) async throws {
+        guard read == [.sleepAnalysis], write.isEmpty else { throw HealthProviderError.unsupported("authorization") }
+    }
+    func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] { samples }
 }
