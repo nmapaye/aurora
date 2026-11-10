@@ -1,0 +1,1792 @@
+{
+  "kind": "TypeScript tpm-kss.ts outputs on synthetic inputs; NOT human KSS observations",
+  "source": "Ingre et al. 2014, DOI 10.1371/journal.pone.0108679, eqs 1.1-1.9 (original full TPM)",
+  "generator": "AuroraCore/Tools/kss-tpm-reference/generate.mjs",
+  "tsFile": "website/research/tpm-kss.ts",
+  "tsSha256": "24bc58e37dacdeb0a08c019a3032c6073673e8f995314f6f23d19842be6bfb25",
+  "tsParameters": {
+    "upper": 14.3,
+    "lower": 2.4,
+    "wakeRate": -0.0353,
+    "brakeLevel": 12.2,
+    "sleepRate": -0.3813564465968835,
+    "inertiaAmplitude": -5.72,
+    "inertiaRate": -1.51,
+    "phaseHours": 16.8,
+    "sleepEntryThreshold": 8.38
+  },
+  "cases": [
+    {
+      "name": "UTC 4h sleep then 0h awake",
+      "input": {
+        "at": 1792638000000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792638000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 8.641229278793245,
+        "boundedKss": 8.641229278793245,
+        "hoursAwake": 0,
+        "homeostatic": 12.116642676336317,
+        "circadian": -2.2275163104709197,
+        "ultradian": -0.9045084971874736,
+        "inertia": -5.72
+      }
+    },
+    {
+      "name": "UTC 4h sleep then 4h awake",
+      "input": {
+        "at": 1792652400000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792638000000
+          },
+          {
+            "state": "awake",
+            "start": 1792638000000,
+            "end": 1792652400000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 5.389848093605125,
+        "boundedKss": 5.389848093605125,
+        "hoursAwake": 4,
+        "homeostatic": 10.83711271868627,
+        "circadian": -2.09667641986356,
+        "ultradian": -0.043227271178699456,
+        "inertia": -0.0136225169858885
+      }
+    },
+    {
+      "name": "UTC 4h sleep then 12h awake",
+      "input": {
+        "at": 1792681200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792638000000
+          },
+          {
+            "state": "awake",
+            "start": 1792638000000,
+            "end": 1792681200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.549387128779163,
+        "boundedKss": 4.549387128779163,
+        "hoursAwake": 12,
+        "homeostatic": 8.761347049349117,
+        "circadian": 2.2275163104709197,
+        "ultradian": -0.9045084971874737,
+        "inertia": -7.726450323805913e-8
+      }
+    },
+    {
+      "name": "UTC 4h sleep then 16h awake",
+      "input": {
+        "at": 1792695600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792638000000
+          },
+          {
+            "state": "awake",
+            "start": 1792638000000,
+            "end": 1792695600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.613736263821686,
+        "boundedKss": 4.613736263821686,
+        "hoursAwake": 16,
+        "homeostatic": 7.923657078463005,
+        "circadian": 2.0966764198635603,
+        "ultradian": -0.04322727117869962,
+        "inertia": -1.8400996639277946e-10
+      }
+    },
+    {
+      "name": "UTC 6h sleep then 0h awake",
+      "input": {
+        "at": 1792645200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792645200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 7.830044864509317,
+        "boundedKss": 7.830044864509317,
+        "hoursAwake": 0,
+        "homeostatic": 13.280901497737078,
+        "circadian": -2.4965738368864345,
+        "ultradian": -0.4477357683661728,
+        "inertia": -5.72
+      }
+    },
+    {
+      "name": "UTC 6h sleep then 4h awake",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792645200000
+          },
+          {
+            "state": "awake",
+            "start": 1792645200000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.23762005024298,
+        "boundedKss": 4.23762005024298,
+        "hoursAwake": 4,
+        "homeostatic": 11.848056852075649,
+        "circadian": -1.1349762493488669,
+        "ultradian": -0.09549150281252633,
+        "inertia": -0.0136225169858885
+      }
+    },
+    {
+      "name": "UTC 6h sleep then 12h awake",
+      "input": {
+        "at": 1792688400000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792645200000
+          },
+          {
+            "state": "awake",
+            "start": 1792645200000,
+            "end": 1792688400000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.6565548120848783,
+        "boundedKss": 3.6565548120848783,
+        "hoursAwake": 12,
+        "homeostatic": 9.523570655269445,
+        "circadian": 2.4965738368864345,
+        "ultradian": -0.4477357683661734,
+        "inertia": -7.726450323805913e-8
+      }
+    },
+    {
+      "name": "UTC 6h sleep then 16h awake",
+      "input": {
+        "at": 1792702800000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792645200000
+          },
+          {
+            "state": "awake",
+            "start": 1792645200000,
+            "end": 1792702800000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.8250045022148385,
+        "boundedKss": 4.8250045022148385,
+        "hoursAwake": 16,
+        "homeostatic": 8.585507749956271,
+        "circadian": 1.1349762493488675,
+        "ultradian": -0.09549150281252616,
+        "inertia": -1.8400996639277946e-10
+      }
+    },
+    {
+      "name": "UTC 8h sleep then 0h awake",
+      "input": {
+        "at": 1792652400000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 7.0211263832326605,
+        "boundedKss": 7.0211263832326605,
+        "hoursAwake": 0,
+        "homeostatic": 13.824693052321157,
+        "circadian": -2.09667641986356,
+        "ultradian": -0.043227271178699456,
+        "inertia": -5.72
+      }
+    },
+    {
+      "name": "UTC 8h sleep then 4h awake",
+      "input": {
+        "at": 1792666800000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792666800000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.4688843793847903,
+        "boundedKss": 3.4688843793847903,
+        "hoursAwake": 4,
+        "homeostatic": 12.320239559037704,
+        "circadian": 0.13083989060735937,
+        "ultradian": -0.5522642316338267,
+        "inertia": -0.0136225169858885
+      }
+    },
+    {
+      "name": "UTC 8h sleep then 12h awake",
+      "input": {
+        "at": 1792695600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792695600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.440180629998748,
+        "boundedKss": 3.440180629998748,
+        "hoursAwake": 12,
+        "homeostatic": 9.879583211915062,
+        "circadian": 2.0966764198635603,
+        "ultradian": -0.04322727117869962,
+        "inertia": -7.726450323805913e-8
+      }
+    },
+    {
+      "name": "UTC 8h sleep then 16h awake",
+      "input": {
+        "at": 1792710000000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792710000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 5.67307906277719,
+        "boundedKss": 5.67307906277719,
+        "hoursAwake": 16,
+        "homeostatic": 8.894639017796543,
+        "circadian": -0.13083989060735848,
+        "ultradian": -0.5522642316338264,
+        "inertia": -1.8400996639277946e-10
+      }
+    },
+    {
+      "name": "UTC 10h sleep then 0h awake",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 6.323290381373051,
+        "boundedKss": 6.323290381373051,
+        "hoursAwake": 0,
+        "homeostatic": 14.07831711653964,
+        "circadian": -1.1349762493488669,
+        "ultradian": -0.09549150281252633,
+        "inertia": -5.72
+      }
+    },
+    {
+      "name": "UTC 10h sleep then 4h awake",
+      "input": {
+        "at": 1792674000000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792659600000
+          },
+          {
+            "state": "awake",
+            "start": 1792659600000,
+            "end": 1792674000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 2.8409994158929193,
+        "boundedKss": 2.8409994158929193,
+        "hoursAwake": 4,
+        "homeostatic": 12.540465298448089,
+        "circadian": 1.3615975875375677,
+        "ultradian": -0.9567727288213004,
+        "inertia": -0.0136225169858885
+      }
+    },
+    {
+      "name": "UTC 10h sleep then 12h awake",
+      "input": {
+        "at": 1792702800000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792659600000
+          },
+          {
+            "state": "awake",
+            "start": 1792659600000,
+            "end": 1792702800000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.9489328418943384,
+        "boundedKss": 3.9489328418943384,
+        "hoursAwake": 12,
+        "homeostatic": 10.045627260904265,
+        "circadian": 1.1349762493488675,
+        "ultradian": -0.09549150281252616,
+        "inertia": -7.726450323805913e-8
+      }
+    },
+    {
+      "name": "UTC 10h sleep then 16h awake",
+      "input": {
+        "at": 1792717200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792659600000
+          },
+          {
+            "state": "awake",
+            "start": 1792659600000,
+            "end": 1792717200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 6.5677315933243685,
+        "boundedKss": 6.5677315933243685,
+        "hoursAwake": 16,
+        "homeostatic": 9.038817661002264,
+        "circadian": -1.3615975875375674,
+        "ultradian": -0.9567727288213008,
+        "inertia": -1.8400996639277946e-10
+      }
+    },
+    {
+      "name": "UTC phase 15h, 8h sleep, 6h awake",
+      "input": {
+        "at": 1792674000000,
+        "timeZone": "UTC",
+        "phaseHours": 15,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792674000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 2.8610669939732762,
+        "boundedKss": 2.8610669939732762,
+        "hoursAwake": 6,
+        "homeostatic": 11.666835664568396,
+        "circadian": 2.165063509461097,
+        "ultradian": -0.9330127018922192,
+        "inertia": -0.0006647954260685751
+      }
+    },
+    {
+      "name": "UTC phase 18.5h, 8h sleep, 6h awake",
+      "input": {
+        "at": 1792674000000,
+        "timeZone": "UTC",
+        "phaseHours": 18.5,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792674000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.826344445850645,
+        "boundedKss": 3.826344445850645,
+        "hoursAwake": 6,
+        "homeostatic": 11.593184761009459,
+        "circadian": 0.32631548055012927,
+        "ultradian": -0.6294095225512608,
+        "inertia": -0.0006647954260685751
+      }
+    },
+    {
+      "name": "Los Angeles 7.5h sleep then 0.25h awake",
+      "input": {
+        "at": 1792676700000,
+        "timeZone": "America/Los_Angeles",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792562400000,
+            "end": 1792587600000
+          },
+          {
+            "state": "awake",
+            "start": 1792587600000,
+            "end": 1792648800000
+          },
+          {
+            "state": "sleep",
+            "start": 1792648800000,
+            "end": 1792675800000
+          },
+          {
+            "state": "awake",
+            "start": 1792675800000,
+            "end": 1792676700000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 6.190493510409936,
+        "boundedKss": 6.190493510409936,
+        "hoursAwake": 0.25,
+        "homeostatic": 13.525576131217212,
+        "circadian": -2.181240017681993,
+        "ultradian": -0.07367991782295369,
+        "inertia": -3.9214787130621573
+      }
+    },
+    {
+      "name": "Los Angeles 7.5h sleep then 2h awake",
+      "input": {
+        "at": 1792683000000,
+        "timeZone": "America/Los_Angeles",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792562400000,
+            "end": 1792587600000
+          },
+          {
+            "state": "awake",
+            "start": 1792587600000,
+            "end": 1792648800000
+          },
+          {
+            "state": "sleep",
+            "start": 1792648800000,
+            "end": 1792675800000
+          },
+          {
+            "state": "awake",
+            "start": 1792675800000,
+            "end": 1792683000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.9215660234668643,
+        "boundedKss": 3.9215660234668643,
+        "hoursAwake": 2,
+        "homeostatic": 12.859091642316088,
+        "circadian": -1.4160155923120814,
+        "ultradian": -0.03320978675139924,
+        "inertia": -0.2791429690307141
+      }
+    },
+    {
+      "name": "Los Angeles 7.5h sleep then 9h awake",
+      "input": {
+        "at": 1792708200000,
+        "timeZone": "America/Los_Angeles",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792562400000,
+            "end": 1792587600000
+          },
+          {
+            "state": "awake",
+            "start": 1792587600000,
+            "end": 1792648800000
+          },
+          {
+            "state": "sleep",
+            "start": 1792648800000,
+            "end": 1792675800000
+          },
+          {
+            "state": "awake",
+            "start": 1792675800000,
+            "end": 1792708200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.333315098147665,
+        "boundedKss": 3.333315098147665,
+        "hoursAwake": 9,
+        "homeostatic": 10.569205137825842,
+        "circadian": 2.356603727730446,
+        "ultradian": -0.8146601955249189,
+        "inertia": -0.000007166944143086536
+      }
+    },
+    {
+      "name": "Fragmented night: 3h sleep, 40 min awake, 4h sleep, 2h awake",
+      "input": {
+        "at": 1792658400000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792634400000
+          },
+          {
+            "state": "awake",
+            "start": 1792634400000,
+            "end": 1792636800000
+          },
+          {
+            "state": "sleep",
+            "start": 1792636800000,
+            "end": 1792651200000
+          },
+          {
+            "state": "awake",
+            "start": 1792651200000,
+            "end": 1792658400000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.928935027292547,
+        "boundedKss": 3.928935027292547,
+        "hoursAwake": 2,
+        "homeostatic": 12.772985727643231,
+        "circadian": -1.3247981605830128,
+        "ultradian": -0.050602976850416426,
+        "inertia": -0.2791429690307141
+      }
+    },
+    {
+      "name": "Highly fragmented: six 1h sleeps with 15 min awakenings",
+      "input": {
+        "at": 1792660500000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792627200000
+          },
+          {
+            "state": "awake",
+            "start": 1792627200000,
+            "end": 1792628100000
+          },
+          {
+            "state": "sleep",
+            "start": 1792628100000,
+            "end": 1792631700000
+          },
+          {
+            "state": "awake",
+            "start": 1792631700000,
+            "end": 1792632600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792632600000,
+            "end": 1792636200000
+          },
+          {
+            "state": "awake",
+            "start": 1792636200000,
+            "end": 1792637100000
+          },
+          {
+            "state": "sleep",
+            "start": 1792637100000,
+            "end": 1792640700000
+          },
+          {
+            "state": "awake",
+            "start": 1792640700000,
+            "end": 1792641600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792641600000,
+            "end": 1792645200000
+          },
+          {
+            "state": "awake",
+            "start": 1792645200000,
+            "end": 1792646100000
+          },
+          {
+            "state": "sleep",
+            "start": 1792646100000,
+            "end": 1792649700000
+          },
+          {
+            "state": "awake",
+            "start": 1792649700000,
+            "end": 1792660500000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.115111421255821,
+        "boundedKss": 4.115111421255821,
+        "hoursAwake": 3,
+        "homeostatic": 11.993985553830914,
+        "circadian": -0.986859640960668,
+        "ultradian": -0.13731281449385624,
+        "inertia": -0.061665467136090425
+      }
+    },
+    {
+      "name": "Nap: 20 min nap after 6h awake, then 1h awake",
+      "input": {
+        "at": 1792675200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792648800000
+          },
+          {
+            "state": "awake",
+            "start": 1792648800000,
+            "end": 1792670400000
+          },
+          {
+            "state": "sleep",
+            "start": 1792670400000,
+            "end": 1792671600000
+          },
+          {
+            "state": "awake",
+            "start": 1792671600000,
+            "end": 1792675200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 4.180519520975833,
+        "boundedKss": 4.180519520975833,
+        "hoursAwake": 1,
+        "homeostatic": 11.40873338045844,
+        "circadian": 1.5391536883141457,
+        "ultradian": -0.9851478631379983,
+        "inertia": -1.2636050739276432
+      }
+    },
+    {
+      "name": "Deep debt below brake: 36h awake, 2h sleep, 3h awake",
+      "input": {
+        "at": 1792713600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792695600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792695600000,
+            "end": 1792702800000
+          },
+          {
+            "state": "awake",
+            "start": 1792702800000,
+            "end": 1792713600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 7.537227704628032,
+        "boundedKss": 7.537227704628032,
+        "hoursAwake": 3,
+        "homeostatic": 6.732721071506308,
+        "circadian": -0.7725424859373689,
+        "ultradian": -0.7938926261462367,
+        "inertia": -0.061665467136090425
+      }
+    },
+    {
+      "name": "Three nights, 5h each",
+      "input": {
+        "at": 1792746000000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792555200000
+          },
+          {
+            "state": "awake",
+            "start": 1792555200000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792641600000
+          },
+          {
+            "state": "awake",
+            "start": 1792641600000,
+            "end": 1792710000000
+          },
+          {
+            "state": "sleep",
+            "start": 1792710000000,
+            "end": 1792728000000
+          },
+          {
+            "state": "awake",
+            "start": 1792728000000,
+            "end": 1792746000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 5.474344735608972,
+        "boundedKss": 5.474344735608972,
+        "hoursAwake": 5,
+        "homeostatic": 9.776235876073544,
+        "circadian": -1.1349762493488669,
+        "ultradian": -0.09549150281252633,
+        "inertia": -0.0030093499271038847
+      }
+    },
+    {
+      "name": "DST fall-back night in Los Angeles, 8h sleep then 4h awake",
+      "input": {
+        "at": 1793556000000,
+        "timeZone": "America/Los_Angeles",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1793426400000,
+            "end": 1793455200000
+          },
+          {
+            "state": "awake",
+            "start": 1793455200000,
+            "end": 1793512800000
+          },
+          {
+            "state": "sleep",
+            "start": 1793512800000,
+            "end": 1793541600000
+          },
+          {
+            "state": "awake",
+            "start": 1793541600000,
+            "end": 1793556000000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.70587631807281,
+        "boundedKss": 3.70587631807281,
+        "hoursAwake": 4,
+        "homeostatic": 12.320239559037704,
+        "circadian": -0.5197792270443984,
+        "ultradian": -0.29663167846210015,
+        "inertia": -0.0136225169858885
+      }
+    },
+    {
+      "name": "Zero-mg caffeine record is allowed",
+      "input": {
+        "at": 1792663200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792663200000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": [
+            {
+              "at": 1792656000000,
+              "mg": 0
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "research-baseline-only",
+        "rawKss": 3.520838936950251,
+        "boundedKss": 3.520838936950251,
+        "hoursAwake": 3,
+        "homeostatic": 12.676678144392172,
+        "circadian": -0.5197792270443984,
+        "ultradian": -0.29663167846210015,
+        "inertia": -0.061665467136090425
+      }
+    },
+    {
+      "name": "Refuse: no sleep data",
+      "input": {
+        "at": 1792645200000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "missing-sleep-history"
+      }
+    },
+    {
+      "name": "Refuse: only one sleep episode",
+      "input": {
+        "at": 1792580400000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792580400000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "needs-two-sleep-episodes"
+      }
+    },
+    {
+      "name": "Refuse: first segment awake",
+      "input": {
+        "at": 1792666800000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "awake",
+            "start": 1792537200000,
+            "end": 1792544400000
+          },
+          {
+            "state": "sleep",
+            "start": 1792544400000,
+            "end": 1792573200000
+          },
+          {
+            "state": "awake",
+            "start": 1792573200000,
+            "end": 1792630800000
+          },
+          {
+            "state": "sleep",
+            "start": 1792630800000,
+            "end": 1792659600000
+          },
+          {
+            "state": "awake",
+            "start": 1792659600000,
+            "end": 1792666800000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "incomplete-history"
+      }
+    },
+    {
+      "name": "Refuse: unknown interval",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "unknown",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "unknown-sleep-wake-state"
+      }
+    },
+    {
+      "name": "Refuse: gap between records",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792620000000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "gap-or-overlap"
+      }
+    },
+    {
+      "name": "Refuse: split episode (two adjacent sleeps)",
+      "input": {
+        "at": 1792641600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792638000000
+          },
+          {
+            "state": "sleep",
+            "start": 1792638000000,
+            "end": 1792641600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "split-episode"
+      }
+    },
+    {
+      "name": "Refuse: more than 16h awake",
+      "input": {
+        "at": 1792713600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792713600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "outside-study-wake-window"
+      }
+    },
+    {
+      "name": "Refuse: record ends after query",
+      "input": {
+        "at": 1792659599999,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "invalid-history"
+      }
+    },
+    {
+      "name": "Refuse: phase out of range",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 24,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "invalid-query"
+      }
+    },
+    {
+      "name": "Refuse: caffeine history unknown",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": null
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "unknown-caffeine-history"
+      }
+    },
+    {
+      "name": "Refuse: caffeine history incomplete",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": false,
+          "doses": []
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "unknown-caffeine-history"
+      }
+    },
+    {
+      "name": "Refuse: 95 mg coffee is not modeled",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": [
+            {
+              "at": 1792656000000,
+              "mg": 95
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "caffeine-effect-not-validated"
+      }
+    },
+    {
+      "name": "Refuse: negative caffeine dose",
+      "input": {
+        "at": 1792659600000,
+        "timeZone": "UTC",
+        "phaseHours": 16.8,
+        "history": [
+          {
+            "state": "sleep",
+            "start": 1792537200000,
+            "end": 1792566000000
+          },
+          {
+            "state": "awake",
+            "start": 1792566000000,
+            "end": 1792623600000
+          },
+          {
+            "state": "sleep",
+            "start": 1792623600000,
+            "end": 1792652400000
+          },
+          {
+            "state": "awake",
+            "start": 1792652400000,
+            "end": 1792659600000
+          }
+        ],
+        "caffeine": {
+          "complete": true,
+          "doses": [
+            {
+              "at": 1792656000000,
+              "mg": -5
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "not-supported",
+        "reason": "invalid-caffeine-history"
+      }
+    }
+  ]
+}
