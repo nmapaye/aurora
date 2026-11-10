@@ -38,6 +38,10 @@ public enum DrinkPhotoMatcher {
         public let score: Double
         public let reason: Reason
         public var id: String { entry.id }
+
+        public init(entry: CaffeineDatabase.Entry, score: Double, reason: Reason) {
+            self.entry = entry; self.score = score; self.reason = reason
+        }
     }
     public enum Result: Equatable, Sendable {
         /// Ranked candidates. The person always confirms one; `confident`
