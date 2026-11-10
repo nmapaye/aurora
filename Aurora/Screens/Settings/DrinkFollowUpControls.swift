@@ -11,41 +11,39 @@ struct DrinkFollowUpControls: View {
 
     private var settings: RepeatDrinkSettings { app.state.prefs.repeatDrinks ?? .off }
 
+    /// A Group, not a stack: in a Form each switch is its own row, styled
+    /// like every other; in the Reminders card they stack as usual. The
+    /// notification switch appears once follow-ups are on, at the same
+    /// indent as everything else.
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.xs) {
-            Toggle(isOn: Binding(get: { settings.enabled }, set: { enabled in
-                change(RepeatDrinkSettings(enabled: enabled, notify: enabled && settings.notify), prompt: false)
-            })) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Follow up on yesterday’s drinks")
-                    Text("After yesterday’s time passes, Aurora asks whether you had that drink, so logging it takes one tap.")
-                        .font(.footnote).foregroundStyle(Palette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+        Group {
+            ExplainedRow(topic: "Drink Follow-Ups", info: "After yesterday’s time passes, Aurora asks whether you had that drink, so logging it takes one tap.") {
+                Toggle("Follow Up on Yesterday’s Drinks", isOn: Binding(get: { settings.enabled }, set: { enabled in
+                    change(RepeatDrinkSettings(enabled: enabled, notify: enabled && settings.notify), prompt: false)
+                }))
+                .accessibilityIdentifier("repeat-drinks-enabled")
             }
-            .accessibilityIdentifier("repeat-drinks-enabled")
             if settings.enabled {
-                VStack(alignment: .leading, spacing: Metrics.xs) {
-                    Toggle("Also notify me", isOn: Binding(get: { settings.notify }, set: { notify in
+                ExplainedRow(topic: "Follow-Up Notifications", info: notifyInfo, infoID: "repeat-drinks-notify-info") {
+                    Toggle("Also Notify Me", isOn: Binding(get: { settings.notify }, set: { notify in
                         change(RepeatDrinkSettings(enabled: settings.enabled, notify: notify), prompt: notify)
                     }))
                     .accessibilityIdentifier("repeat-drinks-notify")
-                    if settings.notify, assistant.repeatDrinkStatus == .denied {
-                        NotificationsOffNotice(detail: "Follow-ups still appear here.")
-                    } else if settings.notify, let note = notifyNote {
-                        Text(note)
-                            .font(.footnote).foregroundStyle(Palette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("repeat-drinks-notify-note")
-                    }
                 }
-                .padding(.leading, Metrics.md)
-            } else {
-                Text("Notifications are available once this is on.")
-                    .font(.footnote).foregroundStyle(Palette.textSecondary)
+                // A status that needs action stays visible.
+                if settings.notify, assistant.repeatDrinkStatus == .denied {
+                    NotificationsOffNotice(detail: "Follow-ups still appear here.")
+                } else if settings.notify, let note = notifyNote {
+                    Text(note)
+                        .font(.footnote).foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("repeat-drinks-notify-note")
+                }
             }
         }
     }
+
+    private var notifyInfo: String { "One silent notification a day, without amounts." }
 
     /// Why notifications aren't arriving although they're on: paused after
     /// unanswered days, or the briefing uses Aurora's one notification a day.
@@ -54,7 +52,7 @@ struct DrinkFollowUpControls: View {
         if !NotificationBudget.followUpsMayNotify(assistant.conversation.preferences) {
             return "The morning briefing uses Aurora’s one notification a day. Follow-ups appear here."
         }
-        return "One silent notification a day, without amounts."
+        return nil
     }
 
     private func change(_ new: RepeatDrinkSettings, prompt: Bool) {

@@ -36,9 +36,9 @@ public enum EnergyMissingInput: String, Codable, Sendable, CaseIterable {
 
     public var text: String {
         switch self {
-        case .recentSleep: "No recorded sleep block of at least 3 hours reaches the 18 hours before this time, so there is no modeled alertness."
-        case .recentCaffeine: "No caffeine is recorded in the 24 hours before this time. Earlier entries still add a modeled amount as they fade."
-        case .caffeine: "No caffeine is recorded by this time. The model counts none."
+        case .recentSleep: EnergyEstimate.missingSleepLine
+        case .recentCaffeine: "No caffeine recorded in the last 24 hours."
+        case .caffeine: "No caffeine recorded."
         }
     }
 }

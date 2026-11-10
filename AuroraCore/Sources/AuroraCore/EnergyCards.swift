@@ -166,6 +166,10 @@ public struct EnergyCheckInDraft: Codable, Equatable, Sendable {
         self.original = original
     }
 
+    /// A correction stays on the scale it was recorded on, so a legacy 1–5
+    /// rating is never converted to KSS. New check-ins are KSS.
+    public var scale: CheckInScale { original?.recordedScale ?? .kss }
+
     public static func new(now: Millis, rating: Int? = nil, entropy: String = RecordID.entropy()) -> EnergyCheckInDraft {
         EnergyCheckInDraft(id: RecordID.newEnergyCheckInID(now: now, entropy: entropy), rating: rating, recordedAt: now)
     }
@@ -175,23 +179,24 @@ public struct EnergyCheckInDraft: Codable, Equatable, Sendable {
     }
 
     public func validate(now: Millis) -> DraftValidation {
-        guard let rating else { return .invalid("Choose a rating from 1 to 5.") }
-        return EnergyCheckIn.validate(rating: rating, recordedAt: recordedAt, now: now)
+        guard let rating else { return .invalid(scale.invalidMessage) }
+        return EnergyCheckIn.validate(rating: rating, recordedAt: recordedAt, now: now, scale: scale)
     }
 
     public var checkIn: EnergyCheckIn? {
         guard let rating else { return nil }
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        return EnergyCheckIn(id: id, recordedAt: recordedAt, rating: rating, note: trimmed.isEmpty ? nil : String(trimmed.prefix(500)))
+        return EnergyCheckIn(id: id, recordedAt: recordedAt, rating: rating, note: trimmed.isEmpty ? nil : String(trimmed.prefix(500)), scale: scale)
     }
 }
 
 extension EnergyCheckIn {
     public static let sourceLabel = "Your rating"
 
-    /// "4 · High"
+    /// "KSS 7 · Sleepy, but no effort to keep awake"; a pre-KSS rating reads
+    /// "Energy 4 · High".
     public var ratingText: String {
-        "\(rating) · \(Self.label(forRating: rating) ?? "Not on the scale")"
+        "\(recordedScale.name) \(rating) · \(interpretation ?? "Not on the scale")"
     }
 }
 
@@ -222,8 +227,8 @@ extension AppState {
 extension Export {
     public static func energyCheckInsCSV(_ checkIns: [EnergyCheckIn], clock: LocalClock) -> String {
         let lines = AppState.stableSorted(checkIns.filter { $0.recordedAt.isFinite }) { $0.recordedAt < $1.recordedAt }.map {
-            row([$0.id, clock.isoDay($0.recordedAt), isoTimestamp($0.recordedAt), "\($0.rating)", EnergyCheckIn.label(forRating: $0.rating) ?? "", $0.note ?? "", EnergyCheckIn.sourceLabel])
+            row([$0.id, clock.isoDay($0.recordedAt), isoTimestamp($0.recordedAt), "\($0.rating)", $0.interpretation ?? "", $0.note ?? "", EnergyCheckIn.sourceLabel, $0.recordedScale.rawValue])
         }
-        return (["id,local_date,datetime,rating,label,note,data_source"] + lines).joined(separator: "\n")
+        return (["id,local_date,datetime,rating,label,note,data_source,scale"] + lines).joined(separator: "\n")
     }
 }

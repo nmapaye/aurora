@@ -257,6 +257,9 @@ public struct Onboarding: Codable, Equatable, Sendable {
     /// value from another build is ignored instead of failing the decode.
     /// Nil in older files; not written while nil.
     public var setupOutcomes: [String: String]?
+    /// The `LegalCopy.version` acknowledged at first launch. Nil before then
+    /// and in files from older builds; not written while nil.
+    public var termsAcceptedVersion: Int?
 
     public static let defaults = Onboarding(
         completed: false,
@@ -275,7 +278,8 @@ public struct Onboarding: Codable, Equatable, Sendable {
         appWalkthroughCompleted: Bool,
         appWalkthroughStep: Int,
         setupStep: Int? = nil,
-        setupOutcomes: [String: String]? = nil
+        setupOutcomes: [String: String]? = nil,
+        termsAcceptedVersion: Int? = nil
     ) {
         self.completed = completed
         self.source = source
@@ -285,6 +289,7 @@ public struct Onboarding: Codable, Equatable, Sendable {
         self.appWalkthroughStep = appWalkthroughStep
         self.setupStep = setupStep
         self.setupOutcomes = setupOutcomes
+        self.termsAcceptedVersion = termsAcceptedVersion
     }
 }
 

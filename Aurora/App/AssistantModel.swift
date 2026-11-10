@@ -272,13 +272,13 @@ final class AssistantModel {
             updateCard(pendingMessageID) { $0.summary = "Updated proposal · review before saving." }
             return
         }
-        if pendingCheckIn != nil, let correction = AssistantPlanner.checkInCorrection(text) {
+        if let checkInScale = pendingCheckIn?.scale, let correction = AssistantPlanner.checkInCorrection(text, scale: checkInScale) {
             switch correction {
             case .rating(let rating):
                 pendingCheckIn?.rating = rating
                 updateCard(pendingMessageID) { $0.summary = "Updated rating · review before saving." }
             case .outOfScale:
-                updateCard(pendingMessageID) { $0.summary = "Ratings run from 1 to 5. Nothing changed." }
+                updateCard(pendingMessageID) { $0.summary = "Ratings run from \(checkInScale.range.lowerBound) to \(checkInScale.range.upperBound). Nothing changed." }
             }
             return
         }
@@ -431,7 +431,6 @@ final class AssistantModel {
                     updateCard(message) {
                         $0.summary = bundle.fallback
                         $0.state = .ready
-                        $0.metrics.append(.init(id: "localExplanation", label: "On-device explanation", value: "Not generated", source: "Manual recovery", detail: (error as? LocalizedError)?.errorDescription ?? "Generation failed; showing verified deterministic facts."))
                     }
                 }
             } else { appendCard(card, intent: intent) }
@@ -542,7 +541,7 @@ final class AssistantModel {
             ]
         } else if let draft = pendingCheckIn {
             return [
-                .init(id: "rating", label: "Your rating", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "Not chosen", source: EnergyCheckIn.sourceLabel, missing: draft.rating == nil),
+                .init(id: "rating", label: draft.scale == .kss ? "Sleepiness (KSS)" : "Energy", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0, scale: draft.scale).ratingText } ?? "Not chosen", source: "", missing: draft.rating == nil),
                 .init(id: "time", label: "Time", value: text.fullDateTime(draft.recordedAt), source: zone)
             ]
         }

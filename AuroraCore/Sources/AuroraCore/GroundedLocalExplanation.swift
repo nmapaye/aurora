@@ -75,8 +75,10 @@ public struct GroundedLocalExplanation: Sendable {
         factors = facts
         allowedCompositions = compositions
         replacements = values
-        let qualifier = facts.isEmpty ? "this is an estimate, not a measurement." : "these rounded model shares are not measured causes or a diagnosis."
-        note = estimate.includesSample ? "Includes Sample Data; " + qualifier : qualifier.prefix(1).uppercased() + String(qualifier.dropFirst())
+        // Estimate and not-medical-advice disclosures live in Terms and
+        // Privacy, acknowledged at first launch; the card carries only facts.
+        // Sample Data stays labeled wherever it contributes.
+        note = estimate.includesSample ? "Includes Sample Data." : ""
     }
     public var prompt: String {
         "Explain WHY this snapshot's modeled score has its value by selecting one or two supplied estimator-factor clauses. Clauses are ordered by the magnitude of their actual contribution; prefer the most informative applicable factors, not a restatement of the score. Signed point placeholders are unclamped model shares, NOT measured causes. Choose exactly one allowed composition verbatim, retaining placeholders. No new facts or numbers:\n" + allowedCompositions.joined(separator: "\n")
@@ -85,7 +87,7 @@ public struct GroundedLocalExplanation: Sendable {
         guard allowedCompositions.contains(composition) else { return nil }
         var rendered = composition
         for (key, value) in replacements { rendered = rendered.replacingOccurrences(of: key, with: value) }
-        return rendered + " " + note
+        return note.isEmpty ? rendered : rendered + " " + note
     }
-    public var fallback: String { "Deterministic summary · " + (render(allowedCompositions[0]) ?? "No record.") }
+    public var fallback: String { render(allowedCompositions[0]) ?? "No record." }
 }

@@ -103,7 +103,7 @@ public enum AssistantCards {
         case .sleepDraft: "Record sleep"
         case .energy: "Your energy signals"
         case .energyProjection: "Modeled alertness · 24 hours"
-        case .energyCheckIn: "Energy check-in"
+        case .energyCheckIn: "Sleepiness Check-In"
         case .cutoffScenario: "Cutoff scenario"
         case .trends: "Recorded trends"
         case .calendar: "Your commitments"
@@ -143,7 +143,7 @@ public enum AssistantCards {
                 card.metrics.insert(.init(
                     id: "activeCaffeine", label: "Estimated active caffeine",
                     value: evidence.hasActiveCaffeine ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg" : "No record",
-                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours))h half-life",
+                    source: "",
                     missing: !evidence.hasActiveCaffeine
                 ), at: 2)
             }

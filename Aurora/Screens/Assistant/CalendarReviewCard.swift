@@ -292,7 +292,7 @@ struct CalendarConnectionsView: View {
                         Text("This beta uses Apple Calendar. To include a Google calendar, sync it with Apple Calendar in device settings, then select it here. Direct Google sign-in is not included.").font(.footnote)
                     }
                 }
-                Section("Include calendars") {
+                Section("Include Calendars") {
                     if service.google.connected {
                         Text("If the same Google calendar appears through both connections, select its authoritative connection below. Do not select both copies.").font(.footnote)
                     } else {
@@ -310,7 +310,7 @@ struct CalendarConnectionsView: View {
                     }
                 }
                 if service.google.connected {
-                    Section("Identify a mirrored calendar") {
+                    Section("Identify a Mirrored Calendar") {
                         Text("Pair two copies of one calendar and pick the one Aurora uses.").font(.footnote)
                         Picker("Apple connection", selection: $appleMirror) {
                             Text("Choose calendar").tag("")
@@ -332,7 +332,7 @@ struct CalendarConnectionsView: View {
                 }
                 if let error = error ?? service.message { Section { Text(error).foregroundStyle(Palette.destructive) } }
             }
-            .navigationTitle("Calendar connections").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Calendar Connections").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() }.keyboardShortcut(.cancelAction) } }
             .task { await service.refreshCalendars() }
         }

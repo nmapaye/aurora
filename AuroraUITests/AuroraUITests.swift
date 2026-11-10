@@ -102,7 +102,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant-health-connect"].exists)
         app.buttons["assistant-health-done"].tap()
-        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Aurora Settings"].waitForExistence(timeout: 5))
     }
 
     func testHealthChoicesRemainReachableAtLargestTextWithoutRequestingAccess() {
@@ -150,7 +150,7 @@ final class AuroraUITests: XCTestCase {
         finishSetup()
         tapQuick("Log caffeine")
         app.buttons["assistant-settings"].tap()
-        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Aurora Settings"].waitForExistence(timeout: 5))
         let records = app.buttons["assistant-record-settings"]
         for _ in 0..<8 where !records.isHittable { app.swipeUp() }
         XCTAssertTrue(records.isHittable)
@@ -356,10 +356,12 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<6 where !save.isHittable { app.swipeUp() }
         save.tap()
         XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 3))
-        let rating = app.segmentedControls["assistant-checkin-rating"]
+        // Self-reported KSS: nine labeled points, none chosen by default.
+        let rating = app.buttons["assistant-checkin-rating-4"]
         for _ in 0..<6 where !rating.isHittable { app.swipeDown() }
-        rating.buttons.element(boundBy: 3).tap()
-        XCTAssertTrue(app.staticTexts["4 · High"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No rating chosen"].exists)
+        rating.tap()
+        XCTAssertTrue(app.staticTexts["KSS 4 · Rather alert"].waitForExistence(timeout: 3))
         for _ in 0..<6 where !save.isHittable { app.swipeUp() }
         save.tap()
         let undo = app.buttons["assistant-checkin-undo"]
@@ -530,8 +532,8 @@ final class AuroraUITests: XCTestCase {
         app.navigationBars["Sleep History"].buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
         app.navigationBars["Sleep"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["Your records"].waitForExistence(timeout: 5))
-        app.navigationBars["Your records"].buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Your Records"].waitForExistence(timeout: 5))
+        app.navigationBars["Your Records"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
     func testCalendarNeverWritesWithoutPreviewApproval() {
@@ -548,6 +550,11 @@ final class AuroraUITests: XCTestCase {
     func testNoAPIKeyEntryInSettings() {
         finishSetup()
         app.buttons["assistant-settings"].tap()
+        // The status is behind the Intelligence row's info button.
+        let info = app.buttons["About Intelligence"]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No cloud model'")).firstMatch.exists)
+        info.tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No cloud model'")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields.containing(NSPredicate(format: "label CONTAINS[c] 'API key'")).firstMatch.exists)
     }
@@ -718,12 +725,63 @@ final class AuroraUITests: XCTestCase {
         XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
                        "A partial request must never satisfy the complete-text guard")
     }
+    /// An install that finished setup before Terms existed gets the Terms and
+    /// Privacy sheet. Swiping it down does nothing; only Continue leaves, and
+    /// a relaunch at the same Terms version doesn't ask again.
+    func testTermsUpdateSheetNeedsContinue() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall"]
+        app.launch()
+        let sheet = app.descendants(matching: .any)["terms-update"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.navigationBars["Terms and Privacy"].exists)
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.exists && proceed.isHittable)
+        XCTAssertEqual(proceed.label, "Continue")
+        XCTAssertTrue(app.buttons["onboarding-terms"].exists && app.buttons["onboarding-privacy"].exists)
+        let top = app.navigationBars["Terms and Privacy"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        app.swipeDown()
+        XCTAssertTrue(sheet.waitForExistence(timeout: 2), "A swipe must not dismiss the Terms sheet")
+        XCTAssertTrue(proceed.isHittable)
+        // The full Terms open from the sheet and come back to it.
+        app.buttons["onboarding-terms"].tap()
+        XCTAssertTrue(app.buttons["legal-done"].waitForExistence(timeout: 5))
+        app.buttons["legal-done"].tap()
+        XCTAssertTrue(proceed.waitForExistence(timeout: 5))
+        attachScreenshot("Terms update sheet")
+        proceed.tap()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.exists)
+        app.terminate(); app.launchArguments = []; app.launch()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 20) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.waitForExistence(timeout: 5), "Same Terms version: not asked again")
+    }
+
+    /// At the largest text the sheet scrolls and Continue stays in the bar.
+    func testTermsUpdateSheetAtLargestText() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 20))
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.isHittable)
+        let privacy = app.buttons["onboarding-privacy"]
+        for _ in 0..<8 where !privacy.isHittable { app.swipeUp() }
+        XCTAssertTrue(privacy.isHittable, "The Privacy Policy link must be reachable by scrolling")
+        XCTAssertTrue(proceed.isHittable)
+        attachScreenshot("Terms update sheet, largest text")
+        proceed.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 3))
+    }
+
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Offer useful updates"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["Cutoff reminder"].exists)
+        XCTAssertTrue(app.switches["Offer Useful Updates"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Cutoff Reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {
         finishSetup(); request("Reaction test")
@@ -758,7 +816,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
         XCTAssertTrue(app.buttons["assistant-send"].exists)
         request("Reminders")
-        let reminder = app.switches["Cutoff reminder"]
+        let reminder = app.switches["Cutoff Reminder"]
         for _ in 0..<6 where !reminder.waitForExistence(timeout: 1) { app.swipeUp() }
         XCTAssertTrue(reminder.exists)
         for _ in 0..<4 where !reminder.isHittable { app.swipeUp() }
