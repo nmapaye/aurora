@@ -18,14 +18,14 @@ struct DrinkFollowUpControls: View {
     var body: some View {
         Group {
             ExplainedRow(topic: "Drink Follow-Ups", info: "After yesterday’s time passes, Aurora asks whether you had that drink, so logging it takes one tap.") {
-                Toggle("Follow up on yesterday’s drinks", isOn: Binding(get: { settings.enabled }, set: { enabled in
+                Toggle("Follow Up on Yesterday’s Drinks", isOn: Binding(get: { settings.enabled }, set: { enabled in
                     change(RepeatDrinkSettings(enabled: enabled, notify: enabled && settings.notify), prompt: false)
                 }))
                 .accessibilityIdentifier("repeat-drinks-enabled")
             }
             if settings.enabled {
                 ExplainedRow(topic: "Follow-Up Notifications", info: notifyInfo, infoID: "repeat-drinks-notify-info") {
-                    Toggle("Also notify me", isOn: Binding(get: { settings.notify }, set: { notify in
+                    Toggle("Also Notify Me", isOn: Binding(get: { settings.notify }, set: { notify in
                         change(RepeatDrinkSettings(enabled: settings.enabled, notify: notify), prompt: notify)
                     }))
                     .accessibilityIdentifier("repeat-drinks-notify")

@@ -108,4 +108,31 @@ import Testing
         #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
         #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
     }
+    /// The one-time Terms prompt for an existing install covers the
+    /// conversation: a Shortcut request then opens no hidden review, and
+    /// dismissing the prompt never replays it.
+    @Test func termsUpdatePromptCoversWithoutHiddenReviewOrReplay() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = app(root), assistant = assistant(), router = Router()
+        await assistant.start(app: app)
+        // Onboarded with no Terms acknowledgement, as on a pre-Terms install.
+        #expect(app.state.onboarding.needsTermsAcknowledgement())
+        let messages = assistant.conversation.messages
+        router.showTermsUpdate = true
+        #expect(router.coversCaffeineReview)
+        var request = CaffeineReviewShortcut(); request.request()
+        assistant.reviewCaffeineShortcut(&request, app: app, foreground: true,
+                                        coveringWork: router.coversCaffeineReview)
+        #expect(!request.requested)
+        #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
+        #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
+        #expect(app.acknowledgeTerms())
+        router.showTermsUpdate = false
+        assistant.reviewCaffeineShortcut(&request, app: app, foreground: true,
+                                        coveringWork: router.coversCaffeineReview)
+        #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
+        #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
+        #expect(!app.state.onboarding.needsTermsAcknowledgement())
+    }
 }

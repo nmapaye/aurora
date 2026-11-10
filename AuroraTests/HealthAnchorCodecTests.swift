@@ -34,4 +34,17 @@ import Testing
         #expect(HealthKitService.isFullPage(added: 499, deleted: 1))
         #expect(!HealthKitService.isFullPage(added: 300, deleted: 10))
     }
+
+    /// The anchored sleep read's HealthKit predicate comes from the tested
+    /// Core filter: a start-date overlap and the asleep stages, nothing else.
+    @Test func anchoredSleepPredicateIsTheCoreFilter() throws {
+        #expect(Set(HKCategoryValueSleepAnalysis.allAsleepValues.map(\.rawValue)) == HealthImport.asleepValues)
+        let now: Millis = 1_800_000_000_000
+        let filter = HealthSleepReadFilter.anchored(now: now)
+        let compound = try #require(HealthKitService.predicate(for: filter) as? NSCompoundPredicate)
+        #expect(compound.compoundPredicateType == .and && compound.subpredicates.count == 2)
+        let unbounded = try #require(HealthKitService.predicate(for: HealthSleepReadFilter(windowStart: nil)) as? NSCompoundPredicate)
+        #expect(unbounded.subpredicates.count == 1)
+        #expect(HealthKitService.pageSize == HealthImport.anchoredPageSize)
+    }
 }

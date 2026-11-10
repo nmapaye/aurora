@@ -38,3 +38,20 @@ public enum LegalCopy {
                 body: "Settings can clear records, clear conversation, or erase all local data. Erasing doesn’t delete samples already added to Apple Health; you can delete those in the Health app."),
     ]
 }
+
+extension Onboarding {
+    /// True for an install that finished setup without acknowledging the
+    /// current Terms: onboarded before Terms existed, or on an older version.
+    /// First-run setup records the acknowledgement itself, so a fresh install
+    /// is never asked twice. Nothing is blocked while this is true.
+    public func needsTermsAcknowledgement(currentVersion: Int = LegalCopy.version) -> Bool {
+        completed && (termsAcceptedVersion ?? 0) < currentVersion
+    }
+}
+
+extension AppState {
+    /// Records the current Terms and Privacy acknowledgement.
+    public mutating func acknowledgeTerms() {
+        onboarding.termsAcceptedVersion = LegalCopy.version
+    }
+}

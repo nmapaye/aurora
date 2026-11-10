@@ -72,7 +72,7 @@ struct AssistantSettingsView: View {
             NavigationLink {
                 WakeRemindersView()
             } label: {
-                LabeledContent("After waking", value: wakeSummary)
+                LabeledContent("After Waking", value: wakeSummary)
             }
             .accessibilityIdentifier("assistant-wake-reminders")
             DrinkFollowUpControls()
@@ -87,19 +87,19 @@ struct AssistantSettingsView: View {
         let prefs = assistant.conversation.preferences
         return Section {
             ExplainedRow(topic: "Useful Updates", info: "Up to two a day.") {
-                Toggle("Offer useful updates", isOn: $assistant.conversation.preferences.proactive)
+                Toggle("Offer Useful Updates", isOn: $assistant.conversation.preferences.proactive)
             }
             if prefs.proactive {
-                Toggle("Morning briefing", isOn: $assistant.conversation.preferences.morningBriefing)
+                Toggle("Morning Briefing", isOn: $assistant.conversation.preferences.morningBriefing)
                 if prefs.morningBriefing {
                     HourPicker(title: "Briefing", hour: $assistant.conversation.preferences.briefingHour, id: "assistant-briefing-hour")
                 }
             }
-            HourPicker(title: "Quiet hours begin", hour: $assistant.conversation.preferences.quietStartHour, id: "assistant-quiet-start")
-            HourPicker(title: "Quiet hours end", hour: $assistant.conversation.preferences.quietEndHour, id: "assistant-quiet-end")
+            HourPicker(title: "Quiet Hours Begin", hour: $assistant.conversation.preferences.quietStartHour, id: "assistant-quiet-start")
+            HourPicker(title: "Quiet Hours End", hour: $assistant.conversation.preferences.quietEndHour, id: "assistant-quiet-end")
             if prefs.proactive && prefs.morningBriefing {
                 Button { Task { await assistant.syncBriefingNotification(prompt: true) } } label: {
-                    Label("Update briefing notification", systemImage: "bell.badge")
+                    Label("Update Briefing Notification", systemImage: "bell.badge")
                 }
                 .foregroundStyle(Palette.textPrimary)
             }
@@ -114,7 +114,7 @@ struct AssistantSettingsView: View {
     private var developer: some View {
         Section("Developer") {
             #if targetEnvironment(simulator)
-            Toggle("Use this Mac’s local Ollama model", isOn: $assistant.conversation.preferences.useMacModel)
+            Toggle("Use This Mac’s Local Ollama Model", isOn: $assistant.conversation.preferences.useMacModel)
             if assistant.conversation.preferences.useMacModel {
                 TextField("Installed model name", text: $assistant.conversation.preferences.macModel)
                     .autocorrectionDisabled().textInputAutocapitalization(.never)

@@ -617,18 +617,24 @@ final class AppModel {
         update { $0.prefs.targetSleep = hours }
     }
 
-    /// Remembers the next setup question so a relaunch resumes there. False
-    /// when it couldn't be saved; `mutationFailure` says why.
     /// Leaving the first-run story: records the Terms and Privacy
     /// acknowledgement and the first setup question as one change.
     @discardableResult
     func beginSetup() -> Bool {
         update {
-            $0.onboarding.termsAcceptedVersion = LegalCopy.version
+            $0.acknowledgeTerms()
             $0.onboarding.setupStep = SetupStep.name.rawValue
         }
     }
 
+    /// Continue on the one-time Terms prompt for an existing install.
+    @discardableResult
+    func acknowledgeTerms() -> Bool {
+        update { $0.acknowledgeTerms() }
+    }
+
+    /// Remembers the next setup question so a relaunch resumes there. False
+    /// when it couldn't be saved; `mutationFailure` says why.
     @discardableResult
     func setSetupStep(_ step: SetupStep) -> Bool {
         update { $0.onboarding.setupStep = step.rawValue }

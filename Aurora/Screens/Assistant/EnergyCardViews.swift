@@ -36,7 +36,7 @@ struct EnergyEvidenceSections: View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             SectionLabel(text: "What the Model Used")
             if estimate.contributions.isEmpty {
-                Text("Record a sleep of 3 hours or more to see this.")
+                Text(EnergyEstimate.missingSleepLine)
                     .font(.footnote).foregroundStyle(Palette.textSecondary)
             }
             ForEach(estimate.contributions, id: \.kind) { part in

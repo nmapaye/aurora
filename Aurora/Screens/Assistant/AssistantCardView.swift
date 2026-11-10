@@ -403,13 +403,13 @@ struct AssistantCardView: View {
         wakeReminderRow
         DrinkFollowUpControls()
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            Toggle("Offer useful updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
+            Toggle("Offer Useful Updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
             }))
             .accessibilityIdentifier("assistant-proactive")
             if prefs.proactive {
-                Toggle("Morning briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
+                Toggle("Morning Briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
                     assistant.conversation.preferences.morningBriefing = enabled; assistant.save()
                     Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
                 }))
@@ -419,7 +419,7 @@ struct AssistantCardView: View {
                 Text("Morning briefing is available once this is on.").font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
-        Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.cutoffReminderOn }, set: { enabled in
+        Toggle("Cutoff Reminder", isOn: Binding(get: { app.state.prefs.cutoffReminderOn }, set: { enabled in
             Task { await app.setReminder(enabled: enabled) }
         }))
         .disabled(app.state.prefs.cutoffHour == nil)

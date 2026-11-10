@@ -53,7 +53,7 @@ public enum AssistantPlanner {
     Classify the user's request into exactly one label:
     logCaffeine, logSleep, explainEnergy, energyProjection, energyCheckIn, cutoffScenario, weeklyTrends, calendar, reactionTest, history, exports, briefing, reminders, settings, help, unsupported.
     help means asking what Aurora can do or which features exist.
-    energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means rating how energetic the user feels right now.
+    energyProjection means viewing modeled alertness over the next or past hours. energyCheckIn means the user rating, right now, how sleepy or alert they feel (a self-reported Karolinska Sleepiness Scale check-in).
     cutoffScenario means exploring a what-if caffeine scenario for a bedtime and threshold the user enters; it never recommends an amount, time or bedtime.
     logCaffeine means recording a drink already consumed. Questions about amounts to drink are unsupported.
     reactionTest means taking the \(Vigilance.durationAdjective) reaction speed test, including requests to measure reaction speed.

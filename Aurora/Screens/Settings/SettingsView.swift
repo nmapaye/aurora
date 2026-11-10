@@ -57,13 +57,13 @@ struct SettingsView: View {
 
                 group("Estimates and References") {
                     ExplainedRow(topic: "Caffeine Half-Life", info: "Used to estimate active caffeine.") {
-                        stepper("Caffeine half-life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
+                        stepper("Caffeine Half-Life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
                             model.setPrefs { $0.halfLife = v }
                         }
                     }
                     Divider()
                     ExplainedRow(topic: "Daily Sleep Target", info: "Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.") {
-                        stepper("Daily sleep target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
+                        stepper("Daily Sleep Target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
                             model.setPrefs { $0.targetSleep = v }
                         }
                     }
@@ -80,7 +80,7 @@ struct SettingsView: View {
                         }
                     })) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Cutoff reminder")
+                            Text("Cutoff Reminder")
                             Text(prefs.cutoffHour.map { "Daily at \(model.text.clockHour($0, clock: model.clock)), the cutoff time you set." } ?? "Set a cutoff time first.")
                                 .font(.footnote)
                                 .foregroundStyle(Palette.textSecondary)
@@ -259,7 +259,7 @@ struct SettingsView: View {
     private func cutoffTime(_ hour: Double?) -> some View {
         if let hour {
             ExplainedRow(topic: "Cutoff Time", info: Self.cutoffInfo) {
-                HourPicker(title: "Cutoff time", hour: Binding(get: { jsRoundInt(hour) }, set: { v in
+                HourPicker(title: "Cutoff Time", hour: Binding(get: { jsRoundInt(hour) }, set: { v in
                     setCutoff(Double(v))
                 }), id: "settings-cutoff-hour")
                 .frame(minHeight: Metrics.minimumTouchTarget)
@@ -269,7 +269,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings-cutoff-remove")
         } else {
             ExplainedRow(topic: "Cutoff Time", info: Self.cutoffInfo) {
-                LabeledContent("Cutoff time", value: "Not set")
+                LabeledContent("Cutoff Time", value: "Not set")
                     .frame(minHeight: Metrics.minimumTouchTarget)
             }
             Button("Set a cutoff time") {

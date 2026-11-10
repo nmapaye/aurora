@@ -729,8 +729,8 @@ final class AuroraUITests: XCTestCase {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Offer useful updates"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["Cutoff reminder"].exists)
+        XCTAssertTrue(app.switches["Offer Useful Updates"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Cutoff Reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {
         finishSetup(); request("Reaction test")
@@ -765,7 +765,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
         XCTAssertTrue(app.buttons["assistant-send"].exists)
         request("Reminders")
-        let reminder = app.switches["Cutoff reminder"]
+        let reminder = app.switches["Cutoff Reminder"]
         for _ in 0..<6 where !reminder.waitForExistence(timeout: 1) { app.swipeUp() }
         XCTAssertTrue(reminder.exists)
         for _ in 0..<4 where !reminder.isHittable { app.swipeUp() }

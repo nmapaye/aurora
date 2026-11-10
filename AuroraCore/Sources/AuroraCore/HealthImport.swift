@@ -78,6 +78,36 @@ public enum HealthSleepImport {
     }
 }
 
+/// What an anchored Health sleep read asks for: asleep stages only, and only
+/// samples that overlap the last `HealthImport.refreshDays`. HealthKitService
+/// builds its HealthKit predicate from this and applies `matches` to what
+/// comes back, so the rule lives in one tested place.
+public struct HealthSleepReadFilter: Equatable, Sendable {
+    /// Nil reads all of Health history (how the anchored read behaved before
+    /// it had a date predicate).
+    public let windowStart: Millis?
+    public let asleepValues: Set<Int>
+
+    public init(windowStart: Millis?, asleepValues: Set<Int> = HealthImport.asleepValues) {
+        self.windowStart = windowStart
+        self.asleepValues = asleepValues
+    }
+
+    public static func anchored(now: Millis) -> HealthSleepReadFilter {
+        HealthSleepReadFilter(windowStart: HealthSleepImport.anchoredReadStart(now: now))
+    }
+
+    /// HealthKit's sample predicate with a start, no end and no options
+    /// matches any sample whose span reaches past the start, so a night that
+    /// began before the window comes back whole; one ending exactly at the
+    /// start doesn't overlap it.
+    public func matches(start: Millis, end: Millis, value: Int) -> Bool {
+        guard start.isFinite, end.isFinite, asleepValues.contains(value) else { return false }
+        guard let windowStart else { return true }
+        return end > windowStart
+    }
+}
+
 public enum HealthImport {
     public static let refreshDays: Double = 30
     public static let onboardingImportDays: Double = 14
@@ -91,6 +121,9 @@ public enum HealthImport {
     /// HealthKit `HKCategoryValueSleepAnalysis` raw values that mean asleep:
     /// asleep (unspecified) 1, core 3, deep 4, REM 5.
     public static let asleepValues: Set<Int> = [1, 3, 4, 5]
+    /// Most samples (added plus deleted) one anchored read returns; the
+    /// filter's limit counts only matching samples.
+    public static let anchoredPageSize = 500
 
     /// Nights rather than samples: one Watch night can be dozens of stage
     /// segments.

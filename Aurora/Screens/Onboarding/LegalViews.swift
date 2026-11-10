@@ -71,3 +71,45 @@ struct LegalDocumentView: View {
         .accessibilityIdentifier("legal-\(document.rawValue)")
     }
 }
+
+/// Shown once to an install that finished setup before Terms existed (or on
+/// an older version). Nothing is blocked: Continue records the
+/// acknowledgement; swiping it away leaves it for the next launch.
+struct TermsUpdateSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var failure: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Metrics.md) {
+                    Text("Aurora now has Terms and a Privacy Policy in the app. They hold the notes that used to appear on cards.")
+                        .font(.body).foregroundStyle(Palette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    LegalAcknowledgement()
+                    if let failure {
+                        StatusText(text: failure, tone: .error)
+                            .accessibilityIdentifier("terms-update-failure")
+                    }
+                }
+                .padding(Metrics.lg)
+                .frame(maxWidth: Metrics.contentMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity)
+            }
+            .background(Palette.modalBackground.ignoresSafeArea())
+            .navigationTitle("Terms and Privacy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Continue") {
+                        if model.acknowledgeTerms() { dismiss() } else { failure = model.mutationFailure ?? "Couldn’t save. Try again." }
+                    }
+                    .accessibilityIdentifier("terms-update-continue")
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("terms-update")
+    }
+}

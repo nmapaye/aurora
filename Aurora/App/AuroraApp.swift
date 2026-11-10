@@ -115,10 +115,13 @@ struct AuroraApp: App {
 /// a once-per-launch welcome over it.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set when storage first opens, so the welcome plays at most once per
     /// launch and never right after finishing setup or an erase.
     @State private var launchHandled = false
+    /// Set once the Terms prompt has been offered this launch.
+    @State private var termsHandled = false
     @State private var welcome = Welcome.Presentation.atLaunch(onboardingCompleted: false, voiceOverRunning: false)
     /// Kept while the welcome fades after a skip; it no longer takes touches.
     @State private var welcomeContent: WelcomeContent?
@@ -147,7 +150,10 @@ struct RootView: View {
                     OnboardingView().onAppear { Signposts.event("Launch.OnboardingVisible") }
                 }
             }
+            .sheet(isPresented: Bindable(router).showTermsUpdate) { TermsUpdateSheet() }
             .onAppear(perform: handleLaunch)
+            // After the welcome, so the two never stack.
+            .onChange(of: welcome.showing) { _, showing in if !showing { presentTermsIfNeeded() } }
             .onChange(of: model.state.onboarding.completed) { _, completed in
                 // Run what an activation would, so Health reads chosen during
                 // setup start now instead of at the next foreground.
@@ -163,7 +169,7 @@ struct RootView: View {
             onboardingCompleted: FirstRun(model.state.onboarding) == .done,
             voiceOverRunning: UIAccessibility.isVoiceOverRunning
         )
-        guard presentation.showing else { return }
+        guard presentation.showing else { presentTermsIfNeeded(); return }
         model.tick()
         let daypart = Welcome.Daypart.current(clock: model.clock, now: model.now)
         welcomeContent = WelcomeContent(
@@ -172,6 +178,14 @@ struct RootView: View {
             evidence: Welcome.evidence(state: model.state, now: model.now, clock: model.clock, text: model.text)
         )
         welcome = presentation
+    }
+
+    /// Once per launch at most. It counts as covering work, so a Shortcut
+    /// request while it shows opens no hidden review.
+    private func presentTermsIfNeeded() {
+        guard !termsHandled, model.state.onboarding.needsTermsAcknowledgement() else { return }
+        termsHandled = true
+        router.showTermsUpdate = true
     }
 
     /// Touches and VoiceOver return to the conversation in this update; the

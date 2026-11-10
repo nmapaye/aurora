@@ -235,4 +235,29 @@ private struct SleepOnlyHealth: HealthDataProvider {
         guard read == [.sleepAnalysis], write.isEmpty else { throw HealthProviderError.unsupported("authorization") }
     }
     func sleepSamples(from start: Millis, to end: Millis) async throws -> [HealthSleepSample] { samples }
+
+    /// An install onboarded before Terms existed is asked once; Continue is
+    /// saved and the prompt isn't needed after relaunch. First-run setup
+    /// records it itself.
+    @Test func existingInstallTermsAcknowledgementPersists() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = AppModel(makeStore: { StateStore(directory: root) }, legacy: { nil })
+        app.load()
+        #expect(!app.state.onboarding.needsTermsAcknowledgement())
+        #expect(app.completeOnboarding())
+        #expect(app.state.onboarding.needsTermsAcknowledgement())
+        #expect(app.acknowledgeTerms())
+        let reopened = try #require(try StateStore(directory: root).load())
+        #expect(reopened.onboarding.termsAcceptedVersion == LegalCopy.version)
+        #expect(!reopened.onboarding.needsTermsAcknowledgement())
+
+        let fresh = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fresh) }
+        let firstRun = AppModel(makeStore: { StateStore(directory: fresh) }, legacy: { nil })
+        firstRun.load()
+        #expect(firstRun.beginSetup())
+        #expect(firstRun.completeOnboarding())
+        #expect(!firstRun.state.onboarding.needsTermsAcknowledgement())
+    }
 }
