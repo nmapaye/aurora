@@ -90,8 +90,11 @@ final class AppModel {
     /// UI tests start from empty records. Release builds can't set it.
     #if DEBUG
     static let launchedForUITestReset = ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset")
+    /// With the reset: an install that finished setup before Terms existed.
+    static let launchedAsPreTermsInstall = ProcessInfo.processInfo.arguments.contains("-AuroraUITestPreTermsInstall")
     #else
     static let launchedForUITestReset = false
+    static let launchedAsPreTermsInstall = false
     #endif
 
     static func currentMillis() -> Millis {
@@ -138,6 +141,7 @@ final class AppModel {
             }
             if Self.launchedForUITestReset {
                 state = AppState()
+                if Self.launchedAsPreTermsInstall { state.completeOnboarding(now: Self.currentMillis()) }
             }
             phase = .ready
         } catch {

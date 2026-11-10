@@ -72,21 +72,33 @@ struct LegalDocumentView: View {
     }
 }
 
-/// Shown once to an install that finished setup before Terms existed (or on
-/// an older version). Nothing is blocked: Continue records the
-/// acknowledgement; swiping it away leaves it for the next launch.
+/// Shown to an install that finished setup before Terms existed, or on an
+/// older version. It needs an explicit Continue: no swipe-to-dismiss, and
+/// nothing counts as agreement until Continue saves. It comes back only when
+/// the Terms version goes up. Settings keeps Terms and Privacy available.
 struct TermsUpdateSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var failure: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Metrics.md) {
-                    Text("Aurora now has Terms and a Privacy Policy in the app. They hold the notes that used to appear on cards.")
+                    Text("Aurora’s Terms and Privacy Policy are now in the app. In short:")
                         .font(.body).foregroundStyle(Palette.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: Metrics.sm) {
+                        ForEach(LegalCopy.updateSummary, id: \.self) { line in
+                            HStack(alignment: .firstTextBaseline, spacing: Metrics.xs) {
+                                Text("•").accessibilityHidden(true)
+                                Text(line).fixedSize(horizontal: false, vertical: true)
+                            }
+                            .font(.body).foregroundStyle(Palette.textSecondary)
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
                     LegalAcknowledgement()
                     if let failure {
                         StatusText(text: failure, tone: .error)
@@ -97,19 +109,27 @@ struct TermsUpdateSheet: View {
                 .frame(maxWidth: Metrics.contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .background(Palette.modalBackground.ignoresSafeArea())
-            .navigationTitle("Terms and Privacy")
+            .navigationTitle(TermsUpdatePrompt.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // In the bar, so it's never scrolled or clipped off screen.
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Continue") {
-                        if model.acknowledgeTerms() { dismiss() } else { failure = model.mutationFailure ?? "Couldn’t save. Try again." }
-                    }
-                    .accessibilityIdentifier("terms-update-continue")
+                    Button(TermsUpdatePrompt.continueTitle, action: accept)
+                        .accessibilityHint("Agrees to Aurora’s Terms and Privacy Policy.")
+                        .accessibilityIdentifier("terms-update-continue")
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Large text gets the full height; the content scrolls either way.
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .interactiveDismissDisabled(true)
         .accessibilityIdentifier("terms-update")
+    }
+
+    private func accept() {
+        if model.acknowledgeTerms() { failure = nil; dismiss() }
+        else { failure = model.mutationFailure ?? "Couldn’t save. Try again." }
     }
 }

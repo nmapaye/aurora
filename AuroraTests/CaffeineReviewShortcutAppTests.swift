@@ -111,6 +111,10 @@ import Testing
     /// The one-time Terms prompt for an existing install covers the
     /// conversation: a Shortcut request then opens no hidden review, and
     /// dismissing the prompt never replays it.
+    /// What AssistantView passes as covering work.
+    func covering(_ router: Router, _ app: AppModel) -> Bool {
+        router.coversCaffeineReview || TermsUpdatePrompt.coversWork(app.state.onboarding)
+    }
     @Test func termsUpdatePromptCoversWithoutHiddenReviewOrReplay() async {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -119,20 +123,48 @@ import Testing
         // Onboarded with no Terms acknowledgement, as on a pre-Terms install.
         #expect(app.state.onboarding.needsTermsAcknowledgement())
         let messages = assistant.conversation.messages
-        router.showTermsUpdate = true
-        #expect(router.coversCaffeineReview)
-        var request = CaffeineReviewShortcut(); request.request()
-        assistant.reviewCaffeineShortcut(&request, app: app, foreground: true,
-                                        coveringWork: router.coversCaffeineReview)
-        #expect(!request.requested)
-        #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
-        #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
+        // Covered before the sheet is drawn (welcome still up) and while it shows.
+        for showing in [false, true] {
+            router.showTermsUpdate = showing
+            #expect(covering(router, app))
+            var request = CaffeineReviewShortcut(); request.request()
+            assistant.reviewCaffeineShortcut(&request, app: app, foreground: true, coveringWork: covering(router, app))
+            #expect(!request.requested)
+            #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
+            #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
+        }
         #expect(app.acknowledgeTerms())
         router.showTermsUpdate = false
-        assistant.reviewCaffeineShortcut(&request, app: app, foreground: true,
-                                        coveringWork: router.coversCaffeineReview)
-        #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil)
-        #expect(assistant.conversation.messages == messages && app.state.doses.isEmpty)
+        #expect(!covering(router, app))
+        var later = CaffeineReviewShortcut()
+        assistant.reviewCaffeineShortcut(&later, app: app, foreground: true, coveringWork: covering(router, app))
+        // The request made behind the sheet isn't replayed after Continue.
+        #expect(assistant.pendingDraft == nil && assistant.conversation.messages == messages && app.state.doses.isEmpty)
         #expect(!app.state.onboarding.needsTermsAcknowledgement())
+    }
+    /// An unsaved draft behind the sheet is neither lost nor saved, and a
+    /// Shortcut request then doesn't replace it.
+    @Test func unsavedDraftSurvivesTheTermsSheetUnsaved() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = app(root), assistant = assistant(), router = Router()
+        await assistant.start(app: app)
+        assistant.send("Log caffeine", app: app); await assistant.waitForCurrentRequest()
+        assistant.pendingDraft?.mg = "88"
+        let draft = try #require(assistant.pendingDraft)
+        let count = assistant.conversation.messages.count
+        router.showTermsUpdate = true
+        var request = CaffeineReviewShortcut(); request.request()
+        assistant.reviewCaffeineShortcut(&request, app: app, foreground: true, coveringWork: covering(router, app))
+        #expect(assistant.pendingDraft == draft && assistant.conversation.messages.count == count)
+        #expect(app.state.doses.isEmpty && !request.requested)
+        #expect(app.acknowledgeTerms())
+        router.showTermsUpdate = false
+        #expect(assistant.pendingDraft == draft && app.state.doses.isEmpty)
+        let reopened = try #require(try StateStore(directory: root).load())
+        #expect(reopened.doses.isEmpty && reopened.onboarding.termsAcceptedVersion == LegalCopy.version)
+        // Saving stays the person's own tap.
+        assistant.saveDose(app: app)
+        #expect(app.state.doses.count == 1 && app.state.doses.first?.mg == 88)
     }
 }

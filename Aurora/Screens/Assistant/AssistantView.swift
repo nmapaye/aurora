@@ -226,7 +226,7 @@ struct AssistantView: View {
     }
 
     private var coversShortcut: Bool {
-        router.coversCaffeineReview || shortcutCovered() || clearing
+        router.coversCaffeineReview || TermsUpdatePrompt.coversWork(app.state.onboarding) || shortcutCovered() || clearing
     }
 
     /// A message was added or removed: reveal it, or hold it below while

@@ -725,6 +725,57 @@ final class AuroraUITests: XCTestCase {
         XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
                        "A partial request must never satisfy the complete-text guard")
     }
+    /// An install that finished setup before Terms existed gets the Terms and
+    /// Privacy sheet. Swiping it down does nothing; only Continue leaves, and
+    /// a relaunch at the same Terms version doesn't ask again.
+    func testTermsUpdateSheetNeedsContinue() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall"]
+        app.launch()
+        let sheet = app.descendants(matching: .any)["terms-update"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.navigationBars["Terms and Privacy"].exists)
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.exists && proceed.isHittable)
+        XCTAssertEqual(proceed.label, "Continue")
+        XCTAssertTrue(app.buttons["onboarding-terms"].exists && app.buttons["onboarding-privacy"].exists)
+        let top = app.navigationBars["Terms and Privacy"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        app.swipeDown()
+        XCTAssertTrue(sheet.waitForExistence(timeout: 2), "A swipe must not dismiss the Terms sheet")
+        XCTAssertTrue(proceed.isHittable)
+        // The full Terms open from the sheet and come back to it.
+        app.buttons["onboarding-terms"].tap()
+        XCTAssertTrue(app.buttons["legal-done"].waitForExistence(timeout: 5))
+        app.buttons["legal-done"].tap()
+        XCTAssertTrue(proceed.waitForExistence(timeout: 5))
+        attachScreenshot("Terms update sheet")
+        proceed.tap()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.exists)
+        app.terminate(); app.launchArguments = []; app.launch()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 20) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.waitForExistence(timeout: 5), "Same Terms version: not asked again")
+    }
+
+    /// At the largest text the sheet scrolls and Continue stays in the bar.
+    func testTermsUpdateSheetAtLargestText() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 20))
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.isHittable)
+        let privacy = app.buttons["onboarding-privacy"]
+        for _ in 0..<8 where !privacy.isHittable { app.swipeUp() }
+        XCTAssertTrue(privacy.isHittable, "The Privacy Policy link must be reachable by scrolling")
+        XCTAssertTrue(proceed.isHittable)
+        attachScreenshot("Terms update sheet, largest text")
+        proceed.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 3))
+    }
+
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
