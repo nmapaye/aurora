@@ -12,7 +12,8 @@ public struct DrinkPhotoObservation: Equatable, Sendable {
     public var barcodes: [String]
     /// Vision image-classification identifiers with confidence 0...1.
     public var labels: [String: Double]
-    /// The on-device model's drink and brand words, if it ran. Untrusted.
+    /// Search words from an on-device model. Untrusted, and empty in the app
+    /// today: no model reads the photo (see docs/drink-photo-logging.md).
     public var modelDrink: String
     public var modelBrand: String
 
@@ -163,6 +164,8 @@ public enum DrinkPhotoMatcher {
 /// serving (or types their own amount). Autosave does not exist here.
 public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public static let autosaveEnabled = false
+    /// Shown when no database record is chosen or found.
+    public static let notInDatabaseTitle = "Not in Database"
 
     public enum ServingChoice: Equatable, Sendable {
         /// One of the entry's listed servings.
@@ -183,6 +186,9 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public private(set) var serving: ServingChoice?
     /// A whole-mg amount the person typed over the database value.
     public private(set) var typedMg: String?
+    /// Set while the person enters a drink the database doesn't have; the
+    /// name they type. Nil when a database record is in use.
+    public private(set) var manualName: String?
     public var timestamp: Millis
     public let noMatchMessage: String?
 
@@ -203,6 +209,7 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public mutating func select(_ entry: CaffeineDatabase.Entry) {
         self.entry = entry
         typedMg = nil
+        manualName = nil
         serving = Self.defaultServing(entry, volumes: labelVolumes)
         if !candidates.contains(where: { $0.entry.id == entry.id }) {
             candidates.insert(.init(entry: entry, score: 0, reason: .text), at: 0)
@@ -212,13 +219,39 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public mutating func type(mg text: String) { typedMg = text }
     public mutating func clearTypedAmount() { typedMg = nil }
 
-    /// A label volume is preselected only when it converts from the entry's
-    /// own data and the entry lists no serving of that size; one listed
-    /// serving is preselected when it is the only one. Otherwise the person picks.
+    /// Nothing in the database matched, or the person chose to: they name
+    /// the drink and type the amount. No database number is used or shown.
+    public mutating func enterManually() {
+        entry = nil; serving = nil
+        manualName = manualName ?? ""
+        typedMg = typedMg ?? ""
+    }
+    /// Back to the photo's matches; the typed name and amount are dropped.
+    public mutating func leaveManualEntry() { manualName = nil; typedMg = nil }
+    public mutating func name(_ text: String) { if manualName != nil { manualName = text } }
+
+    /// No database record is in use: nothing matched, or the person is
+    /// entering the drink themselves.
+    public var isNotInDatabase: Bool { manualName != nil || (entry == nil && candidates.isEmpty) }
+
+    /// A label volume is preselected only when the entry can convert it and
+    /// one of the entry's own listed servings is the same size, so a misread
+    /// label ("71 FL OZ" for "12 FL OZ") is never picked for the person. One
+    /// listed serving is preselected only when the photo showed no size.
+    /// Otherwise the person picks.
     static func defaultServing(_ entry: CaffeineDatabase.Entry, volumes: [Volume]) -> ServingChoice? {
-        if volumes.count == 1, let volume = volumes.first, convertible(entry) { return .label(volume) }
-        if entry.servings.count == 1 { return .listed(0) }
+        if volumes.count == 1, let volume = volumes.first, convertible(entry), corroborated(volume, by: entry) { return .label(volume) }
+        if volumes.isEmpty, entry.servings.count == 1 { return .listed(0) }
         return nil
+    }
+    /// Whether a listed serving names a container within 3% of `volume`,
+    /// read from its label text ("1 can (8.4 fl oz)") or its mL amount.
+    static func corroborated(_ volume: Volume, by entry: CaffeineDatabase.Entry) -> Bool {
+        entry.servings.contains { serving in
+            var sizes = Volume.parse(serving.label).map(\.milliliters)
+            if serving.unit == "mL" { sizes.append(serving.amount) }
+            return sizes.contains { abs($0 - volume.milliliters) / volume.milliliters < 0.03 }
+        }
     }
     static func convertible(_ entry: CaffeineDatabase.Entry) -> Bool {
         entry.basis == "mL" || entry.gramsPerFlOz != nil
@@ -233,6 +266,7 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public func amount(db: CaffeineDatabase) -> Amount? {
         if let typedMg {
             guard let value = Int(typedMg.trimmingCharacters(in: .whitespaces)), (1...1999).contains(value) else { return nil }
+            if manualName != nil { return Amount(mg: value, provenance: "Typed by you · not in Aurora’s database", edited: true) }
             let original = databaseAmount(db: db).map { " (database: \($0.mg) mg)" } ?? ""
             return Amount(mg: value, provenance: "Typed by you" + original, edited: true)
         }
@@ -254,6 +288,11 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
 
     /// What the card asks when it cannot offer Save yet. `nil` means ready.
     public func clarification(db: CaffeineDatabase) -> String? {
+        if let manualName {
+            if manualName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "What is the drink called?" }
+            if amount(db: db) == nil { return "Enter a whole amount between 1 and 1999 mg." }
+            return nil
+        }
         if entry == nil {
             if let noMatchMessage, candidates.isEmpty { return noMatchMessage }
             return "Which drink is this? Pick the closest match."
@@ -269,8 +308,9 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     /// The draft the person explicitly saves. `nil` until the card is
     /// complete and valid; there is no path that saves without this call.
     public func draft(db: CaffeineDatabase, now: Millis) -> CustomDoseDraft? {
-        guard clarification(db: db) == nil, let entry, let amount = amount(db: db) else { return nil }
-        let name = entry.displayName
+        guard clarification(db: db) == nil, let amount = amount(db: db) else { return nil }
+        let typedName = manualName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let name = typedName ?? entry?.displayName else { return nil }
         let source = name.count > 60 ? String(name.prefix(59)) + "…" : name
         let draft = CustomDoseDraft(mg: String(amount.mg), source: source, timestamp: timestamp, note: "Photo · " + amount.provenance)
         return CaffeineLog.validate(draft, now: now) == .valid ? draft : nil

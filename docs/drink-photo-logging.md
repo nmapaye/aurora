@@ -11,20 +11,30 @@ the person's confirmation, and use a comprehensive database for caffeine values.
 2. The photo is read **on device** by Apple frameworks only:
    - Vision `VNRecognizeTextRequest` (label text and container size),
    - Vision `VNDetectBarcodesRequest` (UPC/EAN → exact database lookup),
-   - Vision `VNClassifyImageRequest` (drink kind words),
-   - iOS 27+: Foundation Models `SystemLanguageModel.default` (on-device) with an
-     image `Attachment`, asked only for drink and brand words. Compiled only with
-     Swift 6.4+ (Xcode 27) and used only when the on-device model is ready.
-     Never Private Cloud Compute, never a third-party or network model.
+   - Vision `VNClassifyImageRequest` (drink kind words).
+
+   No language model reads the photo. An earlier iOS 27 Foundation Models
+   image-attachment path was removed (Nov 10, 2026): it was behind
+   `compiler(>=6.4)`, and CI builds with Xcode 26.6 / Swift 6.3, so it could
+   never be type-checked or tested before shipping. Re-adding it needs an SDK
+   that CI builds, with tests. Never Private Cloud Compute, never a
+   third-party or network model.
 3. AuroraCore matches that evidence against the bundled database
    (`DrinkPhotoMatcher`): barcode first, then IDF-weighted token match with
    one-letter OCR tolerance and a brand bonus. Below the threshold it asks
    instead of guessing.
 4. Confirmation card (`DrinkPhotoConfirmation`): drink candidates (or database
-   search), size (label volume read by Vision, or the record's listed servings),
+   search), size (label volume read by Vision, or the record's listed servings;
+   a label size is preselected only when one of the record's own servings is
+   the same size, so a misread label is never picked for the person),
    caffeine mg with its source line, editable amount, and time. **Save** is the
    only write; `autosaveEnabled` is `false` with no override. The saved entry's
-   note keeps the provenance (dataset, FDC id, serving).
+   note keeps the provenance (dataset, FDC id, serving). After Save the
+   conversation shows the standard "Caffeine saved" card with Undo for that
+   entry.
+   - **Not in Database**: when nothing matches (or the person taps **Enter It
+     Yourself**), they name the drink and type the amount. The note says
+     "Typed by you · not in Aurora’s database"; no database number is used.
 5. The photo is held in memory and dropped when the sheet closes. It is never
    written to disk or the photo library, and never sent anywhere.
 
@@ -72,6 +82,17 @@ python3 scripts/build_caffeine_db.py --fndds surveyDownload.json \
 - **CSPI and similar charts**: copyrighted editorial tables. Not bundled.
 
 ### Known coverage limits
+
+Brands named in Nov 10 feedback, checked against the bundled database and the
+full USDA inputs (`DrinkPhotoCoverageAndGuardTests.namedBrandCoverageIsRecorded`):
+
+| Brand | Brand-specific record | In USDA FDC with caffeine |
+| --- | --- | --- |
+| Celsius, Starbucks, Bang, Ghost, Prime, 5-hour, C4, matcha, Dr Pepper | No | No (Branded label data has no caffeine for them; Starbucks and Dr Pepper have generic FNDDS coffee and pepper-type soft drink records) |
+| Alani | No | Only Alani Nu powder "energy sticks" (5.8 g), not the canned drink; not bundled (the build keeps liquid label data only) |
+
+Adding these needs a licensable source with provenance; that's an owner
+decision.
 
 US label data rarely reports caffeine, so the Branded set is mostly
 Coca-Cola-family drinks, Gold Peak, Polar and a few energy brands. Major energy

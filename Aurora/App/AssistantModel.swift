@@ -728,6 +728,19 @@ final class AssistantModel {
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
     }
+    /// Saves a drink confirmed on Log from Photo, then shows the same
+    /// "Caffeine saved" card as a composer save, with Undo for exactly that
+    /// entry. Returns the problem instead when nothing was saved; the photo
+    /// sheet shows it and stays open.
+    func savePhotoDose(_ draft: CustomDoseDraft, app: AppModel) -> String? {
+        app.tick()
+        if let message = CaffeineLog.validate(draft, now: app.now).message { return message }
+        let dose = app.addCustomDose(draft)
+        if let problem = app.mutationFailure { return problem }
+        guard app.state.doses.contains(where: { $0.id == dose.id }) else { return "The drink wasn’t saved. Try again." }
+        receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+        return nil
+    }
     func undoDose(app: AppModel) {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }
         app.undo(dose)

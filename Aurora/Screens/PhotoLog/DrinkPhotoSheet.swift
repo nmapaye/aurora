@@ -8,6 +8,7 @@ import SwiftUI
 /// the photo is never stored, uploaded or kept after this sheet closes.
 struct DrinkPhotoSheet: View {
     @Environment(AppModel.self) private var app
+    @Environment(AssistantModel.self) private var assistant
     @Environment(\.dismiss) private var dismiss
 
     private enum Phase { case pick, reading, review }
@@ -21,6 +22,8 @@ struct DrinkPhotoSheet: View {
     @State private var typedText = ""
     @State private var failure: String?
     @State private var analysis: Task<Void, Never>?
+    /// Set once Save succeeds, so a second tap can't add the drink twice.
+    @State private var saved = false
     @FocusState private var amountFocused: Bool
 
     private let db = CaffeineDatabase.bundled
@@ -48,7 +51,7 @@ struct DrinkPhotoSheet: View {
                 if phase == .review {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") { save() }
-                            .disabled(currentDraft == nil)
+                            .disabled(currentDraft == nil || saved)
                             .accessibilityIdentifier("photo-log-save")
                     }
                 }
@@ -126,7 +129,7 @@ struct DrinkPhotoSheet: View {
                             .accessibilityLabel("Your drink photo. Not saved.")
                     } footer: { Text("This photo stays on your device and is discarded when you close this sheet.") }
                 }
-                drinkSection(card, db: db)
+                if card.manualName != nil { manualSection(card) } else { drinkSection(card, db: db) }
                 if card.entry != nil { servingSection(card, db: db) }
                 amountSection(card, db: db)
                 Section("Time") {
@@ -156,16 +159,33 @@ struct DrinkPhotoSheet: View {
                 .accessibilityIdentifier("photo-log-search")
             if !search.trimmingCharacters(in: .whitespaces).isEmpty {
                 let results = DrinkPhotoMatcher.search(search, in: db)
-                if results.isEmpty { Text("No match in the database.").foregroundStyle(Palette.textSecondary) }
+                if results.isEmpty { Text(DrinkPhotoConfirmation.notInDatabaseTitle).foregroundStyle(Palette.textSecondary).accessibilityIdentifier("photo-log-search-not-found") }
                 ForEach(results) { result in
                     selectableRow(result.entry.displayName, detail: nil, selected: card.entry?.id == result.entry.id) {
                         self.card?.select(result.entry); search = ""; typing = false; typedText = ""
                     }
                 }
             }
-        } header: { Text("Drink") } footer: {
+            Button("Enter It Yourself") { startManualEntry() }
+                .frame(minHeight: Metrics.minimumTouchTarget)
+                .accessibilityIdentifier("photo-log-enter-manually")
+        } header: {
+            Text(card.isNotInDatabase ? DrinkPhotoConfirmation.notInDatabaseTitle : "Drink")
+                .accessibilityIdentifier(card.isNotInDatabase ? "photo-log-not-in-database" : "photo-log-drink")
+        } footer: {
             if card.entry == nil, let ask = card.clarification(db: db) { Text(ask) }
         }
+    }
+
+    /// A drink the database doesn't have: the person names it and types the
+    /// amount. "Search the Database" returns to the matches.
+    private func manualSection(_ card: DrinkPhotoConfirmation) -> some View {
+        Section {
+            TextField("Drink Name", text: Binding(get: { card.manualName ?? "" }, set: { self.card?.name($0) }))
+                .accessibilityIdentifier("photo-log-manual-name")
+            Button("Search the Database") { leaveManualEntry() }
+                .frame(minHeight: Metrics.minimumTouchTarget)
+        } header: { Text(DrinkPhotoConfirmation.notInDatabaseTitle).accessibilityIdentifier("photo-log-not-in-database") }
     }
 
     private func servingSection(_ card: DrinkPhotoConfirmation, db: CaffeineDatabase) -> some View {
@@ -196,21 +216,21 @@ struct DrinkPhotoSheet: View {
                     Spacer()
                     Button("Edit") { typedText = String(amount.mg); typing = true; self.card?.type(mg: typedText); amountFocused = true }
                 }
-            } else if typing || card.entry != nil {
+            } else if typing || card.entry != nil || card.manualName != nil {
                 HStack {
                     TextField("Amount", text: Binding(get: { typedText }, set: { typedText = $0; self.card?.type(mg: $0) }))
                         .keyboardType(.numberPad).focused($amountFocused).font(.title2.monospacedDigit())
                         .accessibilityLabel("Amount, milligrams").accessibilityIdentifier("photo-log-amount")
                     Text("mg").foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
                 }
-                if typing {
-                    Button("Use database amount") { typing = false; typedText = ""; self.card?.clearTypedAmount() }
+                if typing, card.manualName == nil {
+                    Button("Use Database Amount") { typing = false; typedText = ""; self.card?.clearTypedAmount() }
                 }
             }
         } header: { Text("Caffeine") } footer: {
             VStack(alignment: .leading, spacing: Metrics.xs) {
                 if let amount = card.amount(db: db) { Text("Source: " + amount.provenance) }
-                if card.entry != nil, let ask = card.clarification(db: db) { Text(ask) }
+                if card.entry != nil || card.manualName != nil, let ask = card.clarification(db: db) { Text(ask) }
                 if let entry = card.entry, let source = db.source(for: entry) {
                     Text("\(source.name), released \(source.release). \(source.license).").foregroundStyle(Palette.textTertiary)
                 }
@@ -253,17 +273,28 @@ struct DrinkPhotoSheet: View {
         }
     }
 
+    private func startManualEntry() {
+        card?.enterManually(); search = ""
+        typedText = ""; typing = true; amountFocused = false
+    }
+    private func leaveManualEntry() {
+        card?.leaveManualEntry(); typing = false; typedText = ""
+    }
+
     private var currentDraft: CustomDoseDraft? {
         guard let db, let card else { return nil }
         return card.draft(db: db, now: app.now)
     }
 
+    /// Save is the only write. The conversation then shows the standard
+    /// "Caffeine saved" card with Undo for this entry.
     private func save() {
+        guard !saved else { return }
         app.tick()
         guard let draft = currentDraft else { failure = "Pick a drink and a size first. Nothing was saved."; return }
-        _ = app.addCustomDose(draft)
-        if let problem = app.mutationFailure { failure = problem; return }
-        Haptics.success()
+        if let problem = assistant.savePhotoDose(draft, app: app) { failure = problem; return }
+        saved = true
+        // The saved card's badge gives the success haptic.
         close()
     }
 
