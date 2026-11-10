@@ -58,9 +58,8 @@ Full trace with all DOIs: `AuroraCore/Sources/AuroraCore/Research/CITATIONS.md`.
 - Any comparison would be within the same person only (their ratings against
   the model over time). No population cut-offs, no "you are sleepier than
   you feel", nothing about driving or safety.
-- Before anything is shown, we would want to check the model against each
-  tester's own KSS ratings during a private beta, if you think that is a
-  sensible test.
+- Before anything is shown, we would want to check the model against a
+  person's own KSS ratings over time, if you think that is a sensible test.
 
 ## Questions for Prof. Åkerstedt
 
@@ -84,8 +83,8 @@ Full trace with all DOIs: `AuroraCore/Sources/AuroraCore/Research/CITATIONS.md`.
    (as in Ingre 2014) or from usual sleep timing? Is there a recommended way
    to handle time-zone travel and daylight-saving changes?
 6. **Using the KSS in the app.** May we show the KSS (version B, every step
-   labelled) in a paid app? If so, what wording, attribution and citation do
-   you require, and is there a licence or fee?
+   labelled) in the app? If so, what wording, attribution and citation do
+   you require, and are there any licence terms?
 7. **Using the model in the app.** If we later show a model estimate, may we
    describe it as based on the Three-Process Model with your attribution? Any
    conditions or wording you want us to avoid?
