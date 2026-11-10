@@ -607,7 +607,9 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+    /// `settle` is how long a send may take to clear the field before a
+    /// retry is considered; 0 forces the retry path.
+    private func request(_ text: String, settle: TimeInterval = 2, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
         // As in enter(_:into:), the keyboard and bottom-area transition on
         // iPad can move the field under the initial tap. Acquire focus with
@@ -678,10 +680,23 @@ final class AuroraUITests: XCTestCase {
         // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a re-tap can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
+        let send = app.buttons["assistant-send"]
+        // Sent (empty field, so Send is disabled) or still working (Send is
+        // Stop). Re-tapping a disabled Send lands on the composer and raises
+        // the keyboard (run 42862394439, long-card rerun iteration 18).
+        let sentOrBusy = NSPredicate { _, _ in !send.exists || !send.isEnabled }
         for _ in 0..<3 {
-            app.buttons["assistant-send"].tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
+            send.tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: settle) == .completed { break }
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sentOrBusy, object: send)], timeout: 1) == .completed { break }
         }
+    }
+    /// `settle: 0` always reaches the retry; the old loop then re-tapped the
+    /// disabled Send and left the composer focused with the keyboard up.
+    func testRequestRetryLeavesTheKeyboardDown() {
+        finishSetup(); request("Show this week", settle: 0)
+        XCTAssertTrue(cardTitle("trends").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), app.debugDescription)
     }
     func testExportCardOffersNativeCSVSharing() {
         finishSetup(); request("Export records")
