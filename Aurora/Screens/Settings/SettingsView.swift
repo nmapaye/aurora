@@ -99,7 +99,7 @@ struct SettingsView: View {
                     Divider()
                     linkRow("Full Privacy Policy", detail: "On the web.") { openURL(Self.privacyPolicyURL) }
                     Divider()
-                    linkRow("Support", detail: "Get help, report issues, and avoid sharing private Health data.") { openURL(Self.supportURL) }
+                    linkRow("Support", detail: "Get help and report issues.") { openURL(Self.supportURL) }
                     Divider()
                     LabeledContent("Version", value: Self.version)
                 }

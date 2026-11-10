@@ -101,8 +101,31 @@ import Testing
         #expect(terms.contains("on-device Foundation Models"))
         #expect(privacy.contains("Apple Health is optional"))
         #expect(privacy.contains("no cloud AI service"))
+        // Moved off cards, the cutoff reminder and VoiceOver in Terms v2.
+        #expect(terms.contains("points after now assume no further sleep or caffeine is recorded"))
+        #expect(terms.contains("Your half-life setting is an assumption, not a measurement"))
+        #expect(terms.contains("aren’t a recommendation or a safety limit"))
+        #expect(terms.contains("Sleep, sensitivity to caffeine and other factors aren’t measured"))
+        // Credit and limits for bundled caffeine amounts; photo privacy (v2).
+        #expect(terms.contains("Caffeine Informer (https://www.caffeineinformer.com), which shares its data under a free license"))
+        #expect(terms.contains("USDA FoodData Central") && terms.contains("so check the label"))
+        #expect(terms.contains("can’t guarantee the accuracy of its database"))
+        #expect(privacy.contains("The photo isn’t uploaded or kept"))
         // No numbers invented in the disclosures.
         #expect(terms.range(of: #"\d+\s*%"#, options: .regularExpression) == nil)
+    }
+
+    /// Nathan's preference: Title Case headings, in order.
+    @Test func headingsAreTitleCase() {
+        #expect(LegalCopy.terms.map(\.title) == ["Estimates, Not Measurements", "Cutoff Scenarios", "Not Medical Advice",
+                                                  "On-Device Explanations", "Sample Data", "Caffeine Data"])
+        #expect(LegalCopy.privacy.map(\.title) == ["On Your Device", "Apple Health", "Photos", "Calendars and Dictation", "Deleting Data"])
+        let minor: Set<String> = ["and", "or", "of", "a", "the"]
+        for title in (LegalCopy.terms + LegalCopy.privacy).map(\.title) {
+            for word in title.split(separator: " ") where !minor.contains(String(word)) {
+                #expect(word.first?.isUppercase == true, "\(title)")
+            }
+        }
     }
 
     @Test func acknowledgementIsOptionalAndBackwardCompatible() throws {
@@ -111,7 +134,7 @@ import Testing
         var accepted = Onboarding.defaults
         accepted.termsAcceptedVersion = LegalCopy.version
         let json = String(decoding: try JSONEncoder().encode(accepted), as: UTF8.self)
-        #expect(json.contains(#""termsAcceptedVersion":1"#))
+        #expect(json.contains(#""termsAcceptedVersion":\#(LegalCopy.version)"#))
         #expect(!String(decoding: try JSONEncoder().encode(Onboarding.defaults), as: UTF8.self).contains("termsAcceptedVersion"))
     }
 }

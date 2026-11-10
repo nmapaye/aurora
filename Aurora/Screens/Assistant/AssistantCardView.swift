@@ -484,7 +484,7 @@ struct AssistantCardView: View {
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
-            if card.state == .failed { Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive) }
+            if let line = card.projectionStatusLine { Text(line).font(.footnote).foregroundStyle(Palette.destructive) }
             let chart = EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
             chart
             if let outlook = energy.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
@@ -494,8 +494,9 @@ struct AssistantCardView: View {
                 Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            Text(card.summary.isEmpty ? "This snapshot has no curve. Refresh for a current one." : card.summary)
-                .font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)
+            if let line = card.projectionStatusLine {
+                Text(line).font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)
+            }
         }
     }
     @ViewBuilder private var checkInEditor: some View {

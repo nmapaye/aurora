@@ -301,14 +301,14 @@ final class AssistantModel {
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
             pendingDraft = corrected
-            updateCard(pendingMessageID) { $0.summary = "Updated proposal · review before saving." }
+            updateCard(pendingMessageID) { $0.summary = "Updated proposal." }
             return
         }
         if let checkInScale = pendingCheckIn?.scale, let correction = AssistantPlanner.checkInCorrection(text, scale: checkInScale) {
             switch correction {
             case .rating(let rating):
                 pendingCheckIn?.rating = rating
-                updateCard(pendingMessageID) { $0.summary = "Updated rating · review before saving." }
+                updateCard(pendingMessageID) { $0.summary = "Updated rating." }
             case .outOfScale:
                 updateCard(pendingMessageID) { $0.summary = "Ratings run from \(checkInScale.range.lowerBound) to \(checkInScale.range.upperBound). Nothing changed." }
             }
@@ -405,7 +405,7 @@ final class AssistantModel {
                 pendingDraft = proposal.draft
                 var card = AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text)
                 card.timeZone = proposal.timeZone
-                card.summary = "On-device proposal · " + proposal.provenance + " · " + proposal.timeZone + ". Nothing saved; review then Save."
+                card.summary = "On-device proposal · " + proposal.provenance + " · " + proposal.timeZone
                 pendingMessageID = appendCard(card, intent: .logCaffeine)
                 captureDraft(app: app)
                 // No autosave call exists. Save is the existing durable mutation boundary.

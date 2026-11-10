@@ -100,11 +100,20 @@ import Testing
     @Test func explanationIntegratesCapturedCompositionAndLabeledRecovery() async throws {
         let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
         let app = app(root), assistant = assistant()
+        // Recorded sleep gives several allowed compositions, so the composed
+        // one (the last) differs from the fallback (the first) without any
+        // "On-device composition · " prefix to tell them apart.
+        app.addManualSleep(.init(start: app.now - 9 * hourMs, end: app.now - 2 * hourMs, note: ""))
         assistant.composeLocalExplanation = { bundle in
-            "On-device composition · " + (try #require(bundle.render(bundle.allowedCompositions[0])))
+            try #require(bundle.render(try #require(bundle.allowedCompositions.last)))
         }
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
-        #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("On-device composition") == true)
+        let composedCard = try #require(assistant.conversation.messages.last?.card)
+        let bundle = GroundedLocalExplanation(estimate: try #require(composedCard.energy?.estimate))
+        #expect(bundle.allowedCompositions.count > 1)
+        #expect(composedCard.summary == bundle.render(try #require(bundle.allowedCompositions.last)))
+        #expect(composedCard.summary != bundle.fallback)
+        #expect(!composedCard.summary.hasPrefix("On-device composition"))
         assistant.composeLocalExplanation = { _ in throw AppleOnDeviceFeatures.FeatureFailure("Not ready") }
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
         #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("Modeled alertness") == true)
@@ -166,14 +175,14 @@ import Testing
         assistant.composeLocalExplanation = { bundle in
             let factor = try #require(bundle.factors.first { $0.kind == .sleepDebt })
             let composition = try #require(bundle.allowedCompositions.first { $0.contains(factor.placeholder) })
-            return "On-device composition · " + (try #require(bundle.render(composition)))
+            return try #require(bundle.render(composition))
         }
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
         let card = try #require(assistant.conversation.messages.last?.card)
         let part = try #require(card.energy?.estimate.contributions.first { $0.kind == .sleepDebt })
         #expect(card.summary.contains("recorded-sleep debt term contributes " + part.pointsText + " points"))
         #expect(card.summary.contains("unclamped model"))
-        #expect(card.summary.hasPrefix("On-device composition"))
+        #expect(!card.summary.hasPrefix("On-device composition"))
         #expect(card.summary.range(of: #"\[factor_"#, options: .regularExpression) == nil)
     }
 

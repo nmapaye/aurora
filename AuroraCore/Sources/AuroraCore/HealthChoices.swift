@@ -55,15 +55,35 @@ public enum HealthChoice: String, Codable, CaseIterable, Sendable {
     }
 
     /// Health tells apps whether writing was allowed, but never whether
-    /// reading was, so a read choice only ever says it was requested.
+    /// reading was, so a read choice only ever says it was requested. The
+    /// status word stays visible; the platform explanation is behind (i).
     public var requestedNote: String {
         switch self {
+        case .readSleep, .readCaffeine, .writeCaffeine: "Requested."
+        case .backgroundUpdates: "On."
+        }
+    }
+
+    /// The (i) button's topic; VoiceOver reads "About ‹topic›".
+    public var infoTopic: String {
+        switch self {
+        case .readSleep, .readCaffeine: "Health Access"
+        case .writeCaffeine: "Writing Caffeine to Health"
+        case .backgroundUpdates: "Background Updates"
+        }
+    }
+
+    /// The platform explanation behind the status row's (i), or nil.
+    public var requestedInfo: String? {
+        switch self {
         case .readSleep, .readCaffeine:
-            "Requested. Health doesn’t tell apps what you allowed, so finding nothing can mean no records or no read access."
+            "Health doesn’t tell apps what you allowed, so finding nothing can mean no records or no read access."
         case .writeCaffeine:
-            "Requested. If Health doesn’t accept an entry, it stays saved here and is listed as not exported."
+            // General only: an entry that fails keeps its own visible
+            // "Not exported" status (`HealthExportStatus.value`).
+            "If Health doesn’t accept an entry, it stays saved here and is listed as not exported."
         case .backgroundUpdates:
-            "On. Aurora asks for hourly updates, but iOS and Apple Health decide when, or whether, to wake Aurora."
+            "Aurora asks for hourly updates, but iOS and Apple Health decide when, or whether, to wake Aurora."
         }
     }
 }

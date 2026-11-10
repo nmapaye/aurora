@@ -249,7 +249,7 @@ private func inputs(_ clock: LocalClock) -> EstimateInputs {
     @Test func publicTextFollowsCopyRules() {
         let sleeps = [SleepSession(id: "manual:sleep:1:a", start: now - 9 * hourMs, end: now - 2 * hourMs)]
         let energy = EnergyEstimate.capture(at: now, doses: [], sleeps: sleeps, inputs: inputs(utc))
-        let texts = [energy.summary, EnergyEstimate.title, EnergyProjection.futureAssumption, EnergyCheckIn.scaleLabel, EnergyCheckIn.kindLabel]
+        let texts = [energy.summary, EnergyEstimate.title, EnergyCheckIn.scaleLabel, EnergyCheckIn.kindLabel]
             + EnergyMissingInput.allCases.map(\.text) + EnergyLimitation.allCases.map(\.text)
         for text in texts {
             #expect(CopyRules.violations(in: text).isEmpty, "\(text)")

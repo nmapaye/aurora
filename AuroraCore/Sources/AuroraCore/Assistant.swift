@@ -256,7 +256,7 @@ public enum AssistantPlanner {
         let today = state.doses.filter { $0.timestamp >= start && $0.timestamp <= now }
         let caffeine = today.isEmpty ? "Caffeine today: No record." : "Caffeine today: \(numberText(today.reduce(0) { $0 + $1.mg })) mg recorded."
         // "Estimated" and "Modeled" already label it; no third reminder.
-        return "\(Summary.describe(estimate, estimateNote: false))\n\n\(caffeine)"
+        return "\(Summary.describe(estimate))\n\n\(caffeine)"
     }
 }
 

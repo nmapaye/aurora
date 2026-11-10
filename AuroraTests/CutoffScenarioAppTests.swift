@@ -136,7 +136,8 @@ import Testing
         assistant.calculateCutoff(app: app)
         assistant.previewCutoffReminder(app: app)
         let preview = try #require(assistant.cutoffPreview)
-        #expect(preview.content.body.contains("not a safety limit"))
+        // The scenario disclaimer is in Terms, not in the reminder.
+        #expect(preview.content.body.hasPrefix("The latest time in your scenario for") && !preview.content.body.contains("safety limit"))
         let messages = assistant.conversation.messages.count
         async let a: Void = assistant.saveCutoffReminder(app: app)
         async let b: Void = assistant.saveCutoffReminder(app: app)

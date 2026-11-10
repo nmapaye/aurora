@@ -101,7 +101,7 @@ struct TermsUpdateSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Metrics.md) {
-                    Text("Aurora’s Terms and Privacy Policy are now in the app. In short:")
+                    Text("Aurora’s Terms and Privacy Policy have been updated. In short:")
                         .font(.body).foregroundStyle(Palette.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: Metrics.sm) {

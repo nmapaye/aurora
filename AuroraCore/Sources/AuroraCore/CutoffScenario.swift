@@ -2,13 +2,11 @@ import Foundation
 
 /// A what-if model for a bedtime and threshold the person enters. Aurora
 /// never proposes a bedtime, threshold, amount or time: every input starts
-/// empty, and the half-life is the person's own Settings value, labeled as
-/// an assumption. Decay uses `Caffeine.activeMg` on absolute instants, so a
+/// empty, and the half-life is the person's own Settings value. That it's an
+/// assumption, and not a recommendation or safety limit, is in Terms. Decay uses `Caffeine.activeMg` on absolute instants, so a
 /// daylight-saving change between a drink and bedtime counts real hours.
 public enum CutoffScenario {
     public static let modelVersion = "cutoff-scenario-1"
-    public static let assumption = "Modeled with your half-life setting. An assumption, not measured."
-    public static let disclaimer = "A scenario you define. Not a recommendation or a safety limit."
 
     // MARK: Local times
 
@@ -310,7 +308,7 @@ public enum CutoffScenario {
               let bedtime = snapshot.result.bedtime, let threshold = snapshot.result.thresholdMg, let amount = snapshot.result.amountMg else { return nil }
         return ReminderContent(
             title: "Your cutoff scenario",
-            body: "The latest time in your scenario for \(enteredMg(amount)), with \(enteredMg(threshold)) at \(text.clockTime(bedtime)) bedtime. A user-defined scenario, not a safety limit.",
+            body: "The latest time in your scenario for \(enteredMg(amount)), with \(enteredMg(threshold)) at \(text.clockTime(bedtime)) bedtime.",
             fireAt: time
         )
     }

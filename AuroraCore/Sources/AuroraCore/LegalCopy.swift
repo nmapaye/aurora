@@ -1,12 +1,16 @@
 import Foundation
 
-/// Terms and Privacy, acknowledged once at first launch. These carry the
-/// disclosures that cards no longer repeat: estimates are modeled from
-/// records, Aurora isn't medical advice, processing stays on device, and how
-/// Apple Health data is used. Wording follows the published privacy policy.
+/// Terms and Privacy, acknowledged once at first launch. These carry every
+/// disclosure the app's screens don't repeat: estimates are modeled from
+/// records, cutoff scenarios aren't recommendations or safety limits, Aurora
+/// isn't medical advice, processing stays on device, and how Apple Health
+/// data is used. Wording follows the published privacy policy.
 public enum LegalCopy {
     /// Bump when the text changes in a way that needs a new acknowledgement.
-    public static let version = 1
+    /// 2: the estimate, projection and cutoff scenario disclosures moved here
+    /// from cards, the reminder text and VoiceOver labels; Caffeine Data
+    /// credit and Photos privacy added; Title Case headings (Nov 10, 2026).
+    public static let version = 2
 
     public static let acknowledgement = "By continuing, you agree to Aurora’s Terms and Privacy Policy."
 
@@ -14,7 +18,7 @@ public enum LegalCopy {
     /// installs. Each line restates a section below; the full text is one
     /// tap away.
     public static let updateSummary: [String] = [
-        "Alertness and caffeine estimates are modeled from what you record. They aren’t measurements.",
+        "Alertness, caffeine and cutoff scenario results are modeled from what you record and enter. They aren’t measurements, recommendations or safety limits.",
         "Informational only: Aurora isn’t a medical device. Check with a doctor before medical decisions.",
         "Your records, settings and conversation stay on this device: no Aurora account, no cloud AI service, no analytics and no tracking.",
         "Apple Health is optional, and Aurora never uses Health data for advertising, marketing or resale.",
@@ -27,24 +31,30 @@ public enum LegalCopy {
     }
 
     public static let terms: [Section] = [
-        Section(title: "Estimates, not measurements",
-                body: "Alertness, active caffeine and bedtime caffeine are modeled from what you record: sleep, caffeine, your half-life and sleep target settings, and the time of day. They aren’t measurements, and illness, stress, medication, meals, activity and anything else not recorded aren’t part of the model."),
-        Section(title: "Not medical advice",
+        Section(title: "Estimates, Not Measurements",
+                body: "Alertness, active caffeine and bedtime caffeine are modeled from what you record: sleep, caffeine, your half-life and sleep target settings, and the time of day. They aren’t measurements, and illness, stress, medication, meals, activity and anything else not recorded aren’t part of the model. Your half-life setting is an assumption, not a measurement. Time of day follows a generic daily curve, not your personal rhythm. On the 24-hour alertness chart, points after now assume no further sleep or caffeine is recorded."),
+        Section(title: "Cutoff Scenarios",
+                body: "A cutoff scenario uses the bedtime, threshold and drink you enter, with caffeine at bedtime modeled from your half-life setting. Sleep, sensitivity to caffeine and other factors aren’t measured. A scenario and its reminder aren’t a recommendation or a safety limit."),
+        Section(title: "Not Medical Advice",
                 body: "Informational only. Aurora doesn’t diagnose, treat, cure or prevent any condition, and it isn’t a medical device. Reaction Tests are a quick check of reaction speed, not a medical assessment. Check with a doctor before medical decisions."),
-        Section(title: "On-device explanations",
+        Section(title: "On-Device Explanations",
                 body: "When available, Apple’s on-device Foundation Models word explanations and sort requests. Record values and calculations always come from Aurora’s own code; when the model isn’t available, Aurora shows the same facts without it."),
         Section(title: "Sample Data",
                 body: "Sample Data is labeled wherever it appears and can be cleared at any time."),
+        Section(title: "Caffeine Data",
+                body: "Caffeine amounts for some brand drinks are from Caffeine Informer (https://www.caffeineinformer.com), which shares its data under a free license. Other amounts are from USDA FoodData Central. Amounts are for the listed serving and drinks can change, so check the label. Caffeine Informer states that it can’t guarantee the accuracy of its database, in particular the caffeine amounts for each product."),
     ]
 
     public static let privacy: [Section] = [
-        Section(title: "On your device",
+        Section(title: "On Your Device",
                 body: "Aurora stores your records, settings and conversation on this device. There’s no Aurora account, no cloud AI service, no analytics and no tracking. Exports leave only when you share them."),
         Section(title: "Apple Health",
                 body: "Apple Health is optional, with separate choices to read Sleep Analysis, read dietary caffeine, and add caffeine you save in Aurora. What Aurora reads stays read-only. It only updates or removes samples it wrote itself, and never uses Health data for advertising, marketing or resale. Manage access in the Health app under Sharing › Apps › Aurora."),
-        Section(title: "Calendars and dictation",
+        Section(title: "Photos",
+                body: "Log from Photo reads the photo on this device with Apple’s Vision framework. The photo isn’t uploaded or kept; it’s discarded when you save or close the sheet. Caffeine amounts come from Aurora’s bundled database or from what you type; Aurora doesn’t take an amount from the photo."),
+        Section(title: "Calendars and Dictation",
                 body: "Only calendars you select are read, and calendar data isn’t sent to an AI provider. Dictation uses on-device speech recognition only."),
-        Section(title: "Deleting data",
+        Section(title: "Deleting Data",
                 body: "Settings can clear records, clear conversation, or erase all local data. Erasing doesn’t delete samples already added to Apple Health; you can delete those in the Health app."),
     ]
 }

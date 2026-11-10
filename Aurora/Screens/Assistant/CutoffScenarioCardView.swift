@@ -282,13 +282,11 @@ struct CutoffScenarioCardView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// The scenario's explanation, off the main surface.
+    /// The scenario's inputs, off the main surface. Its disclaimer is in Terms.
     private var assumptions: some View {
         CardDisclosure(title: "Assumptions") {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
-                Text(S.disclaimer)
                 Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h.")
-                Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
                 Text("Nothing here is recorded. Log caffeine records a drink you had.")
                 if let snapshot {
                     Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt))")

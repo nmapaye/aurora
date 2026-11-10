@@ -168,7 +168,8 @@ final class CutoffScenarioUITests: XCTestCase {
         XCTAssertTrue(label(containing: "Latest hypothetical time").exists)
         let preview = app.buttons["cutoff-reminder-preview"]
         reveal(preview); preview.tap()
-        XCTAssertTrue(label(containing: "not a safety limit").waitForExistence(timeout: 5))
+        XCTAssertTrue(label(containing: "The latest time in your scenario").waitForExistence(timeout: 5))
+        XCTAssertFalse(label(containing: "safety limit").exists, "The scenario disclaimer is in Terms, not on the card")
         let save = app.buttons["cutoff-reminder-save"]
         reveal(save); save.tap()
         snapshot("after-save")

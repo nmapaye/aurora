@@ -45,16 +45,76 @@ import Testing
         #expect(!TermsUpdatePrompt.isPresented(onboarding, welcomeShowing: false))
     }
 
+    /// Terms v2 moved the card disclaimers into Terms, so an install that
+    /// acknowledged v1 sees the sheet again, once, until Continue.
+    @Test func versionTwoAsksInstallsThatAcknowledgedVersionOne() {
+        #expect(LegalCopy.version == 2)
+        var onboarding = preTerms
+        onboarding.termsAcceptedVersion = 1
+        #expect(TermsUpdatePrompt.isPresented(onboarding, welcomeShowing: false))
+        #expect(!TermsUpdatePrompt.allowsDismiss(onboarding))
+        #expect(TermsUpdatePrompt.coversWork(onboarding))
+        var state = AppState(); state.onboarding = onboarding
+        state.acknowledgeTerms()
+        #expect(state.onboarding.termsAcceptedVersion == 2)
+        #expect(!TermsUpdatePrompt.isPresented(state.onboarding, welcomeShowing: false))
+        #expect(!TermsUpdatePrompt.coversWork(state.onboarding))
+    }
+
     /// The summary restates the full text; it adds no claim of its own.
     @Test func summaryRestatesTheFullTerms() {
         let full = (LegalCopy.terms + LegalCopy.privacy).map(\.body).joined(separator: " ")
         #expect(LegalCopy.updateSummary.count == 4)
         for phrase in ["modeled from what you record", "aren’t measurements", "isn’t a medical device",
                        "Check with a doctor before medical decisions", "no Aurora account, no cloud AI service, no analytics and no tracking",
-                       "Apple Health is optional", "advertising, marketing or resale", "Informational only"] {
+                       "Apple Health is optional", "advertising, marketing or resale", "Informational only", "safety limit"] {
             #expect(full.contains(phrase), "\(phrase)")
             #expect(LegalCopy.updateSummary.contains { $0.contains(phrase) }, "\(phrase)")
         }
         #expect(LegalCopy.acknowledgement.hasPrefix("By continuing"))
+    }
+
+    /// Nathan's rule (Nov 10): disclaimers live in Terms and Privacy. The
+    /// estimate, projection and scenario text no longer says them.
+    @Test func disclaimersAreInTermsNotInAppText() throws {
+        let la = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = LocalClock(timeZone: la)
+        let text = DateText.localized(locale: Locale(identifier: "en_US"), timeZone: la)
+        let now: Millis = 1_790_527_260_000
+        var state = AppState()
+        state.sleeps = [SleepSession(id: "manual:sleep:1:a", start: now - 9 * hourMs, end: now - hourMs)]
+        let estimate = Summary.estimateAlertness(at: now, doses: [], sleeps: state.sleeps, inputs: EstimateInputs(prefs: state.prefs, clock: clock))
+        let projection = AssistantCards.make(.energyProjection, state: state, now: now, clock: clock, text: text)
+        let scenario = AssistantCards.make(.cutoffScenario, state: state, now: now, clock: clock, text: text)
+        for copy in [Summary.describe(estimate), Summary.describe(.needsSleep), projection.summary, scenario.summary] {
+            for phrase in ["not a measurement", "aren’t measured", "safety limit", "recommendation", "assume no further"] {
+                #expect(!copy.contains(phrase), "\(phrase) in \(copy)")
+            }
+        }
+        #expect(projection.summary.isEmpty)
+    }
+
+    /// R7: with a curve and no failure the 24-hour card has no text line at
+    /// all, so there's no blank row or empty VoiceOver element.
+    @Test func projectionCardHasNoEmptyStatusLine() throws {
+        let la = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = LocalClock(timeZone: la)
+        let text = DateText.localized(locale: Locale(identifier: "en_US"), timeZone: la)
+        let now: Millis = 1_790_527_260_000
+        var state = AppState()
+        state.sleeps = [SleepSession(id: "manual:sleep:1:a", start: now - 9 * hourMs, end: now - hourMs)]
+        var card = AssistantCards.make(.energyProjection, state: state, now: now, clock: clock, text: text)
+        #expect(card.energy?.projection?.points.isEmpty == false)
+        #expect(card.summary.isEmpty && card.projectionStatusLine == nil)
+        // A failure with no message still draws nothing empty.
+        card.state = .failed
+        #expect(card.projectionStatusLine == nil)
+        card.summary = "This request didn't finish. Refresh for a current result."
+        #expect(card.projectionStatusLine == card.summary)
+        // No curve: the refresh line, never an empty string.
+        card.energy?.projection = nil; card.summary = ""; card.state = .ready
+        #expect(card.projectionStatusLine == "This snapshot has no curve. Refresh for a current one.")
+        // Q8: the projected point label is the word alone.
+        #expect(EnergyProjection.PointKind.projected.label == "Projected")
     }
 }

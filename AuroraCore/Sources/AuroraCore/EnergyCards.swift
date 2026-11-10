@@ -142,7 +142,8 @@ extension EnergyProjection.PointKind {
         switch self {
         case .modeledPast: "Modeled from records known at capture"
         case .current: "Captured now"
-        case .projected: "Projected · assumes no further sleep or caffeine"
+        // What projected points assume is in Terms and "What this means".
+        case .projected: "Projected"
         }
     }
 }

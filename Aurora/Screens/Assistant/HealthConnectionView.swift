@@ -10,6 +10,7 @@ struct HealthConnectionView: View {
     @State private var messages: [HealthChoice: String] = [:]
     @State private var refreshing = false
     @State private var retrying = false
+    @State private var infoShown: Set<HealthChoice> = []
 
     var body: some View {
         let state = app.state
@@ -116,7 +117,20 @@ struct HealthConnectionView: View {
     private func choiceRow(_ choice: HealthChoice, on: Bool) -> some View {
         VStack(alignment: .leading, spacing: Metrics.xs) {
             choiceToggle(choice, on: on)
-            if on { Text(choice.requestedNote).font(.footnote).foregroundStyle(Palette.textSecondary) }
+            if on {
+                HStack(alignment: .center, spacing: Metrics.xs) {
+                    Text(choice.requestedNote).font(.footnote).foregroundStyle(Palette.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if choice.requestedInfo != nil {
+                        InfoButton(topic: choice.infoTopic, isShown: Binding(
+                            get: { infoShown.contains(choice) },
+                            set: { if $0 { infoShown.insert(choice) } else { infoShown.remove(choice) } }))
+                    }
+                }
+                if let info = choice.requestedInfo, infoShown.contains(choice) {
+                    InfoText(text: info, id: "assistant-health-\(choice.rawValue)-info")
+                }
+            }
             if let message = messages[choice] {
                 Text(message).font(.footnote).foregroundStyle(StatusTone.warning.foreground)
             }
