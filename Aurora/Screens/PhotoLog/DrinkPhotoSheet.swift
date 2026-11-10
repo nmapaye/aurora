@@ -185,7 +185,9 @@ struct DrinkPhotoSheet: View {
                 .accessibilityIdentifier("photo-log-manual-name")
             Button("Search the Database") { leaveManualEntry() }
                 .frame(minHeight: Metrics.minimumTouchTarget)
-        } header: { Text(DrinkPhotoConfirmation.notInDatabaseTitle).accessibilityIdentifier("photo-log-not-in-database") }
+        } header: { Text(DrinkPhotoConfirmation.notInDatabaseTitle).accessibilityIdentifier("photo-log-not-in-database") } footer: {
+            Text(DrinkPhotoConfirmation.manualEntryLine).accessibilityIdentifier("photo-log-manual-line")
+        }
     }
 
     private func servingSection(_ card: DrinkPhotoConfirmation, db: CaffeineDatabase) -> some View {

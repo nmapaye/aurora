@@ -166,6 +166,8 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public static let autosaveEnabled = false
     /// Shown when no database record is chosen or found.
     public static let notInDatabaseTitle = "Not in Database"
+    /// The line under Not in Database while the person types the drink in.
+    public static let manualEntryLine = "Enter the caffeine amount yourself, from the label or menu. Aurora doesn’t fill it in."
 
     public enum ServingChoice: Equatable, Sendable {
         /// One of the entry's listed servings.

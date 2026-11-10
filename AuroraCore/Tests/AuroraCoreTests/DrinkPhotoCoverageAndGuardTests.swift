@@ -87,4 +87,21 @@ import Testing
             }
         }
     }
+
+    /// Caffeine printed on a label is never read as the amount: amounts come
+    /// only from the database record or from the person.
+    @Test func labelCaffeineTextNeverBecomesTheAmount() throws {
+        let observation = DrinkPhotoObservation(recognizedText: ["Red Bull", "ENERGY DRINK", "CAFFEINE 300 MG", "80mg caffeine", "8.4 FL OZ (250 mL)"])
+        guard case .candidates(let list, _) = DrinkPhotoMatcher.match(observation, in: db) else { Issue.record("no candidates"); return }
+        let redBull = try #require(list.first { $0.entry.name == "Energy drink (Red Bull)" }?.entry)
+        var card = DrinkPhotoConfirmation(result: .candidates(list, confident: false), observation: observation, timestamp: now)
+        card.select(redBull)
+        let amount = try #require(card.amount(db: db))
+        #expect(amount.mg == db.mg(for: redBull, volume: observation.labelVolumes[0]) && ![300, 80].contains(amount.mg))
+        #expect(!amount.edited && amount.provenance.contains("FDC \(redBull.fdcId)"))
+        // Not in Database: nothing is filled from the label either.
+        card.enterManually(); card.name("Red Bull")
+        #expect(card.typedMg == "" && card.amount(db: db) == nil && card.draft(db: db, now: now) == nil)
+        #expect(DrinkPhotoConfirmation.manualEntryLine.hasPrefix("Enter the caffeine amount yourself"))
+    }
 }
