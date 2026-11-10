@@ -448,7 +448,19 @@ jobs:
         if: ${{ !cancelled() && (success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure') }}
         run: |
           mkdir -p build
-          xcrun simctl uninstall "${{ steps.sim.outputs.udid }}" com.nmapaye.aurora || true
+          udid="${{ steps.sim.outputs.udid }}"
+          # simctl uninstall needs a booted device. After a long test step the
+          # simulator can be Shutdown (iPad, run 42652817144: CoreSimulator 405),
+          # which left the earlier build and its completed setup installed, so
+          # this "clean install" opened past onboarding. Boot first, uninstall,
+          # and fail unless the app is really gone.
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl uninstall "$udid" com.nmapaye.aurora || true
+          if xcrun simctl get_app_container "$udid" com.nmapaye.aurora >/dev/null 2>&1; then
+            echo "::error title=Release smoke::com.nmapaye.aurora still installed; not a clean install"
+            exit 1
+          fi
           set +e
           xcodebuild test \
             -project Aurora.xcodeproj -scheme AuroraReleaseSmoke -configuration Release \
