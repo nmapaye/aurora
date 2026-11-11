@@ -11,7 +11,9 @@ struct AssistantView: View {
     @Environment(AssistantModel.self) private var assistant
     @State private var dictation = OnDeviceDictation()
     @State private var input = ""
-    @State private var showHealthConnection = false
+    @State private var caffeineShortcut = CaffeineReviewHandoff.shared
+    /// RootView owns the blocking welcome; do not open a review behind it.
+    var shortcutCovered: () -> Bool = { false }
     /// How far the software keyboard reaches up from the screen's bottom.
     @State private var keyboardOverlap: CGFloat = 0
     /// The largest keyboard overlap since a card field started being edited.
@@ -195,10 +197,33 @@ struct AssistantView: View {
             .allowsHitTesting(!clearing)
             .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: clearing) { _, started in started }
         }
-        .task { await assistant.start(app: app) }
+        .task { await assistant.start(app: app); await reviewShortcutIfReady() }
+        .task(id: caffeineShortcut.request.requested) { await reviewShortcutIfReady() }
+        .onChange(of: phase) { _, phase in
+            if phase == .active { Task { await reviewShortcutIfReady() } }
+        }
         .modifier(ConversationObservers(assistant: assistant, router: router, app: app, dictation: dictation,
                                         input: $input, keyboardOverlap: $keyboardOverlap, composerFocused: composerFocused))
-        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: sheetClosed))
+        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $router.showHealthConnection, onDismiss: sheetClosed))
+    }
+
+    /// This UI owner reads the real presentation state at consumption time,
+    /// including again after start() suspends. Dismissal never replays a request.
+    @MainActor private func reviewShortcutIfReady() async {
+        guard caffeineShortcut.request.requested else { return }
+        if coversShortcut {
+            assistant.reviewCaffeineShortcut(&caffeineShortcut.request, app: app,
+                foreground: phase == .active, coveringWork: true)
+            return
+        }
+        guard phase == .active else { return }
+        await assistant.start(app: app)
+        assistant.reviewCaffeineShortcut(&caffeineShortcut.request, app: app,
+            foreground: phase == .active, coveringWork: coversShortcut)
+    }
+
+    private var coversShortcut: Bool {
+        router.coversCaffeineReview || shortcutCovered() || clearing
     }
 
     /// A message was added or removed: reveal it, or hold it below while
@@ -494,8 +519,9 @@ struct AssistantView: View {
     /// not every message. Re-running the whole conversation per keystroke
     /// left CI's simulator behind on typing when Send was tapped.
     private var composer: some View {
-        ConversationComposer(input: $input, focused: $composerFocused, composerWidth: $composerWidth,
-                             composerHeight: $composerHeight, showHealthConnection: $showHealthConnection,
+        @Bindable var router = router
+        return ConversationComposer(input: $input, focused: $composerFocused, composerWidth: $composerWidth,
+                             composerHeight: $composerHeight, showHealthConnection: $router.showHealthConnection,
                              dictation: dictation, editingCard: editingCard)
     }
 

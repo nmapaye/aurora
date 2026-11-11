@@ -7,6 +7,7 @@ struct AuroraApp: App {
     private var model: AppModel { delegate.model }
     @State private var router = Router()
     @State private var assistant = AssistantModel()
+    @State private var caffeineShortcut = CaffeineReviewHandoff.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -31,6 +32,12 @@ struct AuroraApp: App {
                     Signposts.event("Launch.SceneTask")
                     model.load()
                 }
+                .task(id: caffeineShortcut.request.requested) {
+                    // Requests during onboarding are discarded, never replayed.
+                    if model.phase == .ready && !model.state.onboarding.completed {
+                        caffeineShortcut.request.cancel()
+                    }
+                }
                 .onOpenURL { url in
                     guard let link = DeepLink(url: url) else { return }
                     route(link)
@@ -48,6 +55,7 @@ struct AuroraApp: App {
                         model.pendingLink = nil
                         route(link)
                     }
+                    if !model.state.onboarding.completed { caffeineShortcut.request.cancel() }
                     await model.foregroundSync()
                     // Keep "now" moving so the day rolls over at midnight.
                     while !Task.isCancelled {
@@ -124,7 +132,7 @@ struct RootView: View {
         case .ready:
             Group {
                 if model.state.onboarding.completed {
-                    AssistantView()
+                    AssistantView(shortcutCovered: { welcome.blocksInteraction })
                         .onAppear { Signposts.event("Launch.AssistantVisible") }
                         .accessibilityHidden(welcome.hidesConversationFromAccessibility)
                         .overlay {

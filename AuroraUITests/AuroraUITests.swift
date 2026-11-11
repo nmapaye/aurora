@@ -607,7 +607,9 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+    /// `settle` is how long a send may take to clear the field before a
+    /// retry is considered; 0 forces the retry path.
+    private func request(_ text: String, settle: TimeInterval = 2, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
         // As in enter(_:into:), the keyboard and bottom-area transition on
         // iPad can move the field under the initial tap. Acquire focus with
@@ -666,22 +668,50 @@ final class AuroraUITests: XCTestCase {
         // week"), and the app then answered the fragment. Fail here, naming
         // what the field holds, instead of timing out later on a missing card.
         let typed = NSPredicate(format: "value == %@", text)
-        // One native query checks identity and the entire value together;
-        // no partial-text match, retry typing, or longer deadline.
+        // Keys can also land late on a loaded simulator: run 42895134800
+        // (iPhone, iteration 5) read "Sh" 6.4 s and the full text 9 s after
+        // typeText returned. TypingProgress waits only while the field gains
+        // characters of the request: 5 s with no new character fails, 20 s
+        // in all fails, and text that isn't a prefix fails at once. No
+        // partial-text match and no retyping. Once complete, one native
+        // query still checks identity and the entire value together.
         let exactInput = app.textFields.matching(identifier: "assistant-composer")
             .matching(typed).element
-        guard exactInput.waitForExistence(timeout: 5) else {
-            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
+        var progress = TypingProgress(text: text)
+        let typingStarted = Date()
+        var verdict: TypingProgress.Verdict?
+        while verdict == nil {
+            let readStart = Date().timeIntervalSince(typingStarted)
+            let value: String? = (try? input.snapshot()).map { $0.value as? String ?? "" }
+            verdict = progress.observe(value, readStart: readStart, readEnd: Date().timeIntervalSince(typingStarted))
+            if verdict == nil { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        guard verdict == .complete, exactInput.exists else {
+            let saw = verdict == .complete ? "the field read complete but the composer query found no exact match" : progress.describe(verdict)
+            XCTFail("request(\"\(text)\"): complete text was not verified; \(saw); not sending",
                     file: file, line: line)
             return
         }
         // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a re-tap can never send twice.
         let cleared = NSPredicate(format: "value != %@", text)
+        let send = app.buttons["assistant-send"]
+        // Sent (empty field, so Send is disabled) or still working (Send is
+        // Stop). Re-tapping a disabled Send lands on the composer and raises
+        // the keyboard (run 42862394439, long-card rerun iteration 18).
+        let sentOrBusy = NSPredicate { _, _ in !send.exists || !send.isEnabled }
         for _ in 0..<3 {
-            app.buttons["assistant-send"].tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
+            send.tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: settle) == .completed { break }
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sentOrBusy, object: send)], timeout: 1) == .completed { break }
         }
+    }
+    /// `settle: 0` always reaches the retry; the old loop then re-tapped the
+    /// disabled Send and left the composer focused with the keyboard up.
+    func testRequestRetryLeavesTheKeyboardDown() {
+        finishSetup(); request("Show this week", settle: 0)
+        XCTAssertTrue(cardTitle("trends").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), app.debugDescription)
     }
     func testExportCardOffersNativeCSVSharing() {
         finishSetup(); request("Export records")
@@ -823,37 +853,42 @@ final class AuroraUITests: XCTestCase {
         // settles. Asking that snapshot for a hit point aborts XCTest before
         // the visibility timeout/diagnostics. Wait for geometry first; keep
         // the same hittability requirement and three-second deadline.
-        // BUG-1d: record every evaluation (which condition was false, and how
-        // long each AX round trip took) so a timeout names its cause. The
-        // conditions, deadline and assertion are unchanged.
-        var evaluations: [String] = []
+        // BUG-1d: record every check (which condition was false, and how
+        // long each AX round trip took) so a timeout names its cause.
+        // The three seconds start when the first check returns a snapshot
+        // (LongCardWait): run 42908012931 failed on a 2.39 s simulator
+        // hierarchy capture before any snapshot arrived. A title that isn't
+        // hittable and in place within three seconds of that still fails.
+        var cardWait = LongCardWait()
         let started = Date()
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            let at = String(format: "%.2f", Date().timeIntervalSince(started))
-            guard let snapshot = try? title.snapshot() else {
-                evaluations.append("\(at)s no snapshot")
-                return false
+        var verdict: LongCardWait.Verdict?
+        while verdict == nil {
+            let start = Date().timeIntervalSince(started)
+            var check = LongCardWait.Check(start: start, snapshot: nil, end: start)
+            if let snapshot = try? title.snapshot() {
+                check.snapshot = (Date().timeIntervalSince(started), snapshot.frame)
+                let frame = snapshot.frame
+                if frame.minX.isFinite, frame.minY.isFinite,
+                   frame.width.isFinite, frame.height.isFinite, !frame.isEmpty {
+                    check.hittable = title.isHittable
+                    if check.hittable {
+                        check.barMaxY = app.navigationBars.firstMatch.frame.maxY
+                        check.composerMinY = app.textFields["assistant-composer"].frame.minY
+                    }
+                }
             }
-            let frame = snapshot.frame
-            guard frame.minX.isFinite, frame.minY.isFinite,
-                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else {
-                evaluations.append("\(at)s frame \(frame)")
-                return false
-            }
-            let hittable = title.isHittable
-            let end = String(format: "%.2f", Date().timeIntervalSince(started))
-            evaluations.append("\(at)s frame \(frame) hittable \(hittable) end \(end)s")
-            return hittable
-        }, object: title)
-        let result = XCTWaiter.wait(for: [shown], timeout: 3)
-        if result != .completed {
-            print("Long-card evaluations: \(evaluations)")
+            check.end = Date().timeIntervalSince(started)
+            verdict = cardWait.observe(check)
+            if verdict == nil { Thread.sleep(forTimeInterval: 0.1) }
+        }
+        if verdict != .shown {
+            print("Long-card wait: \(cardWait.describe(verdict))")
             attachScreenshot("Long card title not hittable")
             print("Long-card title: \(title.debugDescription)")
             print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
             print(app.debugDescription)
         }
-        XCTAssertEqual(result, .completed, "evaluations: \(evaluations)")
+        XCTAssertEqual(verdict, .shown, cardWait.describe(verdict))
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)
