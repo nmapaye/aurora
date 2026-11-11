@@ -57,9 +57,12 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
             return url.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "www.", with: "")
         }
 
-        /// A maker's published number holds only for the exact serving it was
-        /// published for: never scaled to another size (CPO, Nov 10).
-        public var publishedServingsOnly: Bool { source == "manufacturer" }
+        /// One exact product at its published serving: a maker's record, or a
+        /// USDA Global Branded Food Products label record (source id
+        /// "branded-…", e.g. "branded-2026-10"). Its number holds only for that
+        /// serving and is never scaled to another size (CPO, Nov 10). Generic
+        /// USDA foods (FNDDS, SR Legacy) still convert by their per-100 value.
+        public var publishedServingsOnly: Bool { source == "manufacturer" || source.hasPrefix("branded-") }
 
         public var displayName: String {
             guard let brand, !name.localizedCaseInsensitiveContains(brand) else { return name }
@@ -161,7 +164,8 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
 
     /// Caffeine for a volume read from the label, derived only from the
     /// record: per 100 mL directly, or via the record's own fl oz weight.
-    /// Never for a maker's record, whose number holds for its serving only.
+    /// Never for a maker's or USDA Branded record, whose number holds for its
+    /// published serving only.
     /// `nil` when the record gives no way to convert, so the person picks a
     /// listed serving instead.
     public func mg(for entry: Entry, volume: Volume) -> Int? {

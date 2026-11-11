@@ -113,8 +113,12 @@ serving, or store nothing. Never pick between numbers, average them or scale
 them. So a maker's record is used only at its recorded serving
 (`Entry.publishedServingsOnly`): a label size that is that serving selects it,
 and any other size, read from the photo or picked, falls back to Not in Database
-and manual entry. `CaffeineDatabase.mg(for:volume:)` never converts a maker's
-record (USDA records still convert through their own per-100 values). Where a
+and manual entry. The same applies to USDA Global Branded Food Products label
+records (source id `branded-…`; CPO, Nov 10: one exact product), including a
+Branded record that lists no serving, which is always Not in Database.
+`CaffeineDatabase.mg(for:volume:)` never converts a maker's or Branded record.
+Generic USDA foods (FNDDS, SR Legacy) still convert a picked cup or a label size
+through their own per-100 value. Where a
 page gives only fl oz, mL is fl oz x 29.5735, rounded; that's a unit conversion
 of the published serving, not a scaled amount. Flavors and variants (for example
 Celsius Essentials, Prime's 16 oz can) aren't included. The person confirms or

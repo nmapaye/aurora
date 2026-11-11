@@ -232,9 +232,9 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
         }
         if Self.otherSizeThanPublished(entry, volumes: labelVolumes) { fallBackToManualEntry() }
     }
-    /// A maker's record keeps its one published serving: a label size that
-    /// is that serving selects it, any other size falls back to Not in
-    /// Database and manual entry instead of scaling the number.
+    /// A maker's or USDA Branded record keeps its published serving: a label
+    /// size that is that serving selects it, any other size falls back to Not
+    /// in Database and manual entry instead of scaling the number.
     public mutating func choose(_ choice: ServingChoice) {
         typedMg = nil
         if let entry, entry.publishedServingsOnly, case .label(let volume) = choice {
@@ -243,9 +243,10 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
         }
         serving = choice
     }
-    /// The photo shows a size that isn't the maker's published serving.
+    /// A one-serving record (maker or USDA Branded) can't be used: the photo
+    /// shows a size that isn't its published serving, or it lists none.
     static func otherSizeThanPublished(_ entry: CaffeineDatabase.Entry, volumes: [Volume]) -> Bool {
-        entry.publishedServingsOnly && volumes.contains { publishedServing(matching: $0, in: entry) == nil }
+        entry.publishedServingsOnly && (entry.servings.isEmpty || volumes.contains { publishedServing(matching: $0, in: entry) == nil })
     }
     /// The listed serving within 3% of `volume`, read from its label text
     /// ("1 can (8.4 fl oz)") or its mL amount.

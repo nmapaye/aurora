@@ -24,13 +24,14 @@ import Testing
         #expect(misread.labelVolumes.count == 1 && misread.serving == nil)
         #expect(misread.clarification(db: db) == "What size was it? Pick a serving.")
         #expect(misread.draft(db: db, now: now) == nil)
-        // A label record with one listed bottle: a different size read from
-        // the photo doesn't preselect either the label or the bottle.
-        let bottle = try #require(db.entries.first { !$0.publishedServingsOnly && $0.basis == "mL" && $0.servings.count == 1 && $0.servings[0].amount >= 300 })
+        // A USDA Branded label record with one listed bottle: that bottle's size
+        // on the photo selects the listed serving; a different size is Not in
+        // Database (one exact product at one serving, never scaled).
+        let bottle = try #require(db.entries.first { $0.source == "branded-2026-10" && $0.servings[0].amount >= 300 })
         let wrong = card(bottle, label: "\(Int(bottle.servings[0].amount / 2)) mL")
-        #expect(wrong.labelVolumes.count == 1 && wrong.serving == nil)
+        #expect(wrong.labelVolumes.count == 1 && wrong.serving == nil && wrong.isNotInDatabase)
         let right = card(bottle, label: "\(Int(bottle.servings[0].amount)) mL")
-        #expect(right.serving == .label(right.labelVolumes[0]))
+        #expect(right.serving == .listed(0) && right.amount(db: db)?.mg == bottle.servings[0].mg)
         // No size in the photo: the only listed serving is still offered.
         let none = DrinkPhotoConfirmation(result: .candidates([.init(entry: bottle, score: 1, reason: .text)], confident: true),
                                           observation: .init(), timestamp: now)
@@ -175,7 +176,7 @@ import Testing
     /// manual entry; nothing is scaled through per100. USDA records still
     /// convert label sizes as before.
     @Test func manufacturerRecordsAreNeverScaledToAnotherSize() throws {
-        let makers = db.entries.filter(\.publishedServingsOnly)
+        let makers = db.entries.filter { $0.source == "manufacturer" }
         #expect(makers.count == Self.manufacturerRecords.count)
         for entry in makers {
             let recorded = entry.servings[0]
@@ -205,6 +206,83 @@ import Testing
         #expect(!redBull.publishedServingsOnly && db.mg(for: redBull, volume: Volume(milliliters: 250, text: "250 mL")) != nil)
     }
 
+    /// CPO, Nov 10: a USDA Branded record (source "branded-…") is one exact
+    /// product, so its label number holds only at its recorded serving. Any
+    /// other size, read from the label or picked, is Not in Database with
+    /// empty fields for manual entry; nothing is scaled through per100.
+    @Test func usdaBrandedRecordsAreNeverScaledToAnotherSize() throws {
+        let branded = db.entries.filter { $0.source == "branded-2026-10" }
+        #expect(branded.count == 165 && branded.allSatisfy(\.publishedServingsOnly))
+        for entry in branded {
+            let recorded = entry.servings[0]
+            let same = Volume(milliliters: recorded.amount, text: "\(Int(recorded.amount)) mL")
+            let atSize = card(entry, label: same.text)
+            #expect(atSize.serving == .listed(0) && atSize.amount(db: db)?.mg == recorded.mg, "\(entry.id)")
+            #expect(atSize.usableLabelVolumes.isEmpty && db.mg(for: entry, volume: same) == nil)
+            for factor in [0.5, 2.0] {
+                let ml = (recorded.amount * factor).rounded()
+                let other = Volume(milliliters: ml, text: "\(Int(ml)) mL")
+                #expect(db.mg(for: entry, volume: other) == nil, "\(entry.id) scaled")
+                let shown = card(entry, label: other.text)
+                #expect(shown.isNotInDatabase && shown.entry == nil && shown.amount(db: db) == nil, "\(entry.id) at \(other.text)")
+                #expect(shown.manualName == "" && shown.typedMg == "")
+                var picked = DrinkPhotoConfirmation(result: .candidates([.init(entry: entry, score: 1, reason: .text)], confident: true),
+                                                    observation: .init(), timestamp: now)
+                #expect(picked.serving == .listed(0))
+                picked.choose(.label(other))
+                #expect(picked.isNotInDatabase && picked.amount(db: db) == nil && picked.typedMg == "", "\(entry.id) picked \(other.text)")
+            }
+        }
+        // Barcode match on a Branded can with a different size printed: still Not in Database.
+        let can = try #require(branded.first { $0.gtin != nil })
+        let scan = DrinkPhotoMatcher.match(.init(recognizedText: ["\(Int(can.servings[0].amount * 2)) mL"], barcodes: [can.gtin!]), in: db)
+        let scanned = DrinkPhotoConfirmation(result: scan, observation: .init(recognizedText: ["\(Int(can.servings[0].amount * 2)) mL"], barcodes: [can.gtin!]), timestamp: now)
+        #expect(scanned.isNotInDatabase && scanned.amount(db: db) == nil)
+    }
+
+    /// Edge case: a Branded record listing no serving has no published
+    /// number to use, so it is Not in Database even with no size in the photo.
+    @Test func brandedRecordWithoutAServingIsNotInDatabase() throws {
+        let json = """
+        {"schema":1,"version":"t","notice":"","sources":[{"id":"branded-2026-10","name":"USDA FoodData Central, Global Branded Food Products Database","release":"r","license":"CC0","url":"https://fdc.nal.usda.gov/","citation":"c"}],
+         "entries":[{"id":"fdc:9","fdcId":9,"source":"branded-2026-10","name":"TEST COLA","category":"soda","per100":10,"basis":"mL","servings":[]}]}
+        """
+        let tiny = try CaffeineDatabase.load(from: Data(json.utf8))
+        let entry = try #require(tiny.entries.first)
+        #expect(entry.publishedServingsOnly)
+        for observation in [DrinkPhotoObservation(), DrinkPhotoObservation(recognizedText: ["355 mL"])] {
+            var c = DrinkPhotoConfirmation(result: .candidates([.init(entry: entry, score: 1, reason: .text)], confident: true),
+                                           observation: observation, timestamp: now)
+            #expect(c.isNotInDatabase && c.amount(db: tiny) == nil && tiny.mg(for: entry, volume: Volume(milliliters: 355, text: "355 mL")) == nil)
+            c.leaveManualEntry(); c.select(entry)
+            #expect(c.isNotInDatabase && c.entry == nil)
+        }
+    }
+
+    /// Generic USDA foods keep converting: brewed coffee (FNDDS, grams with a
+    /// 1 fl oz weight) gives each picked cup its own mg, and a label size
+    /// converts through the record's per-100 value.
+    @Test func genericUsdaCoffeeStillScales() throws {
+        let coffee = try #require(db.entries.first { $0.name == "Coffee, brewed" && $0.source == "fndds-2021-2023" })
+        #expect(!coffee.publishedServingsOnly && coffee.basis == "g")
+        let perFlOz = try #require(coffee.gramsPerFlOz)
+        var c = DrinkPhotoConfirmation(result: .candidates([.init(entry: coffee, score: 1, reason: .text)], confident: true),
+                                       observation: .init(recognizedText: ["12 FL OZ", "16 FL OZ"]), timestamp: now)
+        #expect(!c.isNotInDatabase && c.usableLabelVolumes.count == 2)
+        for volume in c.usableLabelVolumes {
+            c.choose(.label(volume))
+            let expected = Int((coffee.per100 * volume.milliliters / Volume.mlPerFlOz * perFlOz / 100).rounded())
+            #expect(c.amount(db: db)?.mg == expected && c.amount(db: db)?.summary.hasSuffix("From Label") == true)
+        }
+        let twelve = try #require(db.mg(for: coffee, volume: Volume(milliliters: 12 * Volume.mlPerFlOz, text: "12 fl oz")))
+        let sixteen = try #require(db.mg(for: coffee, volume: Volume(milliliters: 16 * Volume.mlPerFlOz, text: "16 fl oz")))
+        #expect(sixteen > twelve)
+        for (index, serving) in coffee.servings.enumerated() {
+            c.choose(.listed(index))
+            #expect(c.amount(db: db)?.mg == Int((coffee.per100 * serving.amount / 100).rounded()))
+        }
+    }
+
     /// 5-hour Energy: the maker sells Berry as Regular Strength yet its page
     /// shows "230mg of Caffeine" beside "Caffeine (200mg)", so there is no
     /// record and no 5-hour photo, Regular, Extra Strength or Berry, maps to one.
@@ -212,7 +290,7 @@ import Testing
         #expect(!db.entries.contains { ($0.name + " " + ($0.brand ?? "")).localizedCaseInsensitiveContains("5-hour") || $0.id.contains("5-hour") })
         for text in [["5-hour ENERGY"], ["5-hour ENERGY", "EXTRA STRENGTH", "230mg"], ["5-hour ENERGY", "BERRY", "REGULAR STRENGTH", "1.93 FL OZ"]] {
             if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: text), in: db) {
-                #expect(!list.contains { $0.entry.publishedServingsOnly || $0.entry.displayName.localizedCaseInsensitiveContains("5-hour") }, "\(text)")
+                #expect(!list.contains { $0.entry.source == "manufacturer" || $0.entry.displayName.localizedCaseInsensitiveContains("5-hour") }, "\(text)")
             }
         }
     }
@@ -236,7 +314,7 @@ import Testing
         }
         // Dr Pepper's maker publishes 41 and 43 mg: no record, only the generic USDA pepper-type soda if picked.
         if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: ["Dr Pepper", "12 FL OZ"]), in: db) {
-            #expect(!list.contains { $0.entry.publishedServingsOnly || $0.entry.displayName.localizedCaseInsensitiveContains("Dr Pepper") })
+            #expect(!list.contains { $0.entry.source == "manufacturer" || $0.entry.displayName.localizedCaseInsensitiveContains("Dr Pepper") })
         }
         // Even with "energy" on the can, Ghost never becomes another brand's record.
         if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: ["GHOST ENERGY"]), in: db) {
