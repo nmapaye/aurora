@@ -2,7 +2,10 @@ import Foundation
 
 /// Aurora's bundled, offline caffeine reference. Every value is copied from a
 /// USDA FoodData Central record (public domain, CC0 1.0) by
-/// `scripts/build_caffeine_db.py`; nothing here is estimated by a model.
+/// `scripts/build_caffeine_db.py`, or, for named brands USDA lacks, from the
+/// maker's own website or label, merged by
+/// `scripts/merge-manufacturer-caffeine.py` (page, date, serving and quote in
+/// docs/caffeine-brands-provenance.json). Nothing here is estimated by a model.
 /// A serving's mg is the record's caffeine per 100 g (or per 100 mL for label
 /// data) times that record's own portion size, rounded to a whole mg.
 public struct CaffeineDatabase: Codable, Equatable, Sendable {
@@ -11,8 +14,12 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
         public let name: String
         public let release: String
         public let license: String
+        /// The source's site; empty for "manufacturer", whose records each carry their own page.
         public let url: String
         public let citation: String
+
+        /// The name on the card's one-line source: "USDA" or "Manufacturer".
+        public var shortName: String { name.hasPrefix("USDA") ? "USDA" : name }
     }
     public struct Serving: Codable, Equatable, Sendable {
         public let label: String
@@ -23,7 +30,8 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
     }
     public struct Entry: Codable, Equatable, Sendable, Identifiable {
         public let id: String
-        public let fdcId: Int
+        /// USDA FoodData Central id; `nil` for non-USDA records, which carry `url`.
+        public let fdcId: Int?
         public let source: String
         public let name: String
         public let brand: String?
@@ -37,6 +45,21 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
         public let gramsPerFlOz: Double?
         public let servings: [Serving]
         public let gtin: String?
+        /// The page this record was copied from, for non-USDA records.
+        public let url: String?
+        /// When `url` was read, "yyyy-MM-dd".
+        public let retrieved: String?
+
+        /// "FDC 12345", or the source page without "https://www.".
+        public var reference: String {
+            if let fdcId { return "FDC \(fdcId)" }
+            guard let url else { return id }
+            return url.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "www.", with: "")
+        }
+
+        /// A maker's published number holds only for the exact serving it was
+        /// published for: never scaled to another size (CPO, Nov 10).
+        public var publishedServingsOnly: Bool { source == "manufacturer" }
 
         public var displayName: String {
             guard let brand, !name.localizedCaseInsensitiveContains(brand) else { return name }
@@ -63,6 +86,12 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
         for entry in db.entries {
             guard seen.insert(entry.id).inserted else { throw LoadError.invalid("duplicate \(entry.id)") }
             guard ids.contains(entry.source) else { throw LoadError.invalid("unknown source for \(entry.id)") }
+            // Every record names where it came from: a USDA id, or an https
+            // source page and the date it was read.
+            guard entry.fdcId != nil || (entry.retrieved != nil && entry.url != nil),
+                  entry.url.map({ $0.hasPrefix("https://") }) ?? true else {
+                throw LoadError.invalid("no provenance for \(entry.id)")
+            }
             guard entry.per100.isFinite, entry.per100 > 0, ["g", "mL"].contains(entry.basis) else { throw LoadError.invalid("bad basis \(entry.id)") }
             for serving in entry.servings {
                 guard serving.mg >= 1, serving.mg <= 1999, serving.unit == entry.basis,
@@ -82,6 +111,39 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
     }()
 
     public func source(for entry: Entry) -> Source? { sources.first { $0.id == entry.source } }
+
+    /// What the (i) button on the photo card shows: who the amount came
+    /// from, and a link to the source: USDA FoodData Central, or the maker's
+    /// page the amount was copied from.
+    public struct Credit: Equatable, Sendable {
+        public struct Link: Equatable, Sendable { public let title: String; public let url: String }
+        public let title: String
+        public let lines: [String]
+        public let links: [Link]
+        public init(title: String, lines: [String], links: [Link]) { self.title = title; self.lines = lines; self.links = links }
+    }
+    public static let creditTitle = "Caffeine Source"
+
+    public func credit(for entry: Entry) -> Credit? {
+        guard let source = source(for: entry) else { return nil }
+        if source.id == "manufacturer" {
+            var lines = ["The caffeine amount for this drink is from its maker’s own website or label."]
+            if let retrieved = entry.retrieved { lines.append("Retrieved \(Self.displayDate(retrieved)).") }
+            let links = entry.url.map { [Credit.Link(title: "View Source Page", url: $0)] } ?? []
+            return Credit(title: Self.creditTitle, lines: lines, links: links)
+        }
+        return Credit(title: Self.creditTitle,
+                      lines: ["The caffeine amount for this drink is from \(source.name), released \(source.release). \(source.license)."],
+                      links: [.init(title: "Visit USDA FoodData Central", url: source.url)])
+    }
+
+    /// "2026-11-10" -> "Nov 10, 2026"; any other text is shown as is.
+    static func displayDate(_ day: String) -> String {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        guard parts.count == 3, (1...12).contains(parts[1]) else { return day }
+        return "\(months[parts[1] - 1]) \(parts[2]), \(parts[0])"
+    }
     public func entry(id: String) -> Entry? { entries.first { $0.id == id } }
 
     /// Exact barcode lookup. UPC-A, EAN-13 and GTIN-14 forms of one code
@@ -99,9 +161,11 @@ public struct CaffeineDatabase: Codable, Equatable, Sendable {
 
     /// Caffeine for a volume read from the label, derived only from the
     /// record: per 100 mL directly, or via the record's own fl oz weight.
+    /// Never for a maker's record, whose number holds for its serving only.
     /// `nil` when the record gives no way to convert, so the person picks a
     /// listed serving instead.
     public func mg(for entry: Entry, volume: Volume) -> Int? {
+        guard !entry.publishedServingsOnly else { return nil }
         let base: Double
         switch entry.basis {
         case "mL": base = volume.milliliters

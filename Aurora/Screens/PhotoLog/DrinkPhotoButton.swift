@@ -11,7 +11,7 @@ struct DrinkPhotoButton: View {
                 .frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget)
         }
         .accessibilityLabel("Log a drink from a photo")
-        .accessibilityHint("Reads the photo on this device. You confirm before anything is saved.")
+        .accessibilityHint("Opens Log from Photo.")
         .accessibilityShowsLargeContentViewer { Label("Log a drink from a photo", systemImage: "camera") }
         .accessibilityIdentifier("assistant-photo-log")
         .sheet(isPresented: $isPresented) { DrinkPhotoSheet() }

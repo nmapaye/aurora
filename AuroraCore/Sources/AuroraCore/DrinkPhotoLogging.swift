@@ -112,7 +112,12 @@ public enum DrinkPhotoMatcher {
 
     static func tokens(_ text: String) -> Set<String> {
         let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-        let parts = folded.split { !$0.isLetter }.map(String.init)
+        // Letters only, except a letter-digit brand word such as "C4" stays whole.
+        var parts: [String] = []
+        for word in folded.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
+            if word.contains(where: \.isLetter), word.contains(where: \.isNumber), word.count <= 3 { parts.append(String(word)) }
+            else { parts += word.split { !$0.isLetter }.map(String.init) }
+        }
         return Set(parts.filter { $0.count >= 2 && !stopWords.contains($0) })
     }
 
@@ -171,7 +176,7 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     /// Shown when no database record is chosen or found.
     public static let notInDatabaseTitle = "Not in Database"
     /// The line under Not in Database while the person types the drink in.
-    public static let manualEntryLine = "Enter the caffeine amount yourself, from the label or menu. Aurora doesn’t fill it in."
+    public static let manualEntryLine = "Enter the caffeine amount from the label or menu."
 
     public enum ServingChoice: Equatable, Sendable {
         /// One of the entry's listed servings.
@@ -181,9 +186,13 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     }
     public struct Amount: Equatable, Sendable {
         public let mg: Int
-        /// Where the number came from, shown on the card and kept in the note.
+        /// Where the number came from in full (source, FDC id or page,
+        /// serving). Behind the (i) button and kept in the saved note.
         public let provenance: String
         public let edited: Bool
+        /// The one short line under the amount: source and serving only,
+        /// e.g. "Manufacturer · 1 Can (12 fl oz)" or "USDA · 1 Cup (8 fl oz)".
+        public let summary: String
     }
 
     public private(set) var candidates: [DrinkPhotoMatcher.Candidate]
@@ -209,6 +218,7 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
             candidates = []; noMatchMessage = message
         }
         if let entry { serving = Self.defaultServing(entry, volumes: labelVolumes) }
+        if let entry, Self.otherSizeThanPublished(entry, volumes: labelVolumes) { fallBackToManualEntry() }
     }
 
     /// Choosing a different drink clears any amount the person typed.
@@ -220,8 +230,37 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
         if !candidates.contains(where: { $0.entry.id == entry.id }) {
             candidates.insert(.init(entry: entry, score: 0, reason: .text), at: 0)
         }
+        if Self.otherSizeThanPublished(entry, volumes: labelVolumes) { fallBackToManualEntry() }
     }
-    public mutating func choose(_ choice: ServingChoice) { serving = choice; typedMg = nil }
+    /// A maker's record keeps its one published serving: a label size that
+    /// is that serving selects it, any other size falls back to Not in
+    /// Database and manual entry instead of scaling the number.
+    public mutating func choose(_ choice: ServingChoice) {
+        typedMg = nil
+        if let entry, entry.publishedServingsOnly, case .label(let volume) = choice {
+            if let index = Self.publishedServing(matching: volume, in: entry) { serving = .listed(index) } else { fallBackToManualEntry() }
+            return
+        }
+        serving = choice
+    }
+    /// The photo shows a size that isn't the maker's published serving.
+    static func otherSizeThanPublished(_ entry: CaffeineDatabase.Entry, volumes: [Volume]) -> Bool {
+        entry.publishedServingsOnly && volumes.contains { publishedServing(matching: $0, in: entry) == nil }
+    }
+    /// The listed serving within 3% of `volume`, read from its label text
+    /// ("1 can (8.4 fl oz)") or its mL amount.
+    static func publishedServing(matching volume: Volume, in entry: CaffeineDatabase.Entry) -> Int? {
+        entry.servings.firstIndex { serving in
+            var sizes = Volume.parse(serving.label).map(\.milliliters)
+            if serving.unit == "mL" { sizes.append(serving.amount) }
+            return sizes.contains { abs($0 - volume.milliliters) / volume.milliliters < 0.03 }
+        }
+    }
+    private mutating func fallBackToManualEntry() {
+        entry = nil; serving = nil
+        manualName = ""
+        typedMg = ""
+    }
     public mutating func type(mg text: String) { typedMg = text }
     public mutating func clearTypedAmount() { typedMg = nil }
 
@@ -246,6 +285,13 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     /// listed serving is preselected only when the photo showed no size.
     /// Otherwise the person picks.
     static func defaultServing(_ entry: CaffeineDatabase.Entry, volumes: [Volume]) -> ServingChoice? {
+        if entry.publishedServingsOnly {
+            // Only the published serving, never a scaled label size.
+            let matches = Set(volumes.compactMap { publishedServing(matching: $0, in: entry) })
+            if volumes.isEmpty, entry.servings.count == 1 { return .listed(0) }
+            if !volumes.isEmpty, matches.count == 1, volumes.allSatisfy({ publishedServing(matching: $0, in: entry) != nil }) { return .listed(matches.first!) }
+            return nil
+        }
         if volumes.count == 1, let volume = volumes.first, convertible(entry), corroborated(volume, by: entry) { return .label(volume) }
         if volumes.isEmpty, entry.servings.count == 1 { return .listed(0) }
         return nil
@@ -253,14 +299,10 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     /// Whether a listed serving names a container within 3% of `volume`,
     /// read from its label text ("1 can (8.4 fl oz)") or its mL amount.
     static func corroborated(_ volume: Volume, by entry: CaffeineDatabase.Entry) -> Bool {
-        entry.servings.contains { serving in
-            var sizes = Volume.parse(serving.label).map(\.milliliters)
-            if serving.unit == "mL" { sizes.append(serving.amount) }
-            return sizes.contains { abs($0 - volume.milliliters) / volume.milliliters < 0.03 }
-        }
+        publishedServing(matching: volume, in: entry) != nil
     }
     static func convertible(_ entry: CaffeineDatabase.Entry) -> Bool {
-        entry.basis == "mL" || entry.gramsPerFlOz != nil
+        !entry.publishedServingsOnly && (entry.basis == "mL" || entry.gramsPerFlOz != nil)
     }
 
     /// Label sizes this entry can convert. Others are hidden, not guessed.
@@ -272,9 +314,9 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     public func amount(db: CaffeineDatabase) -> Amount? {
         if let typedMg {
             guard let value = Int(typedMg.trimmingCharacters(in: .whitespaces)), (1...1999).contains(value) else { return nil }
-            if manualName != nil { return Amount(mg: value, provenance: "Typed by you · not in Aurora’s database", edited: true) }
+            if manualName != nil { return Amount(mg: value, provenance: "Typed by you · not in Aurora’s database", edited: true, summary: "Typed by You") }
             let original = databaseAmount(db: db).map { " (database: \($0.mg) mg)" } ?? ""
-            return Amount(mg: value, provenance: "Typed by you" + original, edited: true)
+            return Amount(mg: value, provenance: "Typed by you" + original, edited: true, summary: "Typed by You")
         }
         return databaseAmount(db: db)
     }
@@ -285,11 +327,39 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
         case .listed(let index):
             guard entry.servings.indices.contains(index) else { return nil }
             let s = entry.servings[index]
-            return Amount(mg: s.mg, provenance: "\(source.name) · FDC \(entry.fdcId) · \(s.label)", edited: false)
+            return Amount(mg: s.mg, provenance: "\(source.name) · \(entry.reference) · \(s.label)", edited: false,
+                          summary: "\(source.shortName) · \(Self.titleCase(s.label))")
         case .label(let volume):
-            guard let mg = db.mg(for: entry, volume: volume) else { return nil }
-            return Amount(mg: mg, provenance: "\(source.name) · FDC \(entry.fdcId) · \(volume.label) from label \"\(volume.text)\"", edited: false)
+            guard Self.convertible(entry), let mg = db.mg(for: entry, volume: volume) else { return nil }
+            return Amount(mg: mg, provenance: "\(source.name) · \(entry.reference) · \(volume.label) from label \"\(volume.text)\"", edited: false,
+                          summary: "\(source.shortName) · \(volume.label) From Label")
         }
+    }
+
+    /// Serving labels in title case for the short line: "1 can or bottle
+    /// (12 fl oz)" -> "1 Can or Bottle (12 fl oz)". Units and short joining
+    /// words stay lowercase; anything already capitalized is left alone.
+    static func titleCase(_ label: String) -> String {
+        let keep: Set<String> = ["fl", "oz", "ml", "g", "l", "or", "and", "of", "with", "from"]
+        return label.split(separator: " ", omittingEmptySubsequences: false).map { word -> String in
+            let lead = word.prefix { !$0.isLetter }
+            let rest = word.dropFirst(lead.count)
+            let letters = rest.prefix { $0.isLetter }
+            guard let first = rest.first, first.isLowercase, !keep.contains(String(letters).lowercased()) else { return String(word) }
+            return String(lead) + first.uppercased() + rest.dropFirst()
+        }.joined(separator: " ")
+    }
+
+    /// Everything behind the (i) button under the amount: where this amount
+    /// came from ("Source: …"), then the database source's credit and links.
+    /// The card itself shows only the button. `nil` when there's nothing yet.
+    public func sourceInfo(db: CaffeineDatabase) -> CaffeineDatabase.Credit? {
+        let amountLine = amount(db: db).map { "Source: " + $0.provenance }
+        let credit = entry.flatMap { db.credit(for: $0) }
+        guard amountLine != nil || credit != nil else { return nil }
+        return CaffeineDatabase.Credit(title: CaffeineDatabase.creditTitle,
+                                       lines: [amountLine].compactMap { $0 } + (credit?.lines ?? []),
+                                       links: credit?.links ?? [])
     }
 
     /// What the card asks when it cannot offer Save yet. `nil` means ready.

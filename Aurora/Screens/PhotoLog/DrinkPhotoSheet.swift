@@ -3,7 +3,8 @@ import PhotosUI
 import SwiftUI
 
 /// Photo logging: take or choose a photo, Apple's on-device frameworks read
-/// it, Aurora matches the bundled USDA caffeine database, and the person
+/// it, Aurora matches the bundled caffeine database (USDA, plus the maker's
+/// own website or label for named brands), and the person
 /// confirms or edits a card before Save. Nothing is saved automatically and
 /// the photo is never stored, uploaded or kept after this sheet closes.
 struct DrinkPhotoSheet: View {
@@ -89,7 +90,7 @@ struct DrinkPhotoSheet: View {
     private var pickView: some View {
         VStack(spacing: Metrics.md) {
             Image(systemName: "camera.viewfinder").font(.system(size: 48)).foregroundStyle(Palette.tint).accessibilityHidden(true)
-            Text("Photograph the can, bottle or cup label. Aurora reads it on this device and looks up caffeine in USDA FoodData Central. You confirm before anything is saved.")
+            Text("Photograph the can, bottle or cup label.")
                 .font(.callout).foregroundStyle(Palette.textSecondary).multilineTextAlignment(.center)
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button { showCamera = true } label: {
@@ -126,8 +127,8 @@ struct DrinkPhotoSheet: View {
                 if let image {
                     Section {
                         Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 160).frame(maxWidth: .infinity)
-                            .accessibilityLabel("Your drink photo. Not saved.")
-                    } footer: { Text("This photo stays on your device and is discarded when you close this sheet.") }
+                            .accessibilityLabel("Your drink photo.")
+                    }
                 }
                 if card.manualName != nil { manualSection(card) } else { drinkSection(card, db: db) }
                 if card.entry != nil { servingSection(card, db: db) }
@@ -231,11 +232,17 @@ struct DrinkPhotoSheet: View {
             }
         } header: { Text("Caffeine") } footer: {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                if let amount = card.amount(db: db) { Text("Source: " + amount.provenance) }
-                if card.entry != nil || card.manualName != nil, let ask = card.clarification(db: db) { Text(ask) }
-                if let entry = card.entry, let source = db.source(for: entry) {
-                    Text("\(source.name), released \(source.release). \(source.license).").foregroundStyle(Palette.textTertiary)
+                // One short line (source and serving); the full source, FDC id or
+                // page, dates, credit and links stay behind (i).
+                if let amount = card.amount(db: db) {
+                    HStack(spacing: Metrics.xs) {
+                        Text(amount.summary).accessibilityIdentifier("photo-log-source-summary")
+                        if let info = card.sourceInfo(db: db) { SourceCreditButton(credit: info) }
+                    }
+                } else if let info = card.sourceInfo(db: db) {
+                    SourceCreditButton(credit: info)
                 }
+                if card.entry != nil || card.manualName != nil, let ask = card.clarification(db: db) { Text(ask) }
             }
         }
     }
@@ -304,6 +311,42 @@ struct DrinkPhotoSheet: View {
         analysis?.cancel()
         image = nil; card = nil
         dismiss()
+    }
+}
+
+/// The (i) button under the amount. The amount's source line, the credit and
+/// the source link stay hidden until tapped.
+private struct SourceCreditButton: View {
+    let credit: CaffeineDatabase.Credit
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            Label(credit.title, systemImage: "info.circle").labelStyle(.iconOnly)
+                .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(Palette.tint)
+        .accessibilityLabel(credit.title)
+        .accessibilityIdentifier("photo-log-source-info")
+        .popover(isPresented: $showing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Metrics.sm) {
+                    Text(credit.title).font(.headline)
+                    ForEach(credit.lines, id: \.self) { Text($0).font(.callout).foregroundStyle(Palette.textSecondary) }
+                    ForEach(credit.links, id: \.url) { link in
+                        if let url = URL(string: link.url) {
+                            Link(link.title, destination: url).frame(minHeight: Metrics.minimumTouchTarget)
+                        }
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(Metrics.lg)
+            }
+            .frame(idealWidth: 340)
+            .presentationCompactAdaptation(.popover)
+            .accessibilityIdentifier("photo-log-source-credit")
+        }
     }
 }
 

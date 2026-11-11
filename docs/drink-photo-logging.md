@@ -40,7 +40,8 @@ the person's confirmation, and use a comprehensive database for caffeine values.
 
 ## No invented numbers
 
-- Every mg comes from a USDA FoodData Central record: the listed serving's mg,
+- Every mg comes from a USDA FoodData Central record or, for the named brands
+  below, the maker's own website or label: the listed serving's mg,
   or the record's per-100 value times a label volume. For gram-based records a
   label volume converts only through that record's own "1 fl oz" portion weight;
   otherwise the person picks a listed serving.
@@ -48,7 +49,8 @@ the person's confirmation, and use a comprehensive database for caffeine values.
   search words only; its numbers are never used (tested).
 - A typed amount is marked "Typed by you (database: N mg)".
 - The database fails closed: `CaffeineDatabase.load` rejects the file if any
-  serving mg isn't reproducible from its per-100 value or a source is unknown.
+  serving mg isn't reproducible from its per-100 value, a source is unknown, or
+  a record has neither an FDC id nor an https page with its retrieval date.
 
 ## Database
 
@@ -62,7 +64,7 @@ the person's confirmation, and use a comprehensive database for caffeine values.
 | Global Branded Food Products (label data with caffeine, liquids, with GTIN) | 2026-10-29 | 165 |
 
 License: CC0 1.0 Universal (public domain). USDA asks for attribution, which
-is in the JSON per source and shown on the card. Rebuild:
+is in the JSON per source and shown behind the card's (i) button. Rebuild:
 
 ```
 python3 scripts/build_caffeine_db.py --fndds surveyDownload.json \
@@ -71,28 +73,60 @@ python3 scripts/build_caffeine_db.py --fndds surveyDownload.json \
   --out AuroraCore/Sources/AuroraCore/Resources/caffeine-db.json
 ```
 
+### Named brands: the maker's own website or label
+
+USDA has no drink record with caffeine for the brands named in Nov 10 feedback,
+so each one gets a record only when its maker states the amount in mg on its
+own website or label. No aggregators, retailers or encyclopedias. The values
+were read by hand on Nov 10, 2026. `docs/caffeine-brands-provenance.json`
+holds each record's page URL, retrieval date, serving size, a verbatim quote
+and the SHA-256 of what was read. `scripts/merge-manufacturer-caffeine.py`
+(no network) writes those records into the database under the "manufacturer"
+source. Run it after `build_caffeine_db.py`, which rewrites the file:
+
+```
+python3 scripts/merge-manufacturer-caffeine.py
+```
+
+On the card, one short line sits under the amount, showing source and serving only:
+"Manufacturer · 1 Can (12 fl oz)", "USDA · 1 Cup (8 fl oz)", "Typed by You". The (i)
+button next to it holds the rest: the full source line (FDC id or page), the
+release or retrieved date, the credit, and "Visit USDA FoodData Central" or
+"View Source Page" (the maker's page). There's no Settings credit; caveats belong
+in the Terms text (#87's `LegalCopy`), not in the app UI.
+
+| Brand | Record | Serving | mg | Source |
+| --- | --- | --- | --- | --- |
+| Celsius | Celsius Energy Drink | 1 can (12 fl oz, 355 mL) | 200 | celsius.com/essential-facts |
+| Bang | Bang Energy | 1 can (16 fl oz, 473 mL) | 300 | bangenergy.com product page |
+| Prime | Prime Energy | 1 can (12 fl oz, 355 mL) | 200 | PRIME help center (drinkprime.com/pages/faq) |
+| Alani Nu | Alani Nu Energy Drink | 1 can (12 fl oz, 355 mL) | 200 | alaninu.com product page |
+| C4 | C4 Performance Energy | 1 can (16 fl oz, 473 mL) | 200 | label image on cellucor.com |
+| Starbucks | none | | | Starbucks lists a range (Grande Pike Place: 315 mg - 390 mg), not one value: Not in Database |
+| Ghost Energy | none | | | No mg for the canned drink on a GHOST or Keurig Dr Pepper page: Not in Database |
+| Dr Pepper | none | | | Keurig Dr Pepper publishes 41 mg and 43 mg for the same 12 fl oz product: Not in Database |
+| 5-hour Energy | none | | | Berry is sold as Regular Strength, and its page shows "230mg of Caffeine" beside "Caffeine (200mg)": Not in Database |
+| Matcha | none | | | Manual entry only |
+
+The rule (CPO, Nov 10): store one published number for one exact product and
+serving, or store nothing. Never pick between numbers, average them or scale
+them. So a maker's record is used only at its recorded serving
+(`Entry.publishedServingsOnly`): a label size that is that serving selects it,
+and any other size, read from the photo or picked, falls back to Not in Database
+and manual entry. `CaffeineDatabase.mg(for:volume:)` never converts a maker's
+record (USDA records still convert through their own per-100 values). Where a
+page gives only fl oz, mL is fl oz x 29.5735, rounded; that's a unit conversion
+of the published serving, not a scaled amount. Flavors and variants (for example
+Celsius Essentials, Prime's 16 oz can) aren't included. The person confirms or
+types the amount either way.
+
 ### Sources evaluated and not bundled
 
-- **Caffeine Informer**: its terms (updated Jan 21, 2021) grant a royalty-free
-  license to the caffeine amounts if you link to and credit caffeineinformer.com.
-  It has no bulk export, so bundling would mean collecting page by page. Not
-  done here; an owner decision.
 - **Open Food Facts**: ODbL (share-alike database obligations). Caffeine is
   rarely filled in. Not bundled.
 - **CSPI and similar charts**: copyrighted editorial tables. Not bundled.
 
 ### Known coverage limits
-
-Brands named in Nov 10 feedback, checked against the bundled database and the
-full USDA inputs (`DrinkPhotoCoverageAndGuardTests.namedBrandCoverageIsRecorded`):
-
-| Brand | Brand-specific record | In USDA FDC with caffeine |
-| --- | --- | --- |
-| Celsius, Starbucks, Bang, Ghost, Prime, 5-hour, C4, matcha, Dr Pepper | No | No (Branded label data has no caffeine for them; Starbucks and Dr Pepper have generic FNDDS coffee and pepper-type soft drink records) |
-| Alani | No | Only Alani Nu powder "energy sticks" (5.8 g), not the canned drink; not bundled (the build keeps liquid label data only) |
-
-Adding these needs a licensable source with provenance; that's an owner
-decision.
 
 US label data rarely reports caffeine, so the Branded set is mostly
 Coca-Cola-family drinks, Gold Peak, Polar and a few energy brands. Major energy

@@ -10,10 +10,20 @@ import Testing
         let db = try #require(CaffeineDatabase.bundled)
         #expect(db.schema == 1 && !db.version.isEmpty)
         #expect(db.entries.count >= 400)
-        #expect(Set(db.sources.map(\.id)) == ["fndds-2021-2023", "sr-legacy-2018", "branded-2026-10"])
-        for source in db.sources { #expect(source.license.contains("CC0") && source.url.hasPrefix("https://fdc.nal.usda.gov")) }
+        #expect(Set(db.sources.map(\.id)) == ["fndds-2021-2023", "sr-legacy-2018", "branded-2026-10", "manufacturer"])
+        for source in db.sources where source.id != "manufacturer" {
+            #expect(source.license.contains("CC0") && source.url.hasPrefix("https://fdc.nal.usda.gov"))
+        }
+        let maker = try #require(db.sources.first { $0.id == "manufacturer" })
+        #expect(maker.name == "Manufacturer" && maker.url.isEmpty && maker.license.contains("maker"))
         for entry in db.entries {
             #expect(db.source(for: entry) != nil)
+            // USDA records carry their FDC id; maker records their own https page and date.
+            if entry.source == "manufacturer" {
+                #expect(entry.fdcId == nil && entry.url?.hasPrefix("https://") == true && entry.retrieved == "2026-11-10")
+            } else {
+                #expect(entry.fdcId != nil)
+            }
             for serving in entry.servings {
                 #expect(serving.mg == Int((entry.per100 * serving.amount / 100).rounded()))
             }
@@ -30,6 +40,17 @@ import Testing
         #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(wrongMg.utf8)) }
         let unknownSource = good.replacingOccurrences(of: "\"source\":\"s\"", with: "\"source\":\"x\"")
         #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(unknownSource.utf8)) }
+        let noProvenance = good.replacingOccurrences(of: "\"fdcId\":1,", with: "")
+        #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(noProvenance.utf8)) }
+        // A record without an FDC id needs both its https page and the date it was read.
+        let page = noProvenance.replacingOccurrences(of: "\"name\":\"Coffee, brewed\"", with: "\"name\":\"Coffee, brewed\",\"url\":\"https://example.com/p\",\"retrieved\":\"2026-11-10\"")
+        #expect(try CaffeineDatabase.load(from: Data(page.utf8)).entries.first?.reference == "example.com/p")
+        let noDate = page.replacingOccurrences(of: ",\"retrieved\":\"2026-11-10\"", with: "")
+        #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(noDate.utf8)) }
+        let noPage = page.replacingOccurrences(of: "\"url\":\"https://example.com/p\",", with: "")
+        #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(noPage.utf8)) }
+        let http = page.replacingOccurrences(of: "https://example.com/p", with: "http://example.com/p")
+        #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(http.utf8)) }
         let schema2 = good.replacingOccurrences(of: "\"schema\":1", with: "\"schema\":2")
         #expect(throws: CaffeineDatabase.LoadError.self) { try CaffeineDatabase.load(from: Data(schema2.utf8)) }
     }
@@ -74,7 +95,8 @@ import Testing
         card.select(fndds)
         let amount = try #require(card.amount(db: db))
         #expect(amount.mg == db.mg(for: fndds, volume: observation.labelVolumes[0]))
-        #expect(amount.provenance.contains("FDC \(fndds.fdcId)") && amount.provenance.contains("from label"))
+        let fnddsFDC = try #require(fndds.fdcId)
+        #expect(amount.provenance.contains("FDC \(fnddsFDC)") && amount.provenance.contains("from label"))
         let draft = try #require(card.draft(db: db, now: now))
         #expect(draft.mg == String(amount.mg) && draft.note.hasPrefix("Photo · USDA FoodData Central"))
     }
