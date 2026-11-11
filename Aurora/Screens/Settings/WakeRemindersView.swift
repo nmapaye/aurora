@@ -15,7 +15,7 @@ struct WakeReminderEditor: View {
                     chip(offset)
                 }
             }
-            DatePicker("Usual wake time", selection: usualWake, displayedComponents: .hourAndMinute)
+            DatePicker("Usual Wake Time", selection: usualWake, displayedComponents: .hourAndMinute)
                 .font(Typography.label)
                 .frame(minHeight: Metrics.minimumTouchTarget)
                 .accessibilityIdentifier("wake-usual-time")

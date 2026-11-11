@@ -38,8 +38,8 @@ struct AssistantSettingsView: View {
                 }
             }
             .sheet(isPresented: $showAppleHealth) { HealthConnectionView() }
-            .confirmationDialog("Clear this conversation?", isPresented: $clearConversation) {
-                Button("Clear conversation", role: .destructive) { assistant.requestClear() }
+            .confirmationDialog("Clear This Conversation?", isPresented: $clearConversation) {
+                Button("Clear Conversation", role: .destructive) { assistant.requestClear() }
             } message: {
                 Text("Your records are kept.")
             }
@@ -134,7 +134,7 @@ struct AssistantSettingsView: View {
         Section {
             NavigationLink(SettingsView.recordsTitle, destination: SettingsView(pushed: true))
                 .accessibilityIdentifier("assistant-record-settings")
-            Button("Clear conversation", role: .destructive) { clearConversation = true }
+            Button("Clear Conversation", role: .destructive) { clearConversation = true }
         } header: {
             Text("Records")
         }

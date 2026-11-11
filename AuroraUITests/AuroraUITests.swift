@@ -159,8 +159,8 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<8 where !erase.isHittable { app.swipeUp() }
         XCTAssertTrue(erase.isHittable)
         erase.tap()
-        XCTAssertTrue(app.alerts["Erase all local Aurora data?"].waitForExistence(timeout: 3))
-        app.alerts.buttons["Erase all local data"].tap()
+        XCTAssertTrue(app.alerts["Erase All Local Aurora Data?"].waitForExistence(timeout: 3))
+        app.alerts.buttons["Erase All Local Data"].tap()
         XCTAssertTrue(app.buttons["onboarding-skip-story"].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments = []; app.launch()
         XCTAssertTrue(app.buttons["onboarding-skip-story"].waitForExistence(timeout: 10))
@@ -1130,13 +1130,13 @@ final class AuroraUITests: XCTestCase {
         request("help")
         XCTAssertTrue(cardTitle("capabilities").waitForExistence(timeout: 5))
         tapWhenReady(app.buttons["assistant-settings"])
-        let clear = app.buttons["Clear conversation"].firstMatch
+        let clear = app.buttons["Clear Conversation"].firstMatch
         for _ in 0..<8 where !clear.isHittable { app.swipeUp() }
         let row = clear.frame
         clear.tap()
         // On iOS 26 the dialog is a menu from the row; its button is the
-        // other "Clear conversation".
-        let matches = app.buttons.matching(identifier: "Clear conversation")
+        // other "Clear Conversation".
+        let matches = app.buttons.matching(identifier: "Clear Conversation")
         let two = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: matches)
         XCTAssertEqual(XCTWaiter.wait(for: [two], timeout: 3), .completed)
         let confirm = matches.allElementsBoundByIndex.first { $0.frame != row }

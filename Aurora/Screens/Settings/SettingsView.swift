@@ -105,7 +105,7 @@ struct SettingsView: View {
                 }
 
                 group("Data") {
-                    row("Stored on this device", detail: "Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health.")
+                    row("Stored on This Device", detail: "Aurora keeps your entries on this iPhone or iPad. Deleting them does not change Apple Health.")
                     Divider()
                     ShareLink(item: CSVFile(name: "aurora-caffeine-entries.csv") { [doses = state.doses, clock = model.clock] in
                         Export.doseEntriesCSV(doses, clock: clock)
@@ -128,8 +128,8 @@ struct SettingsView: View {
                         row("Export Reaction Tests", detail: "CSV of every Reaction Test (\(state.vigilanceSessions.count)), with its source.", tinted: true)
                     }
                     Divider()
-                    destructiveButton("Delete recorded data", id: "delete-all-data") { confirmDelete = true }
-                        .alert("Delete recorded data?", isPresented: $confirmDelete) {
+                    destructiveButton("Delete Recorded Data", id: "delete-all-data") { confirmDelete = true }
+                        .alert("Delete Recorded Data?", isPresented: $confirmDelete) {
                             Button("Cancel", role: .cancel) {}
                             Button("Delete", role: .destructive) {
                                 deletedCount += 1
@@ -138,9 +138,9 @@ struct SettingsView: View {
                         } message: {
                             Text("This clears current caffeine, sleep, and reaction records. Settings, conversation snapshots, and recovery copies remain. Apple Health data is not changed.")
                         }
-                    destructiveButton("Erase all local data", id: "erase-all-local-data") { confirmErase = true }
-                        .alert("Erase all local Aurora data?", isPresented: $confirmErase) {
-                            Button("Erase all local data", role: .destructive) {
+                    destructiveButton("Erase All Local Data", id: "erase-all-local-data") { confirmErase = true }
+                        .alert("Erase All Local Aurora Data?", isPresented: $confirmErase) {
+                            Button("Erase All Local Data", role: .destructive) {
                                 assistant.requestErase()
                             }
                             Button("Cancel", role: .cancel) {}
@@ -264,7 +264,7 @@ struct SettingsView: View {
                 }), id: "settings-cutoff-hour")
                 .frame(minHeight: Metrics.minimumTouchTarget)
             }
-            Button("Remove cutoff time") { setCutoff(nil) }
+            Button("Remove Cutoff Time") { setCutoff(nil) }
                 .frame(minHeight: Metrics.minimumTouchTarget)
                 .accessibilityIdentifier("settings-cutoff-remove")
         } else {
@@ -272,7 +272,7 @@ struct SettingsView: View {
                 LabeledContent("Cutoff Time", value: "Not set")
                     .frame(minHeight: Metrics.minimumTouchTarget)
             }
-            Button("Set a cutoff time") {
+            Button("Set a Cutoff Time") {
                 model.tick()
                 setCutoff(Double(model.clock.hour(model.now)))
             }
@@ -304,12 +304,12 @@ struct SettingsView: View {
         }()
         if denied {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Reminder status")
+                Text("Reminder Status")
                 NotificationsOffNotice()
             }
         } else {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Reminder status")
+                Text("Reminder Status")
                 Text(status.text)
                     .font(.footnote)
                     .foregroundStyle(status.failed ? StatusTone.error.foreground : Palette.textSecondary)
@@ -318,7 +318,7 @@ struct SettingsView: View {
             .accessibilityAddTraits(status.failed ? .isStaticText : [])
         }
         if status.failed {
-            Button("Retry reminder") {
+            Button("Retry Reminder") {
                 Task { await model.setReminder(enabled: true) }
             }
         }
