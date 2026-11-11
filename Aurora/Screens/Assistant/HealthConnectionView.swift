@@ -82,7 +82,7 @@ struct HealthConnectionView: View {
                             .accessibilityIdentifier("assistant-health-retry")
                         }
                     }
-                    Text("Delete All Records and Erase All Local Data leave Aurora’s earlier entries in Apple Health. Delete them in the Health app.")
+                    Text("Delete Recorded Data and Erase All Local Data leave Aurora’s earlier entries in Apple Health. Delete them in the Health app.")
                         .font(.footnote).foregroundStyle(Palette.textSecondary)
                 }
                 .padding(Metrics.lg).frame(maxWidth: Metrics.contentMaxWidth)
