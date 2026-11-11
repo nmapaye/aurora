@@ -106,10 +106,13 @@ import Testing
         #expect(terms.contains("Your half-life setting is an assumption, not a measurement"))
         #expect(terms.contains("aren’t a recommendation or a safety limit"))
         #expect(terms.contains("Sleep, sensitivity to caffeine and other factors aren’t measured"))
-        // Credit and limits for bundled caffeine amounts; photo privacy (v2).
-        #expect(terms.contains("Caffeine Informer (https://www.caffeineinformer.com), which shares its data under a free license"))
-        #expect(terms.contains("USDA FoodData Central") && terms.contains("so check the label"))
-        #expect(terms.contains("can’t guarantee the accuracy of its database"))
+        // Sources and limits for bundled caffeine amounts; photo privacy (v2).
+        #expect(terms.contains("Caffeine amounts for brand drinks come from each manufacturer’s published label or website"))
+        #expect(terms.contains("USDA FoodData Central") && terms.contains("manufacturers can change their drinks and labels, so check the label"))
+        // Manufacturer labels and websites only for brand drinks: the whole
+        // section is pinned, so no third-party database credit can return.
+        #expect(LegalCopy.terms.first { $0.title == "Caffeine Data" }?.body
+                == "Caffeine amounts for brand drinks come from each manufacturer’s published label or website. Other amounts are from USDA FoodData Central. Amounts are for the listed serving, and manufacturers can change their drinks and labels, so check the label.")
         #expect(privacy.contains("The photo isn’t uploaded or kept"))
         // No numbers invented in the disclosures.
         #expect(terms.range(of: #"\d+\s*%"#, options: .regularExpression) == nil)

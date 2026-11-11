@@ -9,7 +9,7 @@ public enum LegalCopy {
     /// Bump when the text changes in a way that needs a new acknowledgement.
     /// 2: the estimate, projection and cutoff scenario disclosures moved here
     /// from cards, the reminder text and VoiceOver labels; Caffeine Data
-    /// credit and Photos privacy added; Title Case headings (Nov 10, 2026).
+    /// sources and Photos privacy added; Title Case headings (Nov 10, 2026).
     public static let version = 2
 
     public static let acknowledgement = "By continuing, you agree to Aurora’s Terms and Privacy Policy."
@@ -42,7 +42,7 @@ public enum LegalCopy {
         Section(title: "Sample Data",
                 body: "Sample Data is labeled wherever it appears and can be cleared at any time."),
         Section(title: "Caffeine Data",
-                body: "Caffeine amounts for some brand drinks are from Caffeine Informer (https://www.caffeineinformer.com), which shares its data under a free license. Other amounts are from USDA FoodData Central. Amounts are for the listed serving and drinks can change, so check the label. Caffeine Informer states that it can’t guarantee the accuracy of its database, in particular the caffeine amounts for each product."),
+                body: "Caffeine amounts for brand drinks come from each manufacturer’s published label or website. Other amounts are from USDA FoodData Central. Amounts are for the listed serving, and manufacturers can change their drinks and labels, so check the label."),
     ]
 
     public static let privacy: [Section] = [
