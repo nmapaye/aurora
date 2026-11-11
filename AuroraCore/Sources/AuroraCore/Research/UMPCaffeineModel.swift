@@ -21,7 +21,9 @@ import Foundation
 /// - Rajdev P et al. J Theor Biol 2013;331:66–77,
 ///   doi:10.1016/j.jtbi.2013.04.013 (sleep-debt filter, Eqs 5a–6b).
 /// - Ramakrishnan S et al. J Theor Biol 2014;358:11–24,
-///   doi:10.1016/j.jtbi.2014.05.017 (gPD = 1 before the first dose, Eq 6).
+///   doi:10.1016/j.jtbi.2014.05.017 ("2014"): gPD = 1 before the first
+///   dose, the no-absorption gPD (Eqs 3–5) and its repeated-dose extension
+///   with an equivalent extant dose (Eqs 6–8).
 ///
 /// Scope, stated plainly:
 /// - Output is the model's group-average PVT impairment (10-min PVT lapses,
@@ -30,16 +32,18 @@ import Foundation
 /// - Time `t` is "model hours" exactly as in Eq 3 of 2016b. The papers do not
 ///   state the clock origin of `t`, so no clock-time or Date API is offered
 ///   (FLAGGED F1). Callers give the schedule in model hours from t = 0.
-/// - One caffeine dose only. The papers defer repeated doses to the 2014
-///   extension, which is written for the gPD form without absorption; how
-///   it combines with the absorption form used here is not published in the
-///   sources read (FLAGGED F2). More than one dose throws.
+/// - Repeated doses only in the form they are published: 2014 Eqs 6–8,
+///   which have no absorption term (`Formulation.instantaneous`). 2016b
+///   defers repeated doses to that extension, but how ka enters it is not
+///   published in the sources read, so more than one capsule or gum dose
+///   still throws (FLAGGED F2). Eq 8's printed elimination-rate subscript is
+///   read as the rate in force since the previous dose (FLAGGED F10).
 /// - Only the two absorption rates the paper gives (capsule, gum). No ka for
 ///   coffee, tea or energy drinks is published in the sources (FLAGGED F3).
 /// - Independent of the KSS Three-Process Model research formula, which
 ///   stays caffeine-free. Nothing here is shared with it.
 public enum UMPCaffeineModel {
-    public static let version = "ump-caffeine-ramakrishnan2016b-table3/research-unvalidated"
+    public static let version = "ump-caffeine-ramakrishnan2016b-table3+2014-repeated/research-unvalidated"
     public static let validationStatus = "Research only. Equation transcription with checks against the few numbers the papers state; no curve-level parity (papers give figures only), no individual validation."
 
     /// The twelve UMP parameters of 2016b Table 3 plus the fixed structural
@@ -116,14 +120,23 @@ public enum UMPCaffeineModel {
             amplitudeSlopePerGram: 3.59, basalEliminationPerHour: 0.49, doseDecayPerGram: 1.63)
     }
 
-    /// Caffeine formulations with a published absorption rate ka
-    /// (2016b Table 3, from Kamimori et al. 2002, its ref 21).
+    /// Caffeine formulations.
+    ///
+    /// `capsule` and `gum` carry the published absorption rate ka (2016b
+    /// Table 3, from Kamimori et al. 2002, its ref 21) and use 2016b Eq 6a.
+    /// `instantaneous` is the 2014 form without absorption (2014 Eq 3, the
+    /// ka → ∞ limit of Eq 6a), the only form for which repeated doses are
+    /// published (2014 Eqs 6–8). 2014 p. 13 calls it "a reasonable
+    /// approximation" when absorption is much faster than elimination; it is
+    /// not a ka for coffee, tea or energy drinks (FLAGGED F3).
     public enum Formulation: String, Codable, Sendable {
-        case capsule, gum
+        case capsule, gum, instantaneous
+        /// ka per hour; `.infinity` for `instantaneous` (no absorption phase).
         public var absorptionPerHour: Double {
             switch self {
             case .capsule: 2.06
             case .gum: 3.21
+            case .instantaneous: .infinity
             }
         }
     }
@@ -154,7 +167,10 @@ public enum UMPCaffeineModel {
         case timeOutsideSchedule(Double)
         /// Dose amount or time is negative, non-finite, or outside the schedule.
         case invalidDose
-        /// FLAGGED F2: repeated doses are not implemented (not published for this gPD form).
+        /// FLAGGED F2: more than one dose with an absorption formulation
+        /// (capsule or gum), or mixed formulations. Repeated doses are
+        /// published only for the no-absorption form (2014 Eqs 6–8), which
+        /// also assumes every dose uses the same formulation (2014 p. 14).
         case repeatedDosesNotPublished
         /// τLA equals τs, or ka equals kc: the published closed forms divide by zero.
         case degenerateTimeConstants
@@ -191,15 +207,56 @@ public enum UMPCaffeineModel {
 
     /// Caffeine-effect factor gPD, 2016b Table 2 Eq 6a–6b, for one dose of
     /// `grams` taken `hoursSinceDose` ago. Returns 1 before the dose
-    /// (2014 Eq 6, "1 for t < t1").
+    /// (2014 Eq 6, "1 for t < t1"). With `absorptionPerHour` = `.infinity`
+    /// it is the no-absorption single dose, 2014 Eqs 3–5:
+    /// gPD = [1 + M_D·e^(−k_D·(t − t0))]⁻¹.
     public static func caffeineFactor(hoursSinceDose dt: Double, grams c: Double, absorptionPerHour ka: Double, _ p: Parameters) throws -> Double {
-        guard dt.isFinite, c.isFinite, c >= 0, ka.isFinite, ka > 0 else { throw Refusal.invalidDose }
+        guard dt.isFinite, c.isFinite, c >= 0, !ka.isNaN, ka > 0 else { throw Refusal.invalidDose }
         if dt < 0 || c == 0 { return 1 }
         let mc = p.amplitudeSlopePerGram * c
         let kc = p.basalEliminationPerHour * exp(-p.doseDecayPerGram * c)
+        if ka == .infinity { return 1 / (1 + mc * exp(-kc * dt)) }
         guard ka != kc else { throw Refusal.degenerateTimeConstants }
         let x = mc * ka / (ka - kc) * (exp(-kc * dt) - exp(-ka * dt))
         return 1 / (1 + x)
+    }
+
+    /// Equivalent extant dose and the effective parameters after the last
+    /// dose at or before `t`, 2014 Eqs 7–8, for no-absorption doses.
+    ///
+    /// - Eq 7: M_Dj = M0·[Dj + E(tj⁻)], k_Dj = k0·exp{−z[Dj + E(tj⁻)]}.
+    /// - Eq 8: E(t1⁻) = 0; E(tj⁻) = [E(tj−1⁻) + Dj−1]·exp[−k·(tj − tj−1)].
+    ///
+    /// Eq 8 prints the rate as k_Dj, which by Eq 7 depends on E(tj⁻) itself.
+    /// The code uses k_D(j−1), the rate Eq 6 applies over [tj−1, tj), which
+    /// makes gPD continuous just before each dose (FLAGGED F10).
+    /// Doses must be sorted by time and have grams > 0.
+    static func extantState(atHours t: Double, sortedDoses doses: [Dose], _ p: Parameters) -> (lastDoseAt: Double, equivalentGrams: Double, extantBeforeLast: Double, rate: Double)? {
+        var last: (at: Double, total: Double, rate: Double, extant: Double)?
+        for d in doses where d.atHours <= t {
+            var extant = 0.0
+            if let prev = last { extant = prev.total * exp(-prev.rate * (d.atHours - prev.at)) }
+            let total = d.grams + extant
+            last = (d.atHours, total, p.basalEliminationPerHour * exp(-p.doseDecayPerGram * total), extant)
+        }
+        return last.map { ($0.at, $0.total, $0.extant, $0.rate) }
+    }
+
+    /// Repeated-dose caffeine-effect factor, 2014 Eqs 6–8 (no absorption):
+    /// gPD = 1 for t < t1; gPD = [1 + M_Dj·e^(−k_Dj·(t − tj))]⁻¹ for
+    /// tj ≤ t < tj+1. Every dose must be `.instantaneous` (2014 p. 14
+    /// assumption 1: same formulation). Order of `doses` does not matter.
+    /// Zero-gram entries are not doses and are ignored. With one dose this
+    /// is 2014 Eq 3 ("reduces to Eq. (3) under single-dose conditions").
+    public static func repeatedDoseFactor(atHours t: Double, doses: [Dose], _ p: Parameters) throws -> Double {
+        guard t.isFinite else { throw Refusal.invalidDose }
+        for d in doses {
+            guard d.atHours.isFinite, d.grams.isFinite, d.grams >= 0 else { throw Refusal.invalidDose }
+            guard d.formulation == .instantaneous else { throw Refusal.repeatedDosesNotPublished }
+        }
+        let sorted = doses.filter { $0.grams > 0 }.sorted { $0.atHours < $1.atHours }
+        guard let s = extantState(atHours: t, sortedDoses: sorted, p) else { return 1 }
+        return 1 / (1 + p.amplitudeSlopePerGram * s.equivalentGrams * exp(-s.rate * (t - s.lastDoseAt)))
     }
 
     /// Advances (S, L) through `hours` of one state.
@@ -244,16 +301,21 @@ public enum UMPCaffeineModel {
 
     /// Evaluates the model at each time in `times` (model hours from t = 0)
     /// for a contiguous `schedule`, starting from the parameter set's S0 and
-    /// L0 at t = 0, with at most one dose.
+    /// L0 at t = 0. One dose of any formulation, or any number of
+    /// `.instantaneous` doses (2014 Eqs 6–8). More than one capsule or gum
+    /// dose, or mixed formulations, throws (FLAGGED F2). Zero-gram entries
+    /// are not doses and are ignored.
     public static func simulate(schedule: [Episode], dose: [Dose] = [], at times: [Double], _ p: Parameters = .lapses2016b) throws -> [Sample] {
         for (i, e) in schedule.enumerated() where !(e.hours.isFinite && e.hours > 0) {
             throw Refusal.invalidEpisode(index: i)
         }
         let end = schedule.reduce(0) { $0 + $1.hours }
-        guard dose.count <= 1 else { throw Refusal.repeatedDosesNotPublished }
-        if let d = dose.first {
+        for d in dose {
             guard d.atHours.isFinite, d.grams.isFinite, d.grams >= 0, d.atHours >= 0, d.atHours <= end else { throw Refusal.invalidDose }
         }
+        let taken = dose.filter { $0.grams > 0 }
+        let repeated = taken.count > 1
+        if repeated, taken.contains(where: { $0.formulation != .instantaneous }) { throw Refusal.repeatedDosesNotPublished }
         return try times.map { t in
             guard t.isFinite, t >= 0, t <= end else { throw Refusal.timeOutsideSchedule(t) }
             var s = p.initialS, l = p.initialL
@@ -269,7 +331,9 @@ public enum UMPCaffeineModel {
             let c = circadian(atHours: t, p)
             let p0 = s + p.circadianAmplitude * c
             var g = 1.0
-            if let d = dose.first {
+            if repeated {
+                g = try repeatedDoseFactor(atHours: t, doses: taken, p)
+            } else if let d = taken.first {
                 g = try caffeineFactor(hoursSinceDose: t - d.atHours, grams: d.grams, absorptionPerHour: d.formulation.absorptionPerHour, p)
             }
             return Sample(t: t, state: state, homeostatic: s, lowerAsymptote: l, circadian: c,

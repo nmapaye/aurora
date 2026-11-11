@@ -14,6 +14,8 @@ import Testing
 /// 3. Internal consistency: closed forms against an independent RK4
 ///    integration of the published differential equations. These verify the
 ///    code, not the science.
+/// 4. Repeated doses (2014 Eqs 6–8): hand-worked recursion and structural
+///    properties. No published repeated-dose curve is printed as numbers.
 @Suite struct UMPCaffeineModelTests {
     typealias M = UMPCaffeineModel
 
@@ -242,12 +244,206 @@ import Testing
         }
     }
 
+    // MARK: 4. Repeated doses (2014 Eqs 6–8, no absorption)
+
+    /// 2014 Table 1, study A (p. 15): M0 = 9.86 g⁻¹, k0 = 0.49 h⁻¹,
+    /// z = 1.63 g⁻¹, fitted with the repeated-dose model on all three
+    /// post-dose blocks. 2016b Table 3's lapse values are the same numbers.
+    /// Exact.
+    @Test func lapseCaffeineConstantsEqual2014Table1StudyA() {
+        let p = M.Parameters.lapses2016b
+        #expect(p.amplitudeSlopePerGram == 9.86)
+        #expect(p.basalEliminationPerHour == 0.49)
+        #expect(p.doseDecayPerGram == 1.63)
+        #expect(M.Formulation.instantaneous.absorptionPerHour == .infinity)
+    }
+
+    /// Vital-Lopez et al. 2024 (Sleep 47:zsae133, p. 4): after a dose gPD
+    /// reaches "a minimum after about 45 minutes" and then reaches "0.95 in
+    /// about 7.4 hours for a 100-mg dose and 13.7 hours for a 300-mg dose".
+    /// The paper does not say which parameter set or formulation; of the
+    /// four published combinations only the lapse set with gum (ka 3.21)
+    /// gives all three numbers at the printed precision (capsule gives 7.6 h
+    /// and 13.9 h), so that is an inference. Tolerances: minimum 42–48 min
+    /// ("about"), 0.95 times within 0.05 h (printed to 0.1 h).
+    /// Single dose, absorption form; grid 0.001 h.
+    @Test func singleDoseTimingsMatchVitalLopez2024() throws {
+        let p = M.Parameters.lapses2016b
+        func profile(_ grams: Double) throws -> (tMin: Double, t95: Double) {
+            let ts = (1...30000).map { Double($0) / 1000 }
+            let g = try ts.map { try M.caffeineFactor(hoursSinceDose: $0, grams: grams, absorptionPerHour: M.Formulation.gum.absorptionPerHour, p) }
+            let iMin = g.indices.min { g[$0] < g[$1] }!
+            let i95 = g.indices.first { $0 > iMin && g[$0] >= 0.95 }!
+            return (ts[iMin], ts[i95])
+        }
+        let d100 = try profile(0.1), d300 = try profile(0.3)
+        #expect(d100.tMin * 60 >= 42 && d100.tMin * 60 <= 48)
+        #expect(abs(d100.t95 - 7.4) < 0.05)
+        #expect(abs(d300.t95 - 13.7) < 0.05)
+    }
+
+    static func eq3(_ dt: Double, _ c: Double, _ p: M.Parameters) -> Double {
+        dt < 0 ? 1 : 1 / (1 + p.amplitudeSlopePerGram * c * exp(-p.basalEliminationPerHour * exp(-p.doseDecayPerGram * c) * dt))
+    }
+
+    /// 2014 p. 14: "The repeated-dose model in Eq. (6) reduces to Eq. (3)
+    /// under single-dose conditions." Exact to rounding (1e-15).
+    @Test func oneInstantaneousDoseIsEq3() throws {
+        let p = M.Parameters.lapses2016b
+        for c in [0.05, 0.1, 0.2, 0.6] {
+            let d = [M.Dose(atHours: 10, grams: c, formulation: .instantaneous)]
+            for t in stride(from: 0.0, through: 60, by: 0.25) {
+                let r = try M.repeatedDoseFactor(atHours: t, doses: d, p)
+                let single = try M.caffeineFactor(hoursSinceDose: t - 10, grams: c, absorptionPerHour: .infinity, p)
+                #expect(abs(r - Self.eq3(t - 10, c, p)) < 1e-15)
+                #expect(abs(single - Self.eq3(t - 10, c, p)) < 1e-15)
+            }
+        }
+    }
+
+    /// 2014 Eq 3 is the ka → ∞ limit of 2016b Eq 6a for t > t0. Code check:
+    /// ka = 1e7 h⁻¹ against `.infinity`, 0.1–48 h after a dose, within 1e-6.
+    @Test func eq3IsLargeKaLimitOfEq6a() throws {
+        let p = M.Parameters.lapses2016b
+        for c in [0.1, 0.4] {
+            for dt in stride(from: 0.1, through: 48, by: 0.1) {
+                let a = try M.caffeineFactor(hoursSinceDose: dt, grams: c, absorptionPerHour: 1e7, p)
+                let b = try M.caffeineFactor(hoursSinceDose: dt, grams: c, absorptionPerHour: .infinity, p)
+                #expect(abs(a - b) < 1e-6)
+            }
+        }
+    }
+
+    /// 2014 Eqs 6–8 worked by hand for the 2014 study design (three 200-mg
+    /// doses at 20, 22 and 24 h of sleep loss, 2014 Table 2 caption), with
+    /// E(t2⁻) = 0.2·e^(−k(0.2)·2) and E(t3⁻) = [E(t2⁻) + 0.2]·e^(−k(t2)·2).
+    /// Transcription check of the recursion, not a published curve: the
+    /// paper shows these curves only as Fig. C.1. Tolerance 1e-12.
+    @Test func threeDosesMatchHandWorkedEqs6to8() throws {
+        let p = M.Parameters.lapses2016b
+        let m0 = 9.86, k0 = 0.49, z = 1.63
+        func k(_ g: Double) -> Double { k0 * exp(-z * g) }
+        let e2 = 0.2 * exp(-k(0.2) * 2)
+        let e3 = (e2 + 0.2) * exp(-k(0.2 + e2) * 2)
+        func expected(_ t: Double) -> Double {
+            if t < 20 { return 1 }
+            if t < 22 { return 1 / (1 + m0 * 0.2 * exp(-k(0.2) * (t - 20))) }
+            if t < 24 { return 1 / (1 + m0 * (0.2 + e2) * exp(-k(0.2 + e2) * (t - 22))) }
+            return 1 / (1 + m0 * (0.2 + e3) * exp(-k(0.2 + e3) * (t - 24)))
+        }
+        let doses = [20.0, 22, 24].map { M.Dose(atHours: $0, grams: 0.2, formulation: .instantaneous) }
+        for t in [0, 19.99, 20, 21, 21.999, 22, 23, 23.999, 24, 26, 30, 48] {
+            #expect(abs(try M.repeatedDoseFactor(atHours: t, doses: doses, p) - expected(t)) < 1e-12)
+        }
+        let s = M.extantState(atHours: 30, sortedDoses: doses, p)!
+        #expect(abs(s.extantBeforeLast - e3) < 1e-15)
+        #expect(abs(s.equivalentGrams - (0.2 + e3)) < 1e-15)
+    }
+
+    /// Consequence of reading Eq 8's rate as k_D(j−1) (FLAGGED F10): just
+    /// before dose j, gPD equals [1 + M0·E(tj⁻)]⁻¹, i.e. the extant dose is
+    /// exactly the caffeine Eq 6 still shows as active. Tolerance 1e-9 at
+    /// 1e-9 h before the dose.
+    @Test func gPDIsContinuousFromTheLeftAtEachDose() throws {
+        let p = M.Parameters.lapses2016b
+        let doses = [(3.0, 0.1), (5.5, 0.3), (6.0, 0.05), (14.0, 0.2)].map { M.Dose(atHours: $0.0, grams: $0.1, formulation: .instantaneous) }
+        for (j, d) in doses.enumerated() where j > 0 {
+            let before = try M.repeatedDoseFactor(atHours: d.atHours - 1e-9, doses: doses, p)
+            let e = M.extantState(atHours: d.atHours, sortedDoses: doses, p)!.extantBeforeLast
+            #expect(abs(before - 1 / (1 + p.amplitudeSlopePerGram * e)) < 1e-9)
+        }
+    }
+
+    /// Doses far apart: the extant dose decays to nothing, so the later dose
+    /// acts as a fresh single dose (Eq 8 with tj − tj−1 → ∞). 200 h apart
+    /// E < 1e-20 g; tolerance 1e-12.
+    @Test func farApartDosesActAsSingleDoses() throws {
+        let p = M.Parameters.lapses2016b
+        let doses = [M.Dose(atHours: 0, grams: 0.1, formulation: .instantaneous), M.Dose(atHours: 200, grams: 0.3, formulation: .instantaneous)]
+        #expect(M.extantState(atHours: 200, sortedDoses: doses, p)!.extantBeforeLast < 1e-20)
+        for dt in stride(from: 0.0, through: 40, by: 0.5) {
+            #expect(abs(try M.repeatedDoseFactor(atHours: 200 + dt, doses: doses, p) - Self.eq3(dt, 0.3, p)) < 1e-12)
+            #expect(abs(try M.repeatedDoseFactor(atHours: dt, doses: doses, p) - Self.eq3(dt, 0.1, p)) < 1e-12)
+        }
+    }
+
+    /// Input order does not matter (doses are taken in time order), and two
+    /// doses at the same moment equal one dose of their sum (Eq 8 with
+    /// tj = tj−1 gives E = E + D). Tolerance 1e-15.
+    @Test func doseOrderAndSameTimeSplitInvariance() throws {
+        let p = M.Parameters.lapses2016b
+        let a = [M.Dose(atHours: 2, grams: 0.1, formulation: .instantaneous), M.Dose(atHours: 6, grams: 0.2, formulation: .instantaneous), M.Dose(atHours: 9, grams: 0.15, formulation: .instantaneous)]
+        let shuffled = [a[2], a[0], a[1]]
+        let split = [M.Dose(atHours: 4, grams: 0.1, formulation: .instantaneous), M.Dose(atHours: 4, grams: 0.1, formulation: .instantaneous)]
+        let whole = [M.Dose(atHours: 4, grams: 0.2, formulation: .instantaneous)]
+        for t in stride(from: 0.0, through: 30, by: 0.25) {
+            #expect(try M.repeatedDoseFactor(atHours: t, doses: a, p) == M.repeatedDoseFactor(atHours: t, doses: shuffled, p))
+            #expect(abs(try M.repeatedDoseFactor(atHours: t, doses: split, p) - M.repeatedDoseFactor(atHours: t, doses: whole, p)) < 1e-15)
+        }
+    }
+
+    /// 2014 p. 13: elimination slows "with cumulative increases in caffeine
+    /// concentration from repeated doses". With caffeine still present, the
+    /// second dose's rate is below that of the same dose taken alone and its
+    /// effect is larger (lower gPD) at every time after it. Strict inequality.
+    @Test func extantCaffeineSlowsEliminationAndDeepensEffect() throws {
+        let p = M.Parameters.lapses2016b
+        let doses = [M.Dose(atHours: 0, grams: 0.2, formulation: .instantaneous), M.Dose(atHours: 3, grams: 0.2, formulation: .instantaneous)]
+        let s = M.extantState(atHours: 3, sortedDoses: doses, p)!
+        #expect(s.extantBeforeLast > 0)
+        #expect(s.rate < 0.49 * exp(-1.63 * 0.2))
+        for dt in stride(from: 0.0, through: 24, by: 0.5) {
+            #expect(try M.repeatedDoseFactor(atHours: 3 + dt, doses: doses, p) < Self.eq3(dt, 0.2, p))
+        }
+    }
+
+    /// 0 < gPD ≤ 1 (2016b p. 1829) for repeated doses, and simulate applies
+    /// P = P0 × gPD with the repeated-dose factor. Exact.
+    @Test func repeatedDosesInSimulation() throws {
+        let sched = [M.Episode(.awake, hours: 16), M.Episode(.asleep, hours: 8), M.Episode(.awake, hours: 40)]
+        let doses = [20.0, 22, 24, 40, 41].map { M.Dose(atHours: $0, grams: 0.2, formulation: .instantaneous) }
+        let times = stride(from: 0.0, through: 64, by: 0.25).map { $0 }
+        let out = try M.simulate(schedule: sched, dose: doses, at: times)
+        let base = try M.simulate(schedule: sched, at: times)
+        for (s, b) in zip(out, base) {
+            let g = try M.repeatedDoseFactor(atHours: s.t, doses: doses, .lapses2016b)
+            #expect(s.caffeineFactor == g && g > 0 && g <= 1)
+            #expect(s.caffeineFree == b.caffeineFree && s.impairment == b.caffeineFree * g)
+            if s.t < 20 { #expect(g == 1) }
+        }
+    }
+
+    /// One instantaneous dose through simulate equals 2014 Eq 3.
+    @Test func singleInstantaneousDoseInSimulation() throws {
+        let sched = [M.Episode(.awake, hours: 30)]
+        let out = try M.simulate(schedule: sched, dose: [M.Dose(atHours: 20, grams: 0.2, formulation: .instantaneous)], at: [19, 20, 25])
+        for s in out { #expect(abs(s.caffeineFactor - Self.eq3(s.t - 20, 0.2, .lapses2016b)) < 1e-15) }
+    }
+
     // MARK: Refusals (flagged paths)
 
     @Test func refusesRepeatedDoses() {
         let d = M.Dose(atHours: 1, grams: 0.1, formulation: .gum)
         #expect(throws: M.Refusal.repeatedDosesNotPublished) {
             try M.simulate(schedule: [M.Episode(.awake, hours: 10)], dose: [d, d], at: [5])
+        }
+    }
+
+    /// FLAGGED F2: repeated doses with absorption (capsule, gum) and mixed
+    /// formulations stay refused; a zero-gram entry is not a dose.
+    @Test func refusesRepeatedAbsorptionAndMixedDoses() throws {
+        let sched = [M.Episode(.awake, hours: 10)]
+        let cap = M.Dose(atHours: 1, grams: 0.1, formulation: .capsule)
+        let inst = M.Dose(atHours: 2, grams: 0.1, formulation: .instantaneous)
+        #expect(throws: M.Refusal.repeatedDosesNotPublished) { try M.simulate(schedule: sched, dose: [cap, cap], at: [5]) }
+        #expect(throws: M.Refusal.repeatedDosesNotPublished) { try M.simulate(schedule: sched, dose: [cap, inst], at: [5]) }
+        #expect(throws: M.Refusal.repeatedDosesNotPublished) { try M.repeatedDoseFactor(atHours: 5, doses: [cap], .lapses2016b) }
+        let zero = M.Dose(atHours: 3, grams: 0, formulation: .capsule)
+        let a = try M.simulate(schedule: sched, dose: [cap, zero], at: [5])
+        let b = try M.simulate(schedule: sched, dose: [cap], at: [5])
+        #expect(a == b)
+        #expect(throws: M.Refusal.invalidDose) {
+            try M.simulate(schedule: sched, dose: [inst, M.Dose(atHours: 11, grams: 0.1, formulation: .instantaneous)], at: [5])
         }
     }
 
