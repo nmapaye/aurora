@@ -196,11 +196,11 @@ struct DrinkPhotoSheet: View {
             if let entry = card.entry {
                 ForEach(Array(card.usableLabelVolumes.enumerated()), id: \.offset) { _, volume in
                     let mg = db.mg(for: entry, volume: volume)
-                    selectableRow("\(volume.label) · from label", detail: mg.map { "\($0) mg" },
+                    selectableRow("\(volume.label) · From Label", detail: mg.map { "\($0) mg" },
                                   selected: card.serving == .label(volume)) { self.card?.choose(.label(volume)); typing = false }
                 }
                 ForEach(Array(entry.servings.enumerated()), id: \.offset) { index, serving in
-                    selectableRow(serving.label, detail: "\(serving.mg) mg", selected: card.serving == .listed(index)) {
+                    selectableRow(DrinkPhotoConfirmation.titleCase(serving.label), detail: "\(serving.mg) mg", selected: card.serving == .listed(index)) {
                         self.card?.choose(.listed(index)); typing = false
                     }
                 }

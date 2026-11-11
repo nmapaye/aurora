@@ -390,7 +390,7 @@ struct AssistantCardView: View {
             }
             metricRows
             if card.state == .saved && card.recordID != nil && !card.title.lowercased().contains("updated") {
-                Button("Undo entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
+                Button("Undo Entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
                     .transition(Motion.stateTransition(reduceMotion: reduceMotion))
             }
         }

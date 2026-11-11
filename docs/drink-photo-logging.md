@@ -108,6 +108,15 @@ in the Terms text (#87's `LegalCopy`), not in the app UI.
 | 5-hour Energy | none | | | Berry is sold as Regular Strength, and its page shows "230mg of Caffeine" beside "Caffeine (200mg)": Not in Database |
 | Matcha | none | | | Manual entry only |
 
+A label, photo, model reading or typed search that names a brand in the rows
+marked "none" (Dr Pepper, any 5-hour Energy label, Ghost, Starbucks, matcha)
+opens to Not in Database with empty name and amount fields. No generic USDA
+record is offered in its place (CPO, Nov 10): not "Soft drink, pepper type"
+for Dr Pepper, the generic "Energy Drink" for 5-hour or Ghost, or "Coffee,
+Latte" for a matcha latte. A barcode that matches a record still wins. The
+phrase list is `DrinkPhotoMatcher.unrecordedBrands`. A drink that names none of
+these brands keeps its generic picks.
+
 The rule (CPO, Nov 10): store one published number for one exact product and
 serving, or store nothing. Never pick between numbers, average them or scale
 them. So a maker's record is used only at its recorded serving
@@ -135,6 +144,7 @@ types the amount either way.
 US label data rarely reports caffeine, so the Branded set is mostly
 Coca-Cola-family drinks, Gold Peak, Polar and a few energy brands. Major energy
 drinks (Red Bull, Monster, Rockstar, NOS, AMP, Full Throttle, Vault, XS) are in
-FNDDS/SR as generic records with can sizes. Coffee-shop menu items (Starbucks
-sizes, for example) are covered only by generic FNDDS coffee records
-(small/medium/large and fl oz portions), not by chain-specific values.
+FNDDS/SR as generic records with can sizes. Coffee-shop menu items have no
+chain-specific values; a cup that names Starbucks is Not in Database (below),
+and an unbranded coffee photo gets the generic FNDDS coffee records
+(small/medium/large and fl oz portions).

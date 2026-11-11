@@ -285,41 +285,78 @@ import Testing
 
     /// 5-hour Energy: the maker sells Berry as Regular Strength yet its page
     /// shows "230mg of Caffeine" beside "Caffeine (200mg)", so there is no
-    /// record and no 5-hour photo, Regular, Extra Strength or Berry, maps to one.
+    /// record, and every 5-hour label (Regular, Extra Strength, Berry) shows
+    /// Not in Database with no generic "Energy Drink" stand-in.
     @Test func fiveHourEnergyHasNoRecord() {
         #expect(!db.entries.contains { ($0.name + " " + ($0.brand ?? "")).localizedCaseInsensitiveContains("5-hour") || $0.id.contains("5-hour") })
-        for text in [["5-hour ENERGY"], ["5-hour ENERGY", "EXTRA STRENGTH", "230mg"], ["5-hour ENERGY", "BERRY", "REGULAR STRENGTH", "1.93 FL OZ"]] {
-            if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: text), in: db) {
-                #expect(!list.contains { $0.entry.source == "manufacturer" || $0.entry.displayName.localizedCaseInsensitiveContains("5-hour") }, "\(text)")
-            }
+        for text in [["5-hour ENERGY"], ["5-hour ENERGY", "EXTRA STRENGTH", "230mg"], ["5-hour ENERGY", "BERRY", "REGULAR STRENGTH", "1.93 FL OZ"],
+                     ["5 HOUR ENERGY SHOT"], ["5HOUR"]] {
+            let observation = DrinkPhotoObservation(recognizedText: text)
+            let result = DrinkPhotoMatcher.match(observation, in: db)
+            guard case .noMatch = result else { Issue.record("5-hour offered a list: \(text) → \(result)"); continue }
+            let card = DrinkPhotoConfirmation(result: result, observation: observation, timestamp: now)
+            #expect(card.isNotInDatabase && card.candidates.isEmpty && card.entry == nil, "\(text)")
+            #expect(card.manualName == "" && card.typedMg == "", "\(text)")
         }
     }
 
+    /// The Not in Database list (docs/caffeine-brands-provenance.json):
     /// Starbucks and Ghost Energy have no single mg on a maker page, Dr Pepper
-    /// and 5-hour have two, and matcha is manual entry only: no record, so a
-    /// photo of one never becomes that brand and the person types the amount.
+    /// and 5-hour have two, and matcha is manual entry only. A photo naming
+    /// one opens to Not in Database with empty fields and no candidates.
     @Test func unsourcedBrandsAndMatchaShowNotInDatabase() throws {
         for brand in ["Starbucks", "Ghost", "Matcha", "Dr Pepper", "5-hour"] {
             #expect(!db.entries.contains { ($0.name + " " + ($0.brand ?? "")).localizedCaseInsensitiveContains(brand) }, "\(brand)")
         }
-        for text in ["STARBUCKS", "GHOST", "MATCHA"] {
-            let result = DrinkPhotoMatcher.match(.init(recognizedText: [text]), in: db)
-            var card = DrinkPhotoConfirmation(result: result, observation: .init(recognizedText: [text]), timestamp: now)
-            #expect(card.isNotInDatabase, "\(text)")
+        let photos: [(String, DrinkPhotoObservation)] = [
+            ("Starbucks", .init(recognizedText: ["STARBUCKS", "Frappuccino", "13.7 FL OZ"])),
+            ("Ghost", .init(recognizedText: ["GHOST ENERGY", "16 FL OZ"])),
+            ("Ghost", .init(recognizedText: ["GHOST"])),
+            ("Matcha", .init(recognizedText: ["MATCHA LATTE"])),
+            ("Matcha", .init(labels: ["matcha": 0.8])),
+            ("Matcha", .init(modelDrink: "Iced matcha latte")),
+            ("Dr Pepper", .init(recognizedText: ["Dr Pepper", "12 FL OZ"])),
+            ("Dr Pepper", .init(modelDrink: "soda", modelBrand: "Dr. Pepper")),
+            ("5-hour Energy", .init(recognizedText: ["5-hour ENERGY"])),
+        ]
+        for (brand, observation) in photos {
+            #expect(DrinkPhotoMatcher.unrecordedBrand(in: (observation.recognizedText + [observation.modelDrink, observation.modelBrand]).joined(separator: " ")) == brand
+                    || observation.labels["matcha"] != nil, "\(brand)")
+            let result = DrinkPhotoMatcher.match(observation, in: db)
+            guard case .noMatch = result else { Issue.record("\(brand) offered a list: \(result)"); continue }
+            var card = DrinkPhotoConfirmation(result: result, observation: observation, timestamp: now)
+            #expect(card.isNotInDatabase && card.candidates.isEmpty && card.entry == nil && card.serving == nil, "\(brand)")
+            #expect(card.manualName == "" && card.typedMg == "", "\(brand)")
             #expect(card.amount(db: db) == nil && card.draft(db: db, now: now) == nil)
-            card.enterManually(); card.name(text.capitalized)
-            #expect(card.typedMg == "" && card.amount(db: db) == nil)
-            card.type(mg: "120")
+            card.name(brand); card.type(mg: "120")
             #expect(card.amount(db: db)?.summary == "Typed by You")
         }
-        // Dr Pepper's maker publishes 41 and 43 mg: no record, only the generic USDA pepper-type soda if picked.
-        if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: ["Dr Pepper", "12 FL OZ"]), in: db) {
-            #expect(!list.contains { $0.entry.source == "manufacturer" || $0.entry.displayName.localizedCaseInsensitiveContains("Dr Pepper") })
+    }
+
+    /// The wrong offers the CPO found (Nov 10): Dr Pepper → "Soft drink,
+    /// pepper type", 5-hour → generic "Energy Drink", Ghost → a 144 mg
+    /// record, Matcha → "Coffee, Latte". No generic list for any of them,
+    /// from the photo or from typing the brand in Search the Database.
+    @Test func unrecordedBrandsGetNoGenericList() {
+        for text in ["Dr Pepper", "5-hour ENERGY", "GHOST ENERGY", "STARBUCKS", "MATCHA LATTE"] {
+            let result = DrinkPhotoMatcher.match(.init(recognizedText: [text]), in: db)
+            if case .candidates(let list, _) = result { Issue.record("\(text) → \(list.map(\.entry.displayName))") }
+            #expect(DrinkPhotoMatcher.search(text, in: db).isEmpty, "search \(text)")
         }
-        // Even with "energy" on the can, Ghost never becomes another brand's record.
-        if case .candidates(let list, _) = DrinkPhotoMatcher.match(.init(recognizedText: ["GHOST ENERGY"]), in: db) {
-            #expect(!list.contains { $0.entry.displayName.localizedCaseInsensitiveContains("Ghost") })
+    }
+
+    /// Guard: a drink with no Not in Database brand keeps its generic picks.
+    @Test func unrecognisedDrinksKeepTheirGenericPicks() throws {
+        for text in [["ENERGY DRINK", "16 FL OZ"], ["LATTE"], ["ICED COFFEE"], ["PEPPER SODA"]] {
+            let observation = DrinkPhotoObservation(recognizedText: text)
+            #expect(DrinkPhotoMatcher.unrecordedBrand(in: text.joined(separator: " ")) == nil)
+            let result = DrinkPhotoMatcher.match(observation, in: db)
+            guard case .candidates(let list, _) = result else { Issue.record("\(text) lost its picks: \(result)"); continue }
+            #expect(!list.isEmpty)
+            let card = DrinkPhotoConfirmation(result: result, observation: observation, timestamp: now)
+            #expect(card.manualName == nil && !card.candidates.isEmpty, "\(text)")
         }
+        #expect(!DrinkPhotoMatcher.search("latte", in: db).isEmpty && !DrinkPhotoMatcher.search("energy drink", in: db).isEmpty)
     }
 
     @Test func usdaCreditIsUnchangedBehindInfo() throws {

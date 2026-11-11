@@ -74,6 +74,8 @@ public enum DrinkPhotoMatcher {
         for (label, confidence) in observation.labels where confidence >= 0.3 {
             if let word = labelWords[label.lowercased()] { words.append(word) }
         }
+        // A brand Aurora deliberately has no record for: no generic stand-in.
+        if unrecordedBrand(in: words.joined(separator: " ")) != nil { return .noMatch(unrecordedBrandMessage) }
         let query = tokens(words.joined(separator: " "))
         guard !query.isEmpty else {
             return .noMatch("Aurora couldn't read a drink name in this photo. Try a closer photo of the label, or choose the drink yourself.")
@@ -93,8 +95,31 @@ public enum DrinkPhotoMatcher {
         return .candidates(top, confident: first.score >= confidentScore && margin >= confidentMargin)
     }
 
+    /// Brands on the Not in Database list (docs/caffeine-brands-provenance.json
+    /// `notInDatabase`): their makers publish no single number for the drink,
+    /// or (matcha) it's manual entry only. A photo or search naming one shows
+    /// Not in Database with empty fields, never a generic USDA record
+    /// (CPO, Nov 10). Phrases are matched on whole words of the folded text.
+    public static let unrecordedBrands: [(name: String, phrases: [String])] = [
+        ("Dr Pepper", ["dr pepper", "drpepper", "doctor pepper"]),
+        ("5-hour Energy", ["5 hour", "5hour", "five hour"]),
+        ("Ghost", ["ghost"]),
+        ("Starbucks", ["starbucks"]),
+        ("Matcha", ["matcha"]),
+    ]
+    public static let unrecordedBrandMessage = "Not in Aurora’s caffeine database. Enter the caffeine amount from the label or menu."
+
+    /// The Not in Database brand this text names, if any.
+    public static func unrecordedBrand(in text: String) -> String? {
+        let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        let words = folded.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        let padded = " " + words + " "
+        return unrecordedBrands.first { brand in brand.phrases.contains { padded.contains(" " + $0 + " ") } }?.name
+    }
+
     /// Text search used when the person types a drink name on the card.
     public static func search(_ text: String, in db: CaffeineDatabase) -> [Candidate] {
+        if unrecordedBrand(in: text) != nil { return [] }
         let query = tokens(text)
         guard !query.isEmpty else { return [] }
         let idf = inverseFrequency(db)
@@ -216,6 +241,8 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
             if confident, let first = list.first { entry = first.entry }
         case .noMatch(let message):
             candidates = []; noMatchMessage = message
+            // A Not in Database brand opens straight to empty manual fields.
+            if message == DrinkPhotoMatcher.unrecordedBrandMessage { manualName = ""; typedMg = "" }
         }
         if let entry { serving = Self.defaultServing(entry, volumes: labelVolumes) }
         if let entry, Self.otherSizeThanPublished(entry, volumes: labelVolumes) { fallBackToManualEntry() }
@@ -340,7 +367,7 @@ public struct DrinkPhotoConfirmation: Equatable, Sendable {
     /// Serving labels in title case for the short line: "1 can or bottle
     /// (12 fl oz)" -> "1 Can or Bottle (12 fl oz)". Units and short joining
     /// words stay lowercase; anything already capitalized is left alone.
-    static func titleCase(_ label: String) -> String {
+    public static func titleCase(_ label: String) -> String {
         let keep: Set<String> = ["fl", "oz", "ml", "g", "l", "or", "and", "of", "with", "from"]
         return label.split(separator: " ", omittingEmptySubsequences: false).map { word -> String in
             let lead = word.prefix { !$0.isLetter }
