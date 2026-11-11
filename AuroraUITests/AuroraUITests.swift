@@ -668,12 +668,27 @@ final class AuroraUITests: XCTestCase {
         // week"), and the app then answered the fragment. Fail here, naming
         // what the field holds, instead of timing out later on a missing card.
         let typed = NSPredicate(format: "value == %@", text)
-        // One native query checks identity and the entire value together;
-        // no partial-text match, retry typing, or longer deadline.
+        // Keys can also land late on a loaded simulator: run 42895134800
+        // (iPhone, iteration 5) read "Sh" 6.4 s and the full text 9 s after
+        // typeText returned. TypingProgress waits only while the field gains
+        // characters of the request: 5 s with no new character fails, 20 s
+        // in all fails, and text that isn't a prefix fails at once. No
+        // partial-text match and no retyping. Once complete, one native
+        // query still checks identity and the entire value together.
         let exactInput = app.textFields.matching(identifier: "assistant-composer")
             .matching(typed).element
-        guard exactInput.waitForExistence(timeout: 5) else {
-            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
+        var progress = TypingProgress(text: text)
+        let typingStarted = Date()
+        var verdict: TypingProgress.Verdict?
+        while verdict == nil {
+            let readStart = Date().timeIntervalSince(typingStarted)
+            let value: String? = (try? input.snapshot()).map { $0.value as? String ?? "" }
+            verdict = progress.observe(value, readStart: readStart, readEnd: Date().timeIntervalSince(typingStarted))
+            if verdict == nil { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        guard verdict == .complete, exactInput.exists else {
+            let saw = verdict == .complete ? "the field read complete but the composer query found no exact match" : progress.describe(verdict)
+            XCTFail("request(\"\(text)\"): complete text was not verified; \(saw); not sending",
                     file: file, line: line)
             return
         }
