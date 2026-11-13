@@ -760,9 +760,9 @@ final class AssistantModel {
     func savePhotoDose(_ draft: CustomDoseDraft, app: AppModel) -> String? {
         app.tick()
         if let message = CaffeineLog.validate(draft, now: app.now).message { return message }
-        let dose = app.addCustomDose(draft)
-        if let problem = app.mutationFailure { return problem }
-        guard app.state.doses.contains(where: { $0.id == dose.id }) else { return "The drink wasn’t saved. Try again." }
+        guard let dose = addDose(draft, app: app) else { return app.mutationFailure ?? "The drink wasn’t saved. Try again." }
+        failure = nil
+        savedDose = dose
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
         return nil
     }
