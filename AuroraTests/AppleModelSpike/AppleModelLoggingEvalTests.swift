@@ -1,17 +1,19 @@
 // SPIKE-1 (spike/apple-model-logging): on-device comparison of Apple
 // Foundation Models extraction with the existing rule-based parser on the
-// fixed phrase set (phrases.json beside this file). Skipped unless the test
-// run sets AURORA_FM_EVAL=1. Results land in the app container's
+// fixed phrase set (phrases.json beside this file). Compiled only when the
+// AURORA_FM_EVAL compilation condition is set (see the spike README), so a
+// normal test run contains no eval cases at all: CI's result check rejects
+// any skipped test, and an env-gated case always reported as skipped.
+// Results land in the app container's
 // Documents/aurora-fm-eval/ and as a test attachment. Score them with
 // spikes/apple-model-logging/score.py. Nothing leaves the device.
-#if canImport(FoundationModels) && DEBUG
+#if canImport(FoundationModels) && DEBUG && AURORA_FM_EVAL
 import AuroraCore
 import Foundation
 import FoundationModels
 import Testing
 
 private final class SpikeBundleToken {}
-private let fmEvalEnabled = ProcessInfo.processInfo.environment["AURORA_FM_EVAL"] == "1"
 
 // MARK: Guided generation schema. The model fills these; deterministic code
 // below turns clock times into minutes. Amounts may come only from the
@@ -168,7 +170,7 @@ enum SpikeModel {
     /// Accuracy on all 300 phrases: one fresh session per phrase, no
     /// prewarm. The first request is the only process-cold one. The
     /// rule-based parser runs on the same phrases on the same device.
-    @Test(.enabled(if: fmEvalEnabled)) func accuracyAllPhrases() async throws {
+    @Test func accuracyAllPhrases() async throws {
         let set = try phraseSet()
         let now = LoggingEval.now(set.reference), clock = LoggingEval.clock(set.reference)
         let history = LoggingEval.history(set.reference, now: now)
@@ -195,7 +197,7 @@ enum SpikeModel {
     /// Latency: every tenth phrase (30), five times each, cold (fresh
     /// session, no prewarm) and warm (fresh session, prewarmed, then 1.5 s,
     /// as Apple advises at least a second).
-    @Test(.enabled(if: fmEvalEnabled)) func latencySubset() async throws {
+    @Test func latencySubset() async throws {
         guard #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable else {
             try write(.init(meta: meta(["fm": "unavailable"]), results: []), name: "latency"); return
         }
