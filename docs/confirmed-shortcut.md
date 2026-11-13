@@ -59,3 +59,21 @@ SDK/native verification. No actual Apple inference or phone install follows from
 these portable tests. This change is staged locally only; parent owns publication and one
 appropriate CI cycle. Personal install, #71/#72, autosave criteria and merge/release
 remain independent gates. Do not copy unknown Mac source or enable test reset flags.
+
+## Integration update (2026-11-12, integration branch)
+The experiment decisions above were superseded when the experiments were
+integrated on one branch, following PRODUCT.md ("a log saves immediately with a
+clear, reliable Undo, and every log can be undone"):
+- SPIKE1 **Log Drink** now ships beside Review Drink. It saves at once through
+  the same local-first path (dose and queued Health action in one change), only
+  with a Quick Add preset amount or the person's usual drink (never a guess),
+  refuses until onboarding and the current Terms are done, ignores a retry of
+  the same drink within 5 s, and offers exact-entry Undo in its result, by voice
+  ("Undo drink", 10 minutes), and on the conversation's receipt. One
+  `AppShortcutsProvider` (`AuroraShortcuts`) lists Log Drink, Undo Drink and
+  Review Drink. Tests: `AuroraTests/LogDrinkShortcutAppTests`,
+  `AuroraCoreTests/LogDrinkShortcutTests`.
+- SPIKE2 **Why This Number** ships as the current energy card's disclosure,
+  reading the captured `EnergyEstimate` (same contributions as
+  `GroundedLocalExplanation`, so the numbers cannot diverge).
+- SPIKE3 stays an evaluation: Debug-only, test bundle, `AURORA_FM_EVAL=1`.
