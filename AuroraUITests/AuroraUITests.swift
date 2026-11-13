@@ -699,19 +699,8 @@ final class AuroraUITests: XCTestCase {
                     file: file, line: line)
             return
         }
-        // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a re-tap can never send twice.
-        let cleared = NSPredicate(format: "value != %@", text)
-        let send = app.buttons["assistant-send"]
-        // Sent (empty field, so Send is disabled) or still working (Send is
-        // Stop). Re-tapping a disabled Send lands on the composer and raises
-        // the keyboard (run 42862394439, long-card rerun iteration 18).
-        let sentOrBusy = NSPredicate { _, _ in !send.exists || !send.isEnabled }
-        for _ in 0..<3 {
-            send.tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: settle) == .completed { break }
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sentOrBusy, object: send)], timeout: 1) == .completed { break }
-        }
+        SendRetry.send(text: text, input: input, send: app.buttons["assistant-send"], settle: settle)
     }
     /// `settle: 0` always reaches the retry; the old loop then re-tapped the
     /// disabled Send and left the composer focused with the keyboard up.

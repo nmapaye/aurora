@@ -64,19 +64,8 @@ final class CutoffScenarioUITests: XCTestCase {
         let input = app.textFields["assistant-composer"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap(); input.typeText("Cutoff scenario")
-        // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a retry can never send twice.
-        let cleared = NSPredicate(format: "value != %@", "Cutoff scenario")
-        let send = app.buttons["assistant-send"]
-        // Sent (empty field, so Send is disabled) or still working (Send is
-        // Stop). Re-tapping a disabled Send lands on the composer, which
-        // raises the keyboard over the card (run 42862394439).
-        let sentOrBusy = NSPredicate { _, _ in !send.exists || !send.isEnabled }
-        for _ in 0..<3 {
-            send.tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: settle) == .completed { break }
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sentOrBusy, object: send)], timeout: 1) == .completed { break }
-        }
+        SendRetry.send(text: "Cutoff scenario", input: input, send: app.buttons["assistant-send"], settle: settle)
         XCTAssertTrue(app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), app.debugDescription)
     }
