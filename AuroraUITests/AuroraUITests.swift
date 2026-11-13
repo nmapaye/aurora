@@ -410,15 +410,27 @@ final class AuroraUITests: XCTestCase {
 
     /// A typed log with an amount saves on arrival: a receipt with Undo, no
     /// draft and no Save step.
-    func testTypedCaffeineLogSavesImmediatelyWithUndo() {
+    /// A typed drink goes through the on-device review (#79): nothing is
+    /// saved until Save; Save posts "Caffeine saved" with exact-entry Undo.
+    /// Instant save for this route waits on the owner's autosave criteria
+    /// (docs/apple-on-device-features.md); Rule A's instant save covers
+    /// "Log it", the Log Drink shortcut, and failed-write retry.
+    /// The simulator has no on-device model: the Debug echo stands in for its
+    /// extraction.
+    func testTypedDrinkReviewSavesWithUndo() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestEchoDrinkEvidence"]
+        app.launch()
         finishSetup()
-        request("I had 80 mg tea")
+        request("I had 80 mg tea now")
+        let save = app.buttons["assistant-dose-save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(app.buttons["assistant-undo"].exists, "Nothing is saved before Save")
+        tapWhenReady(save)
         let undo = app.buttons["assistant-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
-        XCTAssertFalse(app.buttons["assistant-dose-save"].exists)
-        XCTAssertFalse(cardTitle("caffeineDraft").exists)
-        attachScreenshot("Instant caffeine receipt")
+        attachScreenshot("Typed drink receipt")
         tapWhenReady(undo)
         let removed = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch
         // As below: a tap CI ignored leaves Undo on the still-saved receipt.

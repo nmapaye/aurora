@@ -105,8 +105,25 @@ final class AssistantModel {
         self.makeConversationStore = makeStore
         #if DEBUG
         scheduleCutoffReminder = Self.uiTestCutoffScheduler()
+        extractLocalDrink = Self.uiTestDrinkExtractor()
         #endif
     }
+
+    #if DEBUG
+    /// UI tests on a simulator without Apple's on-device model: with
+    /// `-AuroraUITestEchoDrinkEvidence` the extraction step returns the spans
+    /// the deterministic parser found, so the typed-drink review (#79) runs end
+    /// to end. Nil otherwise, and compiled out of Release.
+    static func uiTestDrinkExtractor(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> ((String) async throws -> LocalDrinkUnderstanding.Evidence)? {
+        guard arguments.contains("-AuroraUITestEchoDrinkEvidence") else { return nil }
+        return { input in
+            guard case .proposal(let proposal) = LocalDrinkUnderstanding.prepare(input, doses: [], now: AppModel.currentMillis(), clock: .current) else {
+                throw AppleOnDeviceFeatures.FeatureFailure("No drink in this request.")
+            }
+            return proposal.evidence
+        }
+    }
+    #endif
 
     /// Whether Apple's on-device model is ready, checked off the main thread.
     /// Views read this cached value: asking the system from a view body can
