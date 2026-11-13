@@ -9,13 +9,16 @@ struct EnergyEvidenceSections: View {
     let snapshot: EnergySnapshot
     let text: DateText
     var showsRecordedByYou = true
+    /// "Why This Number": the current card's score explained part by part
+    /// (`AlertnessExplanation`) in place of the plain list of model inputs.
+    var explainsScore = false
 
     private var estimate: EnergyEstimate { snapshot.estimate }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.md) {
             status
-            contributions
+            if explainsScore { WhyThisNumberCard(estimate: estimate, text: text) } else { contributions }
             if showsRecordedByYou { EnergyRecordedByYou(snapshot: snapshot, text: text) }
         }
     }
