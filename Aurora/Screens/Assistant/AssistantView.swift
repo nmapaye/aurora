@@ -202,8 +202,10 @@ struct AssistantView: View {
         .background(Palette.screen.ignoresSafeArea())
         .task { await assistant.start(app: app); await reviewShortcutIfReady() }
         .task(id: caffeineShortcut.request.requested) { await reviewShortcutIfReady() }
+        // A drink the Log Drink shortcut saved shows its receipt with Undo.
+        .task(id: app.lastShortcutLog?.id) { if phase == .active { assistant.showShortcutLog(app: app) } }
         .onChange(of: phase) { _, phase in
-            if phase == .active { Task { await reviewShortcutIfReady() } }
+            if phase == .active { Task { await reviewShortcutIfReady(); assistant.showShortcutLog(app: app) } }
         }
         .modifier(ConversationObservers(assistant: assistant, router: router, app: app, dictation: dictation,
                                         input: $input, keyboardOverlap: $keyboardOverlap, composerFocused: composerFocused))

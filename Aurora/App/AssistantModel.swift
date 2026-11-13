@@ -247,6 +247,21 @@ final class AssistantModel {
         captureDraft(app: app)
     }
 
+    /// The Log Drink shortcut entry this conversation already showed.
+    private var shownShortcutLogID: String?
+
+    /// A drink the Log Drink shortcut saved (Siri, Shortcuts, Action button)
+    /// gets the same "Caffeine saved" receipt as a typed log, with Undo for
+    /// exactly that entry, once the conversation is on screen. The shortcut
+    /// keeps its own record, so "Undo drink" by voice still works.
+    func showShortcutLog(app: AppModel) {
+        guard started, storageReady, let dose = app.lastShortcutLog, dose.id != shownShortcutLogID else { return }
+        shownShortcutLogID = dose.id
+        guard app.state.doses.contains(dose) else { return }
+        savedDose = dose
+        receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+    }
+
     func send(_ input: String, app: AppModel) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !processing else { return }

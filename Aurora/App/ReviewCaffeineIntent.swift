@@ -23,13 +23,5 @@ struct ReviewCaffeineIntent: AppIntent {
     }
 }
 
-struct AuroraReviewShortcuts: AppShortcutsProvider {
-    static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: ReviewCaffeineIntent(),
-            phrases: ["Review a drink in \(.applicationName)"],
-            shortTitle: "Review Drink",
-            systemImageName: "cup.and.saucer"
-        )
-    }
-}
+// Its App Shortcut is listed in `AuroraShortcuts` (LogDrinkIntents.swift):
+// an app declares one AppShortcutsProvider.

@@ -28,6 +28,8 @@ struct LogView: View {
             }
         }
         .sensoryFeedback(.success, trigger: addedCount)
+        // A drink a shortcut just saved gets the same Undo banner as Quick Add.
+        .task(id: model.lastShortcutLog?.id) { showShortcutLog() }
         .sheet(item: $sheet) { sheet in
             DoseEntrySheet(mode: sheet, draft: draft(for: sheet)) { result in
                 handle(result, for: sheet)
@@ -146,6 +148,13 @@ struct LogView: View {
         withAnimation { confirmation = Confirmation(dose: dose, text: text) }
         addedCount += 1
         UIAccessibility.post(notification: .announcement, argument: "\(text) Undo is available.")
+    }
+
+    private func showShortcutLog() {
+        guard let dose = model.lastShortcutLog, model.state.doses.contains(where: { $0.id == dose.id }) else { return }
+        model.clearShortcutLog()
+        let text = CaffeineLog.quickAddConfirmation(dose, formatTime: model.text.clockTime)
+        withAnimation { confirmation = Confirmation(dose: dose, text: text) }
     }
 
     private func undo(_ confirmation: Confirmation) {

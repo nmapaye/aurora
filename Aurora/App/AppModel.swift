@@ -218,6 +218,56 @@ final class AppModel {
         removeDose(dose.id)
     }
 
+    // MARK: Shortcuts
+
+    /// The entry the last "Log drink" shortcut saved while this process ran.
+    /// Kept in memory only, so nothing about it outlives the process or
+    /// reaches a backup. The Log shows its Undo banner for it.
+    private(set) var lastShortcutLog: Dose?
+
+    /// "Log drink" from Shortcuts, Siri, Spotlight or the Action button.
+    /// Saves at once through Quick Add's path (the dose and its queued Health
+    /// save in one change), so the Log's Undo and Health export behave the
+    /// same. A retry of the same drink within `LogDrinkShortcut.repeatGuardMs`
+    /// saves nothing and returns the entry already there. Nil when nothing
+    /// could be saved.
+    func logFromShortcut(_ choice: LogDrinkShortcut.Choice) -> LogDrinkShortcut.Outcome? {
+        guard phase == .ready else { return nil }
+        tick()
+        let outcome = LogDrinkShortcut.resolve(choice, doses: state.doses, now: now, id: RecordID.newDoseID(now: now))
+        guard case .log(let dose) = outcome else {
+            if case .alreadyLogged(let dose) = outcome { lastShortcutLog = dose }
+            return outcome
+        }
+        let action = nextActionID()
+        guard update({ $0.addDose(dose); $0.queueHealthSave(doseID: dose.id, now: now, id: action) }) else { return nil }
+        lastQuickAddAt = now
+        lastShortcutLog = dose
+        exportToHealth(dose.id)
+        return outcome
+    }
+
+    /// Undo from a shortcut: removes exactly the entry in the receipt if it
+    /// is still there unchanged. Returns the removed entry.
+    func undoShortcutLog(_ receipt: LogDrinkShortcut.Receipt) -> Dose? {
+        guard phase == .ready, let dose = LogDrinkShortcut.undoTarget(receipt, doses: state.doses) else { return nil }
+        removeDose(dose.id)
+        guard !state.doses.contains(where: { $0.id == dose.id }) else { return nil }
+        if lastShortcutLog?.id == dose.id { lastShortcutLog = nil }
+        return dose
+    }
+
+    /// "Undo drink" by voice: the last shortcut log, within
+    /// `LogDrinkShortcut.undoLastWindowMs`.
+    func undoLastShortcutLog() -> Dose? {
+        tick()
+        guard let dose = LogDrinkShortcut.undoLastTarget(lastShortcutLog.map { LogDrinkShortcut.Receipt($0) }, doses: state.doses, now: now) else { return nil }
+        return undoShortcutLog(.init(dose))
+    }
+
+    /// The Log's Undo banner took over the shortcut's entry.
+    func clearShortcutLog() { lastShortcutLog = nil }
+
     /// Removes the dose here first; only Aurora's own copy in Health is then
     /// queued for removal.
     private func removeDose(_ id: String) {
