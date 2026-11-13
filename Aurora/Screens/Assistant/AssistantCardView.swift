@@ -368,9 +368,9 @@ struct AssistantCardView: View {
         case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
-                Button("Log it") { assistant.reviewRepeatDrink(message, app: app) }
+                Button("Log it") { assistant.logRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraPrimary).disabled(assistant.processing)
-                    .accessibilityIdentifier("repeat-drink-review")
+                    .accessibilityIdentifier("repeat-drink-log")
                 Button("Not today") { assistant.dismissRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraSecondary)
                     .accessibilityIdentifier("repeat-drink-dismiss")

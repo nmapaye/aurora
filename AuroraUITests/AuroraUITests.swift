@@ -391,7 +391,29 @@ final class AuroraUITests: XCTestCase {
         add(capture)
     }
 
-    func testCaffeineNeedsReviewAndUndoRemovesOnlySavedEntry() {
+    /// A typed log with an amount saves on arrival: a receipt with Undo, no
+    /// draft and no Save step.
+    func testTypedCaffeineLogSavesImmediatelyWithUndo() {
+        finishSetup()
+        request("I had 80 mg tea")
+        let undo = app.buttons["assistant-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
+        XCTAssertFalse(app.buttons["assistant-dose-save"].exists)
+        XCTAssertFalse(cardTitle("caffeineDraft").exists)
+        attachScreenshot("Instant caffeine receipt")
+        tapWhenReady(undo)
+        let removed = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch
+        // As below: a tap CI ignored leaves Undo on the still-saved receipt.
+        if !removed.waitForExistence(timeout: 3), undo.exists {
+            attachScreenshot("First Undo tap was ignored")
+            tapWhenReady(undo)
+        }
+        XCTAssertTrue(removed.waitForExistence(timeout: 5))
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 3), "The removed entry must not offer Undo again")
+    }
+    /// The quick action has no amount to save, so its entry card asks for one.
+    func testCaffeineEntryNeedsAmountAndUndoRemovesOnlySavedEntry() {
         finishSetup()
         app.buttons["assistant-quick-Log caffeine"].tap()
         let amount = app.textFields["assistant-dose-amount"]
@@ -1163,9 +1185,9 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
         let title = cardTitle("repeatDrink")
         XCTAssertTrue(title.waitForExistence(timeout: 10))
-        let review = app.buttons["repeat-drink-review"]
-        for _ in 0..<12 where !review.isHittable { app.swipeUp() }
-        XCTAssertTrue(review.isHittable)
+        let logIt = app.buttons["repeat-drink-log"]
+        for _ in 0..<12 where !logIt.isHittable { app.swipeUp() }
+        XCTAssertTrue(logIt.isHittable)
         XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)
         let question = NSPredicate(format: "label BEGINSWITH 'Did you have a Drip around ' AND label ENDSWITH '?'")
         XCTAssertTrue(app.staticTexts.matching(question).firstMatch.exists)
