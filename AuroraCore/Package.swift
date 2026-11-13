@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "AuroraCore", targets: ["AuroraCore"]),
     ],
     targets: [
-        .target(name: "AuroraCore"),
+        .target(name: "AuroraCore", resources: [.copy("Resources/caffeine-db.json")]),
         .testTarget(
             name: "AuroraCoreTests",
             dependencies: ["AuroraCore"],

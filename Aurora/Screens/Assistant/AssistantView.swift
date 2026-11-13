@@ -912,6 +912,7 @@ private struct ConversationComposer: View {
     @Binding var showHealthConnection: Bool
     let dictation: OnDeviceDictation
     let editingCard: Bool
+    @State private var showPhotoLog = false
 
     private var inputEmpty: Bool { input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -966,6 +967,7 @@ private struct ConversationComposer: View {
                 .lineLimit(1...5).focused(focused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
                 .submitLabel(.send).onSubmit { send() }
                 .frame(minHeight: Metrics.minimumTouchTarget)
+            DrinkPhotoButton(isPresented: $showPhotoLog)
             Button {
                 if dictation.recording { dictation.stop() } else { Task { await dictation.start() } }
             } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.title3).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget) }
