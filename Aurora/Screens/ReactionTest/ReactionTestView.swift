@@ -295,7 +295,7 @@ private struct ReactionResults: View {
             }
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(Palette.textSecondary)
-            Text("A quick check of reaction speed, not a medical assessment.")
+            Text("A quick check of reaction speed.")
                 .font(.footnote)
                 .foregroundStyle(Palette.textSecondary)
             ViewThatFits(in: .horizontal) {

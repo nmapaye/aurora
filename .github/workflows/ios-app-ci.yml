@@ -26,18 +26,24 @@ on:
       - '.github/scripts/fixtures/keyboard_minimize/**'
   pull_request:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed 40-character source SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-app-${{ github.ref }}
-  cancel-in-progress: true
+  group: ios-app-${{ github.event_name == 'workflow_dispatch' && 'artifact-only' || 'ci' }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   # Pull requests run this workflow whatever they touch, so the gate below
   # always reports. The real jobs run only when in the app changed.
   changes:
+    if: github.event_name != 'workflow_dispatch'
     name: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -74,6 +80,7 @@ jobs:
   # Runs on every pull request so a change that adds a required-reason API
   # fails here even when nothing else in the app changed.
   privacy-manifest:
+    if: github.event_name != 'workflow_dispatch'
     name: privacy manifest
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -86,7 +93,7 @@ jobs:
 
   build-and-test:
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.relevant == 'true'
     name: ios-app (${{ matrix.device }})
     runs-on: macos-26
     # Build, native tests and the full serial UI suite (about 30 minutes on
@@ -441,7 +448,19 @@ jobs:
         if: ${{ !cancelled() && (success() || steps.repeat.outcome == 'failure' || steps.repeat-typed.outcome == 'failure') }}
         run: |
           mkdir -p build
-          xcrun simctl uninstall "${{ steps.sim.outputs.udid }}" com.nmapaye.aurora || true
+          udid="${{ steps.sim.outputs.udid }}"
+          # simctl uninstall needs a booted device. After a long test step the
+          # simulator can be Shutdown (iPad, run 42652817144: CoreSimulator 405),
+          # which left the earlier build and its completed setup installed, so
+          # this "clean install" opened past onboarding. Boot first, uninstall,
+          # and fail unless the app is really gone.
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl uninstall "$udid" com.nmapaye.aurora || true
+          if xcrun simctl get_app_container "$udid" com.nmapaye.aurora >/dev/null 2>&1; then
+            echo "::error title=Release smoke::com.nmapaye.aurora still installed; not a clean install"
+            exit 1
+          fi
           set +e
           xcodebuild test \
             -project Aurora.xcodeproj -scheme AuroraReleaseSmoke -configuration Release \
@@ -504,12 +523,109 @@ jobs:
             build/KeyboardProbe.xcresult
             build/ReleaseSmoke.xcresult
 
+  # Standard public-repository Actions usage is free; do not use this route
+  # for a private repository without a separate cost assessment.
+  unsigned-device-artifact:
+    name: unsigned iphoneos artifact only
+    if: github.event_name == 'workflow_dispatch' && github.event.repository.private == false
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact workflow ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify explicit reviewed SHA
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$EXPECTED_SHA" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Build unsigned iphoneos only
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild build \
+            -project Aurora.xcodeproj -scheme Aurora -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            > build/xcodebuild-release-device.log 2>&1
+          python3 .github/scripts/xcode-annotate.py build/xcodebuild-release-device.log
+          device=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist
+          test -f "$device"
+          if plutil -extract NSAppTransportSecurity xml1 -o - "$device" >/dev/null 2>&1; then
+            echo '::error::Unexpected device networking exception'
+            exit 1
+          fi
+          python3 .github/scripts/verify_beta_scope.py "$device"
+
+      # Unsigned, public-source payload only; no provisioning/keychain/ASC access.
+      # A tar preserves app executable modes and bundle layout across artifact ZIPs.
+      - name: Package unsigned device app
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          app=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app
+          test -f "$app/Aurora"
+          test ! -e "$app/embedded.mobileprovision"
+          test ! -e "$app/_CodeSignature"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" = com.nmapaye.aurora
+          test "$(/usr/libexec/PlistBuddy -c 'Print DTPlatformName' "$app/Info.plist")" = iphoneos
+          lipo "$app/Aurora" -verify_arch arm64
+          mkdir -p build/unsigned-device
+          cp Aurora/Aurora.entitlements build/unsigned-device/requested-entitlements.plist
+          # Requested entitlements are signing INPUTS, not a claim of granted rights.
+          xcodebuild -version > build/unsigned-device/xcode-version.txt
+          xcrun --sdk iphoneos --show-sdk-version > build/unsigned-device/sdk-version.txt
+          dwarfdump --uuid "$app/Aurora" > build/unsigned-device/binary-uuid.txt
+          tar -cf build/unsigned-device/Aurora-unsigned.tar -C build/DerivedData/Build/Products/Release-iphoneos Aurora.app
+          dsym=build/DerivedData/Build/Products/Release-iphoneos/Aurora.app.dSYM
+          if [ -d "$dsym" ]; then
+            tar -rf build/unsigned-device/Aurora-unsigned.tar -C build/DerivedData/Build/Products/Release-iphoneos Aurora.app.dSYM
+          fi
+          python3 - <<'PYMETA'
+          import hashlib, json, os, pathlib, plistlib
+          root = pathlib.Path('build/unsigned-device')
+          info = plistlib.loads(pathlib.Path('build/DerivedData/Build/Products/Release-iphoneos/Aurora.app/Info.plist').read_bytes())
+          metadata = {
+              'schema': 1, 'signed': False, 'installReady': False,
+              'sourceSha': os.environ['SOURCE_SHA'], 'runId': os.environ['RUN_ID'],
+              'runAttempt': os.environ['RUN_ATTEMPT'],
+              'bundleId': info['CFBundleIdentifier'],
+              'version': info['CFBundleShortVersionString'], 'build': info['CFBundleVersion'],
+              'minimumOS': info.get('MinimumOSVersion'), 'platform': info['DTPlatformName'],
+              'payloadSha256': hashlib.sha256((root / 'Aurora-unsigned.tar').read_bytes()).hexdigest(),
+              'entitlementsSha256': hashlib.sha256((root / 'requested-entitlements.plist').read_bytes()).hexdigest(),
+          }
+          (root / 'provenance.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PYMETA
+
+      - name: Retain unsigned device app
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-iphoneos-${{ github.sha }}
+          path: build/unsigned-device/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: false
+
+
   # The one check the main ruleset requires. It passes when every job
   # passed, or when the jobs were skipped because nothing in the app changed.
   gate:
     name: iOS App gate
     needs: [changes, privacy-manifest, build-and-test]
-    if: always()
+    if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

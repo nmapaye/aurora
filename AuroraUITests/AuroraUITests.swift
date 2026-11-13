@@ -102,7 +102,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["assistant-health-disclosure"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant-health-connect"].exists)
         app.buttons["assistant-health-done"].tap()
-        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Aurora Settings"].waitForExistence(timeout: 5))
     }
 
     func testHealthChoicesRemainReachableAtLargestTextWithoutRequestingAccess() {
@@ -150,7 +150,7 @@ final class AuroraUITests: XCTestCase {
         finishSetup()
         tapQuick("Log caffeine")
         app.buttons["assistant-settings"].tap()
-        XCTAssertTrue(app.navigationBars["Aurora settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Aurora Settings"].waitForExistence(timeout: 5))
         let records = app.buttons["assistant-record-settings"]
         for _ in 0..<8 where !records.isHittable { app.swipeUp() }
         XCTAssertTrue(records.isHittable)
@@ -223,6 +223,23 @@ final class AuroraUITests: XCTestCase {
         let entry = app.buttons["assistant-wake-reminders"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
         XCTAssertTrue(entry.label.contains("+1h, +2h"))
+    }
+
+    /// Debug builds only: both research models side by side, reached from
+    /// Developer settings. With no records both refuse; nothing is imputed.
+    func testDebugResearchModelsShowBothModelsSideBySide() {
+        finishSetup()
+        tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
+        let entry = app.buttons["developer-research-models"]
+        for _ in 0..<8 where !entry.isHittable { app.swipeUp() }
+        XCTAssertTrue(entry.isHittable)
+        entry.tap()
+        XCTAssertTrue(app.navigationBars["Research Models"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Three-Process Model · KSS 1–9"].waitForExistence(timeout: 5))
+        let ump = app.staticTexts["Unified Model of Performance · PVT lapses"]
+        for _ in 0..<6 where !ump.exists { app.swipeUp() }
+        XCTAssertTrue(ump.exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Refused'")).firstMatch.exists)
     }
 
     func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
@@ -356,10 +373,12 @@ final class AuroraUITests: XCTestCase {
         for _ in 0..<6 where !save.isHittable { app.swipeUp() }
         save.tap()
         XCTAssertTrue(app.staticTexts["assistant-error"].waitForExistence(timeout: 3))
-        let rating = app.segmentedControls["assistant-checkin-rating"]
+        // Self-reported KSS: nine labeled points, none chosen by default.
+        let rating = app.buttons["assistant-checkin-rating-4"]
         for _ in 0..<6 where !rating.isHittable { app.swipeDown() }
-        rating.buttons.element(boundBy: 3).tap()
-        XCTAssertTrue(app.staticTexts["4 · High"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No rating chosen"].exists)
+        rating.tap()
+        XCTAssertTrue(app.staticTexts["KSS 4 · Rather alert"].waitForExistence(timeout: 3))
         for _ in 0..<6 where !save.isHittable { app.swipeUp() }
         save.tap()
         let undo = app.buttons["assistant-checkin-undo"]
@@ -389,7 +408,41 @@ final class AuroraUITests: XCTestCase {
         add(capture)
     }
 
-    func testCaffeineNeedsReviewAndUndoRemovesOnlySavedEntry() {
+    /// A typed log with an amount saves on arrival: a receipt with Undo, no
+    /// draft and no Save step.
+    /// A typed drink goes through the on-device review (#79): nothing is
+    /// saved until Save; Save posts "Caffeine saved" with exact-entry Undo.
+    /// Instant save for this route waits on the owner's autosave criteria
+    /// (docs/apple-on-device-features.md); Rule A's instant save covers
+    /// "Log it", the Log Drink shortcut, and failed-write retry.
+    /// The simulator has no on-device model: the Debug echo stands in for its
+    /// extraction.
+    func testTypedDrinkReviewSavesWithUndo() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestEchoDrinkEvidence"]
+        app.launch()
+        finishSetup()
+        request("I had 80 mg tea now")
+        let save = app.buttons["assistant-dose-save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(app.buttons["assistant-undo"].exists, "Nothing is saved before Save")
+        tapWhenReady(save)
+        let undo = app.buttons["assistant-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Caffeine saved"].exists)
+        attachScreenshot("Typed drink receipt")
+        tapWhenReady(undo)
+        let removed = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Removed that caffeine entry'")).firstMatch
+        // As below: a tap CI ignored leaves Undo on the still-saved receipt.
+        if !removed.waitForExistence(timeout: 3), undo.exists {
+            attachScreenshot("First Undo tap was ignored")
+            tapWhenReady(undo)
+        }
+        XCTAssertTrue(removed.waitForExistence(timeout: 5))
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 3), "The removed entry must not offer Undo again")
+    }
+    /// The quick action has no amount to save, so its entry card asks for one.
+    func testCaffeineEntryNeedsAmountAndUndoRemovesOnlySavedEntry() {
         finishSetup()
         app.buttons["assistant-quick-Log caffeine"].tap()
         let amount = app.textFields["assistant-dose-amount"]
@@ -530,8 +583,8 @@ final class AuroraUITests: XCTestCase {
         app.navigationBars["Sleep History"].buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
         app.navigationBars["Sleep"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["Your records"].waitForExistence(timeout: 5))
-        app.navigationBars["Your records"].buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Your Records"].waitForExistence(timeout: 5))
+        app.navigationBars["Your Records"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["assistant-send"].waitForExistence(timeout: 5))
     }
     func testCalendarNeverWritesWithoutPreviewApproval() {
@@ -548,6 +601,11 @@ final class AuroraUITests: XCTestCase {
     func testNoAPIKeyEntryInSettings() {
         finishSetup()
         app.buttons["assistant-settings"].tap()
+        // The status is behind the Intelligence row's info button.
+        let info = app.buttons["About Intelligence"]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No cloud model'")).firstMatch.exists)
+        info.tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No cloud model'")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields.containing(NSPredicate(format: "label CONTAINS[c] 'API key'")).firstMatch.exists)
     }
@@ -607,7 +665,9 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant-dose-save"].waitForExistence(timeout: 5))
     }
 
-    private func request(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+    /// `settle` is how long a send may take to clear the field before a
+    /// retry is considered; 0 forces the retry path.
+    private func request(_ text: String, settle: TimeInterval = 2, file: StaticString = #filePath, line: UInt = #line) {
         let input = app.textFields["assistant-composer"]
         // As in enter(_:into:), the keyboard and bottom-area transition on
         // iPad can move the field under the initial tap. Acquire focus with
@@ -666,22 +726,39 @@ final class AuroraUITests: XCTestCase {
         // week"), and the app then answered the fragment. Fail here, naming
         // what the field holds, instead of timing out later on a missing card.
         let typed = NSPredicate(format: "value == %@", text)
-        // One native query checks identity and the entire value together;
-        // no partial-text match, retry typing, or longer deadline.
+        // Keys can also land late on a loaded simulator: run 42895134800
+        // (iPhone, iteration 5) read "Sh" 6.4 s and the full text 9 s after
+        // typeText returned. TypingProgress waits only while the field gains
+        // characters of the request: 5 s with no new character fails, 20 s
+        // in all fails, and text that isn't a prefix fails at once. No
+        // partial-text match and no retyping. Once complete, one native
+        // query still checks identity and the entire value together.
         let exactInput = app.textFields.matching(identifier: "assistant-composer")
             .matching(typed).element
-        guard exactInput.waitForExistence(timeout: 5) else {
-            XCTFail("request(\"\(text)\"): complete text was not verified within five seconds; composer now shows \"\(input.value as? String ?? "nil")\"; not sending",
+        var progress = TypingProgress(text: text)
+        let typingStarted = Date()
+        var verdict: TypingProgress.Verdict?
+        while verdict == nil {
+            let readStart = Date().timeIntervalSince(typingStarted)
+            let value: String? = (try? input.snapshot()).map { $0.value as? String ?? "" }
+            verdict = progress.observe(value, readStart: readStart, readEnd: Date().timeIntervalSince(typingStarted))
+            if verdict == nil { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        guard verdict == .complete, exactInput.exists else {
+            let saw = verdict == .complete ? "the field read complete but the composer query found no exact match" : progress.describe(verdict)
+            XCTFail("request(\"\(text)\"): complete text was not verified; \(saw); not sending",
                     file: file, line: line)
             return
         }
-        // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a re-tap can never send twice.
-        let cleared = NSPredicate(format: "value != %@", text)
-        for _ in 0..<3 {
-            app.buttons["assistant-send"].tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
-        }
+        SendRetry.send(text: text, input: input, send: app.buttons["assistant-send"], settle: settle)
+    }
+    /// `settle: 0` always reaches the retry; the old loop then re-tapped the
+    /// disabled Send and left the composer focused with the keyboard up.
+    func testRequestRetryLeavesTheKeyboardDown() {
+        finishSetup(); request("Show this week", settle: 0)
+        XCTAssertTrue(cardTitle("trends").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), app.debugDescription)
     }
     func testExportCardOffersNativeCSVSharing() {
         finishSetup(); request("Export records")
@@ -718,12 +795,63 @@ final class AuroraUITests: XCTestCase {
         XCTAssertFalse(composerFields.matching(NSPredicate(format: "value == %@", "Reminders")).element.exists,
                        "A partial request must never satisfy the complete-text guard")
     }
+    /// An install that finished setup before Terms existed gets the Terms and
+    /// Privacy sheet. Swiping it down does nothing; only Continue leaves, and
+    /// a relaunch at the same Terms version doesn't ask again.
+    func testTermsUpdateSheetNeedsContinue() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall"]
+        app.launch()
+        let sheet = app.descendants(matching: .any)["terms-update"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.navigationBars["Terms and Privacy"].exists)
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.exists && proceed.isHittable)
+        XCTAssertEqual(proceed.label, "Continue")
+        XCTAssertTrue(app.buttons["onboarding-terms"].exists && app.buttons["onboarding-privacy"].exists)
+        let top = app.navigationBars["Terms and Privacy"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        app.swipeDown()
+        XCTAssertTrue(sheet.waitForExistence(timeout: 2), "A swipe must not dismiss the Terms sheet")
+        XCTAssertTrue(proceed.isHittable)
+        // The full Terms open from the sheet and come back to it.
+        app.buttons["onboarding-terms"].tap()
+        XCTAssertTrue(app.buttons["legal-done"].waitForExistence(timeout: 5))
+        app.buttons["legal-done"].tap()
+        XCTAssertTrue(proceed.waitForExistence(timeout: 5))
+        attachScreenshot("Terms update sheet")
+        proceed.tap()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 10) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.exists)
+        app.terminate(); app.launchArguments = []; app.launch()
+        XCTAssertTrue(app.textFields["assistant-composer"].waitForExistence(timeout: 20) || app.textViews["assistant-composer"].exists)
+        XCTAssertFalse(sheet.waitForExistence(timeout: 5), "Same Terms version: not asked again")
+    }
+
+    /// At the largest text the sheet scrolls and Continue stays in the bar.
+    func testTermsUpdateSheetAtLargestText() {
+        app.terminate()
+        app.launchArguments = ["-AuroraUITestReset", "-AuroraUITestPreTermsInstall",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 20))
+        let proceed = app.buttons["terms-update-continue"]
+        XCTAssertTrue(proceed.isHittable)
+        let privacy = app.buttons["onboarding-privacy"]
+        for _ in 0..<8 where !privacy.isHittable { app.swipeUp() }
+        XCTAssertTrue(privacy.isHittable, "The Privacy Policy link must be reachable by scrolling")
+        XCTAssertTrue(proceed.isHittable)
+        attachScreenshot("Terms update sheet, largest text")
+        proceed.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["terms-update"].waitForExistence(timeout: 3))
+    }
+
     func testBriefingAndReminderCards() {
         finishSetup(); request("Morning briefing")
         XCTAssertTrue(app.staticTexts["Your recorded day"].waitForExistence(timeout: 5))
         request("Reminders")
-        XCTAssertTrue(app.switches["Offer useful updates"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["Cutoff reminder"].exists)
+        XCTAssertTrue(app.switches["Offer Useful Updates"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Cutoff Reminder"].exists)
     }
     func testReactionCardOpensTheExistingTest() {
         finishSetup(); request("Reaction test")
@@ -758,7 +886,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.textFields["assistant-composer"].isHittable)
         XCTAssertTrue(app.buttons["assistant-send"].exists)
         request("Reminders")
-        let reminder = app.switches["Cutoff reminder"]
+        let reminder = app.switches["Cutoff Reminder"]
         for _ in 0..<6 where !reminder.waitForExistence(timeout: 1) { app.swipeUp() }
         XCTAssertTrue(reminder.exists)
         for _ in 0..<4 where !reminder.isHittable { app.swipeUp() }
@@ -823,37 +951,42 @@ final class AuroraUITests: XCTestCase {
         // settles. Asking that snapshot for a hit point aborts XCTest before
         // the visibility timeout/diagnostics. Wait for geometry first; keep
         // the same hittability requirement and three-second deadline.
-        // BUG-1d: record every evaluation (which condition was false, and how
-        // long each AX round trip took) so a timeout names its cause. The
-        // conditions, deadline and assertion are unchanged.
-        var evaluations: [String] = []
+        // BUG-1d: record every check (which condition was false, and how
+        // long each AX round trip took) so a timeout names its cause.
+        // The three seconds start when the first check returns a snapshot
+        // (LongCardWait): run 42908012931 failed on a 2.39 s simulator
+        // hierarchy capture before any snapshot arrived. A title that isn't
+        // hittable and in place within three seconds of that still fails.
+        var cardWait = LongCardWait()
         let started = Date()
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            let at = String(format: "%.2f", Date().timeIntervalSince(started))
-            guard let snapshot = try? title.snapshot() else {
-                evaluations.append("\(at)s no snapshot")
-                return false
+        var verdict: LongCardWait.Verdict?
+        while verdict == nil {
+            let start = Date().timeIntervalSince(started)
+            var check = LongCardWait.Check(start: start, snapshot: nil, end: start)
+            if let snapshot = try? title.snapshot() {
+                check.snapshot = (Date().timeIntervalSince(started), snapshot.frame)
+                let frame = snapshot.frame
+                if frame.minX.isFinite, frame.minY.isFinite,
+                   frame.width.isFinite, frame.height.isFinite, !frame.isEmpty {
+                    check.hittable = title.isHittable
+                    if check.hittable {
+                        check.barMaxY = app.navigationBars.firstMatch.frame.maxY
+                        check.composerMinY = app.textFields["assistant-composer"].frame.minY
+                    }
+                }
             }
-            let frame = snapshot.frame
-            guard frame.minX.isFinite, frame.minY.isFinite,
-                  frame.width.isFinite, frame.height.isFinite, !frame.isEmpty else {
-                evaluations.append("\(at)s frame \(frame)")
-                return false
-            }
-            let hittable = title.isHittable
-            let end = String(format: "%.2f", Date().timeIntervalSince(started))
-            evaluations.append("\(at)s frame \(frame) hittable \(hittable) end \(end)s")
-            return hittable
-        }, object: title)
-        let result = XCTWaiter.wait(for: [shown], timeout: 3)
-        if result != .completed {
-            print("Long-card evaluations: \(evaluations)")
+            check.end = Date().timeIntervalSince(started)
+            verdict = cardWait.observe(check)
+            if verdict == nil { Thread.sleep(forTimeInterval: 0.1) }
+        }
+        if verdict != .shown {
+            print("Long-card wait: \(cardWait.describe(verdict))")
             attachScreenshot("Long card title not hittable")
             print("Long-card title: \(title.debugDescription)")
             print("Long-card composer: \(app.textFields["assistant-composer"].debugDescription)")
             print(app.debugDescription)
         }
-        XCTAssertEqual(result, .completed, "evaluations: \(evaluations)")
+        XCTAssertEqual(verdict, .shown, cardWait.describe(verdict))
         let bar = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY - 1, "Title \(title.frame) under the bar \(bar)")
         XCTAssertLessThanOrEqual(title.frame.maxY, app.textFields["assistant-composer"].frame.minY)
@@ -1081,9 +1214,9 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
         let title = cardTitle("repeatDrink")
         XCTAssertTrue(title.waitForExistence(timeout: 10))
-        let review = app.buttons["repeat-drink-review"]
-        for _ in 0..<12 where !review.isHittable { app.swipeUp() }
-        XCTAssertTrue(review.isHittable)
+        let logIt = app.buttons["repeat-drink-log"]
+        for _ in 0..<12 where !logIt.isHittable { app.swipeUp() }
+        XCTAssertTrue(logIt.isHittable)
         XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)
         let question = NSPredicate(format: "label BEGINSWITH 'Did you have a Drip around ' AND label ENDSWITH '?'")
         XCTAssertTrue(app.staticTexts.matching(question).firstMatch.exists)

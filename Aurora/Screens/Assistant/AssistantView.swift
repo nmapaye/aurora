@@ -11,7 +11,9 @@ struct AssistantView: View {
     @Environment(AssistantModel.self) private var assistant
     @State private var dictation = OnDeviceDictation()
     @State private var input = ""
-    @State private var showHealthConnection = false
+    @State private var caffeineShortcut = CaffeineReviewHandoff.shared
+    /// RootView owns the blocking welcome; do not open a review behind it.
+    var shortcutCovered: () -> Bool = { false }
     /// How far the software keyboard reaches up from the screen's bottom.
     @State private var keyboardOverlap: CGFloat = 0
     /// The largest keyboard overlap since a card field started being edited.
@@ -105,6 +107,12 @@ struct AssistantView: View {
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(Metrics.lg)
                 }
+                // Exactly the window's width. Unpinned, the conversation laid
+                // out 1/3 pt wider than a 402 pt iPhone, the composer inset
+                // took that width too, and without the old opaque bar behind
+                // it (#87's glass) the field sat 1/3 pt off the cards' column
+                // (testComposerSharesTheCardColumn).
+                .containerRelativeFrame(.horizontal)
                 // Opens at the latest message, including right after the
                 // launch welcome; a new conversation opens on its welcome card,
                 // read from the top. Scrolled once rather than with
@@ -184,7 +192,7 @@ struct AssistantView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { assistant.showAssistantSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .accessibilityLabel("Aurora settings").accessibilityIdentifier("assistant-settings")
+                        .accessibilityLabel("Aurora Settings").accessibilityIdentifier("assistant-settings")
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
@@ -195,10 +203,38 @@ struct AssistantView: View {
             .allowsHitTesting(!clearing)
             .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: clearing) { _, started in started }
         }
-        .task { await assistant.start(app: app) }
+        // One continuous screen color edge to edge: behind the conversation,
+        // the glass composer, the home indicator and the keyboard.
+        .background(Palette.screen.ignoresSafeArea())
+        .task { await assistant.start(app: app); await reviewShortcutIfReady() }
+        .task(id: caffeineShortcut.request.requested) { await reviewShortcutIfReady() }
+        // A drink the Log Drink shortcut saved shows its receipt with Undo.
+        .task(id: app.lastShortcutLog?.id) { if phase == .active { assistant.showShortcutLog(app: app) } }
+        .onChange(of: phase) { _, phase in
+            if phase == .active { Task { await reviewShortcutIfReady(); assistant.showShortcutLog(app: app) } }
+        }
         .modifier(ConversationObservers(assistant: assistant, router: router, app: app, dictation: dictation,
                                         input: $input, keyboardOverlap: $keyboardOverlap, composerFocused: composerFocused))
-        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $showHealthConnection, onDismiss: sheetClosed))
+        .modifier(ConversationSheets(assistant: assistant, router: router, app: app, showHealthConnection: $router.showHealthConnection, onDismiss: sheetClosed))
+    }
+
+    /// This UI owner reads the real presentation state at consumption time,
+    /// including again after start() suspends. Dismissal never replays a request.
+    @MainActor private func reviewShortcutIfReady() async {
+        guard caffeineShortcut.request.requested else { return }
+        if coversShortcut {
+            assistant.reviewCaffeineShortcut(&caffeineShortcut.request, app: app,
+                foreground: phase == .active, coveringWork: true)
+            return
+        }
+        guard phase == .active else { return }
+        await assistant.start(app: app)
+        assistant.reviewCaffeineShortcut(&caffeineShortcut.request, app: app,
+            foreground: phase == .active, coveringWork: coversShortcut)
+    }
+
+    private var coversShortcut: Bool {
+        router.coversCaffeineReview || TermsUpdatePrompt.coversWork(app.state.onboarding) || shortcutCovered() || clearing
     }
 
     /// A message was added or removed: reveal it, or hold it below while
@@ -494,8 +530,9 @@ struct AssistantView: View {
     /// not every message. Re-running the whole conversation per keystroke
     /// left CI's simulator behind on typing when Send was tapped.
     private var composer: some View {
-        ConversationComposer(input: $input, focused: $composerFocused, composerWidth: $composerWidth,
-                             composerHeight: $composerHeight, showHealthConnection: $showHealthConnection,
+        @Bindable var router = router
+        return ConversationComposer(input: $input, focused: $composerFocused, composerWidth: $composerWidth,
+                             composerHeight: $composerHeight, showHealthConnection: $router.showHealthConnection,
                              dictation: dictation, editingCard: editingCard)
     }
 
@@ -545,6 +582,47 @@ private extension View {
     }
 }
 
+/// Groups the quick-action tiles and the field so their Liquid Glass
+/// samples and blends as one bar on iOS 26; a plain stack before that.
+private struct ComposerGlassGroup<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: Metrics.xs) {
+                VStack(spacing: Metrics.xs) { content }
+            }
+        } else {
+            VStack(spacing: Metrics.xs) { content }
+        }
+    }
+}
+
+/// iOS 26: transparent, with the soft bottom scroll edge so text passing
+/// under the glass stays legible. Before iOS 26: the solid screen bar.
+private struct ComposerBackdrop: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+        } else {
+            content.background(Palette.screen)
+        }
+    }
+}
+
+private extension View {
+    /// Liquid Glass tinted toward the card color on iOS 26, so Teal & Ecru
+    /// text keeps its contrast over scrolled content; the solid card fill
+    /// before that.
+    @ViewBuilder func composerSurface<S: Shape>(_ shape: S, interactive: Bool) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.tint(Palette.card.opacity(0.55)).interactive() : .regular.tint(Palette.card.opacity(0.55)), in: shape)
+        } else {
+            background(Palette.card, in: shape)
+        }
+    }
+}
+
 /// Quick actions and the new-message control: a card capsule whose press
 /// and disabled states show at once.
 private struct CapsuleActionStyle: ButtonStyle {
@@ -578,7 +656,7 @@ private struct TileActionBody: View {
         let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius + 2, style: .continuous)
         configuration.label
             .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.primaryButtonDisabledText)
-            .background(Palette.card, in: shape)
+            .composerSurface(shape, interactive: true)
             .overlay(shape.strokeBorder(Palette.cardBorder))
             .contentShape(shape)
             .pressFeedback(configuration.isPressed)
@@ -659,7 +737,7 @@ struct AssistantToolsView: View {
             .auroraRows()
         }
         .auroraGroupedList()
-        .navigationTitle("Your records")
+        .navigationTitle("Your Records")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -842,6 +920,7 @@ private struct ConversationComposer: View {
     @Binding var showHealthConnection: Bool
     let dictation: OnDeviceDictation
     let editingCard: Bool
+    @State private var showPhotoLog = false
 
     private var inputEmpty: Bool { input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -861,14 +940,21 @@ private struct ConversationComposer: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .conversationColumn()
             }
-            if !editingCard && roomy { quickActions(typed) }
-            field
+            ComposerGlassGroup {
+                if !editingCard && roomy { quickActions(typed) }
+                field
+            }
         }
         .padding(.vertical, Metrics.xs)
-        // Solid like the header: the material let the next message's pill
-        // show through as a sliver above the quick actions. Extends under
-        // the home indicator.
-        .background(Palette.screen)
+        // iOS 26: no opaque slab behind the bar. A solid Palette.screen
+        // rectangle here, under iOS 26's automatic soft scroll-edge effect,
+        // cut cards and tiles off in a hard band above the composer while
+        // the blurred edge showed a different tone above it. The tiles and
+        // field are Liquid Glass instead, and the conversation scrolls on
+        // underneath one continuous screen background. Earlier systems keep
+        // the solid bar, where the material let the next message's pill show
+        // through as a sliver above the quick actions.
+        .modifier(ComposerBackdrop())
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
@@ -889,6 +975,7 @@ private struct ConversationComposer: View {
                 .lineLimit(1...5).focused(focused).accessibilityLabel("Message Aurora").accessibilityIdentifier("assistant-composer")
                 .submitLabel(.send).onSubmit { send() }
                 .frame(minHeight: Metrics.minimumTouchTarget)
+            DrinkPhotoButton(isPresented: $showPhotoLog)
             Button {
                 if dictation.recording { dictation.stop() } else { Task { await dictation.start() } }
             } label: { Image(systemName: dictation.recording ? "stop.circle.fill" : "mic").font(.title3).frame(width: Metrics.minimumTouchTarget, height: Metrics.minimumTouchTarget) }
@@ -897,7 +984,7 @@ private struct ConversationComposer: View {
             sendOrStop
         }
         .padding(.horizontal, Metrics.md).padding(.vertical, Metrics.xs)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))
+        .composerSurface(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous), interactive: false)
         .overlay(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous).strokeBorder(focused.wrappedValue ? Palette.tint : Palette.cardBorder))
         // The whole surface focuses the field, not only its text line.
         .contentShape(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))

@@ -91,12 +91,23 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
     func sleepChanges(after anchor: Data?) async throws -> HealthSleepChanges {
         guard isAvailable else { throw Failure.unavailable }
         let previous = try HealthAnchorCodec.decode(anchor, kind: .sleepAnalysis)
-        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.categorySample(type: sleepType)], anchor: previous, limit: Self.pageSize)
+        // Bound the read to recent asleep samples. Without a predicate the
+        // first read starts at the beginning of Health history, oldest first,
+        // and a Watch wearer's last night can be thousands of samples (and
+        // many refreshes) away. The limit counts only matching samples, so
+        // an anchor saved part-way through old history skips ahead too.
+        let filter = HealthSleepReadFilter.anchored(now: (Date().timeIntervalSince1970 * 1000).rounded())
+        let predicate = Self.predicate(for: filter)
+        let descriptor = HKAnchoredObjectQueryDescriptor(
+            predicates: [.categorySample(type: sleepType, predicate: predicate)],
+            anchor: previous,
+            limit: Self.pageSize
+        )
         let result = try await descriptor.result(for: store)
         let next = try HealthAnchorCodec.encode(result.newAnchor)
         return HealthSleepChanges(
             added: result.addedSamples
-                .filter { HealthImport.asleepValues.contains($0.value) }
+                .filter { filter.matches(start: ($0.startDate.timeIntervalSince1970 * 1000).rounded(), end: ($0.endDate.timeIntervalSince1970 * 1000).rounded(), value: $0.value) }
                 .map {
                     HealthSleepSample(
                         start: ($0.startDate.timeIntervalSince1970 * 1000).rounded(),
@@ -112,7 +123,18 @@ final class HealthKitService: HealthDataProvider, @unchecked Sendable {
 
     /// Anchored reads ask for at most this many samples and deletions at a
     /// time; the engine applies a bounded number of pages per refresh.
-    static let pageSize = 500
+    static let pageSize = HealthImport.anchoredPageSize
+
+    /// The HealthKit form of `HealthSleepReadFilter`: an overlap-from-start
+    /// date predicate (no options) and the asleep stage values.
+    static func predicate(for filter: HealthSleepReadFilter) -> NSPredicate {
+        let values = Set(filter.asleepValues.compactMap(HKCategoryValueSleepAnalysis.init(rawValue:)))
+        var parts = [HKCategoryValueSleepAnalysis.predicateForSamples(equalTo: values)]
+        if let start = filter.windowStart {
+            parts.insert(HKQuery.predicateForSamples(withStart: Date(timeIntervalSince1970: start / 1000), end: nil, options: []), at: 0)
+        }
+        return NSCompoundPredicate(andPredicateWithSubpredicates: parts)
+    }
 
     /// A full page may have more behind it; a short page reached the end.
     static func isFullPage(added: Int, deleted: Int) -> Bool {

@@ -9,6 +9,8 @@ Aurora's model numbers, defaults and health wording should trace back to publish
 | [sleep-and-check-in.md](sleep-and-check-in.md) | Sleep target, sleep episodes, recent-sleep summary, usual timing, energy check-in scale | No pre-filled 8 h target. One 90-minute episode rule. Recent sleep summarized over 24 h, 48 h and 7 wake days, without filling gaps. Check-in uses the Karolinska Sleepiness Scale, or Samn-Perelli as the fallback. |
 | [claims-and-reminders.md](claims-and-reminders.md) | FDA/MHRA/Health Canada/TGA positioning, App Store and HealthKit rules, a copy audit, notification load, drink follow-ups | Fits FDA General Wellness. Rewrite the cutoff notification and other risky lines. Allow one notification a day that Aurora starts itself. Follow-ups are silent and come about 60 minutes after yesterday's drink. |
 
+| [kss-tpm-akerstedt-brief.md](kss-tpm-akerstedt-brief.md) | Research-only Three-Process Model KSS formula in AuroraCore (Debug builds only, not in UI) and questions for Prof. Åkerstedt | Caffeine excluded until a validated term exists; never merged with self-rated KSS. |
+
 The reaction test changes (30 s, finger-down timing, versioned sessions) are tracked separately. The sleep and claims reports both say it must never be called a "PVT".
 
 ## Where the reports meet

@@ -58,18 +58,16 @@ final class CutoffScenarioUITests: XCTestCase {
 
     /// Not one of the four quick tiles, so it's asked for the way a person
     /// would: typed into the composer.
-    private func openScenario() {
+    /// `settle` is how long a send may take to clear the field before a
+    /// retry is considered; 0 forces the retry path.
+    private func openScenario(settle: TimeInterval = 2) {
         let input = app.textFields["assistant-composer"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap(); input.typeText("Cutoff scenario")
-        // The keyboard can still be moving the composer when the tap lands.
         // Sending clears the field, so a retry can never send twice.
-        let cleared = NSPredicate(format: "value != %@", "Cutoff scenario")
-        for _ in 0..<3 {
-            app.buttons["assistant-send"].tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
-        }
+        SendRetry.send(text: "Cutoff scenario", input: input, send: app.buttons["assistant-send"], settle: settle)
         XCTAssertTrue(app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), app.debugDescription)
     }
 
     private func type(_ text: String, into id: String) {
@@ -147,6 +145,16 @@ final class CutoffScenarioUITests: XCTestCase {
         calculate()
         XCTAssertTrue(label(containing: "Needs inputs").waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(app.buttons["cutoff-reminder-preview"].exists)
+    }
+
+    /// A retry after the request already went out must not tap the disabled
+    /// Send: that focuses the composer, and its keyboard hides the card's
+    /// fields. `settle: 0` always reaches the retry; the old loop re-tapped.
+    func testSendRetryLeavesTheKeyboardDown() {
+        launch()
+        openScenario(settle: 0)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), app.debugDescription)
+        XCTAssertTrue(label(containing: "You: Cutoff scenario").exists)
     }
 
     func testCalculateShowsResultAndFailedSaveHasNoReceipt() {

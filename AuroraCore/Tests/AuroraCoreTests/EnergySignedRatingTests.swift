@@ -8,7 +8,9 @@ import Testing
             #expect(AssistantPlanner.statedSelfRating(input) == nil)
             #expect(AssistantPlanner.checkInRating(input) == nil)
         }
-        #expect(AssistantPlanner.statedSelfRating("I feel 2 out of 5") == 2)
-        #expect(AssistantPlanner.statedSelfRating("4/5") == 4)
+        // Out of 5 is the old energy scale: it opens a review, unfilled.
+        #expect(AssistantPlanner.statedSelfRating("I feel 2 out of 5") == nil)
+        #expect(AssistantPlanner.statedSelfRating("I feel 2 out of 9") == 2)
+        #expect(AssistantPlanner.statedSelfRating("-2/9") == nil)
     }
 }

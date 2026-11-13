@@ -64,9 +64,47 @@ public enum HealthSleepImport {
         return sample.start.isFinite && sample.end.isFinite && sample.start < sample.end
     }
 
+    /// Anchored sleep reads ask Health only for asleep samples that overlap
+    /// the last `HealthImport.refreshDays`. Reading from the beginning of
+    /// Health history, oldest first in bounded pages, could take many
+    /// refreshes to reach last night.
+    public static func anchoredReadStart(now: Millis) -> Millis {
+        now - HealthImport.refreshDays * dayMs
+    }
+
     public static func session(from sample: HealthSleepSample) -> SleepSession? {
         guard isValid(sample), let provenance = sample.provenance else { return nil }
         return SleepSession(id: RecordID.healthSleepID(sampleUUID: provenance.sampleUUID), start: sample.start, end: sample.end, type: .sleep, health: provenance)
+    }
+}
+
+/// What an anchored Health sleep read asks for: asleep stages only, and only
+/// samples that overlap the last `HealthImport.refreshDays`. HealthKitService
+/// builds its HealthKit predicate from this and applies `matches` to what
+/// comes back, so the rule lives in one tested place.
+public struct HealthSleepReadFilter: Equatable, Sendable {
+    /// Nil reads all of Health history (how the anchored read behaved before
+    /// it had a date predicate).
+    public let windowStart: Millis?
+    public let asleepValues: Set<Int>
+
+    public init(windowStart: Millis?, asleepValues: Set<Int> = HealthImport.asleepValues) {
+        self.windowStart = windowStart
+        self.asleepValues = asleepValues
+    }
+
+    public static func anchored(now: Millis) -> HealthSleepReadFilter {
+        HealthSleepReadFilter(windowStart: HealthSleepImport.anchoredReadStart(now: now))
+    }
+
+    /// HealthKit's sample predicate with a start, no end and no options
+    /// matches any sample whose span reaches past the start, so a night that
+    /// began before the window comes back whole; one ending exactly at the
+    /// start doesn't overlap it.
+    public func matches(start: Millis, end: Millis, value: Int) -> Bool {
+        guard start.isFinite, end.isFinite, asleepValues.contains(value) else { return false }
+        guard let windowStart else { return true }
+        return end > windowStart
     }
 }
 
@@ -83,6 +121,9 @@ public enum HealthImport {
     /// HealthKit `HKCategoryValueSleepAnalysis` raw values that mean asleep:
     /// asleep (unspecified) 1, core 3, deep 4, REM 5.
     public static let asleepValues: Set<Int> = [1, 3, 4, 5]
+    /// Most samples (added plus deleted) one anchored read returns; the
+    /// filter's limit counts only matching samples.
+    public static let anchoredPageSize = 500
 
     /// Nights rather than samples: one Watch night can be dozens of stage
     /// segments.

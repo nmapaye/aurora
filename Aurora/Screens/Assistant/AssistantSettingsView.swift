@@ -24,7 +24,8 @@ struct AssistantSettingsView: View {
                 if let failure = assistant.failure { Text(failure).foregroundStyle(Palette.destructive).auroraRows() }
             }
             .auroraGroupedList()
-            .navigationTitle("Aurora settings").navigationBarTitleDisplayMode(.inline)
+            .tint(Palette.tint)
+            .navigationTitle("Aurora Settings").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistant.save(); dismiss() }.keyboardShortcut(.cancelAction) } }
             .onChange(of: assistant.conversation.preferences) { _, _ in
                 assistant.save()
@@ -39,13 +40,16 @@ struct AssistantSettingsView: View {
             .sheet(isPresented: $showAppleHealth) { HealthConnectionView() }
             .confirmationDialog("Clear this conversation?", isPresented: $clearConversation) {
                 Button("Clear conversation", role: .destructive) { assistant.requestClear() }
+            } message: {
+                Text("Your records are kept.")
             }
         }
         .pageSizedSheet()
     }
 
-    /// The intelligence in use is a status, not a setting, so it is the
-    /// footer here rather than a row that looks like a heading.
+    /// Every row is a plain row: a label, a value or control, and a chevron
+    /// where it opens something. Explanations sit behind each row's info
+    /// button instead of under it.
     private var connections: some View {
         Section {
             Button { showAppleHealth = true } label: {
@@ -54,21 +58,21 @@ struct AssistantSettingsView: View {
             .foregroundStyle(Palette.textPrimary)
             .accessibilityIdentifier("assistant-apple-health")
             NavigationLink { CalendarConnectionsView(service: assistant.calendars) } label: { Label("Calendars", systemImage: "calendar") }
+            ExplainedRow(topic: "Intelligence", info: "\(assistant.intelligenceName). No cloud model.", infoID: "assistant-intelligence-status") {
+                Label("Intelligence", systemImage: "cpu")
+            }
         } header: {
             Text("Connections")
-        } footer: {
-            Text("\(assistant.intelligenceName). No cloud model.")
-                .accessibilityIdentifier("assistant-intelligence-status")
         }
         .auroraRows()
     }
 
     private var reminders: some View {
-        Section("Caffeine reminders") {
+        Section("Caffeine Reminders") {
             NavigationLink {
                 WakeRemindersView()
             } label: {
-                LabeledContent("After waking", value: wakeSummary)
+                LabeledContent("After Waking", value: wakeSummary)
             }
             .accessibilityIdentifier("assistant-wake-reminders")
             DrinkFollowUpControls()
@@ -76,22 +80,31 @@ struct AssistantSettingsView: View {
         .auroraRows()
     }
 
-    /// Clock times use the system time picker in the person's locale. The
-    /// preferences store whole hours, so a picked time keeps its hour and
-    /// minutes return to :00.
+    /// The preferences store whole hours, so times are picked by the hour,
+    /// in the person's locale. A row that depends on another appears only
+    /// once that one is on, so no switch sits disabled.
     private var proactive: some View {
-        Section {
-            Toggle("Offer useful updates", isOn: $assistant.conversation.preferences.proactive)
-            Toggle("Morning briefing", isOn: $assistant.conversation.preferences.morningBriefing)
-                .disabled(!assistant.conversation.preferences.proactive)
-            HourPicker(title: "Briefing", hour: $assistant.conversation.preferences.briefingHour, id: "assistant-briefing-hour")
-            HourPicker(title: "Quiet hours begin", hour: $assistant.conversation.preferences.quietStartHour, id: "assistant-quiet-start")
-            HourPicker(title: "Quiet hours end", hour: $assistant.conversation.preferences.quietEndHour, id: "assistant-quiet-end")
-            Button("Update briefing notification") { Task { await assistant.syncBriefingNotification(prompt: true) } }
+        let prefs = assistant.conversation.preferences
+        return Section {
+            ExplainedRow(topic: "Useful Updates", info: "Up to two a day.") {
+                Toggle("Offer Useful Updates", isOn: $assistant.conversation.preferences.proactive)
+            }
+            if prefs.proactive {
+                Toggle("Morning Briefing", isOn: $assistant.conversation.preferences.morningBriefing)
+                if prefs.morningBriefing {
+                    HourPicker(title: "Briefing", hour: $assistant.conversation.preferences.briefingHour, id: "assistant-briefing-hour")
+                }
+            }
+            HourPicker(title: "Quiet Hours Begin", hour: $assistant.conversation.preferences.quietStartHour, id: "assistant-quiet-start")
+            HourPicker(title: "Quiet Hours End", hour: $assistant.conversation.preferences.quietEndHour, id: "assistant-quiet-end")
+            if prefs.proactive && prefs.morningBriefing {
+                Button { Task { await assistant.syncBriefingNotification(prompt: true) } } label: {
+                    Label("Update Briefing Notification", systemImage: "bell.badge")
+                }
+                .foregroundStyle(Palette.textPrimary)
+            }
         } header: {
-            Text("Proactive suggestions")
-        } footer: {
-            Text("Up to two a day. Times are on the hour.")
+            Text("Proactive Suggestions")
         }
         .auroraRows()
     }
@@ -101,7 +114,7 @@ struct AssistantSettingsView: View {
     private var developer: some View {
         Section("Developer") {
             #if targetEnvironment(simulator)
-            Toggle("Use this Mac’s local Ollama model", isOn: $assistant.conversation.preferences.useMacModel)
+            Toggle("Use This Mac’s Local Ollama Model", isOn: $assistant.conversation.preferences.useMacModel)
             if assistant.conversation.preferences.useMacModel {
                 TextField("Installed model name", text: $assistant.conversation.preferences.macModel)
                     .autocorrectionDisabled().textInputAutocapitalization(.never)
@@ -109,6 +122,9 @@ struct AssistantSettingsView: View {
             }
             #endif
             NavigationLink("Design Gallery", destination: DesignGalleryView())
+            // Research models side by side; Debug builds only (#89, #90).
+            NavigationLink("Research Models", destination: ResearchModelsView())
+                .accessibilityIdentifier("developer-research-models")
         }
         .auroraRows()
     }
@@ -121,15 +137,14 @@ struct AssistantSettingsView: View {
             Button("Clear conversation", role: .destructive) { clearConversation = true }
         } header: {
             Text("Records")
-        } footer: {
-            Text("Clearing the conversation keeps your records.")
         }
         .auroraRows()
     }
 }
 
-/// A clock time stored as a whole hour (0–23), picked with the compact
-/// system time picker so it reads in the person's locale (8:00 AM or 08:00).
+/// A clock time stored as a whole hour (0–23), in the person's locale
+/// (8 AM or 08:00). A navigation-link picker, so it reads like every other
+/// row with a value: the title, the value and a chevron.
 struct HourPicker: View {
     let title: String
     @Binding var hour: Int
@@ -137,18 +152,12 @@ struct HourPicker: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
-        DatePicker(title, selection: time, displayedComponents: .hourAndMinute)
-            .accessibilityIdentifier(id)
-    }
-
-    private var time: Binding<Date> {
-        Binding(
-            get: { Date(timeIntervalSince1970: app.clock.setTime(app.now, hour: hour, minute: 0) / 1000) },
-            set: { date in
-                // A minutes-only change keeps the stored hour untouched.
-                let picked = Calendar.current.component(.hour, from: date)
-                if picked != hour { hour = picked }
+        Picker(title, selection: $hour) {
+            ForEach(0..<24, id: \.self) { value in
+                Text(app.text.clockHour(Double(value), clock: app.clock)).tag(value)
             }
-        )
+        }
+        .pickerStyle(.navigationLink)
+        .accessibilityIdentifier(id)
     }
 }

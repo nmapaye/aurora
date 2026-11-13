@@ -6,16 +6,21 @@ at `1e7a1d8`. Existing React Native worktrees remain unchanged.
 ## Experience and trust boundaries
 
 The primary screen is a native SwiftUI conversation. Quick actions work
-without AI or a network connection. Requests can propose editable caffeine
-entries, edit sleep inline, show estimated energy evidence, explore caffeine/
+without AI or a network connection. Requests can log caffeine, edit sleep
+inline, show estimated energy evidence, explore caffeine/
 sleep/reaction charts, review calendars, browse history, export CSVs, and manage
 reminders. Routine responses use native cards; prose is reserved for clarification
 and failures.
 Amounts, dates, sources, and calculations never come from generated prose.
-Explicit amounts and simple local times are parsed from the user's text;
-ambiguous details remain editable and require Save. Unknown usuals have no
-invented amount. Pending drafts are discarded across relaunches, not executed.
-Corrections such as “Actually 120 mg yesterday at 8am” update the pending draft.
+Explicit amounts and simple local times are parsed from the user's text. A
+caffeine log that validates as stated ("I had 80 mg tea", "Log it" on a drink
+follow-up) saves immediately, the dose and its queued Health action in one
+change, and its receipt carries Undo. A log without an amount, or one that
+doesn't validate, opens the editable entry card, which requires Save; so does
+a log whose write failed, with the same values. Sleep keeps its confirm card.
+Unknown usuals have no invented amount. Pending drafts are discarded across
+relaunches, not executed. Corrections such as “Actually 120 mg yesterday at
+8am” update an open draft; a saved log is changed through Undo or history.
 
 Apple's on-device Foundation Models classify unfamiliar requests when
 available (iOS 26+ and enabled Apple Intelligence). On iOS 17–25 or unsupported
@@ -183,9 +188,9 @@ provider/model switches and expired entries miss the cache. Unsupported or
 failed responses are not cached. Leaving the foreground clears the cache and
 releases the prepared session. No cached conversation is persisted.
 
-Only the intent is reused. Caffeine drafts, energy calculations, charts and
+Only the intent is reused. Caffeine logs, energy calculations, charts and
 calendar previews still read current records/time on every request, and writes
-still require the normal review and validation. No personalized answer or
+still go through the normal validation (and, for calendars, review). No personalized answer or
 calendar tool result is replayed. Physical-device cold/warm latency and energy
 cost still require measurement before claiming a performance improvement.
 

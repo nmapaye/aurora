@@ -159,6 +159,40 @@ import Testing
         }
         #expect(assistant.conversation.messages.last?.card?.metrics.first { $0.id == "health" }?.value == "Added")
     }
+
+    /// An instant log stores the dose and its queued Health save in one
+    /// change before Health is asked; Undo removes the dose here and then
+    /// only Aurora's own sample from Health.
+    @Test func instantLogIsLocalFirstAndUndoRemovesOnlyAurorasHealthSample() async throws {
+        let health = ScriptedHealth()
+        let model = makeModel(health: health)
+        model.completeOnboarding()
+        _ = await model.setHealthChoice(.writeCaffeine, enabled: true)
+        let assistant = AssistantModel(makeStore: { ConversationStore(directory: root.appendingPathComponent("Support/Aurora", isDirectory: true)) })
+        await assistant.handle(.logCaffeine, input: "I had 60 mg tea", app: model)
+        let dose = try #require(model.state.doses.first)
+        // Read back from disk before Health runs: both are in the stored state.
+        let stored = try #require(try StateStore(directory: root.appendingPathComponent("Support/Aurora", isDirectory: true)).load())
+        #expect(stored.doses.map(\.id) == [dose.id])
+        #expect(stored.healthLedger.pendingAction(forDoseID: dose.id) != nil)
+        #expect(health.savedSyncIdentifiers.isEmpty)
+        let receipt = try #require(assistant.conversation.messages.last)
+        #expect(receipt.card?.title == "Caffeine saved" && receipt.card?.recordID == dose.id)
+
+        await model.waitForHealthExports()
+        await model.healthSync.runPendingActions()
+        #expect(model.healthStatus(forDoseID: dose.id) == .exported)
+        let own = HealthOrigin.syncIdentifier(forDoseID: dose.id)
+        #expect(health.savedSyncIdentifiers == [own])
+
+        assistant.undoReceipt(receipt, app: model)
+        #expect(model.state.doses.isEmpty && assistant.failure == nil)
+        #expect(assistant.conversation.messages.last?.card?.state == .undone)
+        await model.waitForHealthExports()
+        await model.healthSync.runPendingActions()
+        #expect(model.healthStatus(forDoseID: dose.id) == .removed)
+        #expect(health.deletedSyncIdentifiers == [own])
+    }
 }
 
 private struct AnchoredSleepHealth: HealthDataProvider {
