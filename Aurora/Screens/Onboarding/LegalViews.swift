@@ -12,20 +12,35 @@ struct LegalAcknowledgement: View {
             Text(LegalCopy.acknowledgement)
                 .font(.footnote).foregroundStyle(Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: Metrics.md) {
-                Button("Terms") { showing = .terms }
-                    .accessibilityHint("Opens Aurora’s Terms.")
-                    .accessibilityIdentifier("onboarding-terms")
-                Button("Privacy Policy") { showing = .privacy }
-                    .accessibilityHint("Opens Aurora’s Privacy Policy.")
-                    .accessibilityIdentifier("onboarding-privacy")
+            // Each link is its own 44 pt target, and the pair stacks when
+            // large text no longer fits both on one line (audit: hit region
+            // and clipped "Privacy Policy").
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Metrics.md) { links }
+                VStack(alignment: .leading, spacing: 0) { links }
             }
             .font(.footnote.weight(.semibold))
             .tint(Palette.tint)
-            .frame(minHeight: Metrics.minimumTouchTarget)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $showing) { LegalDocumentView(document: $0) }
+    }
+
+    @ViewBuilder private var links: some View {
+        link("Terms", .terms, hint: "Opens Aurora’s Terms.", id: "onboarding-terms")
+        link("Privacy Policy", .privacy, hint: "Opens Aurora’s Privacy Policy.", id: "onboarding-privacy")
+    }
+
+    private func link(_ title: String, _ document: LegalDocument, hint: String, id: String) -> some View {
+        Button { showing = document } label: {
+            Text(title)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minWidth: Metrics.minimumTouchTarget, minHeight: Metrics.minimumTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(id)
     }
 }
 

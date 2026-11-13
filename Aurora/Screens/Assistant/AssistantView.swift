@@ -107,6 +107,12 @@ struct AssistantView: View {
                     .frame(maxWidth: Metrics.contentMaxWidth).frame(maxWidth: .infinity)
                     .padding(Metrics.lg)
                 }
+                // Exactly the window's width. Unpinned, the conversation laid
+                // out 1/3 pt wider than a 402 pt iPhone, the composer inset
+                // took that width too, and without the old opaque bar behind
+                // it (#87's glass) the field sat 1/3 pt off the cards' column
+                // (testComposerSharesTheCardColumn).
+                .containerRelativeFrame(.horizontal)
                 // Opens at the latest message, including right after the
                 // launch welcome; a new conversation opens on its welcome card,
                 // read from the top. Scrolled once rather than with
