@@ -225,6 +225,23 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(entry.label.contains("+1h, +2h"))
     }
 
+    /// Debug builds only: both research models side by side, reached from
+    /// Developer settings. With no records both refuse; nothing is imputed.
+    func testDebugResearchModelsShowBothModelsSideBySide() {
+        finishSetup()
+        tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
+        let entry = app.buttons["developer-research-models"]
+        for _ in 0..<8 where !entry.isHittable { app.swipeUp() }
+        XCTAssertTrue(entry.isHittable)
+        entry.tap()
+        XCTAssertTrue(app.navigationBars["Research Models"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Three-Process Model · KSS 1–9"].waitForExistence(timeout: 5))
+        let ump = app.staticTexts["Unified Model of Performance · PVT lapses"]
+        for _ in 0..<6 where !ump.exists { app.swipeUp() }
+        XCTAssertTrue(ump.exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Refused'")).firstMatch.exists)
+    }
+
     func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)
         tapWhenReady(app.buttons["setup-skip-all"])

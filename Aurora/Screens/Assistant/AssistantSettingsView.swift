@@ -122,6 +122,9 @@ struct AssistantSettingsView: View {
             }
             #endif
             NavigationLink("Design Gallery", destination: DesignGalleryView())
+            // Research models side by side; Debug builds only (#89, #90).
+            NavigationLink("Research Models", destination: ResearchModelsView())
+                .accessibilityIdentifier("developer-research-models")
         }
         .auroraRows()
     }

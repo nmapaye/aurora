@@ -209,17 +209,7 @@ struct KSSModelTests {
         #expect(p.caffeine.hasPrefix("Not modeled"))
     }
 
-    @Test func appSourcesNeverReferenceTheResearchModel() throws {
-        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let app = repo.appendingPathComponent("Aurora")
-        guard FileManager.default.fileExists(atPath: app.path) else { return }
-        let files = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
-        #expect(!files.isEmpty)
-        for f in files {
-            let text = try String(contentsOf: f, encoding: .utf8)
-            #expect(!text.contains("KSSModel"), "\(f.lastPathComponent) references the research KSS model")
-            #expect(!text.contains("AURORA_RESEARCH_KSS"), "\(f.lastPathComponent)")
-        }
-    }
+    // The app-reference gate (only the Debug Research screen, inside
+    // #if DEBUG) is ResearchComparisonTests.onlyTheDebugResearchScreenReferencesTheModels.
 }
 #endif
