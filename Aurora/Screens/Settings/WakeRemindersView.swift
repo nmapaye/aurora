@@ -89,7 +89,7 @@ struct WakeRemindersView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Caffeine reminders after waking", isOn: $draft.enabled)
+                Toggle("Caffeine Reminders After Waking", isOn: $draft.enabled)
                     .accessibilityIdentifier("wake-enabled")
             }
             if draft.enabled {
@@ -103,7 +103,7 @@ struct WakeRemindersView: View {
                 }
             }
         }
-        .navigationTitle("Wake reminders")
+        .navigationTitle("Wake Reminders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

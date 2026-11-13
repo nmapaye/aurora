@@ -64,7 +64,7 @@ struct CutoffScenarioCardView: View {
     @ViewBuilder private func editor(_ input: S.Input) -> some View {
         let problems = live(input).result.problems
         VStack(alignment: .leading, spacing: Metrics.md) {
-            SectionLabel(text: "Your scenario")
+            SectionLabel(text: "Your Scenario")
             localTime("Bedtime", key: \.bedtime, occurrence: \.bedtimeOccurrence, id: "bedtime", add: "Add bedtime", optional: false)
                 .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.bedtimeRepeated, .bedtimeSkipped, .bedtimeInvalid, .bedtimeNotAfterCapture])
@@ -287,7 +287,7 @@ struct CutoffScenarioCardView: View {
         CardDisclosure(title: "Assumptions") {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
                 Text(S.disclaimer)
-                Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
+                Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h.")
                 Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
                 Text("Nothing here is recorded. Log caffeine records a drink you had.")
                 if let snapshot {
@@ -343,7 +343,7 @@ struct CutoffScenarioCardView: View {
     @ViewBuilder private var reminder: some View {
         if let preview {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                SectionLabel(text: "Reminder preview")
+                SectionLabel(text: "Reminder Preview")
                 Text(preview.content.title).font(Typography.evidence.weight(.semibold))
                 Text(preview.content.body).font(.footnote)
                 metric("Once, at", text.fullDateTime(preview.content.fireAt), source: [zoneNote(preview.content.fireAt), "Daily cutoff reminder unchanged"].compactMap { $0 }.joined(separator: " · "))

@@ -186,7 +186,7 @@ struct AssistantView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { assistant.showAssistantSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .accessibilityLabel("Aurora settings").accessibilityIdentifier("assistant-settings")
+                        .accessibilityLabel("Aurora Settings").accessibilityIdentifier("assistant-settings")
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
@@ -197,6 +197,9 @@ struct AssistantView: View {
             .allowsHitTesting(!clearing)
             .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: clearing) { _, started in started }
         }
+        // One continuous screen color edge to edge: behind the conversation,
+        // the glass composer, the home indicator and the keyboard.
+        .background(Palette.screen.ignoresSafeArea())
         .task { await assistant.start(app: app); await reviewShortcutIfReady() }
         .task(id: caffeineShortcut.request.requested) { await reviewShortcutIfReady() }
         .onChange(of: phase) { _, phase in
@@ -223,7 +226,7 @@ struct AssistantView: View {
     }
 
     private var coversShortcut: Bool {
-        router.coversCaffeineReview || shortcutCovered() || clearing
+        router.coversCaffeineReview || TermsUpdatePrompt.coversWork(app.state.onboarding) || shortcutCovered() || clearing
     }
 
     /// A message was added or removed: reveal it, or hold it below while
@@ -571,6 +574,47 @@ private extension View {
     }
 }
 
+/// Groups the quick-action tiles and the field so their Liquid Glass
+/// samples and blends as one bar on iOS 26; a plain stack before that.
+private struct ComposerGlassGroup<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: Metrics.xs) {
+                VStack(spacing: Metrics.xs) { content }
+            }
+        } else {
+            VStack(spacing: Metrics.xs) { content }
+        }
+    }
+}
+
+/// iOS 26: transparent, with the soft bottom scroll edge so text passing
+/// under the glass stays legible. Before iOS 26: the solid screen bar.
+private struct ComposerBackdrop: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+        } else {
+            content.background(Palette.screen)
+        }
+    }
+}
+
+private extension View {
+    /// Liquid Glass tinted toward the card color on iOS 26, so Teal & Ecru
+    /// text keeps its contrast over scrolled content; the solid card fill
+    /// before that.
+    @ViewBuilder func composerSurface<S: Shape>(_ shape: S, interactive: Bool) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.tint(Palette.card.opacity(0.55)).interactive() : .regular.tint(Palette.card.opacity(0.55)), in: shape)
+        } else {
+            background(Palette.card, in: shape)
+        }
+    }
+}
+
 /// Quick actions and the new-message control: a card capsule whose press
 /// and disabled states show at once.
 private struct CapsuleActionStyle: ButtonStyle {
@@ -604,7 +648,7 @@ private struct TileActionBody: View {
         let shape = RoundedRectangle(cornerRadius: Metrics.controlRadius + 2, style: .continuous)
         configuration.label
             .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.primaryButtonDisabledText)
-            .background(Palette.card, in: shape)
+            .composerSurface(shape, interactive: true)
             .overlay(shape.strokeBorder(Palette.cardBorder))
             .contentShape(shape)
             .pressFeedback(configuration.isPressed)
@@ -685,7 +729,7 @@ struct AssistantToolsView: View {
             .auroraRows()
         }
         .auroraGroupedList()
-        .navigationTitle("Your records")
+        .navigationTitle("Your Records")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -887,14 +931,21 @@ private struct ConversationComposer: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .conversationColumn()
             }
-            if !editingCard && roomy { quickActions(typed) }
-            field
+            ComposerGlassGroup {
+                if !editingCard && roomy { quickActions(typed) }
+                field
+            }
         }
         .padding(.vertical, Metrics.xs)
-        // Solid like the header: the material let the next message's pill
-        // show through as a sliver above the quick actions. Extends under
-        // the home indicator.
-        .background(Palette.screen)
+        // iOS 26: no opaque slab behind the bar. A solid Palette.screen
+        // rectangle here, under iOS 26's automatic soft scroll-edge effect,
+        // cut cards and tiles off in a hard band above the composer while
+        // the blurred edge showed a different tone above it. The tiles and
+        // field are Liquid Glass instead, and the conversation scrolls on
+        // underneath one continuous screen background. Earlier systems keep
+        // the solid bar, where the material let the next message's pill show
+        // through as a sliver above the quick actions.
+        .modifier(ComposerBackdrop())
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { composerWidth = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         // The inset never scrolls, so uncapped accessibility sizes left the
@@ -923,7 +974,7 @@ private struct ConversationComposer: View {
             sendOrStop
         }
         .padding(.horizontal, Metrics.md).padding(.vertical, Metrics.xs)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))
+        .composerSurface(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous), interactive: false)
         .overlay(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous).strokeBorder(focused.wrappedValue ? Palette.tint : Palette.cardBorder))
         // The whole surface focuses the field, not only its text line.
         .contentShape(RoundedRectangle(cornerRadius: Metrics.heroRadius, style: .continuous))

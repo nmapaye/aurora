@@ -94,7 +94,7 @@ struct SummaryView: View {
                 Text("No recent main sleep")
                     .font(.headline)
                     .foregroundStyle(Palette.textPrimary)
-                Text("An estimate needs a recorded sleep block of at least 3 hours reaching the last 18 hours. Ongoing sleep counts only up to now.")
+                Text(EnergyEstimate.missingSleepLine)
                     .font(.footnote)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

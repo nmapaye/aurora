@@ -107,7 +107,8 @@ import Testing
         #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("On-device composition") == true)
         assistant.composeLocalExplanation = { _ in throw AppleOnDeviceFeatures.FeatureFailure("Not ready") }
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
-        #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("Deterministic summary") == true)
+        #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("Modeled alertness") == true)
+        #expect(assistant.conversation.messages.last?.card?.metrics.contains { $0.id == "localExplanation" } == false)
         #expect(assistant.conversation.messages.last?.card?.summary.contains("No record") == true)
     }
     @Test func failedUndoRetainsLocalRecordAndSavedReceipt() async throws {

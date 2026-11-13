@@ -115,6 +115,7 @@ struct AuroraApp: App {
 /// a once-per-launch welcome over it.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set when storage first opens, so the welcome plays at most once per
     /// launch and never right after finishing setup or an erase.
@@ -147,7 +148,10 @@ struct RootView: View {
                     OnboardingView().onAppear { Signposts.event("Launch.OnboardingVisible") }
                 }
             }
+            .sheet(isPresented: termsSheetBinding) { TermsUpdateSheet() }
             .onAppear(perform: handleLaunch)
+            // After the welcome, so the two never stack; down only after Continue.
+            .onChange(of: termsPresented, initial: true) { _, presented in router.showTermsUpdate = presented }
             .onChange(of: model.state.onboarding.completed) { _, completed in
                 // Run what an activation would, so Health reads chosen during
                 // setup start now instead of at the next foreground.
@@ -172,6 +176,19 @@ struct RootView: View {
             evidence: Welcome.evidence(state: model.state, now: model.now, clock: model.clock, text: model.text)
         )
         welcome = presentation
+    }
+
+    /// The Terms and Privacy sheet shows until Continue saves the current
+    /// version, and again only when that version goes up.
+    private var termsPresented: Bool {
+        launchHandled && model.phase == .ready
+            && TermsUpdatePrompt.isPresented(model.state.onboarding, welcomeShowing: welcome.showing)
+    }
+    /// Refuses any dismissal SwiftUI reports before Continue has saved.
+    private var termsSheetBinding: Binding<Bool> {
+        Binding(get: { router.showTermsUpdate }, set: { presented in
+            if presented || TermsUpdatePrompt.allowsDismiss(model.state.onboarding) { router.showTermsUpdate = presented }
+        })
     }
 
     /// Touches and VoiceOver return to the conversation in this update; the
