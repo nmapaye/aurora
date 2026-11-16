@@ -67,8 +67,13 @@ public enum CaffeineLog {
         return Double(trimmed)
     }
 
+    /// The amount contract every save path uses: whole mg from 1 to 1999.
+    public static func isValidAmount(_ mg: Double) -> Bool {
+        mg.isFinite && mg.rounded() == mg && mg >= 1 && mg <= 1999
+    }
+
     public static func validate(_ draft: CustomDoseDraft, now: Millis) -> DraftValidation {
-        guard let mg = parseAmount(draft.mg), mg.isFinite, mg.rounded() == mg, mg >= 1, mg <= 1999 else {
+        guard let mg = parseAmount(draft.mg), isValidAmount(mg) else {
             return .invalid("Amount must be between 1 and 1999 mg.")
         }
         guard draft.timestamp.isFinite, draft.timestamp <= now else {

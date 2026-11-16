@@ -35,9 +35,14 @@ public enum CaffeineAtTime {
     /// Card rounding: nearest 5 mg, halves away from zero (62.5 → 65), shown
     /// as "About N mg". The golden case 67.1 / 58.4 / 50.8 / 44.2 gives
     /// 65 / 60 / 50 / 45. Recorded totals elsewhere stay whole mg.
+    /// Never traps: a non-finite value shows 0, and one beyond `Int`'s range
+    /// is clamped (amounts the card accepts are 1–1999 mg, `CaffeineLog.isValidAmount`).
     public static func displayMg(_ mg: Double) -> Int {
-        Int((mg / 5).rounded(.toNearestOrAwayFromZero) * 5)
+        let rounded = (mg / 5).rounded(.toNearestOrAwayFromZero) * 5
+        guard rounded.isFinite else { return 0 }
+        return Int(min(max(rounded, -displayLimit), displayLimit))
     }
+    static let displayLimit = 9_000_000_000_000_000_000.0
 
     // MARK: Input
 
@@ -183,7 +188,8 @@ public enum CaffeineAtTime {
     public static func evaluate(doses: [Dose], unlogged: UnloggedDrink?, halfLifeHours: Double, targets: [Millis], now: Millis) -> Result {
         var problems: [Problem] = []
         if !(halfLifeHours.isFinite && halfLifeHours > 0) { problems.append(.invalidHalfLife) }
-        if let unlogged, !(unlogged.mg.isFinite && unlogged.mg > 0 && unlogged.at.isFinite) { problems.append(.invalidAmount) }
+        // The save contract (whole 1–1999 mg), so a question never takes an amount Save would refuse.
+        if let unlogged, !(CaffeineLog.isValidAmount(unlogged.mg) && unlogged.at.isFinite) { problems.append(.invalidAmount) }
         if targets.isEmpty { problems.append(.missingTime) }
 
         let known = doses.filter { $0.timestamp <= now }
@@ -305,7 +311,12 @@ public enum CaffeineQuestion {
         /// not answered in v0.1.0. The UI shows the standard capability
         /// chips (`fallbackCapabilities`, the "What can you do?" list), not a dead end.
         case showCapabilities
+        /// A question with an amount the app can't use (outside whole
+        /// 1–1999 mg): a plain line asking again, never a changed amount.
+        case clarify(String)
     }
+
+    public static let amountClarification = "Ask with a whole caffeine amount between 1 and 1999 mg."
 
     public static var fallbackCapabilities: [AssistantIntent] { Capabilities.all.map(\.intent) }
 
@@ -342,6 +353,7 @@ public enum CaffeineQuestion {
             guard !targets.isEmpty else { return nil }
             let drink = String(drinkClause)
             let drinkMg = singleMg(drink)
+            if let drinkMg, !CaffeineLog.isValidAmount(drinkMg) { return .clarify(amountClarification) }
             return .caffeineAt(Parsed(drinkMg: drinkMg, drinkMentioned: drinkMg != nil || matches(drinkWord, drink),
                                       drinkTime: times(in: drink, forDrink: true).first, drinkDayOffset: drink.contains("yesterday") ? -1 : 0,
                                       targets: targets))
@@ -357,6 +369,7 @@ public enum CaffeineQuestion {
             if case .into(let h, let m) = spec { return .clock(hour: h, minute: m) }
             return spec
         }
+        guard CaffeineLog.isValidAmount(mg) else { return .clarify(amountClarification) }
         return .caffeineAt(Parsed(drinkMg: mg, drinkMentioned: true, drinkTime: drinkTime, drinkDayOffset: text.contains("yesterday") ? -1 : 0, targets: targets))
     }
 

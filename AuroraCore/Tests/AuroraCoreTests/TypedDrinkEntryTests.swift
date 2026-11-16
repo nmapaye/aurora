@@ -218,4 +218,9 @@ import Testing
             #expect(CaffeineLog.validate(e.draft, now: now) == .valid, "\(text)")
         }
     }
+
+    @Test func aHugeTypedAmountIsRejectedWithoutATrap() {
+        #expect(unreadable("coffee 100000000000000000000mg") == T.amountRangeMessage)
+        #expect(unreadable("coffee 2000mg") == T.amountRangeMessage)
+    }
 }

@@ -364,6 +364,43 @@ import Testing
         #expect(Q.drinkLocalTime(hour: 17, minute: 27, dayOffset: 0, now: now, timeZone: la) == .init(year: 2026, month: 11, day: 16, hour: 17, minute: 27))
         #expect(Q.drinkLocalTime(hour: 14, minute: 0, dayOffset: -1, now: now, timeZone: la) == .init(year: 2026, month: 11, day: 15, hour: 14, minute: 0))
     }
+
+    // MARK: Amount contract (Codex P1, Nov 16)
+
+    @Test func anAmountOutsideTheSaveContractIsRejectedWithoutATrap() {
+        let now = at(2026, 11, 16, 18)
+        for mg in [1e20, 2000, 0, -126, 12.5, .infinity, .nan] {
+            let result = C.evaluate(doses: [], unlogged: .init(mg: mg, at: now, provenance: .typed), halfLifeHours: 5, targets: [now], now: now)
+            #expect(result.problems.contains(.invalidAmount), "\(mg)")
+            #expect(result.rows.isEmpty, "\(mg)")
+        }
+        // Normal amounts are unchanged, at both ends of the range.
+        for mg in [1.0, 126, 1999] {
+            let result = C.evaluate(doses: [], unlogged: .init(mg: mg, at: now, provenance: .typed), halfLifeHours: 5, targets: [now], now: now)
+            #expect(result.problems.isEmpty, "\(mg)")
+            #expect(result.rows.first?.totalMg == mg, "\(mg)")
+        }
+        #expect(CaffeineLog.isValidAmount(1999) && !CaffeineLog.isValidAmount(2000) && !CaffeineLog.isValidAmount(1e20))
+    }
+
+    @Test func displayRoundingNeverTraps() {
+        #expect(C.displayMg(1e20) > 0)
+        #expect(C.displayMg(-1e20) < 0)
+        #expect(C.displayMg(.infinity) == 0 && C.displayMg(.nan) == 0)
+        #expect(C.displayMg(67.1) == 65 && C.displayMg(62.5) == 65)
+        // A recorded dose from elsewhere with an absurd amount still renders.
+        let now = at(2026, 11, 16, 18)
+        let row = C.evaluate(doses: [Dose(id: "x", timestamp: now, mg: 1e20)], unlogged: nil, halfLifeHours: 5, targets: [now], now: now).rows.first
+        #expect(row?.valueText.isEmpty == false)
+    }
+
+    @Test func aTwentyOneDigitAmountAsksForAnAmountInRange() {
+        let text = "how much caffeine at 11pm if I drink 100000000000000000000mg now"
+        #expect(Q.route(text) == .clarify(Q.amountClarification))
+        #expect(Q.route("what about 2000 mg at 5pm?") == .clarify(Q.amountClarification))
+        #expect(Q.route("if I drink 126mg now how much at 11pm")?.isCaffeineAt == true)
+        #expect(Q.route("if I drink 1999mg now how much at 11pm")?.isCaffeineAt == true)
+    }
 }
 
 extension CaffeineQuestion.Route {
