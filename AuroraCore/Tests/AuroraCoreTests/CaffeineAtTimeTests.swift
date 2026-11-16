@@ -471,6 +471,32 @@ import Testing
         #expect(second - first == hourMs)
         #expect(chip.nextStart(after: now, timeZone: la) == .repeated(first: first, second: second))
     }
+
+    // MARK: Questions never become typed entries (Duet/Codex P2, Nov 16)
+
+    @Test func questionCuesNeverBecomeATypedEntry() {
+        let now = at(2026, 11, 16, 18)
+        for text in ["200mg at 4pm what about bedtime", "100mg at 3pm impact tonight", "100mg difference",
+                     "how about 100mg at 3pm", "100mg effect", "100mg at 3pm affect bedtime", "what if 100mg at 3pm",
+                     "100mg at 3pm?", "espresso at bedtime", "coffee tonight"] {
+            #expect(TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: now, clock: clock) == nil, "\(text)")
+        }
+        // The follow-up route takes these questions first in the app.
+        #expect(Q.route("200mg at 4pm what about bedtime")?.isCaffeineAt == true)
+        #expect(Q.route("100mg at 3pm impact tonight")?.isCaffeineAt == true)
+    }
+
+    @Test func legitimateCustomDrinkNamesStillParse() throws {
+        let now = at(2026, 11, 16, 18)
+        for (text, source, mg) in [("Yerba Mate 80mg", "Yerba Mate", "80"), ("guayusa 90mg at 3pm", "Guayusa", "90")] {
+            guard case .entry(let entry)? = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: now, clock: clock) else {
+                Issue.record("\(text) not an entry"); continue
+            }
+            // The name may come from a matching record ("SWITCHEL · YERBA MATE"); the typed mg is kept.
+            #expect(entry.draft.source.lowercased().contains(source.lowercased()), "\(text): \(entry)")
+            #expect(entry.draft.mg == mg && entry.amountSource == .typedMg, "\(text): \(entry)")
+        }
+    }
 }
 
 extension CaffeineQuestion.Route {

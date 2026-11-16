@@ -55,6 +55,8 @@ public enum TypedDrinkEntry {
         "energy": PresetServing(serving: "16 fl oz", milliliters: 16 * Volume.mlPerFlOz, usdaEntryID: nil),
     ]
 
+    static let questionCues = #"\b(what about|how about|what if|impact|effect|affect|difference|bed ?time|tonight)\b"#
+
     public static let oneDrinkMessage = "One drink at a time. Enter the first one here, then the next."
     public static let unreadableMessage = "I couldn’t read that drink. Pick a drink below or enter it yourself."
     public static let amountRangeMessage = "Amounts are whole numbers from 1 to 1999 mg. Enter the amount here."
@@ -93,6 +95,9 @@ public enum TypedDrinkEntry {
         guard !text.isEmpty, text != "log caffeine", !text.contains("?") else { return nil }
         if matches(#"^(how|what|when|why|where|which|who|should|can|could|would|will|is|are|am|do|does|did|if|actually|correction|make it|it was|was|were|help|show|open)\b"#, text) { return nil }
         if matches(#"\b(should|would|could|recommend|don't|didn't|dont|didnt|do not|did not|not|never|no|cancel|delete|undo|remove|sleep|slept|if)\b"#, text) { return nil }
+        // Question cues: "what about bedtime", "impact tonight", "difference".
+        // These are follow-up questions (`CaffeineQuestion`), never entries.
+        if matches(questionCues, text) { return nil }
 
         // Time.
         var rest = text

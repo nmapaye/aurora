@@ -110,4 +110,12 @@ import Testing
         #expect(followUp == nil && assistant.pendingDraft == nil)
         await expectNothingWritten()
     }
+
+    @Test func aQuestionCueIsAskedNotEnteredWithAIOff() async throws {
+        assistant.intelligenceOffOverride = true
+        assistant.send("200mg at 4pm what about bedtime", app: model)
+        #expect(followUp != nil)
+        #expect(assistant.pendingDraft == nil && assistant.typedEntry == nil)
+        await expectNothingWritten()
+    }
 }
