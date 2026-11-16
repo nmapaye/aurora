@@ -92,6 +92,9 @@ final class AssistantModel {
     private(set) var localDrinkReview = LocalDrinkReview()
     // Test seams for deterministic race/failure checks, never persisted.
     @ObservationIgnored var extractLocalDrink: ((String) async throws -> LocalDrinkUnderstanding.Evidence)?
+    /// The one save switch (`SavePolicy`). Confirm until Nathan decides;
+    /// tests set it to cover both settings.
+    @ObservationIgnored var savePolicySetting: SavePolicy.Setting = SavePolicy.defaultSetting
     /// Tests: forces the AI-off typed entry path regardless of the model.
     @ObservationIgnored var intelligenceOffOverride: Bool?
     /// Apple Intelligence is off (and no Mac development model or test
@@ -401,6 +404,11 @@ final class AssistantModel {
         }
         pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
         captureDraft(app: app)
+        // Instant only when the switch allows it for this exact entry; the
+        // same Save then posts the receipt with Undo for that entry.
+        if case .entry(let entry) = result, SavePolicy.typedEntrySavePolicy(entry, setting: savePolicySetting) == .instantWithUndo {
+            saveDose(app: app)
+        }
     }
 
     /// The entry card's source line (see `TypedDrinkEntry.sourceLine`).
@@ -853,8 +861,9 @@ final class AssistantModel {
         save()
     }
 
-    /// "Log it": opens the entry card with yesterday's drink, timed now.
-    /// Nothing is saved until Save; the receipt then carries Undo.
+    /// "Log It": opens the entry card with yesterday's drink, timed now.
+    /// Nothing is saved until Save (receipt with Undo), unless the save
+    /// switch is instant and this is an exact copy (`SavePolicy`).
     func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
         // The current card, not the tapped copy: a second tap opens nothing more.
         guard let card = conversation.messages.first(where: { $0.id == message.id })?.card, card.state == .ready,
@@ -866,9 +875,15 @@ final class AssistantModel {
         var engagement = conversation.repeatDrinkEngagement ?? .init()
         engagement.recordAnswered(now: app.now, clock: app.clock)
         conversation.repeatDrinkEngagement = engagement
-        pendingDraft = RepeatDrinks.draft(prompt, now: app.now)
+        let draft = RepeatDrinks.draft(prompt, now: app.now)
+        pendingDraft = draft
         pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
         captureDraft(app: app)
+        // Through the one save switch: instant only as an exact copy of the
+        // recorded entry, timed now; otherwise the card waits for Save.
+        if SavePolicy.repeatDrinkSavePolicy(prompt, doses: app.state.doses, draft: draft, now: app.now, setting: savePolicySetting) == .instantWithUndo {
+            saveDose(app: app)
+        }
     }
 
     /// "Not today": not asked again for that drink. Records nothing, never
