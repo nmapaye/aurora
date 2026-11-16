@@ -401,6 +401,48 @@ import Testing
         #expect(Q.route("if I drink 126mg now how much at 11pm")?.isCaffeineAt == true)
         #expect(Q.route("if I drink 1999mg now how much at 11pm")?.isCaffeineAt == true)
     }
+
+    // MARK: Numeric tokens (Codex P2, Nov 16)
+
+    @Test func signedGroupedOrMalformedAmountsAskAgainNeverLoseASignOrGroup() {
+        for token in ["-126mg", "−126mg", "+126mg", "1,126mg", "1.2.3mg", "126.mg", "1,126 mg"] {
+            #expect(Q.route("how much caffeine at 11pm if I drank \(token) at 5pm") == .clarify(Q.amountClarification), "\(token)")
+            #expect(Q.route("what about \(token) at 5pm?") == .clarify(Q.amountClarification), "\(token)")
+        }
+        let plain = Q.route("how much caffeine at 11pm if I drank 126mg at 5pm")
+        if case .caffeineAt(let p)? = plain { #expect(p.drinkMg == 126) } else { Issue.record("126mg did not route") }
+        if case .caffeineAt(let p)? = Q.route("what about 126 mg at 5pm?") { #expect(p.drinkMg == 126) } else { Issue.record("126 mg did not route") }
+    }
+
+    @Test func theSharedTokenRuleReadsOnlyPlainNumbers() {
+        #expect(MgToken.matches(in: "126mg").map(\.value) == [126])
+        #expect(MgToken.matches(in: "had 126 mg").map(\.value) == [126])
+        for text in ["-126mg", "1,126mg", "1.2.3mg", "matcha -126mg", "drink-126mg", "+5mg"] {
+            let found = MgToken.matches(in: text)
+            #expect(found.count == 1 && found[0].value == nil, "\(text)")
+        }
+        #expect(MgToken.matches(in: "126mg and 80mg").count == 2)
+        #expect(MgToken.matches(in: "12 oz latte").isEmpty)
+    }
+
+    @Test func typedEntriesWithASignedAmountAskAgainAndNeverKeepTheDigits() {
+        let now = at(2026, 11, 16, 14)
+        for text in ["matcha -126mg", "Starbucks -126mg", "coffee 1,126mg", "tea 1.2.3mg", "espresso -64 mg"] {
+            guard case .unreadable(let message)? = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: now, clock: clock) else {
+                Issue.record("\(text) was read as an entry"); continue
+            }
+            #expect(message == TypedDrinkEntry.amountRangeMessage, "\(text)")
+        }
+        // Matcha and Not in Database brands still go to manual entry with no amount.
+        for text in ["matcha", "Starbucks latte"] {
+            if case .entry(let entry)? = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: now, clock: clock) {
+                #expect(entry.draft.mg.isEmpty && entry.amountSource == .none, "\(text)")
+            } else { Issue.record("\(text) not an entry") }
+        }
+        if case .entry(let entry)? = TypedDrinkEntry.parse("matcha 70mg", db: CaffeineDatabase.bundled, now: now, clock: clock) {
+            #expect(entry.draft.mg == "70" && entry.amountSource == .typedMg)
+        } else { Issue.record("matcha 70mg not an entry") }
+    }
 }
 
 extension CaffeineQuestion.Route {

@@ -374,11 +374,13 @@ public enum CaffeineQuestion {
     }
 
     /// Exactly one "<n> mg" amount, as `caffeineDraft` reads it; two or more give nil.
+    /// A token `MgToken` can't read (signed, grouped, malformed) comes back
+    /// as NaN, which fails `CaffeineLog.isValidAmount`, so the route asks
+    /// again (`.clarify`) instead of keeping its trailing digits.
     static func singleMg(_ text: String) -> Double? {
-        guard let regex = try? NSRegularExpression(pattern: #"(?<![\d.])(\d+(?:\.\d+)?)\s*mg\b"#) else { return nil }
-        let found = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        guard found.count == 1, let range = Range(found[0].range(at: 1), in: text), let value = Double(text[range]), value > 0 else { return nil }
-        return value
+        let found = MgToken.matches(in: text)
+        guard found.count == 1 else { return nil }
+        return found[0].value ?? .nan
     }
 
     static let timePattern = #"(?:\b(?<prep>at|by|around|into|until|till|for)\s+)?(?:\b(?<h12>1[0-2]|0?[1-9])(?::(?<m12>[0-5]\d))?\s*(?<ap>[ap])\.?m\b\.?|\b(?<h24>[01]?\d|2[0-3]):(?<m24>[0-5]\d)\b|\b(?<noon>noon|midday)\b|\b(?<mid>midnight)\b|\b(?<now>right now|now)\b|\b(?<sleep>bed ?time|tonight|when i (?:go to )?(?:sleep|bed)|before bed|i go to bed|i fall asleep)\b|\b(?<bare>1[0-2]|0?[1-9])\b(?!\s*(?:mg|oz|ml|hours?|hrs?|h\b|min|minutes?|cups?|shots?|cans?|:|[ap]\.?m\b|/|out of)))"#

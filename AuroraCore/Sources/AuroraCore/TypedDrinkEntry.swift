@@ -109,11 +109,13 @@ public enum TypedDrinkEntry {
         }
 
         // The person's own mg.
-        let amounts = all(#"(?<![\d.])(\d+(?:\.\d+)?)\s*mg\b"#, rest)
+        // Signed, grouped or malformed amounts ask again (`MgToken`).
+        let amounts = MgToken.matches(in: rest)
         if amounts.count > 1 { return .unreadable(unreadableMessage) }
         var typedMg: Double?
         if let amount = amounts.first {
-            typedMg = Double(amount.groups[0])
+            guard let value = amount.value else { return .unreadable(amountRangeMessage) }
+            typedMg = value
             rest = remove(amount.range, from: rest)
         }
 
