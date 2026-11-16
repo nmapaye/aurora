@@ -105,7 +105,8 @@ import Testing
         // "On-device composition · " prefix to tell them apart.
         app.addManualSleep(.init(start: app.now - 9 * hourMs, end: app.now - 2 * hourMs, note: ""))
         assistant.composeLocalExplanation = { bundle in
-            try #require(bundle.render(try #require(bundle.allowedCompositions.last)))
+            let composition = try #require(bundle.allowedCompositions.last)
+            return try #require(bundle.render(composition))
         }
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
         let composedCard = try #require(assistant.conversation.messages.last?.card)
