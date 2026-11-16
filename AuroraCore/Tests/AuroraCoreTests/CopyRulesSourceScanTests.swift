@@ -6,12 +6,14 @@ import Testing
 /// sources, not just the onboarding and welcome lines: no "remaining
 /// caffeine", "safe amount", "you should…" and the rest anywhere a person
 /// could read it. Excluded: the research models and their flagged Debug
-/// screen (off by default, never shown to normal users) and CopyRules' own
-/// pattern. Comments are skipped.
+/// screen (off by default, never shown to normal users). CopyRules' own
+/// pattern is a raw literal, so Onboarding+Copy.swift is scanned like every
+/// other file; its one allowed sentence is scrubbed by CopyRules itself.
+/// Comments are skipped.
 @Suite struct CopyRulesSourceScanTests {
     private static let repo = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    private static let excluded: Set<String> = ["ResearchModelsView.swift", "Onboarding+Copy.swift"]
+    private static let excluded: Set<String> = ["ResearchModelsView.swift"]
 
     /// Ordinary and multi-line string literals, skipping `//` comments and
     /// raw `#"…"#` literals (regex patterns).
@@ -56,7 +58,7 @@ import Testing
         let app = Self.repo.appendingPathComponent("Aurora")
         // The app sources sit beside the package in the repo checkout.
         try #require(FileManager.default.fileExists(atPath: app.path))
-        var scanned = 0
+        var scanned = 0, scannedCopyFile = false
         for dir in [app, Self.repo.appendingPathComponent("AuroraCore/Sources/AuroraCore")] {
             let walker = try #require(FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil))
             for case let url as URL in walker where url.pathExtension == "swift" {
@@ -65,8 +67,10 @@ import Testing
                     #expect(CopyRules.violations(in: literal).isEmpty, "\(url.lastPathComponent): \(literal)")
                 }
                 scanned += 1
+                if url.lastPathComponent == "Onboarding+Copy.swift" { scannedCopyFile = true }
             }
         }
         #expect(scanned > 100)
+        #expect(scannedCopyFile)
     }
 }
