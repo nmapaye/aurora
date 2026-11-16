@@ -67,6 +67,20 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(state.sleeps.isEmpty && state.vigilanceSessions.isEmpty && !state.demoMode)
     }
 
+    /// Sample Data shows no made-up numbers: no matcha (manual entry only,
+    /// no sourced amount), and its black tea is the USDA FDC value already
+    /// in the bundled database (SR Legacy 173227, 1 cup (8 fl oz) = 47 mg).
+    @Test func sampleDataHasNoMatchaAndItsBlackTeaIsTheUSDAValue() throws {
+        let doses = SampleData.snapshot(now: now, clock: pacific).doses
+        #expect(!doses.contains { ($0.source ?? "").lowercased().contains("matcha") })
+        let db = try #require(CaffeineDatabase.bundled)
+        let tea = try #require(db.entry(id: "fdc:173227"))
+        let cup = try #require(tea.servings.first { $0.label == "1 cup (8 fl oz)" })
+        let blackTea = doses.filter { $0.source == "Demo black tea" }
+        #expect(blackTea.count == 4)
+        #expect(blackTea.allSatisfy { $0.mg == Double(cup.mg) } && cup.mg == 47)
+    }
+
     @Test func deleteAllKeepsSettings() {
         var state = AppState()
         state.prefs.cutoffHour = 13

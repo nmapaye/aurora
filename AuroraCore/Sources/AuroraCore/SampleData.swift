@@ -11,23 +11,27 @@ public struct SampleSnapshot: Equatable, Sendable {
 public enum SampleData {
     // Offsets are whole 24-hour days back from local midnight, as in the
     // original, not calendar days.
+    // "Demo black tea" is USDA FDC SR Legacy 173227 (Tea, black, brewed,
+    // prepared with tap water), 1 cup (8 fl oz) = 47 mg, the record already
+    // in the bundled caffeine database. Matcha has no sourced amount, so
+    // Sample Data has none.
     private static let dosePattern: [(day: Double, hour: Double, mg: Double, source: String)] = [
         (13, 8.25, 95, "Demo drip"),
-        (13, 13.5, 60, "Demo matcha"),
+        (13, 13.5, 47, "Demo black tea"),
         (12, 9, 95, "Demo drip"),
         (11, 8.5, 70, "Demo tea"),
         (10, 14, 80, "Demo cold brew"),
         (9, 9.25, 95, "Demo drip"),
-        (8, 12.75, 60, "Demo matcha"),
+        (8, 12.75, 47, "Demo black tea"),
         (7, 8.75, 95, "Demo drip"),
         (6, 15.25, 40, "Demo tea"),
         (5, 9, 120, "Demo espresso"),
-        (4, 13.25, 60, "Demo matcha"),
+        (4, 13.25, 47, "Demo black tea"),
         (3, 8.5, 95, "Demo drip"),
         (2, 14.5, 80, "Demo cold brew"),
         (1, 9.25, 95, "Demo drip"),
         (0, 8.5, 95, "Demo drip"),
-        (0, 12.25, 60, "Demo matcha"),
+        (0, 12.25, 47, "Demo black tea"),
     ]
 
     public static func snapshot(now: Millis, clock: LocalClock) -> SampleSnapshot {
