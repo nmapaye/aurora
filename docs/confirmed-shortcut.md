@@ -73,6 +73,13 @@ clear, reliable Undo, and every log can be undone"):
   `AppShortcutsProvider` (`AuroraShortcuts`) lists Log Drink, Undo Drink and
   Review Drink. Tests: `AuroraTests/LogDrinkShortcutAppTests`,
   `AuroraCoreTests/LogDrinkShortcutTests`.
+- **Superseded for v0.1.0 (2026-11-16, save rule in PRODUCT.md):** Log Drink
+  no longer saves in the background. It opens Aurora (`openAppWhenRun`) and
+  hands the chosen drink to the same review card as Review Drink, prefilled
+  with the preset amount or the person's usual drink; only Save writes, and the
+  receipt carries exact-entry Undo. Undo Drink and the background save path
+  were removed. Tests: `AuroraTests/LogDrinkShortcutAppTests`,
+  `AuroraTests/SavePathHealthTests`, `AuroraCoreTests/ShortcutReviewDraftTests`.
 - SPIKE2 **Why This Number** ships as the current energy card's disclosure,
   reading the captured `EnergyEstimate` (same contributions as
   `GroundedLocalExplanation`, so the numbers cannot diverge).

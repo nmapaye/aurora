@@ -95,21 +95,23 @@ import Testing
         // Focus tracking is interaction state, never part of the conversation.
         #expect(assistant.conversation == ConversationState())
     }
-    /// A complete caffeine log saves on arrival with a receipt; no draft or
-    /// Save step stands between the request and the record.
-    @Test func completeCaffeineLogSavesImmediatelyWithUndo() async throws {
+    /// A typed caffeine log never saves on arrival: the entry card opens with
+    /// the stated values, and only Save writes the record and its receipt.
+    @Test func typedCaffeineLogOpensTheEntryCardAndSavesOnlyOnSave() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)
         let assistant = AssistantModel(calendars: calendars())
         await assistant.handle(.logCaffeine, input: "I had 80 mg tea", app: app)
+        #expect(app.state.doses.isEmpty)
+        #expect(assistant.pendingDraft?.mg == "80" && assistant.pendingDraft?.source == "Tea")
+        #expect(assistant.conversation.messages.last?.card?.kind == .caffeineDraft)
+        #expect(!assistant.conversation.messages.contains { $0.card?.kind == .receipt })
+        assistant.saveDose(app: app)
         let dose = try #require(app.state.doses.first)
         #expect(app.state.doses.count == 1 && dose.mg == 80 && dose.source == "Tea")
-        #expect(assistant.pendingDraft == nil && assistant.pendingMessageID == nil && assistant.failure == nil)
-        #expect(!assistant.conversation.messages.contains { $0.card?.kind == .caffeineDraft })
         let receipt = try #require(assistant.conversation.messages.last?.card)
         #expect(receipt.kind == .receipt && receipt.state == .saved && receipt.title == "Caffeine saved")
         #expect(receipt.recordID == dose.id && receipt.recordKind == "caffeine" && receipt.records.map(\.id) == [dose.id])
-        // Saved before the conversation was: a relaunch keeps the record.
         let relaunched = self.app(directory)
         #expect(relaunched.state.doses == app.state.doses)
     }
@@ -131,8 +133,10 @@ import Testing
         let app = app(directory)
         let assistant = AssistantModel(calendars: calendars())
         await assistant.handle(.logCaffeine, input: "I had 60 mg coffee", app: app)
+        assistant.saveDose(app: app)
         let kept = try #require(app.state.doses.first)
         await assistant.handle(.logCaffeine, input: "I had 80 mg tea", app: app)
+        assistant.saveDose(app: app)
         // Save has nothing open to save again.
         assistant.saveDose(app: app)
         #expect(app.state.doses.count == 2)
@@ -160,6 +164,7 @@ import Testing
         let app = app(directory)
         let assistant = AssistantModel(calendars: calendars())
         await assistant.handle(.logCaffeine, input: "I had 80 mg tea", app: app)
+        assistant.saveDose(app: app)
         let receipt = try #require(assistant.conversation.messages.last)
         let dose = try #require(app.state.doses.first)
         var draft = CaffeineLog.editDraft(for: dose); draft.note = "Corrected"
@@ -167,8 +172,8 @@ import Testing
         assistant.undoReceipt(receipt, app: app)
         #expect(app.state.doses.count == 1 && assistant.failure != nil)
     }
-    /// A log whose write fails produces no receipt; its values open in the
-    /// entry card, where Save retries once storage works again.
+    /// A log opens the entry card; a Save whose write fails produces no
+    /// receipt and keeps the card, where Save retries once storage works again.
     @Test func failedRecordSaveOpensDraftAndProducesNoReceipt() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)
@@ -179,7 +184,6 @@ import Testing
         #expect(app.state.doses.isEmpty && assistant.pendingDraft?.mg == "80" && assistant.pendingDraft?.source == "Tea")
         #expect(assistant.conversation.messages.last?.card?.kind == .caffeineDraft)
         #expect(!assistant.conversation.messages.contains { $0.card?.kind == .receipt })
-        #expect(assistant.failure != nil)
         assistant.saveDose(app: app)
         #expect(app.state.doses.isEmpty && assistant.pendingDraft != nil && assistant.failure != nil)
         try FileManager.default.removeItem(at: directory)

@@ -47,6 +47,20 @@ public enum LogDrinkShortcut {
         public init(_ dose: Dose) { self.init(doseID: dose.id, loggedAt: dose.timestamp) }
     }
 
+    /// The review card's starting values for a Log Drink request: a Quick Add
+    /// preset at its listed amount, or the person's usual drink from their own
+    /// records. With no usual drink the card starts empty. Nothing is saved
+    /// until the person taps Save on the card.
+    public static func reviewDraft(_ choice: Choice, doses: [Dose], now: Millis) -> CustomDoseDraft {
+        if let preset = choice.preset {
+            return CustomDoseDraft(mg: numberText(preset.mg), source: preset.label, timestamp: now, note: "")
+        }
+        guard let prior = AssistantPlanner.usual(doses, now: now), prior.mg > 0 else {
+            return CustomDoseDraft(mg: "", source: "", timestamp: now, note: "")
+        }
+        return CustomDoseDraft(mg: numberText(prior.mg), source: prior.source ?? "", timestamp: now, note: "")
+    }
+
     public static func resolve(_ choice: Choice, doses: [Dose], now: Millis, id: String) -> Outcome {
         let dose: Dose
         if let preset = choice.preset {

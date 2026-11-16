@@ -5,9 +5,16 @@ record sleep/caffeine, review deterministic estimates and measured reaction test
 and review selected commitments. It does not diagnose fatigue, make medical or
 health claims, or act as an unrestricted general assistant.
 
-Conversation contains finite native cards. Logging is low-friction and reversible:
-a log saves immediately with a clear, reliable Undo, and every log can be undone.
-Sleep logs may still use a confirm card. Calendar changes require fresh explicit
+Conversation contains finite native cards. Logging is low-friction and reversible,
+and every log can be undone exactly. A drink saves at once, with Undo for that
+entry, only when the person fully specified it with no model inference: a drink
+chip in the entry card, or a manual entry with its amount saved from the entry
+sheet. A correction made seconds later edits that same entry, with Undo.
+Anything an on-device model inferred, every photo-derived entry, typed requests
+in the conversation, a drink follow-up's "Log it", and the Log Drink and Review
+Drink shortcuts open a confirm card and save only on Save. When the path isn't
+certain, Aurora asks for confirmation. Sleep logs may still use a confirm card.
+Calendar changes require fresh explicit
 approval. Historical cards are snapshots with Refresh. A day with no record is
 "No record", never 0. Sample Data is labeled and read-only; Health records are
 read-only.

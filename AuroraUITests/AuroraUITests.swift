@@ -1214,7 +1214,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Aurora Design Gallery"].waitForExistence(timeout: 10))
         let title = cardTitle("repeatDrink")
         XCTAssertTrue(title.waitForExistence(timeout: 10))
-        let logIt = app.buttons["repeat-drink-log"]
+        let logIt = app.buttons["repeat-drink-review"]
         for _ in 0..<12 where !logIt.isHittable { app.swipeUp() }
         XCTAssertTrue(logIt.isHittable)
         XCTAssertTrue(app.buttons["repeat-drink-dismiss"].exists)

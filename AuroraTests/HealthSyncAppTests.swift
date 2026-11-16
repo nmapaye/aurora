@@ -160,16 +160,18 @@ import Testing
         #expect(assistant.conversation.messages.last?.card?.metrics.first { $0.id == "health" }?.value == "Added")
     }
 
-    /// An instant log stores the dose and its queued Health save in one
-    /// change before Health is asked; Undo removes the dose here and then
-    /// only Aurora's own sample from Health.
-    @Test func instantLogIsLocalFirstAndUndoRemovesOnlyAurorasHealthSample() async throws {
+    /// A typed log opens the card and writes nothing; Save stores the dose and
+    /// its queued Health save in one change before Health is asked; Undo
+    /// removes the dose here and then only Aurora's own sample from Health.
+    @Test func typedLogSavesOnlyOnSaveLocalFirstAndUndoRemovesOnlyAurorasHealthSample() async throws {
         let health = ScriptedHealth()
         let model = makeModel(health: health)
         model.completeOnboarding()
         _ = await model.setHealthChoice(.writeCaffeine, enabled: true)
         let assistant = AssistantModel(makeStore: { ConversationStore(directory: root.appendingPathComponent("Support/Aurora", isDirectory: true)) })
         await assistant.handle(.logCaffeine, input: "I had 60 mg tea", app: model)
+        #expect(model.state.doses.isEmpty && assistant.pendingDraft?.mg == "60")
+        assistant.saveDose(app: model)
         let dose = try #require(model.state.doses.first)
         // Read back from disk before Health runs: both are in the stored state.
         let stored = try #require(try StateStore(directory: root.appendingPathComponent("Support/Aurora", isDirectory: true)).load())
