@@ -41,6 +41,67 @@ import Testing
         #expect([0.0, 2.4, 2.5, 7.4, 7.5, 62.5, 67.1, 58.4, 50.8, 44.2, 99.99].map(C.displayMg) == [0, 0, 5, 5, 10, 65, 65, 60, 50, 45, 100])
     }
 
+    @Test func underTwoAndAHalfMgShowsLessThanFive() {
+        let now = at(2026, 11, 16, 18)
+        // 10 mg at 8:00 → 10 · 0.5^(15/5) = 1.25 mg at 23:00: records exist, so not "No record".
+        let doses = [Dose(id: "manual:1", timestamp: at(2026, 11, 16, 8), mg: 10)]
+        let row = C.evaluate(doses: doses, unlogged: nil, halfLifeHours: 5, targets: [at(2026, 11, 16, 23)], now: now).rows[0]
+        #expect(abs(row.totalMg - 1.25) < 1e-9)
+        #expect(!row.isNoRecord && row.isBelowDisplay)
+        #expect(row.valueText == "Less than 5 mg")
+        // 2.5 mg exactly rounds to 5 and shows "About 5 mg".
+        let edge = C.evaluate(doses: [Dose(id: "manual:2", timestamp: at(2026, 11, 16, 8), mg: 20)], unlogged: nil, halfLifeHours: 5, targets: [at(2026, 11, 16, 23)], now: now).rows[0]
+        #expect(edge.totalMg == 2.5 && edge.valueText == "About 5 mg" && !edge.isBelowDisplay)
+        #expect(C.evaluate(doses: [], unlogged: nil, halfLifeHours: 5, targets: [now], now: now).rows[0].valueText == "No record")
+    }
+
+    // MARK: Asked drink vs a logged one (never merged silently)
+
+    @Test func pastDrinkMatchingLoggedEntryAsksWithTwoChipsNoDefault() {
+        let now = at(2026, 11, 16, 18)
+        let logged = Dose(id: "manual:esp", timestamp: at(2026, 11, 16, 15), mg: 64)
+        let asked = C.UnloggedDrink(mg: 64, at: at(2026, 11, 16, 15, 20), provenance: .typed)
+        guard case .needsChoice(let question) = C.checkAskedDrink(asked, doses: [logged], now: now) else { Issue.record("expected a question"); return }
+        #expect(question.options == [.useLogged, .addAnother])
+        #expect(question.options.map(\.label) == ["Use Logged Drink", "Add as Another Drink"])
+        #expect(question.loggedDoseID == "manual:esp")
+        let target = at(2026, 11, 16, 23)
+
+        let useLogged = question.answer(.useLogged)
+        #expect(useLogged == .logged(doseID: "manual:esp", mg: 64, at: logged.timestamp))
+        #expect(useLogged.label == "Logged")
+        let r1 = C.evaluate(doses: [logged], asked: useLogged, halfLifeHours: 5, targets: [target], now: now)
+        #expect(r1.drinkLabel == "Logged" && r1.unlogged == nil)
+        #expect(r1.rows[0].totalMg == Caffeine.activeMg(at: target, doses: [logged], halfLifeHours: 5))
+
+        let another = question.answer(.addAnother)
+        #expect(another == .notLogged(asked) && another.label == "Not Logged")
+        let r2 = C.evaluate(doses: [logged], asked: another, halfLifeHours: 5, targets: [target], now: now)
+        #expect(r2.drinkLabel == "Not Logged" && r2.unlogged == asked)
+        #expect(r2.rows[0].totalMg == Caffeine.activeMg(at: target, doses: [logged, Dose(id: "q", timestamp: asked.at, mg: 64)], halfLifeHours: 5))
+    }
+
+    @Test func noMatchAddsDrinkWithoutAQuestion() {
+        let now = at(2026, 11, 16, 18)
+        let logged = Dose(id: "manual:esp", timestamp: at(2026, 11, 16, 15), mg: 64)
+        let cases: [(C.UnloggedDrink, [Dose])] = [
+            (.init(mg: 80, at: at(2026, 11, 16, 15, 10), provenance: .typed), [logged]),            // different mg
+            (.init(mg: 64, at: at(2026, 11, 16, 15, 31), provenance: .typed), [logged]),            // 31 min apart
+            (.init(mg: 64, at: at(2026, 11, 16, 19), provenance: .typed), [Dose(id: "manual:x", timestamp: at(2026, 11, 16, 17, 50), mg: 64)]), // asked drink is in the future
+            (.init(mg: 60, at: at(2026, 11, 16, 12, 10), provenance: .typed), [Dose(id: "demo:1", timestamp: at(2026, 11, 16, 12), mg: 60)]), // Sample Data isn't a logged drink
+            (.init(mg: 64, at: at(2026, 11, 16, 15), provenance: .typed), []),                       // nothing logged
+        ]
+        for (asked, doses) in cases {
+            #expect(C.checkAskedDrink(asked, doses: doses, now: now) == .resolved(.notLogged(asked)))
+        }
+        // Exactly 30 minutes still asks.
+        let edge = C.UnloggedDrink(mg: 64, at: at(2026, 11, 16, 15, 30), provenance: .typed)
+        if case .needsChoice = C.checkAskedDrink(edge, doses: [logged], now: now) {} else { Issue.record("30 min should ask") }
+        // Base evaluate labels its unlogged drink.
+        #expect(C.evaluate(doses: [], unlogged: edge, halfLifeHours: 5, targets: [now], now: now).drinkLabel == "Not Logged")
+        #expect(C.evaluate(doses: [], unlogged: nil, halfLifeHours: 5, targets: [now], now: now).drinkLabel == nil)
+    }
+
     @Test func pastUnloggedDrinkIsAllowedUnlikeCutoffScenario() {
         // Asked at 22:00 about a drink at 15:00 that was never logged.
         let now = at(2026, 11, 16, 22)
@@ -126,15 +187,18 @@ import Testing
     }
 
     @Test func halfLifeInfoCopy() {
-        #expect(C.halfLifeInfo(5) == "Estimated with your half-life setting (5 h). Studies of healthy adults report half-lives from about 3 to 10 hours.")
-        #expect(C.halfLifeInfo(6.5) == "Estimated with your half-life setting (6.5 h). Studies of healthy adults report half-lives from about 3 to 10 hours.")
+        #expect(C.halfLifeInfo(5) == "Estimated with your half-life setting (5 h). In one study of 10 healthy young men, half-lives ranged from about 3 to 10 hours.")
+        #expect(C.halfLifeInfo(6.5) == "Estimated with your half-life setting (6.5 h). In one study of 10 healthy young men, half-lives ranged from about 3 to 10 hours.")
         #expect(C.halfLifeRangeSource == "Blanchard & Sawers 1983")
+        #expect(C.halfLifeRangeCitation == "Blanchard J, Sawers SJA. The absolute bioavailability of caffeine in man. Eur J Clin Pharmacol 1983;24:93–98. doi:10.1007/BF00613933. PubMed 6832208.")
+        #expect(!C.halfLifeRangeCitation.contains("6886969") && !C.halfLifeRangeCitation.contains("BF01061844"))
     }
 
     @Test func copyHasNoForbiddenOrRejectedWords() {
         let chip = C.SleepTimeChip(minuteOfDay: 23 * 60 + 5, nights: 7)
         let strings = [C.title, C.notLoggedLabel, C.noRecordText, C.halfLifeInfo(5), C.halfLifeRangeSource, C.logThisDrinkLabel,
-                       chip.label(clockTime: "11:05 PM"), "About 65 mg"]
+                       chip.label(clockTime: "11:05 PM"), "About 65 mg", C.lessThanFiveText, C.loggedLabel,
+                       C.DuplicateChoice.useLogged.label, C.DuplicateChoice.addAnother.label]
         for s in strings {
             #expect(CopyRules.violations(in: s).isEmpty, "\(s)")
             for word in ["remaining", "impact", "moderate", "you'll lose", "should", "safe", "gardiner", "iom", "sugar", "nutrition", "recommend"] {
@@ -263,12 +327,26 @@ import Testing
     }
 
     @Test func unrelatedOrTimelessTextIsNotThisRoute() {
-        for text in ["how much sleep did I get", "how much caffeine did I have today", "how much caffeine", "log caffeine", "what's my energy tonight",
-                     "how much time until 5pm", "show my history", "how much caffeine did I have at 3pm", "how much was active at noon"] {
+        for text in ["how much sleep did I get", "how much caffeine", "log caffeine", "what's my energy tonight",
+                     "how much time until 5pm", "show my history"] {
             #expect(Q.route(text) == nil, "\(text)")
         }
         // Existing behavior is unchanged: any "how much" is still .unsupported in explicitIntent.
         #expect(AssistantPlanner.explicitIntent("how much caffeine at 11pm") == .unsupported)
+    }
+
+    @Test func pastTenseQuestionsGetCapabilityChipsNotADeadEnd() {
+        for text in ["how much caffeine did I have at 3pm", "How much was active at noon?", "how much caffeine was in me at 9am yesterday",
+                     "how much caffeine did I have today", "how much caffeine were there at lunch"] {
+            #expect(Q.route(text) == .showCapabilities, "\(text)")
+            #expect(AssistantPlanner.explicitIntent(text) == .unsupported, "\(text)")
+        }
+        // The chips are the standard list, the same one the "What can you do?" card uses.
+        #expect(Q.fallbackCapabilities == Capabilities.all.map(\.intent))
+        // Past tense inside the drink clause doesn't change the question.
+        #expect(Q.route("how much caffeine at 11pm if I had a drink that was 200mg at 2pm")?.isCaffeineAt == true)
+        // Advice still wins over past tense.
+        #expect(Q.route("how much should I have had at 3pm") == .unsupported)
     }
 
     @Test func timeChipsResolveWithoutGuessing() {
@@ -286,4 +364,8 @@ import Testing
         #expect(Q.drinkLocalTime(hour: 17, minute: 27, dayOffset: 0, now: now, timeZone: la) == .init(year: 2026, month: 11, day: 16, hour: 17, minute: 27))
         #expect(Q.drinkLocalTime(hour: 14, minute: 0, dayOffset: -1, now: now, timeZone: la) == .init(year: 2026, month: 11, day: 15, hour: 14, minute: 0))
     }
+}
+
+extension CaffeineQuestion.Route {
+    var isCaffeineAt: Bool { if case .caffeineAt = self { return true } else { return false } }
 }

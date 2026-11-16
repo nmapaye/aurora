@@ -16,13 +16,20 @@ public enum CaffeineAtTime {
     public static let notLoggedLabel = "Not Logged"
     public static let noRecordText = "No record"
     public static let logThisDrinkLabel = "Log This Drink"
-    /// Source for the range in `halfLifeInfo`: 2.7–9.9 h across healthy
-    /// adults (docs/research/caffeine.md, Established).
+    public static let loggedLabel = "Logged"
+    /// A modeled value with records behind it that rounds below 5 mg.
+    public static let lessThanFiveText = "Less than 5 mg"
+    /// Source for the range in `halfLifeInfo`: Blanchard J, Sawers SJA. "The
+    /// absolute bioavailability of caffeine in man." Eur J Clin Pharmacol
+    /// 1983;24:93–98, doi:10.1007/BF00613933, PubMed 6832208: 10 healthy men
+    /// aged 18.8–30, half-lives 2.7–9.9 h. Not the same authors' young vs
+    /// elderly paper of the same year, which is not cited here.
     public static let halfLifeRangeSource = "Blanchard & Sawers 1983"
+    public static let halfLifeRangeCitation = "Blanchard J, Sawers SJA. The absolute bioavailability of caffeine in man. Eur J Clin Pharmacol 1983;24:93–98. doi:10.1007/BF00613933. PubMed 6832208."
 
     /// The text behind the card's (i), with the person's own setting.
     public static func halfLifeInfo(_ halfLifeHours: Double) -> String {
-        "Estimated with your half-life setting (\(numberText(halfLifeHours)) h). Studies of healthy adults report half-lives from about 3 to 10 hours."
+        "Estimated with your half-life setting (\(numberText(halfLifeHours)) h). In one study of 10 healthy young men, half-lives ranged from about 3 to 10 hours."
     }
 
     /// Card rounding: nearest 5 mg, halves away from zero (62.5 → 65), shown
@@ -69,7 +76,13 @@ public enum CaffeineAtTime {
         /// Nothing recorded or stated by this time: "No record", never 0 mg.
         public var isNoRecord: Bool { contributing == 0 }
         public var displayMg: Int? { isNoRecord ? nil : CaffeineAtTime.displayMg(totalMg) }
-        public var valueText: String { displayMg.map { "About \($0) mg" } ?? CaffeineAtTime.noRecordText }
+        /// Records contribute but the value rounds to 0: "Less than 5 mg",
+        /// never "About 0 mg".
+        public var isBelowDisplay: Bool { displayMg == 0 }
+        public var valueText: String {
+            guard let mg = displayMg else { return CaffeineAtTime.noRecordText }
+            return mg == 0 ? CaffeineAtTime.lessThanFiveText : "About \(mg) mg"
+        }
     }
 
     public struct Result: Codable, Equatable, Sendable {
@@ -84,7 +97,82 @@ public enum CaffeineAtTime {
         public var excludedFutureCount: Int
         /// Every known entry used, as `id|time|mg`, like `CutoffScenario`.
         public var basis: [String]
+        /// "Not Logged" for an asked-about drink, "Logged" when the person
+        /// chose the matching logged entry; nil with no drink in the question.
+        public var drinkLabel: String?
         public var includesSample: Bool { rows.contains { $0.includesSample } }
+    }
+
+    // MARK: Asked drink vs a logged entry
+
+    /// Never merged silently: two identical drinks 20 minutes apart are real.
+    public static let duplicateWindowMs: Millis = 30 * minuteMs
+
+    public enum DuplicateChoice: String, Codable, CaseIterable, Sendable {
+        case useLogged, addAnother
+        public var label: String {
+            switch self {
+            case .useLogged: "Use Logged Drink"
+            case .addAnother: "Add as Another Drink"
+            }
+        }
+    }
+
+    /// The drink in a question, after any duplicate question is answered.
+    public enum AskedDrink: Codable, Equatable, Sendable {
+        /// The person chose an existing logged entry; it's already in the doses.
+        case logged(doseID: String, mg: Double, at: Millis)
+        case notLogged(UnloggedDrink)
+        public var label: String {
+            switch self {
+            case .logged: CaffeineAtTime.loggedLabel
+            case .notLogged: CaffeineAtTime.notLoggedLabel
+            }
+        }
+        /// What the evaluator adds on top of the doses.
+        public var unlogged: UnloggedDrink? {
+            if case .notLogged(let drink) = self { return drink }
+            return nil
+        }
+    }
+
+    /// Two chips, no default: nothing is chosen until the person taps one.
+    public struct DuplicateQuestion: Codable, Equatable, Sendable {
+        public var drink: UnloggedDrink
+        public var loggedDoseID: String
+        public var loggedAt: Millis
+        public var loggedMg: Double
+        public var options: [DuplicateChoice] { DuplicateChoice.allCases }
+        public func answer(_ choice: DuplicateChoice) -> AskedDrink {
+            switch choice {
+            case .useLogged: .logged(doseID: loggedDoseID, mg: loggedMg, at: loggedAt)
+            case .addAnother: .notLogged(drink)
+            }
+        }
+    }
+
+    public enum AskedDrinkCheck: Codable, Equatable, Sendable {
+        case resolved(AskedDrink)
+        case needsChoice(DuplicateQuestion)
+    }
+
+    /// A past asked-about drink with a logged entry (not Sample Data, known
+    /// at `now`) of the same mg within 30 minutes asks; anything else is
+    /// added as "Not Logged" with no question. The closest entry is offered.
+    public static func checkAskedDrink(_ drink: UnloggedDrink, doses: [Dose], now: Millis) -> AskedDrinkCheck {
+        guard drink.at <= now else { return .resolved(.notLogged(drink)) }
+        let match = doses
+            .filter { !RecordID.isSample($0.id) && $0.timestamp <= now && $0.mg == drink.mg && abs($0.timestamp - drink.at) <= duplicateWindowMs }
+            .min { abs($0.timestamp - drink.at) < abs($1.timestamp - drink.at) }
+        guard let match else { return .resolved(.notLogged(drink)) }
+        return .needsChoice(DuplicateQuestion(drink: drink, loggedDoseID: match.id, loggedAt: match.timestamp, loggedMg: match.mg))
+    }
+
+    /// Evaluates with an answered asked drink, labeled "Logged" or "Not Logged".
+    public static func evaluate(doses: [Dose], asked: AskedDrink?, halfLifeHours: Double, targets: [Millis], now: Millis) -> Result {
+        var result = evaluate(doses: doses, unlogged: asked?.unlogged, halfLifeHours: halfLifeHours, targets: targets, now: now)
+        result.drinkLabel = asked?.label
+        return result
     }
 
     // MARK: Evaluation
@@ -120,7 +208,8 @@ public enum CaffeineAtTime {
         }
         return Result(problems: problems, rows: rows, halfLifeHours: halfLifeHours, unlogged: unlogged,
                       recordedCount: recorded.count, sampleCount: sample.count,
-                      excludedFutureCount: doses.count - known.count, basis: basis)
+                      excludedFutureCount: doses.count - known.count, basis: basis,
+                      drinkLabel: unlogged == nil ? nil : notLoggedLabel)
     }
 
     // MARK: Sleep-time chip
@@ -212,14 +301,20 @@ public enum CaffeineQuestion {
         case caffeineAt(Parsed)
         /// Asking what or how much to drink: never answered.
         case unsupported
+        /// A past-tense question ("how much caffeine did I have at 3pm"):
+        /// not answered in v0.1.0. The UI shows the standard capability
+        /// chips (`fallbackCapabilities`, the "What can you do?" list), not a dead end.
+        case showCapabilities
     }
+
+    public static var fallbackCapabilities: [AssistantIntent] { Capabilities.all.map(\.intent) }
 
     private static func matches(_ pattern: String, _ text: String) -> Bool {
         text.range(of: pattern, options: .regularExpression) != nil
     }
 
     static let advicePattern = #"\b(should|can i|could i|may i|allowed|safe|ok(ay)? to|recommend\w*|how much more|to drink|max(imum)?|limit|too much)\b"#
-    static let howMuchNext = #"how much\s+(caffeine|mg|will|is|would|do|does|i'll|ill|i|there|active|of|at|by|in|left|tonight)\b"#
+    static let howMuchNext = #"how much\s+(caffeine|mg|will|is|was|were|did|would|do|does|i'll|ill|i|there|active|of|at|by|in|left|tonight)\b"#
     static let pastTense = #"\b(did|was|were)\b"#
     static let loggingVerb = #"\b(i had|i drank|i've had|ive had|i just had|log|add|record|save)\b"#
     static let questionMarker = #"(\?|\b(impact|mean|means|effect|affect|difference|what about|what if|tonight|bedtime)\b)"#
@@ -242,7 +337,7 @@ public enum CaffeineQuestion {
             } else {
                 drinkClause = text[..<howMuch.lowerBound]; targetClause = text[howMuch.upperBound...]
             }
-            if matches(pastTense, String(targetClause)) { return nil }
+            if matches(pastTense, String(targetClause)) { return .showCapabilities }
             let targets = times(in: String(targetClause), forDrink: false)
             guard !targets.isEmpty else { return nil }
             let drink = String(drinkClause)
