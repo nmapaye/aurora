@@ -42,6 +42,10 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
     public var drink: Drink?
     public var targetSpecs: [CaffeineQuestion.TimeSpec]
     public var targets: [Millis?]
+    /// "today", "tomorrow" or "tonight" from the question; nil is the next occurrence.
+    public var targetDay: CaffeineQuestion.TargetDay?
+    /// Targets on a named day that are already past: the card asks, never moves the date.
+    public var passed: Set<Slot> = []
     public var sleepAt: Millis?
     public var sleepChip: CaffeineAtTime.SleepTimeChip?
     public var duplicate: CaffeineAtTime.DuplicateQuestion?
@@ -64,6 +68,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
     public static let pickTimeLine = "Pick the time."
     public static let skippedTimeLine = "Clocks skip that time. Ask with another time."
     public static let skippedSleepLine = "Clocks skip that time tonight. Pick another sleep time."
+    public static let passedTimeLine = "That time has already passed. Ask about a later time."
     public static let repeatedTimeLine = "That time happens twice tonight. Pick one."
     public static let duplicateLine = "A logged drink with the same amount is within 30 minutes."
     public static let amountLine = "Enter the caffeine amount from the label or menu."
@@ -85,7 +90,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
             drink = d
         }
         var card = CaffeineAtTimeCard(
-            drink: drink, targetSpecs: parsed.targets, targets: [], sleepAt: nil,
+            drink: drink, targetSpecs: parsed.targets, targets: [], targetDay: parsed.targetDay, sleepAt: nil,
             sleepChip: parsed.targets.contains(.sleepTime) ? CaffeineAtTime.recentSleepStart(sleeps, now: now, clock: clock) : nil,
             duplicate: nil, candidateIDs: [], repeated: [:], skipped: [], note: nil, result: nil,
             halfLifeHours: halfLifeHours, capturedAt: now, timeZoneID: clock.calendar.timeZone.identifier)
@@ -135,6 +140,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
             let first = (anchor / hour).rounded(.down) * hour + hour
             targets = (0..<Self.defaultTargetCount).map { Optional(first + Millis($0) * hour) }
         } else if targets.count != targetSpecs.count {
+            passed = []
             targets = targetSpecs.enumerated().map { i, spec in spec == .sleepTime ? nil : instant(.target(i), spec, anchor: anchor, dayOffset: 0, now: now) }
         }
         if let d = drink, d.asked == nil, duplicate == nil, let mg = d.mg, let at = d.at {
@@ -156,13 +162,23 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
         case .now: return now
         case .sleepTime, .ambiguousHour, .into: return nil
         case .clock(let h, let m):
-            local = slot == .drink
-                ? CaffeineQuestion.drinkLocalTime(hour: h, minute: m, dayOffset: dayOffset, now: now, timeZone: timeZone)
-                : CaffeineQuestion.targetLocalTime(hour: h, minute: m, after: anchor, timeZone: timeZone)
+            if slot == .drink {
+                local = CaffeineQuestion.drinkLocalTime(hour: h, minute: m, dayOffset: dayOffset, now: now, timeZone: timeZone)
+            } else if let targetDay {
+                local = CaffeineQuestion.drinkLocalTime(hour: h, minute: m, dayOffset: targetDay.dayOffset(hour: h), now: now, timeZone: timeZone)
+            } else {
+                local = CaffeineQuestion.targetLocalTime(hour: h, minute: m, after: anchor, timeZone: timeZone)
+            }
         }
         switch CutoffScenario.resolve(local, in: timeZone) {
-        case .exact(let t): return t
-        case .repeated(let first, let second): repeated[slot] = [first, second]; return nil
+        case .exact(let t):
+            if slot != .drink, targetDay != nil, t < now { passed.insert(slot); return nil }
+            return t
+        case .repeated(let first, let second):
+            let later = [first, second].filter { slot == .drink || targetDay == nil || $0 >= now }
+            if later.isEmpty { passed.insert(slot); return nil }
+            if later.count == 1 { return later[0] }
+            repeated[slot] = later; return nil
         case .skipped, .invalid: skipped.insert(slot); return nil
         }
     }
@@ -170,7 +186,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
     public var needsAmount: Bool { drink != nil && drink?.mg == nil }
     public var needsSleepTime: Bool { targetSpecs.contains(.sleepTime) && sleepAt == nil }
     public var isComplete: Bool {
-        guard skipped.isEmpty, duplicate == nil, !needsAmount, !needsSleepTime else { return false }
+        guard skipped.isEmpty, passed.isEmpty, duplicate == nil, !needsAmount, !needsSleepTime else { return false }
         if let d = drink, d.at == nil || d.asked == nil { return false }
         if targetSpecs.isEmpty { return !targets.isEmpty && !targets.contains(nil) }
         guard targets.count == targetSpecs.count else { return false }
@@ -184,7 +200,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
             if let pair = repeated[.drink] { out += [.instant(.drink, pair[0], first: true), .instant(.drink, pair[1], first: false)] }
             else { out += CaffeineQuestion.choices(for: d.timeSpec).map { .time(.drink, $0) } }
         }
-        for (i, spec) in targetSpecs.enumerated() where spec != .sleepTime && (targets.indices.contains(i) ? targets[i] : nil) == nil {
+        for (i, spec) in targetSpecs.enumerated() where spec != .sleepTime && !passed.contains(.target(i)) && (targets.indices.contains(i) ? targets[i] : nil) == nil {
             if let pair = repeated[.target(i)] { out += [.instant(.target(i), pair[0], first: true), .instant(.target(i), pair[1], first: false)] }
             else { out += CaffeineQuestion.choices(for: spec).map { .time(.target(i), $0) } }
         }
@@ -349,6 +365,7 @@ public struct CaffeineAtTimeCard: Codable, Equatable, Sendable {
         if let note { out.append(note) }
         if duplicate != nil { out.append(Self.duplicateLine) }
         if skipped.contains(.sleep) { out.append(Self.skippedSleepLine) }
+        if !passed.isEmpty { out.append(Self.passedTimeLine) }
         if !skipped.subtracting([.sleep]).isEmpty { out.append(Self.skippedTimeLine) }
         else if !choices.isEmpty, duplicate == nil, !needsAmount { out.append(repeated.isEmpty ? Self.pickTimeLine : Self.repeatedTimeLine) }
         if let result {

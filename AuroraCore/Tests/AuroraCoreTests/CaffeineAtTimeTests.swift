@@ -497,6 +497,41 @@ import Testing
             #expect(entry.draft.mg == mg && entry.amountSource == .typedMg, "\(text): \(entry)")
         }
     }
+
+    // MARK: Day words (Duet/Codex P2, Nov 16)
+
+    private func parsedDay(_ text: String) -> Q.Parsed? {
+        if case .caffeineAt(let p) = Q.route(text) { return p }
+        return nil
+    }
+
+    @Test func tomorrowAndTodayKeepTheirDate() {
+        let tomorrow = parsedDay("how much caffeine at 9am tomorrow")
+        #expect(tomorrow?.targets == [.clock(hour: 9, minute: 0)] && tomorrow?.targetDay == .tomorrow)
+        let today = parsedDay("how much caffeine at 9pm today")
+        #expect(today?.targets == [.clock(hour: 21, minute: 0)] && today?.targetDay == .today)
+        // No day word: the next occurrence, as before.
+        let plain = parsedDay("how much caffeine at 9am")
+        #expect(plain?.targets == [.clock(hour: 9, minute: 0)] && plain?.targetDay == nil)
+        // "tonight" with a clock time is that evening's time, not the sleep chip.
+        #expect(parsedDay("how much caffeine at 11pm tonight")?.targets == [.clock(hour: 23, minute: 0)])
+        #expect(parsedDay("How much caffeine will I have tonight?")?.targets == [.sleepTime])
+        #expect(parsedDay("how much caffeine at bedtime tonight")?.targets == [.sleepTime])
+        #expect(parsedDay("how much caffeine at 11 tonight")?.targets == [.clock(hour: 23, minute: 0)])
+        #expect(Q.route("how much caffeine at 9am tonight") == .clarify(Q.dayClarification))
+    }
+
+    @Test func pastAndUnsupportedDaysNeverBecomeAnotherDate() {
+        #expect(Q.route("how much caffeine at 3pm yesterday") == .showCapabilities)
+        #expect(Q.route("how much caffeine at 9am last night") == .showCapabilities)
+        for text in ["how much caffeine on friday at 3pm", "how much caffeine at 3pm the day after tomorrow",
+                     "how much caffeine at bedtime tomorrow", "how much caffeine at 9am today and tomorrow",
+                     "what about 126 mg at 5pm tomorrow?", "how much caffeine at 11pm if I drink 100mg tomorrow at 9am"] {
+            #expect(Q.route(text) == .clarify(Q.dayClarification), "\(text)")
+        }
+        // A drink yesterday is still supported.
+        #expect(parsedDay("how much caffeine at 11pm if I had 200mg at 2pm yesterday")?.drinkDayOffset == -1)
+    }
 }
 
 extension CaffeineQuestion.Route {

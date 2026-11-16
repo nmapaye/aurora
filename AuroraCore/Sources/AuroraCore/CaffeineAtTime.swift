@@ -306,9 +306,29 @@ public enum CaffeineQuestion {
         public var drinkDayOffset: Int
         /// Empty means the card offers its default times.
         public var targets: [TimeSpec]
-        public init(drinkMg: Double?, drinkMentioned: Bool, drinkTime: TimeSpec?, drinkDayOffset: Int, targets: [TimeSpec]) {
+        /// The day a clock target names; nil means its next occurrence.
+        public var targetDay: TargetDay?
+        public init(drinkMg: Double?, drinkMentioned: Bool, drinkTime: TimeSpec?, drinkDayOffset: Int, targets: [TimeSpec], targetDay: TargetDay? = nil) {
             self.drinkMg = drinkMg; self.drinkMentioned = drinkMentioned; self.drinkTime = drinkTime
-            self.drinkDayOffset = drinkDayOffset; self.targets = targets
+            self.drinkDayOffset = drinkDayOffset; self.targets = targets; self.targetDay = targetDay
+        }
+    }
+
+    /// The only days a queried time can name. Any other day asks again
+    /// (`dayClarification`); a past day shows the capabilities list. A
+    /// time is never moved to a different date.
+    public enum TargetDay: String, Codable, Equatable, Sendable {
+        case today, tomorrow
+        /// Noon to midnight is today; after midnight is tomorrow.
+        case tonight
+
+        /// Days after the asked date for a target at `hour`.
+        public func dayOffset(hour: Int) -> Int {
+            switch self {
+            case .today: 0
+            case .tomorrow: 1
+            case .tonight: hour >= 12 ? 0 : 1
+            }
         }
     }
 
@@ -326,6 +346,7 @@ public enum CaffeineQuestion {
     }
 
     public static let amountClarification = "Ask with a whole caffeine amount between 1 and 1999 mg."
+    public static let dayClarification = "Ask about today or tomorrow, with a time."
 
     public static var fallbackCapabilities: [AssistantIntent] { Capabilities.all.map(\.intent) }
 
@@ -338,6 +359,10 @@ public enum CaffeineQuestion {
     static let pastTense = #"\b(did|was|were)\b"#
     static let loggingVerb = #"\b(i had|i drank|i've had|ive had|i just had|log|add|record|save)\b"#
     static let questionMarker = #"(\?|\b(impact|mean|means|effect|affect|difference|what about|what if|tonight|bedtime)\b)"#
+    /// A past day in the queried time: not answered in v0.1.0.
+    static let pastDay = #"\b(yesterday|last night|last week|ago)\b"#
+    /// Days and dates the card doesn't place; checked before today/tomorrow.
+    static let otherDay = #"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|next week|this week|day after|this morning|this afternoon|this evening|tomorrow (morning|afternoon|evening|night)|in \d+ days?|\d+ days? from now|(january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\.? \d{1,2}|\d{1,2}(st|nd|rd|th)|\d{1,2}/\d{1,2})\b"#
     static let drinkWord = #"\b(coffee|caffeine|espresso|tea|matcha|cold brew|energy drink|latte|soda|drink|cup|shot)\b"#
 
     public static func route(_ input: String) -> Route? {
@@ -357,19 +382,50 @@ public enum CaffeineQuestion {
             } else {
                 drinkClause = text[..<howMuch.lowerBound]; targetClause = text[howMuch.upperBound...]
             }
-            if matches(pastTense, String(targetClause)) { return .showCapabilities }
-            let targets = times(in: String(targetClause), forDrink: false)
+            let target = String(targetClause), drink = String(drinkClause)
+            if matches(pastTense, target) || matches(pastDay, target) { return .showCapabilities }
+            if matches(otherDay, text) || matches(#"\b(tomorrow|last night|last week)\b"#, drink) { return .clarify(dayClarification) }
+            var targets = times(in: target, forDrink: false)
             guard !targets.isEmpty else { return nil }
-            let drink = String(drinkClause)
+            let day: TargetDay?
+            switch (target.contains("today"), target.contains("tomorrow"), matches(#"\btonight\b"#, target)) {
+            case (false, false, false): day = nil
+            case (true, false, false): day = .today
+            case (false, true, false): day = .tomorrow
+            case (false, false, true): day = .tonight
+            default: return .clarify(dayClarification)
+            }
+            switch day {
+            case .tomorrow?:
+                // Bedtime and "now" are tonight's; only clock times move a day.
+                if targets.contains(where: { $0 == .sleepTime || $0 == .now }) { return .clarify(dayClarification) }
+            case .tonight?:
+                // "at 11pm tonight": the time is the target, not the sleep chip.
+                // "at bedtime tonight": one sleep time.
+                if let i = targets.firstIndex(of: .sleepTime), targets.contains(where: { $0 != .sleepTime }) || targets.filter({ $0 == .sleepTime }).count > 1 { targets.remove(at: i) }
+                var mapped: [TimeSpec] = []
+                for spec in targets {
+                    switch spec {
+                    case .clock(let h, _) where (6..<12).contains(h): return .clarify(dayClarification)
+                    case .ambiguousHour(12, let m): mapped.append(.clock(hour: 0, minute: m))
+                    case .ambiguousHour(let h, let m) where h >= 6: mapped.append(.clock(hour: h + 12, minute: m))
+                    default: mapped.append(spec)
+                    }
+                }
+                targets = mapped
+            default: break
+            }
             let drinkMg = singleMg(drink)
             if let drinkMg, !CaffeineLog.isValidAmount(drinkMg) { return .clarify(amountClarification) }
             return .caffeineAt(Parsed(drinkMg: drinkMg, drinkMentioned: drinkMg != nil || matches(drinkWord, drink),
                                       drinkTime: times(in: drink, forDrink: true).first, drinkDayOffset: drink.contains("yesterday") ? -1 : 0,
-                                      targets: targets))
+                                      targets: targets, targetDay: targets.contains(where: { $0 != .sleepTime }) ? day : nil))
         }
 
         // "<n> mg … at <time>?" without "how much".
         guard let mg, matches(questionMarker, text), !matches(loggingVerb, text) || matches(#"\bif\b"#, text) else { return nil }
+        // Without "how much" a day can't be tied to the drink or the target.
+        if matches(otherDay, text) || matches(#"\b(tomorrow|last night|last week)\b"#, text) { return .clarify(dayClarification) }
         var found = times(in: text, forDrink: true)
         guard !found.isEmpty else { return nil }
         var drinkTime: TimeSpec?

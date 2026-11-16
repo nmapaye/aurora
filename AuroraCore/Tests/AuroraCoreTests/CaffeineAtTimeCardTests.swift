@@ -220,4 +220,23 @@ import Testing
         c.choose(.instant(.sleep, second, first: false), db: db, doses: [], now: now)
         #expect(c.sleepAt == second && c.result?.rows.first?.at == second)
     }
+
+    @Test func tomorrowTargetsTomorrowAndNoDayTargetsTheNextOccurrence() throws {
+        let morning = at(2026, 11, 16, 8)
+        let tomorrow = try card("how much caffeine at 9am tomorrow", now: morning)
+        #expect(tomorrow.targets == [at(2026, 11, 17, 9)] && tomorrow.result?.rows.first?.at == at(2026, 11, 17, 9))
+        let plain = try card("how much caffeine at 9am", now: morning)
+        #expect(plain.targets == [at(2026, 11, 16, 9)])
+        let later = try card("how much caffeine at 9am", now: at(2026, 11, 16, 10))
+        #expect(later.targets == [at(2026, 11, 17, 9)])
+        // "tonight": an evening time is today, an after-midnight time is tomorrow.
+        #expect(try card("how much caffeine at 11pm tonight", now: at(2026, 11, 16, 18)).targets == [at(2026, 11, 16, 23)])
+        #expect(try card("how much caffeine at 1am tonight", now: at(2026, 11, 16, 18)).targets == [at(2026, 11, 17, 1)])
+    }
+
+    @Test func aPassedTimeTodayAsksForALaterTime() throws {
+        let c = try card("how much caffeine at 9am today", now: at(2026, 11, 16, 10))
+        #expect(c.result == nil && c.targets == [nil])
+        #expect(c.lines(text: text, db: db).contains(Card.passedTimeLine))
+    }
 }
