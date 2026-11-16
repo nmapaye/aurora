@@ -584,7 +584,7 @@ struct AssistantCardView: View {
             .accessibilityElement(children: .combine)
             if card.state == .saved {
                 VStack(spacing: Metrics.xxs) {
-                    Button(info.previous == nil ? "Undo check-in" : "Undo correction") { assistant.undoCheckIn(message, app: app) }
+                    Button(info.previous == nil ? "Undo Check-In" : "Undo Correction") { assistant.undoCheckIn(message, app: app) }
                         .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-checkin-undo")
                     quietButton("Edit Check-In") { assistant.editCheckIn(message, app: app) }
                         .disabled(assistant.processing).accessibilityIdentifier("assistant-checkin-edit")
@@ -632,7 +632,7 @@ struct AssistantCardView: View {
                     Text(snapshotText.fullDateTime(proposal.draft.timestamp) + " · " + proposal.timeZone)
                         .font(Typography.source)
                     Text("To change these fields, Discard and state the complete drink again.").font(.footnote)
-                    draftActions(save: "Save caffeine", saveID: "assistant-dose-save",
+                    draftActions(save: "Save Caffeine", saveID: "assistant-dose-save",
                                  disabled: !assistant.localDrinkReview.canSave(draft) || CaffeineLog.validate(draft, now: AppModel.currentMillis()) != .valid) {
                         assistant.saveDose(app: app)
                     }
@@ -657,7 +657,7 @@ struct AssistantCardView: View {
                     }
                     DateTimeField(label: "Recorded time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), id: "assistant-dose-time")
                     Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
-                    draftActions(save: "Save caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
+                    draftActions(save: "Save Caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
                 }
             }
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))

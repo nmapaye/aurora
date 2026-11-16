@@ -9,7 +9,7 @@ import Testing
 /// (3) that Aurora's own Health sample is written on save and deleted on Undo.
 /// Instant with Undo: Quick Add chips. Everything else opens a card and
 /// saves only on Save (typed, on-device proposal, photo, Review Drink,
-/// Log Drink shortcut, repeat-drink "Log it"). Health is scripted.
+/// Log Drink shortcut, repeat-drink "Log It"). Health is scripted.
 @MainActor
 @Suite struct SavePathHealthTests {
     let root: URL
@@ -179,7 +179,7 @@ import Testing
         await expectUndone(dose, kept: kept)
     }
 
-    // Repeat-drink "Log it": opens the card with yesterday's drink.
+    // Repeat-drink "Log It": opens the card with yesterday's drink.
     @Test func repeatDrinkLogItOpensCardAndOnlySaveWrites() async throws {
         let kept = keptEntry()
         await assistant.start(app: model)
