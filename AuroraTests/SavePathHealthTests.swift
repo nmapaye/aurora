@@ -118,7 +118,7 @@ import Testing
         model.correctDose(id: dose.id, with: edit)
         #expect(model.state.doses.count == 2 && model.state.doses.first { $0.id == dose.id }?.mg == 90)
         await settleHealth()
-        #expect(Set(health.savedSyncIdentifiers) == [own(dose)])
+        #expect(Set(health.savedSyncIdentifiers) == [own(kept), own(dose)])
         model.deleteDose(id: dose.id)
         await expectUndone(dose, kept: kept)
     }
