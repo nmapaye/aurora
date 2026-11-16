@@ -9,7 +9,8 @@ Conversation contains finite native cards. Logging is low-friction and reversibl
 and every log can be undone exactly. A drink saves at once, with Undo for that
 entry, only from the Log tab: a Quick Add chip, or a manual entry saved from its
 entry sheet. In the conversation, the entry card's drink chips only fill the
-draft, and "Actually …" only edits the open draft; nothing is saved until Save.
+draft, and "Actually …" only edits the open draft (or an open follow-up
+question's drink); nothing is saved until Save.
 Anything an on-device model inferred, every photo-derived entry, typed requests
 in the conversation, a drink follow-up's "Log It", and the Log Drink and Review
 Drink shortcuts open a confirm card and save only on Save. When the path isn't
