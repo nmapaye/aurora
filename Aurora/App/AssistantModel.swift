@@ -14,6 +14,8 @@ final class AssistantModel {
     /// The typed entry the open card was filled from (AI off), so the card
     /// can name where its amount came from until the person edits it.
     var typedEntry: TypedDrinkEntry.Entry?
+    /// The open "Estimated Active Caffeine" follow-up card.
+    var caffeineAtTimeID: UUID?
     var pendingMessageID: UUID?
     /// An open sleep review. Its times stay empty until the person adds them.
     var pendingSleep: ManualSleep.Entry?
@@ -178,7 +180,7 @@ final class AssistantModel {
                     if card.state == .loading {
                         conversation.messages[index].card?.state = .failed
                         conversation.messages[index].card?.summary = "This request didn't finish. Refresh for a current result."
-                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn, .cutoffScenario].contains(card.kind), card.state == .ready {
+                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn, .cutoffScenario, .caffeineAtTime].contains(card.kind), card.state == .ready {
                         conversation.messages[index].card?.state = .expired
                     }
                 }
@@ -231,7 +233,7 @@ final class AssistantModel {
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         localDrinkReview.cancel()
         closeCutoff()
-        pendingMessageID = nil; activeCards = []; savedDose = nil
+        pendingMessageID = nil; activeCards = []; savedDose = nil; caffeineAtTimeID = nil
         releaseWarmResources()
         if let app { appendCard(AssistantCards.make(.welcome, state: app.state, now: app.now, clock: app.clock, text: app.text)) }
         do { try store?.removeMigrationSource() }
@@ -244,7 +246,7 @@ final class AssistantModel {
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         localDrinkReview.cancel()
         closeCutoff()
-        pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
+        pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil; caffeineAtTimeID = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
         releaseWarmResources(); calendars.resetAfterErase()
         failure = nil
@@ -287,7 +289,13 @@ final class AssistantModel {
             return
         }
         let knownIntent = AssistantPlanner.explicitIntent(text)
-        let useDrinkUnderstanding = !intelligenceOff && LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
+        // Follow-up questions are routed in code first, AI on or off.
+        let followUp = CaffeineQuestion.route(text)
+        let correction = CaffeineAtTimeCard.correctionPhrase(text)
+        let correctsFollowUp = correction != nil && pendingDraft == nil && localDrinkReview.request == nil
+            && openCaffeineAtTimeCard(caffeineAtTimeID) != nil
+        let useDrinkUnderstanding = !correctsFollowUp && (followUp == nil || followUp == .unsupported) && !intelligenceOff
+            && LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
         append(useDrinkUnderstanding ? "Drink-entry request · text not retained" : text, user: true)
         // A generated review is immutable. Corrections must start a new full
         // request, never patch selected fields using the legacy manual parser.
@@ -297,6 +305,22 @@ final class AssistantModel {
                 append("Please state the complete single drink, caffeine amount and time again. Nothing was saved.")
                 return
             }
+        }
+        if correctsFollowUp, let correction, correctCaffeineAtTime(correction, app: app) { return }
+        switch followUp {
+        case .caffeineAt(let parsed)?:
+            openCaffeineAtTime(parsed, question: text, app: app)
+            return
+        case .showCapabilities?:
+            // Past amounts aren't answered yet: the standard capability list.
+            expireDraft()
+            appendCard(AssistantCards.make(.capabilities, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .help)
+            return
+        case .clarify(let message)?:
+            // An amount outside 1–1999 whole mg: ask again, nothing opens.
+            append(message)
+            return
+        case .unsupported?, nil: break
         }
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
@@ -562,6 +586,7 @@ final class AssistantModel {
         closeDraftCard(.expired)
         pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil; typedEntry = nil
         closeCutoff()
+        closeCaffeineAtTime()
     }
     /// How the open draft's times are written into its card. Set when the
     /// draft opens, so Discard and Expire, which have no app, can still write

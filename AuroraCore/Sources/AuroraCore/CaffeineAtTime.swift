@@ -32,6 +32,11 @@ public enum CaffeineAtTime {
         "Estimated with your half-life setting (\(numberText(halfLifeHours)) h). In one study of 10 healthy young men, half-lives ranged from about 3 to 10 hours."
     }
 
+    /// Settings' (i) for Caffeine Half-Life: the card's text plus its source.
+    public static func settingsHalfLifeInfo(_ halfLifeHours: Double) -> String {
+        halfLifeInfo(halfLifeHours) + " Source: " + halfLifeRangeCitation
+    }
+
     /// Card rounding: nearest 5 mg, halves away from zero (62.5 → 65), shown
     /// as "About N mg". The golden case 67.1 / 58.4 / 50.8 / 44.2 gives
     /// 65 / 60 / 50 / 45. Recorded totals elsewhere stay whole mg.

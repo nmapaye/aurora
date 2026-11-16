@@ -228,21 +228,36 @@ public enum TypedDrinkEntry {
             return make(preset.label, nil, .none, enterAmountLine)
         case .record(let entry, let name):
             if mismatch { return make(name, nil, .none, enterAmountLine) }
-            if let volume {
-                if !entry.publishedServingsOnly, let db, let mg = db.mg(for: entry, volume: volume) {
-                    return make(name, mg, .scaled(entryID: entry.id, volume: volume.label), "")
-                }
-                if let serving = entry.servings.first(where: { s in
-                    Volume.parse(s.label).first.map { abs($0.milliliters - volume.milliliters) / volume.milliliters < 0.03 } ?? false
-                }) {
-                    return make(name, serving.mg, .database(entryID: entry.id, serving: serving.label), "")
-                }
-                return make(name, nil, .none, enterAmountLine)
-            }
-            let serving = entry.servings.count == 1 ? entry.servings[0] : entry.servings.first { $0.label == "1 cup (8 fl oz)" }
-            guard let serving else { return make(name, nil, .none, enterAmountLine) }
-            return make(name, serving.mg, .database(entryID: entry.id, serving: serving.label), "")
+            let amount = recordAmount(entry, volume: volume, db: db)
+            return make(name, amount.mg, amount.source, enterAmountLine)
         }
+    }
+
+    /// A record's amount: at a stated size, scaled for generic USDA records
+    /// or a published serving within 3% for maker and Branded records; with
+    /// no size, its only serving or its "1 cup (8 fl oz)". Else no amount.
+    public static func recordAmount(_ entry: CaffeineDatabase.Entry, volume: Volume?, db: CaffeineDatabase?) -> (mg: Int?, source: AmountSource) {
+        if let volume {
+            if !entry.publishedServingsOnly, let db, let mg = db.mg(for: entry, volume: volume) {
+                return (mg, .scaled(entryID: entry.id, volume: volume.label))
+            }
+            if let serving = entry.servings.first(where: { s in
+                Volume.parse(s.label).first.map { abs($0.milliliters - volume.milliliters) / volume.milliliters < 0.03 } ?? false
+            }) {
+                return (serving.mg, .database(entryID: entry.id, serving: serving.label))
+            }
+            return (nil, .none)
+        }
+        let serving = entry.servings.count == 1 ? entry.servings[0] : entry.servings.first { $0.label == "1 cup (8 fl oz)" }
+        guard let serving else { return (nil, .none) }
+        return (serving.mg, .database(entryID: entry.id, serving: serving.label))
+    }
+
+    /// Drink phrases the reader knows by name, longest first, for finding
+    /// the drink inside a longer sentence (follow-up questions).
+    public static var knownPhrases: [String] {
+        (Array(presetPhrases.keys) + Array(genericPhrases.keys) + Array(unsourcedPhrases.keys)
+            + DrinkPhotoMatcher.unrecordedBrands.flatMap(\.phrases)).sorted { $0.count != $1.count ? $0.count > $1.count : $0 < $1 }
     }
 
     public static let manualSourceLine = "Manual · local time"

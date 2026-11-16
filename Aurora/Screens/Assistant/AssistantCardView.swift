@@ -318,6 +318,7 @@ struct AssistantCardView: View {
         case .energyProjection: "chart.xyaxis.line"
         case .energyCheckIn: "hand.raised"
         case .cutoffScenario: "moon.zzz"
+        case .caffeineAtTime: "clock"
         case .receipt: card.state == .undone ? "arrow.uturn.backward" : "checkmark.circle"
         }
     }
@@ -353,6 +354,7 @@ struct AssistantCardView: View {
         case .energyProjection: projection
         case .energyCheckIn: checkInEditor
         case .cutoffScenario: CutoffScenarioCardView(message: message, card: card, active: draftActive)
+        case .caffeineAtTime: CaffeineAtTimeCardView(message: message, card: card, active: active)
         case .reminders: reminders
         case .clarification:
             ForEach([AssistantIntent.logCaffeine, .logSleep, .explainEnergy, .energyProjection, .energyCheckIn, .weeklyTrends, .calendar, .help].compactMap(Capabilities.capability)) { capability in
