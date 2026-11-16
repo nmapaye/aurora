@@ -656,7 +656,8 @@ struct AssistantCardView: View {
                             .accessibilityIdentifier("assistant-dose-source")
                     }
                     DateTimeField(label: "Recorded time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingDraft?.timestamp ?? app.now) / 1000) }, set: { assistant.pendingDraft?.timestamp = $0.timeIntervalSince1970 * 1000 }), id: "assistant-dose-time")
-                    Text("Manual · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
+                    Text(assistant.draftSourceLine).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                        .accessibilityIdentifier("assistant-dose-source-line")
                     draftActions(save: "Save Caffeine", saveID: "assistant-dose-save", disabled: false) { assistant.saveDose(app: app) }
                 }
             }

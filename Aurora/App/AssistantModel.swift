@@ -11,6 +11,9 @@ final class AssistantModel {
     var status = ""
     var failure: String?
     var pendingDraft: CustomDoseDraft?
+    /// The typed entry the open card was filled from (AI off), so the card
+    /// can name where its amount came from until the person edits it.
+    var typedEntry: TypedDrinkEntry.Entry?
     var pendingMessageID: UUID?
     /// An open sleep review. Its times stay empty until the person adds them.
     var pendingSleep: ManualSleep.Entry?
@@ -89,6 +92,13 @@ final class AssistantModel {
     private(set) var localDrinkReview = LocalDrinkReview()
     // Test seams for deterministic race/failure checks, never persisted.
     @ObservationIgnored var extractLocalDrink: ((String) async throws -> LocalDrinkUnderstanding.Evidence)?
+    /// Tests: forces the AI-off typed entry path regardless of the model.
+    @ObservationIgnored var intelligenceOffOverride: Bool?
+    /// Apple Intelligence is off (and no Mac development model or test
+    /// extractor stands in): typed drink entries use `TypedDrinkEntry`.
+    var intelligenceOff: Bool {
+        intelligenceOffOverride ?? (!modelAvailable && !conversation.preferences.useMacModel && extractLocalDrink == nil)
+    }
     @ObservationIgnored var composeLocalExplanation: ((GroundedLocalExplanation) async throws -> String)?
     var reviewingLocalDrink: Bool { localDrinkReview.proposal != nil }
     func waitForCurrentRequest() async { await task?.value }
@@ -274,7 +284,7 @@ final class AssistantModel {
             return
         }
         let knownIntent = AssistantPlanner.explicitIntent(text)
-        let useDrinkUnderstanding = LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
+        let useDrinkUnderstanding = !intelligenceOff && LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
         append(useDrinkUnderstanding ? "Drink-entry request · text not retained" : text, user: true)
         // A generated review is immutable. Corrections must start a new full
         // request, never patch selected fields using the legacy manual parser.
@@ -300,6 +310,15 @@ final class AssistantModel {
                 updateCard(pendingMessageID) { $0.summary = "Ratings run from \(checkInScale.range.lowerBound) to \(checkInScale.range.upperBound). Nothing changed." }
             }
             return
+        }
+        // Apple Intelligence off: a simple typed drink opens a filled entry
+        // card; one it can't read gets a plain message and the manual card.
+        if intelligenceOff, knownIntent == nil || knownIntent == .logCaffeine {
+            app.tick()
+            if let typed = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: app.now, clock: app.clock) {
+                openTypedEntry(typed, app: app)
+                return
+            }
         }
         processing = true; status = "Understanding your request"; failure = nil
         let id = UUID(); requestID = id
@@ -369,6 +388,27 @@ final class AssistantModel {
         }
         append("Stopped. No proposed action was saved.")
     }
+    /// Opens the entry card for an AI-off typed drink. Never saves here.
+    func openTypedEntry(_ result: TypedDrinkEntry.Result, app: AppModel) {
+        expireDraft()
+        switch result {
+        case .entry(let entry):
+            pendingDraft = entry.draft
+            typedEntry = entry
+        case .unreadable(let message):
+            append(message)
+            pendingDraft = AssistantPlanner.caffeineDraft("Log caffeine", doses: app.state.doses, now: app.now, clock: app.clock)
+        }
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+    }
+
+    /// The entry card's source line (see `TypedDrinkEntry.sourceLine`).
+    var draftSourceLine: String {
+        guard let draft = pendingDraft else { return TypedDrinkEntry.manualSourceLine }
+        return TypedDrinkEntry.sourceLine(for: draft, entry: typedEntry)
+    }
+
     private func understandDrink(_ input: String, request id: UUID, app: AppModel) async {
         expireDraft()
         app.tick()
@@ -512,7 +552,7 @@ final class AssistantModel {
     func expireDraft() {
         localDrinkReview.cancel()
         closeDraftCard(.expired)
-        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
+        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil; typedEntry = nil
         closeCutoff()
     }
     /// How the open draft's times are written into its card. Set when the
@@ -751,7 +791,7 @@ final class AssistantModel {
         failure = nil
         closeDraftCard(.saved)
         localDrinkReview.didPersist()
-        savedDose = dose; pendingDraft = nil; pendingMessageID = nil
+        savedDose = dose; pendingDraft = nil; pendingMessageID = nil; typedEntry = nil
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
     }
