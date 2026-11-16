@@ -17,14 +17,14 @@ struct DrinkPhotoSheet: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var image: UIImage?
-    @State private var card: DrinkPhotoConfirmation?
+    /// Review card and Save state; the only write is `flow.save`.
+    @State private var flow = DrinkPhotoSheetFlow()
+    private var card: DrinkPhotoConfirmation? { flow.card }
     @State private var search = ""
     @State private var typing = false
     @State private var typedText = ""
     @State private var failure: String?
     @State private var analysis: Task<Void, Never>?
-    /// Set once Save succeeds, so a second tap can't add the drink twice.
-    @State private var saved = false
     @FocusState private var amountFocused: Bool
 
     private let db = CaffeineDatabase.bundled
@@ -52,7 +52,7 @@ struct DrinkPhotoSheet: View {
                 if phase == .review {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") { save() }
-                            .disabled(currentDraft == nil || saved)
+                            .disabled(currentDraft == nil || flow.saved)
                             .accessibilityIdentifier("photo-log-save")
                     }
                 }
@@ -82,7 +82,7 @@ struct DrinkPhotoSheet: View {
                 pickerItem = nil
             }
         }
-        .onDisappear { analysis?.cancel(); image = nil; card = nil }
+        .onDisappear { analysis?.cancel(); image = nil; flow.close() }
     }
 
     // MARK: Phases
@@ -136,7 +136,7 @@ struct DrinkPhotoSheet: View {
                 Section("Time") {
                     DatePicker("Time", selection: Binding(
                         get: { Date(timeIntervalSince1970: card.timestamp / 1000) },
-                        set: { self.card?.timestamp = ($0.timeIntervalSince1970 * 1000).rounded() }
+                        set: { date in let at = (date.timeIntervalSince1970 * 1000).rounded(); flow.edit { c in c.timestamp = at } }
                     ), in: ...Date.now, displayedComponents: [.date, .hourAndMinute])
                 }
                 if let failure {
@@ -153,7 +153,7 @@ struct DrinkPhotoSheet: View {
                 selectableRow(candidate.entry.displayName,
                               detail: candidate.reason == .barcode ? "Barcode match" : nil,
                               selected: card.entry?.id == candidate.entry.id) {
-                    self.card?.select(candidate.entry); typing = false; typedText = ""
+                    flow.edit { c in c.select(candidate.entry) }; typing = false; typedText = ""
                 }
             }
             TextField("Search the database", text: $search).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -163,7 +163,7 @@ struct DrinkPhotoSheet: View {
                 if results.isEmpty { Text(DrinkPhotoConfirmation.notInDatabaseTitle).foregroundStyle(Palette.textSecondary).accessibilityIdentifier("photo-log-search-not-found") }
                 ForEach(results) { result in
                     selectableRow(result.entry.displayName, detail: nil, selected: card.entry?.id == result.entry.id) {
-                        self.card?.select(result.entry); search = ""; typing = false; typedText = ""
+                        flow.edit { c in c.select(result.entry) }; search = ""; typing = false; typedText = ""
                     }
                 }
             }
@@ -182,7 +182,7 @@ struct DrinkPhotoSheet: View {
     /// amount. "Search the Database" returns to the matches.
     private func manualSection(_ card: DrinkPhotoConfirmation) -> some View {
         Section {
-            TextField("Drink Name", text: Binding(get: { card.manualName ?? "" }, set: { self.card?.name($0) }))
+            TextField("Drink Name", text: Binding(get: { card.manualName ?? "" }, set: { text in flow.edit { c in c.name(text) } }))
                 .accessibilityIdentifier("photo-log-manual-name")
             Button("Search the Database") { leaveManualEntry() }
                 .frame(minHeight: Metrics.minimumTouchTarget)
@@ -197,11 +197,11 @@ struct DrinkPhotoSheet: View {
                 ForEach(Array(card.usableLabelVolumes.enumerated()), id: \.offset) { _, volume in
                     let mg = db.mg(for: entry, volume: volume)
                     selectableRow("\(volume.label) · From Label", detail: mg.map { "\($0) mg" },
-                                  selected: card.serving == .label(volume)) { self.card?.choose(.label(volume)); typing = false }
+                                  selected: card.serving == .label(volume)) { flow.edit { c in c.choose(.label(volume)) }; typing = false }
                 }
                 ForEach(Array(entry.servings.enumerated()), id: \.offset) { index, serving in
                     selectableRow(DrinkPhotoConfirmation.titleCase(serving.label), detail: "\(serving.mg) mg", selected: card.serving == .listed(index)) {
-                        self.card?.choose(.listed(index)); typing = false
+                        flow.edit { c in c.choose(.listed(index)) }; typing = false
                     }
                 }
                 if entry.servings.isEmpty && card.usableLabelVolumes.isEmpty {
@@ -217,17 +217,17 @@ struct DrinkPhotoSheet: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("\(amount.mg) mg").font(.title2.monospacedDigit().weight(.semibold)).accessibilityIdentifier("photo-log-mg")
                     Spacer()
-                    Button("Edit") { typedText = String(amount.mg); typing = true; self.card?.type(mg: typedText); amountFocused = true }
+                    Button("Edit") { typedText = String(amount.mg); typing = true; flow.edit { c in c.type(mg: typedText) }; amountFocused = true }
                 }
             } else if typing || card.entry != nil || card.manualName != nil {
                 HStack {
-                    TextField("Amount", text: Binding(get: { typedText }, set: { typedText = $0; self.card?.type(mg: $0) }))
+                    TextField("Amount", text: Binding(get: { typedText }, set: { text in typedText = text; flow.edit { c in c.type(mg: text) } }))
                         .keyboardType(.numberPad).focused($amountFocused).font(.title2.monospacedDigit())
                         .accessibilityLabel("Amount, milligrams").accessibilityIdentifier("photo-log-amount")
                     Text("mg").foregroundStyle(Palette.textSecondary).accessibilityHidden(true)
                 }
                 if typing, card.manualName == nil {
-                    Button("Use Database Amount") { typing = false; typedText = ""; self.card?.clearTypedAmount() }
+                    Button("Use Database Amount") { typing = false; typedText = ""; flow.edit { c in c.clearTypedAmount() } }
                 }
             }
         } header: { Text("Caffeine") } footer: {
@@ -277,39 +277,35 @@ struct DrinkPhotoSheet: View {
             let observation = await DrinkPhotoAnalyzer.analyze(picked)
             guard !Task.isCancelled else { return }
             app.tick()
-            card = DrinkPhotoConfirmation(result: DrinkPhotoMatcher.match(observation, in: db), observation: observation, timestamp: app.now)
+            flow.review(observation, db: db, now: app.now)
             phase = .review
         }
     }
 
     private func startManualEntry() {
-        card?.enterManually(); search = ""
+        flow.edit { $0.enterManually() }; search = ""
         typedText = ""; typing = true; amountFocused = false
     }
     private func leaveManualEntry() {
-        card?.leaveManualEntry(); typing = false; typedText = ""
+        flow.edit { $0.leaveManualEntry() }; typing = false; typedText = ""
     }
 
-    private var currentDraft: CustomDoseDraft? {
-        guard let db, let card else { return nil }
-        return card.draft(db: db, now: app.now)
-    }
+    private var currentDraft: CustomDoseDraft? { flow.draft(db: db, now: app.now) }
 
     /// Save is the only write. The conversation then shows the standard
     /// "Caffeine saved" card with Undo for this entry.
     private func save() {
-        guard !saved else { return }
-        app.tick()
-        guard let draft = currentDraft else { failure = "Pick a drink and a size first. Nothing was saved."; return }
-        if let problem = assistant.savePhotoDose(draft, app: app) { failure = problem; return }
-        saved = true
+        switch flow.save(db: db, assistant: assistant, app: app) {
+        case .alreadySaved: return
+        case .problem(let problem): failure = problem
         // The saved card's badge gives the success haptic.
-        close()
+        case .saved: close()
+        }
     }
 
     private func close() {
         analysis?.cancel()
-        image = nil; card = nil
+        image = nil; flow.close()
         dismiss()
     }
 }
