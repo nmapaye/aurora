@@ -122,9 +122,12 @@ struct AssistantSettingsView: View {
             }
             #endif
             NavigationLink("Design Gallery", destination: DesignGalleryView())
-            // Research models side by side; Debug builds only (#89, #90).
+            #if AURORA_RESEARCH_KSS && AURORA_RESEARCH_CAFFEINE
+            // Research models side by side; only in Debug builds that pass both
+            // research flags explicitly (#89, #90). Off by default.
             NavigationLink("Research Models", destination: ResearchModelsView())
                 .accessibilityIdentifier("developer-research-models")
+            #endif
         }
         .auroraRows()
     }

@@ -78,6 +78,9 @@ jobs:
             TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
             [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
           done
+          # Research models are off by default; run their suites once with both flags.
+          AURORA_EXPECT_RESEARCH=1 swift test -Xswiftc -DAURORA_RESEARCH_KSS -Xswiftc -DAURORA_RESEARCH_CAFFEINE 2>&1 | tee -a ../swift-test.log
+          [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 

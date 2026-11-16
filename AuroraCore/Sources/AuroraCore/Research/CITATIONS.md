@@ -1,9 +1,9 @@
 # KSSModel citations (research / unvalidated)
 
 `KSSModel.swift` is the **original full Three-Process Model** (TPM) of
-alertness regulation with its published KSS transfer. It is compiled into
-Debug builds only (`AURORA_RESEARCH_KSS`, see `Package.swift`), is not
-referenced by the app, and is never shown to people. It is a Swift port of
+alertness regulation with its published KSS transfer. It is compiled only
+when a build passes `-DAURORA_RESEARCH_KSS` explicitly (off by default in Debug
+and Release, see `Package.swift`), and is never shown to normal users. It is a Swift port of
 `website/research/tpm-kss.ts` (see `website/research/README.md`).
 
 ## Parameter trace

@@ -82,8 +82,8 @@ struct ResearchComparisonTests {
         #expect(c.segments.isEmpty)
     }
 
-    /// App code may reference the research models only from the Debug-only
-    /// Research screen, wrapped in `#if DEBUG`.
+    /// App code may reference the research models only from the Debug
+    /// Research screen, wrapped in `#if DEBUG` plus both research flags.
     @Test func onlyTheDebugResearchScreenReferencesTheModels() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let app = repo.appendingPathComponent("Aurora")
@@ -92,11 +92,11 @@ struct ResearchComparisonTests {
         let allowed: Set<String> = ["ResearchModelsView.swift"]
         for f in files {
             let text = try String(contentsOf: f, encoding: .utf8)
-            let refers = ["KSSModel", "UMPCaffeineModel", "ResearchComparison", "AURORA_RESEARCH"].contains { text.contains($0) }
+            let refers = ["KSSModel", "UMPCaffeineModel", "ResearchComparison"].contains { text.contains($0) }
             guard refers else { continue }
             #expect(allowed.contains(f.lastPathComponent), "\(f.lastPathComponent) references a research model")
             let firstCode = text.split(separator: "\n").first { !$0.hasPrefix("//") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            #expect(firstCode == "#if DEBUG", "\(f.lastPathComponent) must be wrapped in #if DEBUG")
+            #expect(firstCode == "#if DEBUG && AURORA_RESEARCH_KSS && AURORA_RESEARCH_CAFFEINE", "\(f.lastPathComponent) must be wrapped in #if DEBUG and both research flags")
         }
     }
 }

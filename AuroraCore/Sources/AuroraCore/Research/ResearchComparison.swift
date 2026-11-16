@@ -1,5 +1,5 @@
-// RESEARCH / UNVALIDATED. Debug builds only (both research defines come from
-// Package.swift for Debug). Feeds the Debug-only Research screen; never shown
+// RESEARCH / UNVALIDATED. Only in builds that pass both research flags
+// explicitly (off by default). Feeds the flagged Debug Research screen; never shown
 // to normal users and never used by any estimate, card or copy.
 #if AURORA_RESEARCH_KSS && AURORA_RESEARCH_CAFFEINE
 import Foundation

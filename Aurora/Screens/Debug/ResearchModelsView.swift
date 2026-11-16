@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG && AURORA_RESEARCH_KSS && AURORA_RESEARCH_CAFFEINE
 import AuroraCore
 import SwiftUI
 

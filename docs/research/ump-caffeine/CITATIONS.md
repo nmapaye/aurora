@@ -1,6 +1,6 @@
 # UMP + caffeine research model: citations
 
-Code: `AuroraCore/Sources/AuroraCore/Research/UMPCaffeineModel.swift`, compiled only in Debug builds (`AURORA_RESEARCH_CAFFEINE`, defined for Debug in `AuroraCore/Package.swift`). Research only: never in Release/TestFlight; the only UI is the Debug-only Research screen.
+Code: `AuroraCore/Sources/AuroraCore/Research/UMPCaffeineModel.swift`, compiled only when a build passes `-DAURORA_RESEARCH_CAFFEINE` explicitly (off by default in Debug and Release; see `AuroraCore/Package.swift`). Research only: never in TestFlight; the only UI is the Debug Research screen, which also needs both flags.
 
 Implemented from the published papers below and nothing else. No code from the authors' tools was seen or used. All sources were retrieved on 2026-11-10 from the authors' institute page (bhsai.org/pubs); page numbers are the journal's.
 

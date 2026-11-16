@@ -225,8 +225,10 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(entry.label.contains("+1h, +2h"))
     }
 
-    /// Debug builds only: both research models side by side, reached from
-    /// Developer settings. With no records both refuse; nothing is imputed.
+    #if AURORA_RESEARCH_KSS && AURORA_RESEARCH_CAFFEINE
+    /// Debug builds that pass both research flags only: both research models
+    /// side by side, reached from Developer settings. With no records both
+    /// refuse; nothing is imputed. Off by default, so absent from normal CI.
     func testDebugResearchModelsShowBothModelsSideBySide() {
         finishSetup()
         tapWhenReady(app.buttons["assistant-settings"], timeout: 10)
@@ -241,6 +243,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(ump.exists)
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Refused'")).firstMatch.exists)
     }
+    #endif
 
     func testSkipToEndShowsNoAnswersForQuestionsNotAsked() {
         tapWhenReady(app.buttons["onboarding-skip-story"], timeout: 15)

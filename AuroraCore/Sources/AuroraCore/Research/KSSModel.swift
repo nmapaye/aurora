@@ -1,6 +1,6 @@
-// RESEARCH / UNVALIDATED. Compiled only when AURORA_RESEARCH_KSS is defined
-// (Package.swift defines it for Debug builds only), never referenced by the
-// app, and never shown in UI. See Research/CITATIONS.md.
+// RESEARCH / UNVALIDATED. Compiled only when a build passes
+// -DAURORA_RESEARCH_KSS explicitly (off by default in Debug and Release); read
+// only by the flagged Debug Research screen, never shown to normal users. See Research/CITATIONS.md.
 #if AURORA_RESEARCH_KSS
 import Foundation
 

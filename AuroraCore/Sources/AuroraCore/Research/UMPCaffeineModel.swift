@@ -1,7 +1,7 @@
-// RESEARCH / UNVALIDATED. Compiled when AURORA_RESEARCH_CAFFEINE is defined, which
-// Package.swift does for Debug builds only (swift test, the app's Debug
-// configuration), never Release or TestFlight. The only app code that reads
-// it is the `#if DEBUG` Research screen, never shown to normal users.
+// RESEARCH / UNVALIDATED. Compiled only when a build passes
+// -DAURORA_RESEARCH_CAFFEINE explicitly; off by default in Debug and Release,
+// never in TestFlight. The only app code that reads it is the Debug Research
+// screen, which also needs the flags, never shown to normal users.
 // Citations: docs/research/ump-caffeine/CITATIONS.md
 // Flagged (unpublished or ambiguous) items: docs/research/ump-caffeine/FLAGGED.md
 #if AURORA_RESEARCH_CAFFEINE
