@@ -33,10 +33,10 @@ struct ReactionTestView: View {
             }
         }
         .background(Palette.screen.ignoresSafeArea())
-        .alert("End test?", isPresented: $confirmingEnd) {
+        .alert("End Test?", isPresented: $confirmingEnd) {
             Button("End", role: .destructive) { end() }
                 .accessibilityIdentifier("reaction-end-confirm")
-            Button("Keep going", role: .cancel) { run.resume() }
+            Button("Keep Going", role: .cancel) { run.resume() }
                 .accessibilityIdentifier("reaction-keep-going")
         } message: {
             Text("This run won’t be saved.")

@@ -279,7 +279,7 @@ struct SetupConversationView: View {
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-next")
             } else {
-                Button("Not now") { record(.health, .skipped) { $0.settleSetupSleepSource() } }
+                Button("Not Now") { record(.health, .skipped) { $0.settleSetupSleepSource() } }
                     .buttonStyle(.auroraSecondary)
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-skip")
@@ -317,7 +317,7 @@ struct SetupConversationView: View {
                 Button("Continue") { record(.calendar, .answered) }
                     .buttonStyle(.auroraPrimary)
                     .accessibilityIdentifier("setup-next")
-                Button("Change calendars") { showCalendars = true }
+                Button("Change Calendars") { showCalendars = true }
                     .buttonStyle(.auroraSecondary)
                     .disabled(!connectionsEnabled)
             }
@@ -360,7 +360,7 @@ struct SetupConversationView: View {
                 .buttonStyle(.auroraPrimary)
                 .disabled(primaryDisabled)
                 .accessibilityIdentifier("setup-next")
-            Button("Not now", action: skip)
+            Button("Not Now", action: skip)
                 .buttonStyle(.auroraSecondary)
                 .accessibilityIdentifier("setup-skip")
         }

@@ -16,7 +16,7 @@ Every phrase is read as if typed at **10:00 local, Thu 8 Oct 2026, America/Los_A
 ## Gold labeling rules
 - `route` is `log` only for caffeine or sleep the person says they already had. Everything else is `none`: questions, negations, out-of-scope, medical or dosing requests, prompt injection, and impossible claims (sleep over 24 h, negative, zero-length, or future-dated).
 - **No record is never 0.** An unknown amount is `null`, never 0.
-- `mg` is set only when it is typed (grams × 1000), a named Quick Add preset with no size (Espresso 60, Drip 95, Matcha 70, Energy 160; `CaffeinePreset.all`), or "my usual" (200). A size or volume with no mg, or a drink Aurora has no amount for (tea, brands, "coffee"), gets `null`.
+- `mg` is set only when it is typed (grams × 1000), a named Quick Add preset with no size (Espresso 60, Drip 95, Energy 160; `CaffeinePreset.all`; Matcha is manual entry only), or "my usual" (200). A size or volume with no mg, or a drink Aurora has no amount for (tea, brands, "coffee"), gets `null`.
 - With no time stated, `at_min` = 0. "Yesterday" or "last night" resolve against the reference day. An in-phrase correction keeps the last value.
 - Sleep fields that weren't said are `null`. A duration is derived only from a stated start and end.
 

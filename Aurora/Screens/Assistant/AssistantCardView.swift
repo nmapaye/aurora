@@ -340,7 +340,7 @@ struct AssistantCardView: View {
                 let upcoming = CalendarAgenda.briefing(card.commitments, now: Date(timeIntervalSince1970: card.capturedAt / 1000), calendar: .current)
                 if card.state != .loading && upcoming.isEmpty { Text("Nothing else on your calendars today.").font(.caption).foregroundStyle(Palette.textSecondary) }
                 ForEach(upcoming, id: \.identity) { event in BriefingEventRow(event: event) }
-                Button("Review my day") { assistant.send("Review calendar", app: app) }.buttonStyle(.auroraSecondary)
+                Button("Review My Day") { assistant.send("Review calendar", app: app) }.buttonStyle(.auroraSecondary)
             }
         case .trends: trends
         case .calendar: EmptyView()
@@ -368,10 +368,10 @@ struct AssistantCardView: View {
         case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
-                Button("Log it") { assistant.reviewRepeatDrink(message, app: app) }
+                Button("Log It") { assistant.reviewRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraPrimary).disabled(assistant.processing)
                     .accessibilityIdentifier("repeat-drink-review")
-                Button("Not today") { assistant.dismissRepeatDrink(message, app: app) }
+                Button("Not Today") { assistant.dismissRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraSecondary)
                     .accessibilityIdentifier("repeat-drink-dismiss")
             }
@@ -427,7 +427,7 @@ struct AssistantCardView: View {
             Text("Set a cutoff time in Settings first.").font(.footnote).foregroundStyle(Palette.textSecondary)
         }
         if app.reminderStatus == .denied { NotificationsOffNotice() }
-        Button("Manage reminders") { assistant.showAssistantSettings = true }
+        Button("Manage Reminders") { assistant.showAssistantSettings = true }
             .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-manage-reminders")
     }
     /// Label leading, quantity trailing on one baseline; stacks when the text
@@ -586,7 +586,7 @@ struct AssistantCardView: View {
                 VStack(spacing: Metrics.xxs) {
                     Button(info.previous == nil ? "Undo check-in" : "Undo correction") { assistant.undoCheckIn(message, app: app) }
                         .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-checkin-undo")
-                    quietButton("Edit check-in") { assistant.editCheckIn(message, app: app) }
+                    quietButton("Edit Check-In") { assistant.editCheckIn(message, app: app) }
                         .disabled(assistant.processing).accessibilityIdentifier("assistant-checkin-edit")
                 }
                 .transition(Motion.stateTransition(reduceMotion: reduceMotion))
@@ -739,7 +739,7 @@ struct AssistantCardView: View {
         Binding(get: { Date(timeIntervalSince1970: (assistant.pendingSleep?[keyPath: key] ?? app.now) / 1000) }, set: { assistant.pendingSleep?[keyPath: key] = $0.timeIntervalSince1970 * 1000 })
     }
     @ViewBuilder private var trends: some View {
-        Picker("Recorded signal", selection: $metric) { ForEach(["Caffeine", "Sleep", "Reaction"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-metric")
+        Picker("Recorded Signal", selection: $metric) { ForEach(["Caffeine", "Sleep", "Reaction"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-metric")
         Picker("Range", selection: $days) { Text("Week").tag(7); Text("Month").tag(30) }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-range")
         if let series = card.series.first(where: { $0.metric == metric && $0.days == days }) {
             DailyBarChart(title: metric == "Caffeine" && days == 7 ? "Recorded caffeine · this week" : "Recorded \(metric.lowercased()) · \(days) days", days: series.points.map {
@@ -755,7 +755,7 @@ struct AssistantCardView: View {
                     .font(Typography.evidence).focused($field, equals: .search)
                     .accessibilityLabel("Search history").accessibilityIdentifier("assistant-history-search")
             }
-            Picker("Date range", selection: $historyDays) {
+            Picker("Date Range", selection: $historyDays) {
                 Text("7d").accessibilityLabel("7 days").tag(7)
                 Text("30d").accessibilityLabel("30 days").tag(30)
                 Text("All").tag(0)

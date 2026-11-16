@@ -1,14 +1,15 @@
 import AppIntents
 import AuroraCore
 
-/// The drinks a shortcut can log without asking for an amount: the Quick
-/// Add presets at their listed amounts, or the person's usual drink.
+/// The drinks a shortcut can prefill in the review card: the Quick Add
+/// presets at their listed amounts, or the person's usual drink. Matcha has
+/// no sourced amount, so it is manual entry only.
 enum ShortcutDrink: String, AppEnum {
-    case usual, espresso, drip, matcha, energy
+    case usual, espresso, drip, energy
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Drink" }
     static var caseDisplayRepresentations: [ShortcutDrink: DisplayRepresentation] {
-        [.usual: "My usual", .espresso: "Espresso", .drip: "Drip", .matcha: "Matcha", .energy: "Energy drink"]
+        [.usual: "My usual", .espresso: "Espresso", .drip: "Drip", .energy: "Energy drink"]
     }
 
     var choice: LogDrinkShortcut.Choice { LogDrinkShortcut.Choice(rawValue: rawValue) ?? .usual }

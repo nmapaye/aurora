@@ -10,12 +10,20 @@ struct LogDrinkShortcutTests {
     }
     let time: (Millis) -> String = { _ in "9:00 AM" }
 
-    @Test(arguments: [("espresso", 60.0, "Espresso"), ("drip", 95, "Drip"), ("matcha", 70, "Matcha"), ("energy", 160, "Energy")])
+    @Test(arguments: [("espresso", 60.0, "Espresso"), ("drip", 95, "Drip"), ("energy", 160, "Energy")])
     func presetsUseTheQuickAddAmount(raw: String, mg: Double, label: String) throws {
         let choice = try #require(LogDrinkShortcut.Choice(rawValue: raw))
         let outcome = LogDrinkShortcut.resolve(choice, doses: [], now: Self.now, id: "new")
         #expect(outcome == .log(Dose(id: "new", timestamp: Self.now, mg: mg, source: label)))
         #expect(outcome == .log(CaffeineLog.quickAddDose(try #require(choice.preset), now: Self.now, id: "new")))
+    }
+
+    /// Matcha has no sourced amount: manual entry only, never a preset,
+    /// Quick Add chip or shortcut choice (CPO ruling, Nov 16).
+    @Test func matchaIsManualEntryOnly() {
+        #expect(CaffeinePreset.all.map(\.id) == ["espresso", "drip", "energy"])
+        #expect(LogDrinkShortcut.Choice(rawValue: "matcha") == nil)
+        #expect(!CaffeinePreset.all.contains { $0.label.localizedCaseInsensitiveContains("matcha") })
     }
 
     @Test func usualRepeatsTheUsualDrinkAndNeverGuesses() {

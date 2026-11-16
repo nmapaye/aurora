@@ -419,7 +419,7 @@ struct AssistantView: View {
                 // Legacy text remains as originally shown. Do not attach live
                 // charts or executable proposals to old messages after migration.
             }
-            if message.suggestionKey != nil { Button("Dismiss suggestion") { assistant.dismissSuggestion(message) }.font(.caption).frame(minHeight: 44) }
+            if message.suggestionKey != nil { Button("Dismiss Suggestion") { assistant.dismissSuggestion(message) }.font(.caption).frame(minHeight: 44) }
         }
     }
 

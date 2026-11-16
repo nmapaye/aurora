@@ -25,12 +25,12 @@ def add(stratum, phrase, drinks=None, sleep=None, route=None, safety=False):
                   "expect": {"route": route, "drinks": drinks or [], "sleep": sleep}})
 
 # Drinks and sizes (40). Preset name with no size → preset mg (CaffeinePreset):
-# espresso 60, drip 95, matcha 70, energy 160. A stated size, or a drink with
+# espresso 60, drip 95, energy 160. Matcha has no preset (manual entry only). A stated size, or a drink with
 # no preset → mg null (the review card asks).
 for verb in ["I had", "I drank", "Just had", "Log", "Had"]:
     add("drinks", f"{verb} an espresso", [D("Espresso", 60)])
     add("drinks", f"{verb} a drip coffee", [D("Drip", 95)])
-    add("drinks", f"{verb} a matcha", [D("Matcha", 70)])
+    add("drinks", f"{verb} a matcha", [D("Matcha")])
     add("drinks", f"{verb} an energy drink", [D("Energy", 160)])
 for p, d in [("I had a coffee", D("Coffee")), ("I drank some tea", D("Tea")), ("I had a cold brew", D("Cold Brew")),
              ("I had a latte", D("Latte")), ("I had a cappuccino", D("Cappuccino")), ("I drank an americano", D("Americano")),
@@ -57,7 +57,7 @@ rel = [("an hour ago", -60), ("30 minutes ago", -30), ("2 hours ago", -120), ("h
        ("yesterday at 8am", y(8)), ("yesterday at 3pm", y(15)), ("yesterday at 2:30 pm", y(14, 30)), ("last night at 9pm", y(21)),
        ("yesterday afternoon at 4pm", y(16)), ("at 8:15", t(8, 15)), ("around 9", t(9)), ("at 5 in the morning", t(5)),
        ("3 hours ago", -180), ("90 minutes ago", -90), ("45 min ago", -45), ("yesterday at 11 am", y(11)), ("at 9:05am", t(9, 5))]
-drinks_cycle = [("an espresso", D("Espresso", 60)), ("a coffee", D("Coffee")), ("a matcha", D("Matcha", 70)), ("a tea", D("Tea"))]
+drinks_cycle = [("an espresso", D("Espresso", 60)), ("a coffee", D("Coffee")), ("a matcha", D("Matcha")), ("a tea", D("Tea"))]
 for i, (when, at) in enumerate(rel):
     name, d = drinks_cycle[i % 4]
     add("times", f"I had {name} {when}", [dict(d, at_min=at)])
@@ -70,30 +70,30 @@ for when, at in [("at 8", t(8)), ("this morning around 6:30", t(6, 30)), ("yeste
 # Multiple drinks (25).
 multi = [
     ("I had two espressos", [D("Espresso", 60), D("Espresso", 60)]),
-    ("I had an espresso and a matcha", [D("Espresso", 60), D("Matcha", 70)]),
+    ("I had an espresso and a matcha", [D("Espresso", 60), D("Matcha")]),
     ("I had a coffee at 7am and another at 9am", [D("Coffee", None, t(7)), D("Coffee", None, t(9))]),
     ("two coffees this morning, 100 mg each", [D("Coffee", 100), D("Coffee", 100)]),
     ("I had a Red Bull and a coffee", [D("Red Bull"), D("Coffee")]),
-    ("espresso at 8am, matcha at 9:30am", [D("Espresso", 60, t(8)), D("Matcha", 70, t(9, 30))]),
+    ("espresso at 8am, matcha at 9:30am", [D("Espresso", 60, t(8)), D("Matcha", None, t(9, 30))]),
     ("I drank a 100 mg tea and a 150 mg coffee", [D("Tea", 100), D("Coffee", 150)]),
     ("three espressos", [D("Espresso", 60)] * 3),
     ("I had a drip coffee an hour ago and an espresso just now", [D("Drip", 95, -60), D("Espresso", 60, 0)]),
-    ("had a matcha and an energy drink", [D("Matcha", 70), D("Energy", 160)]),
+    ("had a matcha and an energy drink", [D("Matcha"), D("Energy", 160)]),
     ("I had a coffee yesterday at 3pm and one today at 8am", [D("Coffee", None, y(15)), D("Coffee", None, t(8))]),
     ("two Red Bulls", [D("Red Bull"), D("Red Bull")]),
     ("I had an espresso, then another one 30 minutes ago", [D("Espresso", 60), D("Espresso", 60, -30)]),
     ("log a tea and a cold brew", [D("Tea"), D("Cold Brew")]),
     ("I had a 60 mg espresso and a 95 mg drip", [D("Espresso", 60), D("Drip", 95)]),
-    ("matcha at 7, coffee at 9", [D("Matcha", 70, t(7)), D("Coffee", None, t(9))]),
+    ("matcha at 7, coffee at 9", [D("Matcha", None, t(7)), D("Coffee", None, t(9))]),
     ("I had my usual and an espresso", [D("Cold Brew", 200), D("Espresso", 60)]),
     ("a latte and a cappuccino this morning", [D("Latte"), D("Cappuccino")]),
     ("two energy drinks yesterday at 4pm", [D("Energy", 160, y(16)), D("Energy", 160, y(16))]),
-    ("coffee at 6am, espresso at 8am, matcha at 9am", [D("Coffee", None, t(6)), D("Espresso", 60, t(8)), D("Matcha", 70, t(9))]),
+    ("coffee at 6am, espresso at 8am, matcha at 9am", [D("Coffee", None, t(6)), D("Espresso", 60, t(8)), D("Matcha", None, t(9))]),
     ("I had 2 teas", [D("Tea"), D("Tea")]),
     ("one espresso and one drip coffee", [D("Espresso", 60), D("Drip", 95)]),
     ("I had a Monster 2 hours ago and a coffee now", [D("Monster", None, -120), D("Coffee", None, 0)]),
     ("a 200 mg cold brew and a 70 mg matcha", [D("Cold Brew", 200), D("Matcha", 70)]),
-    ("I drank two matchas", [D("Matcha", 70), D("Matcha", 70)]),
+    ("I drank two matchas", [D("Matcha"), D("Matcha")]),
 ]
 for p, ds in multi: add("multi", p, [dict(d) for d in ds])
 
@@ -131,10 +131,10 @@ for p, sl in naps: add("naps", p, sleep=sl)
 
 # Corrections inside the phrase (20): the last stated value wins.
 corr = [("I had a 95 mg coffee, no wait, 120 mg", [D("Coffee", 120)]), ("espresso, actually make it 80 mg", [D("Espresso", 80)]),
-        ("I had a coffee at 8am, sorry, 7am", [D("Coffee", None, t(7))]), ("I had a tea, no, a matcha", [D("Matcha", 70)]),
+        ("I had a coffee at 8am, sorry, 7am", [D("Coffee", None, t(7))]), ("I had a tea, no, a matcha", [D("Matcha")]),
         ("log 200 mg, I mean 150 mg cold brew", [D("Cold Brew", 150)]), ("I had a drip coffee, actually it was an espresso", [D("Espresso", 60)]),
         ("I had a Red Bull at 9am, correction 8:30am", [D("Red Bull", None, t(8, 30))]), ("I had a coffee 2 hours ago, no, 1 hour ago", [D("Coffee", None, -60)]),
-        ("I had a 100 mg tea, oops, 50 mg", [D("Tea", 50)]), ("I had a matcha yesterday, no, today", [D("Matcha", 70)]),
+        ("I had a 100 mg tea, oops, 50 mg", [D("Tea", 50)]), ("I had a matcha yesterday, no, today", [D("Matcha")]),
         ("I had a coffee, it was 140 mg", [D("Coffee", 140)]), ("I had an espresso at 9, I mean 8", [D("Espresso", 60, t(8))]),
         ("I had a cold brew, actually 180mg", [D("Cold Brew", 180)]), ("log a coffee at 7am, wait, 7:45am", [D("Coffee", None, t(7, 45))]),
         ("I had an energy drink, no, a Monster", [D("Monster")]), ("I had 2 espressos, no, just one", [D("Espresso", 60)]),
@@ -154,7 +154,7 @@ for p, ds in [("had a coffee", [D("Coffee")]), ("coffee", [D("Coffee")]), ("caff
               ("drank something caffeinated", [D("Caffeine")]), ("had a drink", []), ("one more", []), ("the usual", [D("Cold Brew", 200)]),
               ("a cup", []), ("same as yesterday", []), ("had tea earlier", [D("Tea")]), ("I had a big one", []), ("energy", []),
               ("a shot", []), ("log it", []), ("another coffee", [D("Coffee")]), ("I had a soda", [D("Soda")]),
-              ("I had a pre-workout", [D("Pre-workout")]), ("had some matcha", [D("Matcha", 70)]), ("I had something", [])]:
+              ("I had a pre-workout", [D("Pre-workout")]), ("had some matcha", [D("Matcha")]), ("I had something", [])]:
     add("ambiguous", p, ds)
 
 # Out of scope (15).

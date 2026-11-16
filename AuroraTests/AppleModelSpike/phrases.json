@@ -66,7 +66,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -134,7 +134,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -202,7 +202,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -270,7 +270,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -338,7 +338,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -1171,7 +1171,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -120
      }
     ],
@@ -1239,7 +1239,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -150
      }
     ],
@@ -1307,7 +1307,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -1560
      }
     ],
@@ -1375,7 +1375,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -1080
      }
     ],
@@ -1443,7 +1443,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -180
      }
     ],
@@ -1511,7 +1511,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -55
      }
     ],
@@ -1759,7 +1759,7 @@
      },
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -1847,7 +1847,7 @@
      },
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -30
      }
     ],
@@ -1935,7 +1935,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      },
      {
@@ -2067,7 +2067,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -180
      },
      {
@@ -2165,7 +2165,7 @@
      },
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": -60
      }
     ],
@@ -2270,12 +2270,12 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      },
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -3348,7 +3348,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -3450,7 +3450,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],
@@ -4060,7 +4060,7 @@
     "drinks": [
      {
       "source": "Matcha",
-      "mg": 70,
+      "mg": null,
       "at_min": 0
      }
     ],

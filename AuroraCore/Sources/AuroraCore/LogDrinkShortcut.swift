@@ -12,7 +12,7 @@ import Foundation
 /// never guesses an amount.
 public enum LogDrinkShortcut {
     public enum Choice: String, CaseIterable, Codable, Sendable {
-        case usual, espresso, drip, matcha, energy
+        case usual, espresso, drip, energy
 
         /// The Quick Add preset this choice records, nil for `.usual`.
         public var preset: CaffeinePreset? { CaffeinePreset.all.first { $0.id == rawValue } }

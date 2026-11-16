@@ -121,7 +121,7 @@ struct EnergyRecordActions: View {
         let unscored = metrics.contains { $0.id == "alertness" && $0.missing }
         ForEach(metrics.filter { $0.missing && ($0.id == "sleep" || $0.id == "caffeine") }) { item in
             if item.id == "sleep" && unscored {
-                Button("Record sleep") { record("sleep") }.buttonStyle(.auroraPrimary)
+                Button("Record Sleep") { record("sleep") }.buttonStyle(.auroraPrimary)
             } else {
                 Button(item.id == "sleep" ? "Record sleep" : "Record caffeine") { record(item.id) }.buttonStyle(.auroraSecondary)
             }

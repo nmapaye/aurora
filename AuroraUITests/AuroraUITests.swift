@@ -335,7 +335,7 @@ final class AuroraUITests: XCTestCase {
         XCTAssertTrue(missing.waitForExistence(timeout: 5))
         XCTAssertTrue(missing.label.contains("No sleep of 3 hours or more in the last 18 hours."), missing.label)
         XCTAssertFalse(app.staticTexts["Unavailable"].exists)
-        XCTAssertTrue(app.buttons["Record sleep"].exists)
+        XCTAssertTrue(app.buttons["Record Sleep"].exists)
     }
     func testEnergyCurveShowsModeledLabelsWithoutRecords() {
         finishSetup()
@@ -869,7 +869,7 @@ final class AuroraUITests: XCTestCase {
         // Before a run starts, Close leaves without asking.
         app.buttons["reaction-close"].tap()
         XCTAssertTrue(app.buttons["reaction-start"].waitForNonExistence(timeout: 5))
-        XCTAssertFalse(app.alerts["End test?"].exists)
+        XCTAssertFalse(app.alerts["End Test?"].exists)
     }
     func testLargestAccessibilityTextKeepsCardsAndComposerReachable() {
         app.terminate()

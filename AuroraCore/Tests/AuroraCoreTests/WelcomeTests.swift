@@ -225,7 +225,7 @@ struct WelcomeTests {
         for key in ["displayName", "favoriteDrinkIDs", "setupStep"] { #expect(!encoded.contains(key)) }
         var state = AppState()
         state.prefs.displayName = "Sam"
-        state.prefs.favoriteDrinkIDs = ["matcha"]
+        state.prefs.favoriteDrinkIDs = ["energy"]
         state.onboarding.setupStep = SetupStep.calendar.rawValue
         let decoded = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(state))
         #expect(decoded == state)
@@ -337,7 +337,9 @@ struct WelcomeTests {
     }
 
     @Test func favoritesComeFirstWithoutDuplicates() {
-        #expect(CaffeinePreset.ordered(favorites: ["matcha", "espresso", "matcha", "unknown"]).map(\.id) == ["matcha", "espresso", "drip", "energy"])
+        #expect(CaffeinePreset.ordered(favorites: ["energy", "espresso", "energy", "unknown"]).map(\.id) == ["energy", "espresso", "drip"])
+        // A favorite saved before Matcha left the presets is ignored.
+        #expect(CaffeinePreset.ordered(favorites: ["matcha", "drip"]).map(\.id) == ["drip", "espresso", "energy"])
         #expect(CaffeinePreset.ordered(favorites: nil).map(\.id) == CaffeinePreset.all.map(\.id))
     }
 

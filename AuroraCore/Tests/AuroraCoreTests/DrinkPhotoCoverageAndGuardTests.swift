@@ -414,7 +414,7 @@ import Testing
 
     /// No shipped text names the dropped third-party source: not the
     /// database, not any card or (i) string, and not the app's or Core's
-    /// Swift sources. (The name is assembled here so this file doesn't contain it.)
+    /// Swift sources, and not the docs. (The name is assembled here so this file doesn't contain it.)
     @Test func noUserVisibleStringNamesTheDroppedSource() throws {
         let banned = ["caffeine" + " " + "informer", "caffeine" + "informer"]
         func clean(_ text: String, _ what: String) {
@@ -429,7 +429,7 @@ import Testing
         }
         clean(DrinkPhotoConfirmation.notInDatabaseTitle + DrinkPhotoConfirmation.manualEntryLine + CaffeineDatabase.creditTitle, "card strings")
         var files = 0
-        for dir in ["Aurora", "AuroraCore/Sources"] {
+        for dir in ["Aurora", "AuroraCore/Sources", "docs"] {
             let base = repoRoot.appendingPathComponent(dir)
             let walker = try #require(FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil))
             for case let url as URL in walker where ["swift", "json", "strings", "plist", "md"].contains(url.pathExtension) {

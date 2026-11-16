@@ -235,7 +235,7 @@ struct StorageRecoveryView: View {
                 .foregroundStyle(Palette.textPrimary)
             Text(model.mutationFailure ?? "Aurora could not open or verify its protected local records. The original files are preserved. Retry after restoring access or recovering the saved file.")
                 .foregroundStyle(Palette.textSecondary)
-            Button("Retry opening AURORA") { model.retryStorage() }
+            Button("Retry Opening AURORA") { model.retryStorage() }
                 .buttonStyle(.auroraPrimary)
         }
         .padding(Metrics.xl)

@@ -168,7 +168,7 @@ struct CutoffScenarioCardView: View {
                     .accessibilityIdentifier("cutoff-\(id)-occurrence")
                 }
                 if optional {
-                    Button("Remove drink time") { assistant.editCutoff { $0[keyPath: key] = nil; $0[keyPath: occurrence] = nil } }
+                    Button("Remove Drink Time") { assistant.editCutoff { $0[keyPath: key] = nil; $0[keyPath: occurrence] = nil } }
                         .font(.subheadline).frame(minHeight: Metrics.minimumTouchTarget)
                 }
             }
@@ -351,7 +351,7 @@ struct CutoffScenarioCardView: View {
                     }
                     .buttonStyle(.auroraPrimary).disabled(assistant.savingCutoffReminder)
                     .accessibilityIdentifier("cutoff-reminder-save")
-                    quietButton("Not now") { assistant.cancelCutoffPreview() }
+                    quietButton("Not Now") { assistant.cancelCutoffPreview() }
                         .disabled(assistant.savingCutoffReminder)
                 }
             }
@@ -359,7 +359,7 @@ struct CutoffScenarioCardView: View {
             .background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
         } else if let snapshot, case .feasible = snapshot.result.latest, !inputsChanged {
-            Button("Preview a one-time reminder") { field = nil; assistant.previewCutoffReminder(app: app) }
+            Button("Preview a One-Time Reminder") { field = nil; assistant.previewCutoffReminder(app: app) }
                 .buttonStyle(.auroraSecondary).accessibilityIdentifier("cutoff-reminder-preview")
         }
     }

@@ -301,7 +301,7 @@ struct SleepEntrySheet: View {
                     .disabled(validation != .valid)
                 }
             }
-            .alert("Delete this sleep session?", isPresented: $confirmDelete) {
+            .alert("Delete This Sleep Session?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) {
                     Haptics.warning()
                     onDelete()
@@ -369,7 +369,7 @@ struct SleepHistoryView: View {
                 if case .edit(let session) = sheet { model.deleteManualSleep(id: session.id) }
             }
         }
-        .alert("Delete this sleep session?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { session in
+        .alert("Delete This Sleep Session?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { session in
             Button("Delete", role: .destructive) {
                 Haptics.warning()
                 model.deleteManualSleep(id: session.id)
