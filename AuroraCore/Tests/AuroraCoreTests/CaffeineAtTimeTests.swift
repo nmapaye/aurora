@@ -229,7 +229,7 @@ import Testing
         let chip = C.recentSleepStart(sleeps, now: now, clock: clock)
         #expect(chip == C.SleepTimeChip(minuteOfDay: 23 * 60 + 5, nights: 3))
         #expect(chip?.label(clockTime: "11:05 PM") == "Recent Sleep Start · 11:05 PM · 3 Nights")
-        #expect(chip?.nextStart(after: now, clock: clock) == at(2026, 11, 16, 23, 5))
+        #expect(chip?.nextStart(after: now, timeZone: la) == .exact(at(2026, 11, 16, 23, 5)))
     }
 
     @Test func medianIsSafeAcrossMidnight() {
@@ -442,6 +442,34 @@ import Testing
         if case .entry(let entry)? = TypedDrinkEntry.parse("matcha 70mg", db: CaffeineDatabase.bundled, now: now, clock: clock) {
             #expect(entry.draft.mg == "70" && entry.amountSource == .typedMg)
         } else { Issue.record("matcha 70mg not an entry") }
+    }
+
+    // MARK: Sleep chip and clock changes (Codex P2, Nov 16)
+
+    @Test func theSleepChipResolvesLikeEveryOtherTimeOnANormalDay() {
+        let chip = C.SleepTimeChip(minuteOfDay: 23 * 60 + 10, nights: 4)
+        #expect(chip.nextStart(after: at(2026, 11, 16, 18), timeZone: la) == .exact(at(2026, 11, 16, 23, 10)))
+        // Already past tonight's: tomorrow's.
+        #expect(chip.nextStart(after: at(2026, 11, 16, 23, 30), timeZone: la) == .exact(at(2026, 11, 17, 23, 10)))
+        let early = C.SleepTimeChip(minuteOfDay: 30, nights: 4)
+        #expect(early.nextStart(after: at(2026, 11, 16, 18), timeZone: la) == .exact(at(2026, 11, 17, 0, 30)))
+    }
+
+    @Test func aSkippedSleepTimeIsReportedNotShifted() {
+        let now = at(2026, 3, 8, 0, 30)
+        let chip = C.SleepTimeChip(minuteOfDay: 2 * 60 + 30, nights: 4)
+        let resolver = CutoffScenario.resolve(.init(year: 2026, month: 3, day: 8, hour: 2, minute: 30), in: la)
+        #expect(resolver == .skipped)
+        #expect(chip.nextStart(after: now, timeZone: la) == .skipped)
+    }
+
+    @Test func aRepeatedSleepTimeOffersBothNeverPicksOne() {
+        let now = at(2026, 11, 1, 0, 30)
+        let chip = C.SleepTimeChip(minuteOfDay: 90, nights: 4)
+        let resolver = CutoffScenario.resolve(.init(year: 2026, month: 11, day: 1, hour: 1, minute: 30), in: la)
+        guard case .repeated(let first, let second) = resolver else { Issue.record("resolver: \(resolver)"); return }
+        #expect(second - first == hourMs)
+        #expect(chip.nextStart(after: now, timeZone: la) == .repeated(first: first, second: second))
     }
 }
 

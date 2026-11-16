@@ -231,10 +231,14 @@ public enum CaffeineAtTime {
             "Recent Sleep Start · \(clockTime) · \(nights) \(nights == 1 ? "Night" : "Nights")"
         }
 
-        /// The next instant at this wall time after `now`.
-        public func nextStart(after now: Millis, clock: LocalClock) -> Millis {
-            let today = clock.setTime(now, hour: minuteOfDay / 60, minute: minuteOfDay % 60)
-            return today > now ? today : clock.setTime(clock.addingDays(1, to: clock.startOfDay(now)), hour: minuteOfDay / 60, minute: minuteOfDay % 60)
+        /// This wall time's next occurrence after `now`, through the same
+        /// resolver as every other time (`CaffeineQuestion.targetLocalTime`,
+        /// `CutoffScenario.resolve`): a time clocks skip is `.skipped` and a
+        /// time that happens twice is `.repeated`, for the person to choose.
+        /// Never shifted, never a fold picked.
+        public func nextStart(after now: Millis, timeZone: TimeZone) -> CutoffScenario.Resolution {
+            let local = CaffeineQuestion.targetLocalTime(hour: minuteOfDay / 60, minute: minuteOfDay % 60, after: now, timeZone: timeZone)
+            return CutoffScenario.resolve(local, in: timeZone)
         }
     }
 
