@@ -119,7 +119,11 @@ import Testing
         assistant.send("How is my energy?", app: app); await assistant.waitForCurrentRequest()
         #expect(assistant.conversation.messages.last?.card?.summary.hasPrefix("Modeled alertness") == true)
         #expect(assistant.conversation.messages.last?.card?.metrics.contains { $0.id == "localExplanation" } == false)
-        #expect(assistant.conversation.messages.last?.card?.summary.contains("No record") == true)
+        // The recovery is the deterministic fallback for this card's own
+        // estimate. Sleep is recorded above, so it no longer says "No record".
+        let recoveryCard = try #require(assistant.conversation.messages.last?.card)
+        let recovery = GroundedLocalExplanation(estimate: try #require(recoveryCard.energy?.estimate))
+        #expect(recoveryCard.summary == recovery.fallback)
     }
     @Test func failedUndoRetainsLocalRecordAndSavedReceipt() async throws {
         let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
