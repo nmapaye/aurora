@@ -63,7 +63,21 @@ final class CutoffScenarioUITests: XCTestCase {
     private func openScenario(settle: TimeInterval = 2) {
         let input = app.textFields["assistant-composer"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap(); input.typeText("Cutoff scenario")
+        // Type only once the composer owns keyboard focus, as request() does
+        // in AuroraUITests: on a loaded CI iPhone a single tap can finish
+        // without focus, and typeText then fails with "Neither element nor
+        // any descendant has keyboard focus" (run 44043865944).
+        let focusedInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        for _ in 0..<3 where !focusedInput.exists {
+            input.tap()
+            if focusedInput.waitForExistence(timeout: 2) { break }
+        }
+        guard focusedInput.exists else {
+            XCTFail("The composer never took keyboard focus after three taps; not typing. \(app.debugDescription)")
+            return
+        }
+        input.typeText("Cutoff scenario")
         // Sending clears the field, so a retry can never send twice.
         SendRetry.send(text: "Cutoff scenario", input: input, send: app.buttons["assistant-send"], settle: settle)
         XCTAssertTrue(app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch.waitForExistence(timeout: 5), app.debugDescription)
@@ -73,7 +87,19 @@ final class CutoffScenarioUITests: XCTestCase {
     private func type(_ text: String, into id: String) {
         let field = app.textFields[id]
         reveal(field)
-        field.tap(); field.typeText(text)
+        // Same focus rule as openScenario: never type into a field that
+        // doesn't own keyboard focus.
+        let focusedField = app.textFields.matching(identifier: id)
+            .matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        for _ in 0..<3 where !focusedField.exists {
+            field.tap()
+            if focusedField.waitForExistence(timeout: 2) { break }
+        }
+        guard focusedField.exists else {
+            XCTFail("\(id) never took keyboard focus after three taps; not typing. \(app.debugDescription)")
+            return
+        }
+        field.typeText(text)
         // iPhone shows the toolbar Done above the decimal pad; iPad's keyboard
         // has its own hide key and a return key instead.
         let done = app.buttons["cutoff-keyboard-done"]
