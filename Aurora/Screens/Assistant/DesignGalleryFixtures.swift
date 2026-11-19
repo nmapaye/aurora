@@ -78,7 +78,7 @@ struct SetupFixtureView: View {
                     .id(generation)
             }
             .background(Palette.screen)
-            .navigationTitle("Setup fixture")
+            .navigationTitle("Setup Fixture")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

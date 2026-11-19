@@ -29,6 +29,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Aurora uses the camera only when you take a photo of a drink to log it. The photo is read on this device to look up caffeine, is never uploaded, and is discarded after you save or cancel.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Aurora reads selected commitments to help review your day. It changes an event only after you approve its preview.</string>
 	<key>NSHealthShareUsageDescription</key>

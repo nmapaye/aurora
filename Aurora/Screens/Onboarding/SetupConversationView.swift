@@ -23,6 +23,7 @@ struct SetupConversationView: View {
     @State private var targetDraft: Double?
     /// The last failed save, shown above the controls until the next try.
     @State private var saveFailure: String?
+    @State private var showsHealthNoteInfo = false
     @State private var working: HealthChoice?
     @State private var healthMessages: [HealthChoice: String] = [:]
     @State private var showCalendars = false
@@ -256,11 +257,21 @@ struct SetupConversationView: View {
                     healthRow(choice, on: state.healthChoices[choice], disabled: working != nil || state.demoMode)
                 }
             }
-            Text(SetupCopy.healthNote(state.healthChoices, healthAvailable: available, permission: state.onboarding.permissionStatus, demoMode: state.demoMode))
-                .font(.footnote)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("setup-health-note")
+            let noteInfo = SetupCopy.healthNoteInfo(state.healthChoices, healthAvailable: available, permission: state.onboarding.permissionStatus, demoMode: state.demoMode)
+            HStack(alignment: .center, spacing: Metrics.xs) {
+                Text(SetupCopy.healthNote(state.healthChoices, healthAvailable: available, permission: state.onboarding.permissionStatus, demoMode: state.demoMode))
+                    .font(.footnote)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("setup-health-note")
+                if noteInfo != nil {
+                    InfoButton(topic: SetupCopy.healthNoteInfoTopic, isShown: $showsHealthNoteInfo)
+                }
+                Spacer(minLength: 0)
+            }
+            if let noteInfo, showsHealthNoteInfo {
+                InfoText(text: noteInfo, id: "setup-health-note-info")
+            }
             let anyOn = Self.healthChoices.contains { state.healthChoices[$0] }
             if anyOn {
                 Button("Continue") { record(.health, .answered) { $0.settleSetupSleepSource() } }
@@ -268,7 +279,7 @@ struct SetupConversationView: View {
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-next")
             } else {
-                Button("Not now") { record(.health, .skipped) { $0.settleSetupSleepSource() } }
+                Button("Not Now") { record(.health, .skipped) { $0.settleSetupSleepSource() } }
                     .buttonStyle(.auroraSecondary)
                     .disabled(working != nil)
                     .accessibilityIdentifier("setup-skip")
@@ -306,7 +317,7 @@ struct SetupConversationView: View {
                 Button("Continue") { record(.calendar, .answered) }
                     .buttonStyle(.auroraPrimary)
                     .accessibilityIdentifier("setup-next")
-                Button("Change calendars") { showCalendars = true }
+                Button("Change Calendars") { showCalendars = true }
                     .buttonStyle(.auroraSecondary)
                     .disabled(!connectionsEnabled)
             }
@@ -349,7 +360,7 @@ struct SetupConversationView: View {
                 .buttonStyle(.auroraPrimary)
                 .disabled(primaryDisabled)
                 .accessibilityIdentifier("setup-next")
-            Button("Not now", action: skip)
+            Button("Not Now", action: skip)
                 .buttonStyle(.auroraSecondary)
                 .accessibilityIdentifier("setup-skip")
         }

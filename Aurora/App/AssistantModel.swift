@@ -105,8 +105,25 @@ final class AssistantModel {
         self.makeConversationStore = makeStore
         #if DEBUG
         scheduleCutoffReminder = Self.uiTestCutoffScheduler()
+        extractLocalDrink = Self.uiTestDrinkExtractor()
         #endif
     }
+
+    #if DEBUG
+    /// UI tests on a simulator without Apple's on-device model: with
+    /// `-AuroraUITestEchoDrinkEvidence` the extraction step returns the spans
+    /// the deterministic parser found, so the typed-drink review (#79) runs end
+    /// to end. Nil otherwise, and compiled out of Release.
+    static func uiTestDrinkExtractor(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> ((String) async throws -> LocalDrinkUnderstanding.Evidence)? {
+        guard arguments.contains("-AuroraUITestEchoDrinkEvidence") else { return nil }
+        return { input in
+            guard case .proposal(let proposal) = LocalDrinkUnderstanding.prepare(input, doses: [], now: AppModel.currentMillis(), clock: .current) else {
+                throw AppleOnDeviceFeatures.FeatureFailure("No drink in this request.")
+            }
+            return proposal.evidence
+        }
+    }
+    #endif
 
     /// Whether Apple's on-device model is ready, checked off the main thread.
     /// Views read this cached value: asking the system from a view body can
@@ -230,6 +247,25 @@ final class AssistantModel {
         // Keep model prompts independent of transcript size; history remains local.
         save()
     }
+    /// Foreground-only shortcut handoff. No model input or record/Health writer.
+    /// Keep every existing review and in-flight operation; do not queue a later log.
+    func reviewCaffeineShortcut(_ request: inout CaffeineReviewShortcut, app: AppModel, foreground: Bool, coveringWork: Bool) {
+        let ready = foreground && app.phase == .ready && storageReady
+        let occupied = coveringWork || !app.state.onboarding.completed || processing || pendingMessageID != nil
+            || pendingDraft != nil || pendingSleep != nil || pendingCheckIn != nil
+            || pendingCutoff != nil || cutoffSaveOperation != nil || localDrinkReview.request != nil
+            || showSleepEntry || showCalendarSettings || showAssistantSettings || historySheet != nil
+            || eraseRequested || clearRequested || editingCardField
+        guard request.consume(ready: ready, hasOpenReview: occupied) else { return }
+        app.tick()
+        // Exactly the existing manual Log caffeine review; Save/Undo stay unchanged.
+        // Log Drink prefills the drink it named; Review Drink starts empty.
+        pendingDraft = request.drink.map { LogDrinkShortcut.reviewDraft($0, doses: app.state.doses, now: app.now) }
+            ?? AssistantPlanner.caffeineDraft("Log caffeine", doses: app.state.doses, now: app.now, clock: app.clock)
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+    }
+
     func send(_ input: String, app: AppModel) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !processing else { return }
@@ -252,16 +288,16 @@ final class AssistantModel {
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
             pendingDraft = corrected
-            updateCard(pendingMessageID) { $0.summary = "Updated proposal · review before saving." }
+            updateCard(pendingMessageID) { $0.summary = "Updated proposal." }
             return
         }
-        if pendingCheckIn != nil, let correction = AssistantPlanner.checkInCorrection(text) {
+        if let checkInScale = pendingCheckIn?.scale, let correction = AssistantPlanner.checkInCorrection(text, scale: checkInScale) {
             switch correction {
             case .rating(let rating):
                 pendingCheckIn?.rating = rating
-                updateCard(pendingMessageID) { $0.summary = "Updated rating · review before saving." }
+                updateCard(pendingMessageID) { $0.summary = "Updated rating." }
             case .outOfScale:
-                updateCard(pendingMessageID) { $0.summary = "Ratings run from 1 to 5. Nothing changed." }
+                updateCard(pendingMessageID) { $0.summary = "Ratings run from \(checkInScale.range.lowerBound) to \(checkInScale.range.upperBound). Nothing changed." }
             }
             return
         }
@@ -356,7 +392,7 @@ final class AssistantModel {
                 pendingDraft = proposal.draft
                 var card = AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text)
                 card.timeZone = proposal.timeZone
-                card.summary = "On-device proposal · " + proposal.provenance + " · " + proposal.timeZone + ". Nothing saved; review then Save."
+                card.summary = "On-device proposal · " + proposal.provenance + " · " + proposal.timeZone
                 pendingMessageID = appendCard(card, intent: .logCaffeine)
                 captureDraft(app: app)
                 // No autosave call exists. Save is the existing durable mutation boundary.
@@ -375,6 +411,8 @@ final class AssistantModel {
         switch intent {
         case .logCaffeine:
             expireDraft()
+            // Always the entry card: a typed or classified request is never
+            // saved without Save.
             pendingDraft = AssistantPlanner.caffeineDraft(input, doses: app.state.doses, now: app.now, clock: app.clock)
             pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: intent)
             captureDraft(app: app)
@@ -414,7 +452,6 @@ final class AssistantModel {
                     updateCard(message) {
                         $0.summary = bundle.fallback
                         $0.state = .ready
-                        $0.metrics.append(.init(id: "localExplanation", label: "On-device explanation", value: "Not generated", source: "Manual recovery", detail: (error as? LocalizedError)?.errorDescription ?? "Generation failed; showing verified deterministic facts."))
                     }
                 }
             } else { appendCard(card, intent: intent) }
@@ -525,7 +562,7 @@ final class AssistantModel {
             ]
         } else if let draft = pendingCheckIn {
             return [
-                .init(id: "rating", label: "Your rating", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "Not chosen", source: EnergyCheckIn.sourceLabel, missing: draft.rating == nil),
+                .init(id: "rating", label: draft.scale == .kss ? "Sleepiness (KSS)" : "Energy", value: draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0, scale: draft.scale).ratingText } ?? "Not chosen", source: "", missing: draft.rating == nil),
                 .init(id: "time", label: "Time", value: text.fullDateTime(draft.recordedAt), source: zone)
             ]
         }
@@ -695,6 +732,13 @@ final class AssistantModel {
         appendCard(card, intent: .reactionTest)
     }
 
+    /// The stored dose, or nil when the write didn't land.
+    private func addDose(_ draft: CustomDoseDraft, app: AppModel) -> Dose? {
+        let dose = app.addCustomDose(draft)
+        guard app.mutationFailure == nil, app.state.doses.contains(dose) else { return nil }
+        return dose
+    }
+
     func saveDose(app: AppModel) {
         guard let draft = pendingDraft else { return }
         if reviewingLocalDrink, !localDrinkReview.canSave(draft) {
@@ -703,13 +747,26 @@ final class AssistantModel {
         }
         app.tick()
         if let message = CaffeineLog.validate(draft, now: app.now).message { failure = message; return }
-        let dose = app.addCustomDose(draft)
-        guard app.mutationFailure == nil else { failure = app.mutationFailure; return }
+        guard let dose = addDose(draft, app: app) else { failure = app.mutationFailure ?? "The caffeine entry wasn't saved."; return }
+        failure = nil
         closeDraftCard(.saved)
         localDrinkReview.didPersist()
         savedDose = dose; pendingDraft = nil; pendingMessageID = nil
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+    }
+    /// Saves a drink confirmed on Log from Photo, then shows the same
+    /// "Caffeine saved" card as a composer save, with Undo for exactly that
+    /// entry. Returns the problem instead when nothing was saved; the photo
+    /// sheet shows it and stays open.
+    func savePhotoDose(_ draft: CustomDoseDraft, app: AppModel) -> String? {
+        app.tick()
+        if let message = CaffeineLog.validate(draft, now: app.now).message { return message }
+        guard let dose = addDose(draft, app: app) else { return app.mutationFailure ?? "The drink wasn’t saved. Try again." }
+        failure = nil
+        savedDose = dose
+        receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+        return nil
     }
     func undoDose(app: AppModel) {
         guard let dose = savedDose, app.state.doses.contains(dose) else { savedDose = nil; return }
@@ -756,12 +813,15 @@ final class AssistantModel {
         save()
     }
 
-    /// "Log it": a caffeine draft with yesterday's drink, timed now.
+    /// "Log it": opens the entry card with yesterday's drink, timed now.
+    /// Nothing is saved until Save; the receipt then carries Undo.
     func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
-        guard let prompt = message.card?.repeatDrink, !processing else { return }
+        // The current card, not the tapped copy: a second tap opens nothing more.
+        guard let card = conversation.messages.first(where: { $0.id == message.id })?.card, card.state == .ready,
+              let prompt = card.repeatDrink, !processing else { return }
         app.tick()
         expireDraft()
-        updateCard(message.id) { $0.state = .saved; $0.summary = "Review it below before saving." }
+        updateCard(message.id) { $0.state = .saved; $0.summary = "" }
         activeCards.remove(message.id)
         var engagement = conversation.repeatDrinkEngagement ?? .init()
         engagement.recordAnswered(now: app.now, clock: app.clock)

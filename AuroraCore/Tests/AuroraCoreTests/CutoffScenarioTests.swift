@@ -207,8 +207,10 @@ import Testing
         let snapshot = run(input(threshold: "50", amount: "100"))
         let content = try #require(S.reminder(for: snapshot, now: now, text: text))
         #expect(content.fireAt == instant(local(2026, 10, 10, 18), la))
-        #expect(content.body.contains("user-defined scenario, not a safety limit"))
-        for copy in [content.title, content.body, S.disclaimer, S.assumption] + S.Problem.allCases.map({ $0.message(timeZone: "UTC") }) {
+        // The scenario disclaimer is in Terms, not in the notification.
+        #expect(content.body.hasPrefix("The latest time in your scenario for"))
+        #expect(!content.body.contains("safety limit") && !content.body.contains("recommendation"))
+        for copy in [content.title, content.body] + S.Problem.allCases.map({ $0.message(timeZone: "UTC") }) {
             #expect(CopyRules.violations(in: copy).isEmpty, "\(copy)")
         }
         #expect(S.reminder(for: snapshot, now: content.fireAt, text: text) == nil)

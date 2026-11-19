@@ -33,10 +33,10 @@ struct ReactionTestView: View {
             }
         }
         .background(Palette.screen.ignoresSafeArea())
-        .alert("End test?", isPresented: $confirmingEnd) {
+        .alert("End Test?", isPresented: $confirmingEnd) {
             Button("End", role: .destructive) { end() }
                 .accessibilityIdentifier("reaction-end-confirm")
-            Button("Keep going", role: .cancel) { run.resume() }
+            Button("Keep Going", role: .cancel) { run.resume() }
                 .accessibilityIdentifier("reaction-keep-going")
         } message: {
             Text("This run won’t be saved.")
@@ -295,7 +295,7 @@ private struct ReactionResults: View {
             }
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(Palette.textSecondary)
-            Text("A quick check of reaction speed, not a medical assessment.")
+            Text("A quick check of reaction speed.")
                 .font(.footnote)
                 .foregroundStyle(Palette.textSecondary)
             ViewThatFits(in: .horizontal) {

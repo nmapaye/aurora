@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'AuroraCore/**'
+      - 'Aurora/**'
       - '.github/workflows/core-ci.yml'
       - '.github/scripts/xcode-annotate.py'
   pull_request:
@@ -19,7 +20,8 @@ concurrency:
 
 jobs:
   # Pull requests run this workflow whatever they touch, so the gate below
-  # always reports. The real jobs run only when in AuroraCore changed.
+  # always reports. The real jobs run only when AuroraCore changed, or app
+  # sources (Aurora/) that the source-scan guards in AuroraCoreTests read.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -46,7 +48,7 @@ jobs:
           # the base branch, so this lists what the PR changes.
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "$changed"
-          if grep -qE '^(AuroraCore/|\.github/workflows/core-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
+          if grep -qE '^(AuroraCore/|Aurora/|\.github/workflows/core-ci\.yml$|\.github/scripts/xcode-annotate\.py$)' <<< "$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -78,6 +80,9 @@ jobs:
             TZ=$tz swift test 2>&1 | tee -a ../swift-test.log
             [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
           done
+          # Research models are off by default; run their suites once with both flags.
+          AURORA_EXPECT_RESEARCH=1 swift test -Xswiftc -DAURORA_RESEARCH_KSS -Xswiftc -DAURORA_RESEARCH_CAFFEINE 2>&1 | tee -a ../swift-test.log
+          [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
           if command -v python3 >/dev/null; then python3 ../.github/scripts/xcode-annotate.py ../swift-test.log; fi
           exit $status
 

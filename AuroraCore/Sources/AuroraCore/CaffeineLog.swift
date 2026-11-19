@@ -13,7 +13,6 @@ public struct CaffeinePreset: Equatable, Identifiable, Sendable {
     public static let all: [CaffeinePreset] = [
         CaffeinePreset(id: "espresso", label: "Espresso", mg: 60, symbol: "cup.and.saucer.fill"),
         CaffeinePreset(id: "drip", label: "Drip", mg: 95, symbol: "cup.and.saucer.fill"),
-        CaffeinePreset(id: "matcha", label: "Matcha", mg: 70, symbol: "leaf.fill"),
         CaffeinePreset(id: "energy", label: "Energy", mg: 160, symbol: "bolt.fill"),
     ]
 }

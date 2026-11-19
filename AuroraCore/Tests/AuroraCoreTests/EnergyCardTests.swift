@@ -221,8 +221,8 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
     @Test func draftNeedsAnExplicitRatingAndKeepsItsID() {
         var draft = EnergyCheckInDraft.new(now: now, entropy: "x")
         #expect(draft.rating == nil && draft.checkIn == nil)
-        #expect(draft.validate(now: now) == .invalid("Choose a rating from 1 to 5."))
-        draft.rating = 6
+        #expect(draft.validate(now: now) == .invalid("Choose a rating from 1 to 9."))
+        draft.rating = 10
         #expect(draft.validate(now: now).message != nil)
         draft.rating = 4; draft.note = "  after a walk  "
         #expect(draft.validate(now: now) == .valid)
@@ -247,7 +247,7 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
         s.addEnergyCheckIn(saved, now: now)
         var edit = EnergyCheckInDraft.editing(saved); edit.rating = 4
         let corrected = try #require(edit.checkIn)
-        let invalid = s.replaceEnergyCheckIn(EnergyCheckIn(id: saved.id, recordedAt: now, rating: 9), expecting: saved, now: now)
+        let invalid = s.replaceEnergyCheckIn(EnergyCheckIn(id: saved.id, recordedAt: now, rating: 10), expecting: saved, now: now)
         #expect(invalid.message != nil)
         let replaced = s.replaceEnergyCheckIn(corrected, expecting: saved, now: now)
         #expect(replaced == .valid && s.energyCheckIns == [corrected])
@@ -266,11 +266,14 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
         var s = AppState()
         s.addEnergyCheckIn(EnergyCheckIn(id: "checkin:1:a", recordedAt: now - hourMs, rating: 2, note: "a \"quote\""), now: now)
         let csv = Export.energyCheckInsCSV(s.energyCheckIns, clock: pacific)
-        #expect(csv.hasPrefix("id,local_date,datetime,rating,label,note,data_source"))
-        #expect(csv.contains("\"Low\"") && csv.contains("\"Your rating\"") && csv.contains("\"\"quote\"\""))
+        #expect(csv.hasPrefix("id,local_date,datetime,rating,label,note,data_source,scale"))
+        #expect(csv.contains("\"Very alert\"") && csv.contains("\"Your rating\"") && csv.contains("\"\"quote\"\"") && csv.contains("kss"))
+        // A pre-KSS rating exports as recorded, labeled with its own scale.
+        let legacy = Export.energyCheckInsCSV([EnergyCheckIn(id: "checkin:0:z", recordedAt: now - 2 * hourMs, rating: 2, scale: nil)], clock: pacific)
+        #expect(legacy.contains("\"Low\"") && legacy.contains("energy5"))
         s.deleteAllData()
         #expect(s.energyCheckIns.isEmpty)
-        #expect(Export.energyCheckInsCSV([], clock: pacific) == "id,local_date,datetime,rating,label,note,data_source")
+        #expect(Export.energyCheckInsCSV([], clock: pacific) == "id,local_date,datetime,rating,label,note,data_source,scale")
     }
 
     @Test func checkInCardListsTheLastWeekOnly() {
@@ -305,13 +308,22 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
     }
 
     @Test func onlySelfRatingsPrefillAReview() {
-        #expect(AssistantPlanner.statedSelfRating("I feel 3 out of 5") == 3)
-        #expect(AssistantPlanner.statedSelfRating("energy 4/5") == 4)
+        // KSS runs 1–9; a rating out of 5 is the old energy scale and is
+        // never converted, so it opens an empty review.
+        #expect(AssistantPlanner.statedSelfRating("I feel 3 out of 5") == nil)
+        #expect(AssistantPlanner.statedSelfRating("energy 4/5") == nil)
+        #expect(AssistantPlanner.statedSelfRating("I feel 7 out of 9") == 7)
+        #expect(AssistantPlanner.statedSelfRating("KSS 6") == 6)
+        #expect(AssistantPlanner.isSelfRating("sleepy 8/9"))
         #expect(AssistantPlanner.statedSelfRating("I rated that movie 4/5") == nil)
         #expect(AssistantPlanner.isSelfRating("I feel 7 out of 5") && AssistantPlanner.statedSelfRating("I feel 7 out of 5") == nil)
         #expect(AssistantPlanner.isSelfRating("I feel 0/5") && AssistantPlanner.statedSelfRating("I feel 0/5") == nil)
-        // The scalar parser itself is unchanged.
-        #expect(AssistantPlanner.checkInRating("I rated that movie 4/5") == 4)
+        #expect(AssistantPlanner.checkInRating("I rated that movie 4/9") == 4)
+        #expect(AssistantPlanner.checkInRating("I rated that movie 4/5") == nil)
+        #expect(AssistantPlanner.checkInCorrection("actually 7") == .rating(7))
+        #expect(AssistantPlanner.checkInCorrection("make it 4/5") == .outOfScale)
+        #expect(AssistantPlanner.checkInCorrection("make it 4/5", scale: .energy5) == .rating(4))
+        #expect(AssistantPlanner.checkInCorrection("10") == .outOfScale)
     }
 
     @Test func modelLabelsAreFiniteAndListed() {
@@ -324,13 +336,17 @@ private let night = SleepSession(id: "manual:sleep:1:a", start: now - 10 * hourM
     }
 
     @Test func statedRatingsAndCorrectionsStayOnTheScale() {
-        #expect(AssistantPlanner.checkInRating("I'm a 4/5 today") == 4)
+        #expect(AssistantPlanner.checkInRating("I'm a 4/9 today") == 4)
+        #expect(AssistantPlanner.checkInRating("I'm a 4/5 today") == nil)
         #expect(AssistantPlanner.checkInRating("7 out of 5") == nil)
         #expect(AssistantPlanner.checkInRating("I had 2 coffees") == nil)
         #expect(AssistantPlanner.checkInCorrection("actually 4") == .rating(4))
         #expect(AssistantPlanner.checkInCorrection("Make it 2.") == .rating(2))
-        #expect(AssistantPlanner.checkInCorrection("3/5") == .rating(3))
-        #expect(AssistantPlanner.checkInCorrection("it's 9") == .outOfScale)
+        #expect(AssistantPlanner.checkInCorrection("3/9") == .rating(3))
+        #expect(AssistantPlanner.checkInCorrection("3/5") == .outOfScale)
+        #expect(AssistantPlanner.checkInCorrection("it's 9") == .rating(9))
+        #expect(AssistantPlanner.checkInCorrection("it's 10") == .outOfScale)
+        #expect(AssistantPlanner.checkInCorrection("it's 9", scale: .energy5) == .outOfScale)
         #expect(AssistantPlanner.checkInCorrection("0") == .outOfScale)
         #expect(AssistantPlanner.checkInCorrection("I had 120 mg coffee") == nil)
         #expect(AssistantPlanner.checkInCorrection("show my energy curve") == nil)

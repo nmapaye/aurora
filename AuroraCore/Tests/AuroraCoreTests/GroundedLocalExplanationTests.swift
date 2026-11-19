@@ -14,7 +14,7 @@ import Testing
         let b = bundle()
         #expect(b.fallback.contains("No record"))
         #expect(!b.fallback.contains("0h") && !b.fallback.contains("0 mg"))
-        #expect(b.fallback.hasPrefix("Deterministic summary"))
+        #expect(!b.fallback.contains("Deterministic summary") && !b.fallback.contains("not a measurement"))
         #expect(b.render(b.allowedCompositions[0])?.contains("No record") == true)
     }
 

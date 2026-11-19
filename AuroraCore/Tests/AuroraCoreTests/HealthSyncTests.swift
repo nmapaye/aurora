@@ -477,7 +477,7 @@ private func reading(_ state: inout AppState) {
     }
 
     @Test func choiceAndStatusCopyNeverClaimsAccessOrPrescribes() {
-        var texts = HealthChoice.allCases.flatMap { [$0.title, $0.detail, $0.requestedNote] }
+        var texts = HealthChoice.allCases.flatMap { [$0.title, $0.detail, $0.requestedNote, $0.requestedInfo ?? ""] }
         let statuses: [HealthExportStatus] = [
             .notExported, .pending(.saveCaffeine), .pending(.deleteCaffeine), .failed(.saveCaffeine, "x"),
             .failed(.deleteCaffeine, nil), .exported, .outdated, .keptInHealth, .removed, .cancelled, .uncertain,
@@ -506,7 +506,18 @@ private func reading(_ state: inout AppState) {
         let read = try #require(harness.state.healthLedger.lastCaffeineRead)
         #expect(read.added == 0 && read.failure == nil)
         // Still only "requested": an empty answer proves nothing about access.
-        #expect(HealthChoice.readCaffeine.requestedNote.contains("no records or no read access"))
+        // The status word is visible; why an empty read proves nothing is behind (i).
+        #expect(HealthChoice.readCaffeine.requestedNote == "Requested.")
+        #expect(HealthChoice.readCaffeine.requestedInfo?.contains("no records or no read access") == true)
+        #expect(HealthChoice.backgroundUpdates.requestedNote == "On.")
+        #expect(HealthChoice.backgroundUpdates.requestedInfo?.contains("decide when, or whether") == true)
+        // Writing: the same pattern; the general explanation is behind (i).
+        #expect(HealthChoice.writeCaffeine.requestedNote == "Requested.")
+        #expect(HealthChoice.writeCaffeine.requestedInfo?.contains("listed as not exported") == true)
+        #expect(HealthChoice.allCases.map(\.infoTopic) == ["Health Access", "Health Access", "Writing Caffeine to Health", "Background Updates"])
+        // A failed entry keeps its own visible status; nothing moved behind (i).
+        #expect(HealthExportStatus.failed(.saveCaffeine, nil).value == "Not exported")
+        #expect(HealthExportStatus.failed(.saveCaffeine, nil).needsAttention)
     }
 
     @Test func firstReadImportsThenIncrementalReadsAddAndDelete() async throws {

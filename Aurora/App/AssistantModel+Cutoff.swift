@@ -124,7 +124,7 @@ extension AssistantModel {
             var receipt = AssistantCard(kind: .receipt, capturedAt: app.now, title: "Scenario reminder scheduled")
             receipt.state = .saved
             receipt.timeZone = preview.snapshot.timeZone
-            receipt.summary = "One reminder on this device. Your daily cutoff reminder is unchanged. A user-defined scenario, not a safety limit."
+            receipt.summary = "One reminder on this device. Your daily cutoff reminder is unchanged."
             receipt.metrics = [.init(id: "reminder", label: "Reminder", value: DateText.localized(timeZone: TimeZone(identifier: preview.snapshot.timeZone) ?? cutoffZone()).fullDateTime(content.fireAt), source: preview.snapshot.timeZone)]
             appendCard(receipt)
         case .notAllowed:

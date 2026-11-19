@@ -105,21 +105,31 @@ import UserNotifications
         #expect(followUps(relaunched).first?.card?.state == .discarded)
     }
 
-    @Test func reviewOpensADraftWithYesterdaysDrinkTimedNow() async throws {
+    @Test func logItOpensTheEntryCardAndOnlySaveWritesWithUndo() async throws {
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let backend = Backend()
         let (app, assistant) = setup(directory, backend: backend, settings: .init(enabled: true, notify: false))
-        yesterday(app, "Drip", mg: 95, offset: -90 * minuteMs)
+        let drip = yesterday(app, "Drip", mg: 95, offset: -90 * minuteMs)
         await assistant.start(app: app)
         let message = try #require(followUps(assistant).first)
         assistant.reviewRepeatDrink(message, app: app)
+        // A second tap on the same card opens nothing more.
+        assistant.reviewRepeatDrink(message, app: app)
+        #expect(app.state.doses.map(\.id) == [drip.id])
         let draft = try #require(assistant.pendingDraft)
-        #expect(draft.mg == "95" && draft.source == "Drip" && draft.note.isEmpty)
+        #expect(draft.mg == "95" && draft.source == "Drip")
         #expect(draft.timestamp <= app.now && draft.timestamp > app.now - minuteMs)
-        #expect(assistant.conversation.messages.last?.card?.kind == .caffeineDraft)
+        #expect(assistant.conversation.messages.filter { $0.card?.kind == .caffeineDraft }.count == 1)
         #expect(followUps(assistant).first?.card?.state == .saved)
-        // Reviewing records nothing until the draft is saved.
-        #expect(app.state.doses.count == 1)
+        assistant.saveDose(app: app)
+        #expect(app.state.doses.count == 2 && assistant.pendingDraft == nil)
+        let logged = try #require(app.state.doses.first { $0.id != drip.id })
+        #expect(logged.mg == 95 && logged.source == "Drip")
+        let receipt = try #require(assistant.conversation.messages.last)
+        #expect(receipt.card?.kind == .receipt && receipt.card?.recordID == logged.id && receipt.card?.state == .saved)
+        assistant.undoReceipt(receipt, app: app)
+        #expect(app.state.doses.map(\.id) == [drip.id])
+        #expect(assistant.conversation.messages.last?.card?.state == .undone)
     }
 
     @Test func oneSilentNotificationWithoutAmountsAnHourAfterYesterdaysTime() async throws {

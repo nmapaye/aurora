@@ -9,6 +9,14 @@ import Testing
 struct ParityTests {
     private static let missingNightReason = "missing-night rule: no >=3h main sleep ended within 18h; TS reference is legacy"
     private static let expectedDivergentAlertnessProbes: [String: String] = [:]
+    /// The TypeScript build ended every estimate sentence with this. Since
+    /// Terms v2 the disclaimer lives in Terms only, so it's the one part of
+    /// the legacy text the Swift port no longer says; everything else must
+    /// still match exactly.
+    private static let legacyEstimateNote = " This is an estimate, not a measurement."
+    private static func legacyText(_ probe: JSONValue) -> String? {
+        probe.text("text").map { $0.replacingOccurrences(of: legacyEstimateNote, with: "") }
+    }
 
     struct Context {
         let clock: LocalClock
@@ -52,13 +60,13 @@ struct ParityTests {
                 var matchesFixture = false
                 switch estimate {
                 case .needsSleep:
-                    matchesFixture = expected.text("status") == "needs-sleep" && Summary.describe(estimate) == probe.text("text")
+                    matchesFixture = expected.text("status") == "needs-sleep" && Summary.describe(estimate) == Self.legacyText(probe)
                 case .estimated(let score, let hours, let sample):
                     matchesFixture = expected.text("status") == "estimated"
                         && score == expected.int("score")
                         && approxEqual(hours, expected.double("sleepHours"))
                         && sample == expected.flag("includesSample")
-                        && Summary.describe(estimate) == probe.text("text")
+                        && Summary.describe(estimate) == Self.legacyText(probe)
                 }
                 if !matchesFixture {
                     divergent.insert(key)

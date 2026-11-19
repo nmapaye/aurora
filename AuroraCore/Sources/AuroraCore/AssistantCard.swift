@@ -96,6 +96,18 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     }
 }
 
+extension AssistantCard {
+    /// The 24-hour card's one text line, or nil for no row at all (no blank
+    /// space, no empty VoiceOver element). With a curve, only a failure says
+    /// anything; without one, the summary or the refresh line.
+    public var projectionStatusLine: String? {
+        if energy?.projection?.points.isEmpty == false {
+            return state == .failed && !summary.isEmpty ? summary : nil
+        }
+        return summary.isEmpty ? "This snapshot has no curve. Refresh for a current one." : summary
+    }
+}
+
 public enum AssistantCards {
     public static func make(_ kind: AssistantCard.Kind, state: AppState, now: Millis, clock: LocalClock, text: DateText) -> AssistantCard {
         let title: String = switch kind {
@@ -103,7 +115,7 @@ public enum AssistantCards {
         case .sleepDraft: "Record sleep"
         case .energy: "Your energy signals"
         case .energyProjection: "Modeled alertness · 24 hours"
-        case .energyCheckIn: "Energy check-in"
+        case .energyCheckIn: "Sleepiness Check-In"
         case .cutoffScenario: "Cutoff scenario"
         case .trends: "Recorded trends"
         case .calendar: "Your commitments"
@@ -143,14 +155,15 @@ public enum AssistantCards {
                 card.metrics.insert(.init(
                     id: "activeCaffeine", label: "Estimated active caffeine",
                     value: evidence.hasActiveCaffeine ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg" : "No record",
-                    source: "Modeled with a \(numberText(snapshot.estimate.halfLifeHours))h half-life",
+                    source: "",
                     missing: !evidence.hasActiveCaffeine
                 ), at: 2)
             }
         case .energyProjection:
             let snapshot = EnergySnapshot.capture(state: state, now: now, clock: clock, includeProjection: true)
             card.energy = snapshot
-            card.summary = EnergyProjection.futureAssumption
+            // What points after now assume is in Terms and in "What this means".
+            card.summary = ""
             card.metrics = [.init(
                 id: "alertness", label: EnergyEstimate.title + " · now",
                 value: snapshot.estimate.modeledScore.map { "\($0)" } ?? "Needs sleep",
@@ -207,7 +220,7 @@ public enum AssistantCards {
         case .calendar: card.summary = ""
         case .clarification: card.summary = "Choose one, or tell me a little more."
         case .cutoffScenario:
-            // The "Scenario" badge labels it; the disclaimer sits under Assumptions.
+            // The "Scenario" badge labels it; its disclaimer is in Terms.
             card.summary = ""
             card.cutoff = CutoffScenario.evaluate(input: .init(), doses: state.doses, halfLifeHours: state.prefs.halfLife, now: now, timeZone: clock.timeZone)
         case .receipt, .welcome: break

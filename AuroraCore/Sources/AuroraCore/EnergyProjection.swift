@@ -12,7 +12,6 @@ public struct EnergyProjection: Codable, Equatable, Sendable {
     public static let stepMs: Millis = 30 * minuteMs
     public static let pastSpanMs: Millis = 12 * hourMs
     public static let futureSpanMs: Millis = 12 * hourMs
-    public static let futureAssumption = "Points after now assume no further sleep or caffeine is recorded."
 
     public enum PointKind: String, Codable, Sendable {
         /// Modeled from records known at capture.

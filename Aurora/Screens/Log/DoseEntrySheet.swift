@@ -101,7 +101,7 @@ struct DoseEntrySheet: View {
                     }
                 }
             }
-            .alert("Delete this entry?", isPresented: $confirmDelete) {
+            .alert("Delete This Entry?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) {
                     Haptics.warning()
                     finish(.deleted)

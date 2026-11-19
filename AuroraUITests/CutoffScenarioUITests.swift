@@ -58,24 +58,48 @@ final class CutoffScenarioUITests: XCTestCase {
 
     /// Not one of the four quick tiles, so it's asked for the way a person
     /// would: typed into the composer.
-    private func openScenario() {
+    /// `settle` is how long a send may take to clear the field before a
+    /// retry is considered; 0 forces the retry path.
+    private func openScenario(settle: TimeInterval = 2) {
         let input = app.textFields["assistant-composer"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap(); input.typeText("Cutoff scenario")
-        // The keyboard can still be moving the composer when the tap lands.
-        // Sending clears the field, so a retry can never send twice.
-        let cleared = NSPredicate(format: "value != %@", "Cutoff scenario")
-        for _ in 0..<3 {
-            app.buttons["assistant-send"].tap()
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: cleared, object: input)], timeout: 2) == .completed { break }
+        // Type only once the composer owns keyboard focus, as request() does
+        // in AuroraUITests: on a loaded CI iPhone a single tap can finish
+        // without focus, and typeText then fails with "Neither element nor
+        // any descendant has keyboard focus" (run 44043865944).
+        let focusedInput = app.textFields.matching(identifier: "assistant-composer")
+            .matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        for _ in 0..<3 where !focusedInput.exists {
+            input.tap()
+            if focusedInput.waitForExistence(timeout: 2) { break }
         }
+        guard focusedInput.exists else {
+            XCTFail("The composer never took keyboard focus after three taps; not typing. \(app.debugDescription)")
+            return
+        }
+        input.typeText("Cutoff scenario")
+        // Sending clears the field, so a retry can never send twice.
+        SendRetry.send(text: "Cutoff scenario", input: input, send: app.buttons["assistant-send"], settle: settle)
         XCTAssertTrue(app.descendants(matching: .any)["assistant-card-cutoffScenario"].firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), app.debugDescription)
     }
 
     private func type(_ text: String, into id: String) {
         let field = app.textFields[id]
         reveal(field)
-        field.tap(); field.typeText(text)
+        // Same focus rule as openScenario: never type into a field that
+        // doesn't own keyboard focus.
+        let focusedField = app.textFields.matching(identifier: id)
+            .matching(NSPredicate(format: "hasKeyboardFocus == true")).element
+        for _ in 0..<3 where !focusedField.exists {
+            field.tap()
+            if focusedField.waitForExistence(timeout: 2) { break }
+        }
+        guard focusedField.exists else {
+            XCTFail("\(id) never took keyboard focus after three taps; not typing. \(app.debugDescription)")
+            return
+        }
+        field.typeText(text)
         // iPhone shows the toolbar Done above the decimal pad; iPad's keyboard
         // has its own hide key and a return key instead.
         let done = app.buttons["cutoff-keyboard-done"]
@@ -149,6 +173,16 @@ final class CutoffScenarioUITests: XCTestCase {
         XCTAssertFalse(app.buttons["cutoff-reminder-preview"].exists)
     }
 
+    /// A retry after the request already went out must not tap the disabled
+    /// Send: that focuses the composer, and its keyboard hides the card's
+    /// fields. `settle: 0` always reaches the retry; the old loop re-tapped.
+    func testSendRetryLeavesTheKeyboardDown() {
+        launch()
+        openScenario(settle: 0)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), app.debugDescription)
+        XCTAssertTrue(label(containing: "You: Cutoff scenario").exists)
+    }
+
     func testCalculateShowsResultAndFailedSaveHasNoReceipt() {
         launch(reminder: "failed")
         openScenario()
@@ -160,7 +194,8 @@ final class CutoffScenarioUITests: XCTestCase {
         XCTAssertTrue(label(containing: "Latest hypothetical time").exists)
         let preview = app.buttons["cutoff-reminder-preview"]
         reveal(preview); preview.tap()
-        XCTAssertTrue(label(containing: "not a safety limit").waitForExistence(timeout: 5))
+        XCTAssertTrue(label(containing: "The latest time in your scenario").waitForExistence(timeout: 5))
+        XCTAssertFalse(label(containing: "safety limit").exists, "The scenario disclaimer is in Terms, not on the card")
         let save = app.buttons["cutoff-reminder-save"]
         reveal(save); save.tap()
         snapshot("after-save")

@@ -19,7 +19,7 @@ import Testing
         await assistant.handle(.energyCheckIn, input: "Check in my energy", app: app)
         #expect(assistant.pendingCheckIn?.rating == nil)
         assistant.saveCheckIn(app: app)
-        #expect(app.state.energyCheckIns.isEmpty && assistant.failure == "Choose a rating from 1 to 5.")
+        #expect(app.state.energyCheckIns.isEmpty && assistant.failure == "Choose a rating from 1 to 9.")
         assistant.pendingCheckIn?.rating = 4
         assistant.saveCheckIn(app: app); assistant.saveCheckIn(app: app)
         #expect(app.state.energyCheckIns.count == 1 && app.state.energyCheckIns.first?.rating == 4)
@@ -32,11 +32,14 @@ import Testing
         let directory = root(); defer { try? FileManager.default.removeItem(at: directory) }
         let app = app(directory)
         let assistant = AssistantModel(calendars: calendars())
+        // A rating out of 5 is the old energy scale: never converted to KSS.
         await assistant.handle(.energyCheckIn, input: "I feel 2 out of 5", app: app)
+        #expect(assistant.pendingCheckIn?.rating == nil)
+        await assistant.handle(.energyCheckIn, input: "I feel 2 out of 9", app: app)
         #expect(assistant.pendingCheckIn?.rating == 2)
         assistant.send("actually 4", app: app)
         #expect(assistant.pendingCheckIn?.rating == 4 && !assistant.processing)
-        assistant.send("make it 9", app: app)
+        assistant.send("make it 10", app: app)
         #expect(assistant.pendingCheckIn?.rating == 4)
         #expect(app.state.energyCheckIns.isEmpty)
         // If a classifier ever routes an unrelated rating here, nothing is prefilled.

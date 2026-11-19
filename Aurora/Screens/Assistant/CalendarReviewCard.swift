@@ -62,7 +62,7 @@ struct CalendarReviewCard: View {
                             else { AppleEventRow(event: event, time: time(event), showsSource: labelSource) }
                             // Only a clash needs moving.
                             if editable && clashes.contains(event.identity) && event.canMove && event.start > .now && proposal?.original.identity != event.identity {
-                                Button("Find a later slot") { propose(event, among: events) }
+                                Button("Find a Later Slot") { propose(event, among: events) }
                                     .font(.footnote.weight(.semibold))
                                     .buttonStyle(.auroraPress)
                                     .foregroundStyle(Palette.tint)
@@ -76,7 +76,7 @@ struct CalendarReviewCard: View {
             if editable, let proposal { review(proposal) }
             if let result { Text(result).font(.footnote).foregroundStyle(Palette.textSecondary).accessibilityIdentifier("calendar-result") }
             if editable, let reversal, proposal == nil, reversal.newStart > .now {
-                Button("Undo this move") { proposal = reversal; self.reversal = nil }
+                Button("Undo This Move") { proposal = reversal; self.reversal = nil }
                     .buttonStyle(.auroraSecondary)
                     .disabled(applying)
             }
@@ -292,7 +292,7 @@ struct CalendarConnectionsView: View {
                         Text("This beta uses Apple Calendar. To include a Google calendar, sync it with Apple Calendar in device settings, then select it here. Direct Google sign-in is not included.").font(.footnote)
                     }
                 }
-                Section("Include calendars") {
+                Section("Include Calendars") {
                     if service.google.connected {
                         Text("If the same Google calendar appears through both connections, select its authoritative connection below. Do not select both copies.").font(.footnote)
                     } else {
@@ -310,21 +310,21 @@ struct CalendarConnectionsView: View {
                     }
                 }
                 if service.google.connected {
-                    Section("Identify a mirrored calendar") {
+                    Section("Identify a Mirrored Calendar") {
                         Text("Pair two copies of one calendar and pick the one Aurora uses.").font(.footnote)
-                        Picker("Apple connection", selection: $appleMirror) {
+                        Picker("Apple Connection", selection: $appleMirror) {
                             Text("Choose calendar").tag("")
                             ForEach(service.calendars.filter { $0.provider == .apple }) { Text($0.title).tag($0.id) }
                         }
-                        Picker("Google connection", selection: $googleMirror) {
+                        Picker("Google Connection", selection: $googleMirror) {
                             Text("Choose calendar").tag("")
                             ForEach(service.calendars.filter { $0.provider == .google }) { Text($0.title).tag($0.id) }
                         }
-                        Picker("Use this connection", selection: $authority) {
+                        Picker("Use This Connection", selection: $authority) {
                             Text("Apple").tag(CalendarProviderID.apple)
                             Text("Google").tag(CalendarProviderID.google)
                         }
-                        Button("Link these mirrored connections") {
+                        Button("Link These Mirrored Connections") {
                             service.linkMirror(appleID: appleMirror, googleID: googleMirror, authority: authority)
                             appleMirror = ""; googleMirror = ""
                         }.disabled(appleMirror.isEmpty || googleMirror.isEmpty)
@@ -332,7 +332,7 @@ struct CalendarConnectionsView: View {
                 }
                 if let error = error ?? service.message { Section { Text(error).foregroundStyle(Palette.destructive) } }
             }
-            .navigationTitle("Calendar connections").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Calendar Connections").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await service.refresh() }; dismiss() }.keyboardShortcut(.cancelAction) } }
             .task { await service.refreshCalendars() }
         }

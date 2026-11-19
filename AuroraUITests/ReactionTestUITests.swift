@@ -185,13 +185,13 @@ final class ReactionTestUITests: XCTestCase {
         let area = openFromTheCardAndStart()
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 3))
         tapWhenReady(app.buttons["reaction-close"])
-        let alert = app.alerts["End test?"]
+        let alert = app.alerts["End Test?"]
         XCTAssertTrue(alert.waitForExistence(timeout: 3))
         attachScreenshot("reaction-end-confirmation")
         XCTAssertTrue(alert.staticTexts["This run won’t be saved."].firstMatch.exists)
         XCTAssertTrue(alert.buttons["End"].firstMatch.exists)
         // Keep going returns to the same run, still taking touches.
-        alert.buttons["Keep going"].firstMatch.tap()
+        alert.buttons["Keep Going"].firstMatch.tap()
         XCTAssertTrue(alert.waitForNonExistence(timeout: 3))
         XCTAssertTrue(area.exists)
         area.tap()
@@ -227,7 +227,7 @@ final class ReactionTestUITests: XCTestCase {
         XCTAssertTrue(complete.waitForExistence(timeout: 5), "answered \(answered)")
         XCTAssertGreaterThan(answered, 3)
         attachScreenshot("reaction-results")
-        XCTAssertTrue(app.staticTexts["A quick check of reaction speed, not a medical assessment."].exists)
+        XCTAssertTrue(app.staticTexts["A quick check of reaction speed."].exists)
         tapWhenReady(app.buttons["Done"])
         XCTAssertTrue(app.staticTexts["Reaction Test recorded"].waitForExistence(timeout: 5))
     }

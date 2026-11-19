@@ -131,7 +131,7 @@ their decode rules but isn't the app target. No device or live Health.
      (`restartReading`). It clears only the anchor; the re-read matches by UUID, so
      nothing duplicates.
    - **Limitation:** entries deleted in Health while the position was lost may stay
-     listed until Delete All Records. No records are destroyed to recover.
+     listed until Delete Recorded Data. No records are destroyed to recover.
 2. **Bounded pages.**
    - `HKAnchoredObjectQueryDescriptor(…, limit: 500)` for both kinds.
      `hasMore = added + deleted >= 500`. A full page ending exactly at the end reads

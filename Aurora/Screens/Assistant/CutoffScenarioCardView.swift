@@ -64,7 +64,7 @@ struct CutoffScenarioCardView: View {
     @ViewBuilder private func editor(_ input: S.Input) -> some View {
         let problems = live(input).result.problems
         VStack(alignment: .leading, spacing: Metrics.md) {
-            SectionLabel(text: "Your scenario")
+            SectionLabel(text: "Your Scenario")
             localTime("Bedtime", key: \.bedtime, occurrence: \.bedtimeOccurrence, id: "bedtime", add: "Add bedtime", optional: false)
                 .disabled(assistant.savingCutoffReminder)
             problemLabels(problems, [.bedtimeRepeated, .bedtimeSkipped, .bedtimeInvalid, .bedtimeNotAfterCapture])
@@ -168,7 +168,7 @@ struct CutoffScenarioCardView: View {
                     .accessibilityIdentifier("cutoff-\(id)-occurrence")
                 }
                 if optional {
-                    Button("Remove drink time") { assistant.editCutoff { $0[keyPath: key] = nil; $0[keyPath: occurrence] = nil } }
+                    Button("Remove Drink Time") { assistant.editCutoff { $0[keyPath: key] = nil; $0[keyPath: occurrence] = nil } }
                         .font(.subheadline).frame(minHeight: Metrics.minimumTouchTarget)
                 }
             }
@@ -282,13 +282,11 @@ struct CutoffScenarioCardView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// The scenario's explanation, off the main surface.
+    /// The scenario's inputs, off the main surface. Its disclaimer is in Terms.
     private var assumptions: some View {
         CardDisclosure(title: "Assumptions") {
             VStack(alignment: .leading, spacing: Metrics.xxs) {
-                Text(S.disclaimer)
-                Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h. \(S.assumption)")
-                Text("Bedtime uses modeled caffeine only. Sleep, sensitivity and other factors aren’t measured here.")
+                Text("Half-life \(numberText(snapshot?.halfLifeHours ?? app.state.prefs.halfLife)) h.")
                 Text("Nothing here is recorded. Log caffeine records a drink you had.")
                 if let snapshot {
                     Text("Model \(snapshot.modelVersion) · calculated \(text.fullDateTime(snapshot.capturedAt))")
@@ -343,7 +341,7 @@ struct CutoffScenarioCardView: View {
     @ViewBuilder private var reminder: some View {
         if let preview {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                SectionLabel(text: "Reminder preview")
+                SectionLabel(text: "Reminder Preview")
                 Text(preview.content.title).font(Typography.evidence.weight(.semibold))
                 Text(preview.content.body).font(.footnote)
                 metric("Once, at", text.fullDateTime(preview.content.fireAt), source: [zoneNote(preview.content.fireAt), "Daily cutoff reminder unchanged"].compactMap { $0 }.joined(separator: " · "))
@@ -353,7 +351,7 @@ struct CutoffScenarioCardView: View {
                     }
                     .buttonStyle(.auroraPrimary).disabled(assistant.savingCutoffReminder)
                     .accessibilityIdentifier("cutoff-reminder-save")
-                    quietButton("Not now") { assistant.cancelCutoffPreview() }
+                    quietButton("Not Now") { assistant.cancelCutoffPreview() }
                         .disabled(assistant.savingCutoffReminder)
                 }
             }
@@ -361,7 +359,7 @@ struct CutoffScenarioCardView: View {
             .background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
             .transition(Motion.stateTransition(reduceMotion: reduceMotion))
         } else if let snapshot, case .feasible = snapshot.result.latest, !inputsChanged {
-            Button("Preview a one-time reminder") { field = nil; assistant.previewCutoffReminder(app: app) }
+            Button("Preview a One-Time Reminder") { field = nil; assistant.previewCutoffReminder(app: app) }
                 .buttonStyle(.auroraSecondary).accessibilityIdentifier("cutoff-reminder-preview")
         }
     }

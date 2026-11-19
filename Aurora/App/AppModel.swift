@@ -90,8 +90,11 @@ final class AppModel {
     /// UI tests start from empty records. Release builds can't set it.
     #if DEBUG
     static let launchedForUITestReset = ProcessInfo.processInfo.arguments.contains("-AuroraUITestReset")
+    /// With the reset: an install that finished setup before Terms existed.
+    static let launchedAsPreTermsInstall = ProcessInfo.processInfo.arguments.contains("-AuroraUITestPreTermsInstall")
     #else
     static let launchedForUITestReset = false
+    static let launchedAsPreTermsInstall = false
     #endif
 
     static func currentMillis() -> Millis {
@@ -138,6 +141,7 @@ final class AppModel {
             }
             if Self.launchedForUITestReset {
                 state = AppState()
+                if Self.launchedAsPreTermsInstall { state.completeOnboarding(now: Self.currentMillis()) }
             }
             phase = .ready
         } catch {
@@ -615,6 +619,22 @@ final class AppModel {
 
     func setSleepTarget(_ hours: Double) {
         update { $0.prefs.targetSleep = hours }
+    }
+
+    /// Leaving the first-run story: records the Terms and Privacy
+    /// acknowledgement and the first setup question as one change.
+    @discardableResult
+    func beginSetup() -> Bool {
+        update {
+            $0.acknowledgeTerms()
+            $0.onboarding.setupStep = SetupStep.name.rawValue
+        }
+    }
+
+    /// Continue on the one-time Terms prompt for an existing install.
+    @discardableResult
+    func acknowledgeTerms() -> Bool {
+        update { $0.acknowledgeTerms() }
     }
 
     /// Remembers the next setup question so a relaunch resumes there. False

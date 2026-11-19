@@ -7,6 +7,10 @@ struct AssistantCardView: View {
     @Environment(AppModel.self) private var app
     @Environment(AssistantModel.self) private var assistant
     @State private var metric = "Caffeine"
+    /// The open draft's "nothing is saved yet" note, behind its info button.
+    @State private var showsReviewInfo = false
+    /// The KSS explanation and citation, behind the question's info button.
+    @State private var showsKSSInfo = false
     @State private var days = 7
     @State private var query = ""
     @State private var source = "All sources"
@@ -195,7 +199,8 @@ struct AssistantCardView: View {
         }
         if card.kind == .caffeineDraft || card.kind == .sleepDraft || card.kind == .energyCheckIn {
             switch card.state {
-            case .ready: draftActive ? StatusBadge(text: "Review before saving", tone: .info) : StatusBadge(text: "Closed")
+            case .ready:
+                if draftActive { InfoButton(topic: "Review", isShown: $showsReviewInfo) } else { StatusBadge(text: "Closed") }
             case .saved: SavedBadge(celebrate: justSaved)
             case .undone: StatusBadge(text: "Removed")
             case .expired: StatusBadge(text: "Expired", tone: .warning)
@@ -317,6 +322,9 @@ struct AssistantCardView: View {
         }
     }
     @ViewBuilder private var content: some View {
+        if showsReviewInfo && draftActive && card.state == .ready && ([.caffeineDraft, .sleepDraft, .energyCheckIn] as [AssistantCard.Kind]).contains(card.kind) {
+            InfoText(text: "Review before saving. Nothing is recorded until you tap Save.", id: "assistant-review-info")
+        }
         switch card.kind {
         case .caffeineDraft: caffeineEditor
         case .sleepDraft: sleepEditor
@@ -332,7 +340,7 @@ struct AssistantCardView: View {
                 let upcoming = CalendarAgenda.briefing(card.commitments, now: Date(timeIntervalSince1970: card.capturedAt / 1000), calendar: .current)
                 if card.state != .loading && upcoming.isEmpty { Text("Nothing else on your calendars today.").font(.caption).foregroundStyle(Palette.textSecondary) }
                 ForEach(upcoming, id: \.identity) { event in BriefingEventRow(event: event) }
-                Button("Review my day") { assistant.send("Review calendar", app: app) }.buttonStyle(.auroraSecondary)
+                Button("Review My Day") { assistant.send("Review calendar", app: app) }.buttonStyle(.auroraSecondary)
             }
         case .trends: trends
         case .calendar: EmptyView()
@@ -360,10 +368,10 @@ struct AssistantCardView: View {
         case .welcome: WelcomeChips()
         case .repeatDrink:
             if card.state == .ready {
-                Button("Log it") { assistant.reviewRepeatDrink(message, app: app) }
+                Button("Log It") { assistant.reviewRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraPrimary).disabled(assistant.processing)
                     .accessibilityIdentifier("repeat-drink-review")
-                Button("Not today") { assistant.dismissRepeatDrink(message, app: app) }
+                Button("Not Today") { assistant.dismissRepeatDrink(message, app: app) }
                     .buttonStyle(.auroraSecondary)
                     .accessibilityIdentifier("repeat-drink-dismiss")
             }
@@ -382,7 +390,7 @@ struct AssistantCardView: View {
             }
             metricRows
             if card.state == .saved && card.recordID != nil && !card.title.lowercased().contains("updated") {
-                Button("Undo entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
+                Button("Undo Entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
                     .transition(Motion.stateTransition(reduceMotion: reduceMotion))
             }
         }
@@ -395,13 +403,13 @@ struct AssistantCardView: View {
         wakeReminderRow
         DrinkFollowUpControls()
         VStack(alignment: .leading, spacing: Metrics.xs) {
-            Toggle("Offer useful updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
+            Toggle("Offer Useful Updates", isOn: Binding(get: { assistant.conversation.preferences.proactive }, set: { enabled in
                 assistant.conversation.preferences.proactive = enabled; assistant.save()
                 Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
             }))
             .accessibilityIdentifier("assistant-proactive")
             if prefs.proactive {
-                Toggle("Morning briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
+                Toggle("Morning Briefing", isOn: Binding(get: { assistant.conversation.preferences.morningBriefing }, set: { enabled in
                     assistant.conversation.preferences.morningBriefing = enabled; assistant.save()
                     Task { await assistant.syncBriefingNotification(prompt: enabled); await assistant.syncRepeatDrinkNotifications(app: app) }
                 }))
@@ -411,7 +419,7 @@ struct AssistantCardView: View {
                 Text("Morning briefing is available once this is on.").font(.footnote).foregroundStyle(Palette.textSecondary)
             }
         }
-        Toggle("Cutoff reminder", isOn: Binding(get: { app.state.prefs.cutoffReminderOn }, set: { enabled in
+        Toggle("Cutoff Reminder", isOn: Binding(get: { app.state.prefs.cutoffReminderOn }, set: { enabled in
             Task { await app.setReminder(enabled: enabled) }
         }))
         .disabled(app.state.prefs.cutoffHour == nil)
@@ -419,7 +427,7 @@ struct AssistantCardView: View {
             Text("Set a cutoff time in Settings first.").font(.footnote).foregroundStyle(Palette.textSecondary)
         }
         if app.reminderStatus == .denied { NotificationsOffNotice() }
-        Button("Manage reminders") { assistant.showAssistantSettings = true }
+        Button("Manage Reminders") { assistant.showAssistantSettings = true }
             .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-manage-reminders")
     }
     /// Label leading, quantity trailing on one baseline; stacks when the text
@@ -464,7 +472,9 @@ struct AssistantCardView: View {
                     ForEach(card.metrics.filter { $0.id != "alertness" }) { EnergyMetricHero(item: $0) }
                 }
                 if let energy = card.energy {
-                    CardDisclosure(title: "What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+                    // The current card explains its one number; the
+                    // projection card keeps the plain model inputs.
+                    CardDisclosure(title: AlertnessExplanation.title) { EnergyEvidenceSections(snapshot: energy, text: snapshotText, explainsScore: true) }
                 }
             }
             CardDisclosure(title: "What this means") {
@@ -474,41 +484,40 @@ struct AssistantCardView: View {
     }
     @ViewBuilder private var projection: some View {
         if let energy = card.energy, let projection = energy.projection, !projection.points.isEmpty {
-            if card.state == .failed { Text(card.summary).font(.footnote).foregroundStyle(Palette.destructive) }
+            if let line = card.projectionStatusLine { Text(line).font(.footnote).foregroundStyle(Palette.destructive) }
             let chart = EnergyTimelineChart(snapshot: energy, projection: projection, text: snapshotText, timeZone: snapshotClock.timeZone)
             chart
             if let outlook = energy.outlook { EnergyOutlookView(outlook: outlook, text: snapshotText) }
             CardDisclosure(title: "What’s recorded in this window") { chart.observations.padding(.top, Metrics.xs) }
-            CardDisclosure(title: "What the model used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
+            CardDisclosure(title: "What the Model Used") { EnergyEvidenceSections(snapshot: energy, text: snapshotText) }
             CardDisclosure(title: "What this means") {
                 Text(EnergyExplainer.meaning).font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            Text(card.summary.isEmpty ? "This snapshot has no curve. Refresh for a current one." : card.summary)
-                .font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)
+            if let line = card.projectionStatusLine {
+                Text(line).font(.footnote).foregroundStyle(card.state == .failed ? Palette.destructive : Palette.textSecondary)
+            }
         }
     }
     @ViewBuilder private var checkInEditor: some View {
         if draftActive, let draft = assistant.pendingCheckIn {
             VStack(alignment: .leading, spacing: Metrics.md) {
-                Text(EnergyCheckIn.kindLabel).font(Typography.explanation).foregroundStyle(Palette.textSecondary)
                 VStack(alignment: .leading, spacing: Metrics.xs) {
-                    Text(EnergyCheckIn.scaleLabel).font(Typography.label).foregroundStyle(Palette.textSecondary)
-                    Picker("Your rating", selection: Binding(get: { assistant.pendingCheckIn?.rating }, set: { assistant.pendingCheckIn?.rating = $0 })) {
-                        ForEach(Array(EnergyCheckIn.scale), id: \.self) { value in
-                            Text("\(value)").tag(Optional(value)).accessibilityLabel("\(value), \(EnergyCheckIn.label(forRating: value) ?? "")")
-                        }
+                    HStack(alignment: .center, spacing: Metrics.xs) {
+                        Text(draft.scale == .kss ? EnergyCheckIn.scaleLabel : "Your energy, from 1 (very low) to 5 (very high)")
+                            .font(Typography.label).foregroundStyle(Palette.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if draft.scale == .kss { InfoButton(topic: "the Karolinska Sleepiness Scale", isShown: $showsKSSInfo) }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(minHeight: Metrics.minimumTouchTarget)
-                    .accessibilityIdentifier("assistant-checkin-rating")
-                    Text(draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0).ratingText } ?? "No rating chosen")
+                    if showsKSSInfo && draft.scale == .kss { InfoText(text: EnergyCheckIn.kssInfo, id: "assistant-checkin-kss-info") }
+                    checkInScale(draft)
+                    Text(draft.rating.map { EnergyCheckIn(id: draft.id, recordedAt: draft.recordedAt, rating: $0, scale: draft.scale).ratingText } ?? "No rating chosen")
                         .font(Typography.value).monospacedDigit()
                         .accessibilityIdentifier("assistant-checkin-rating-value")
                 }
                 DateTimeField(label: "Time", date: Binding(get: { Date(timeIntervalSince1970: (assistant.pendingCheckIn?.recordedAt ?? app.now) / 1000) }, set: { assistant.pendingCheckIn?.recordedAt = $0.timeIntervalSince1970 * 1000 }), id: "assistant-checkin-time")
                 if draft.rating != nil, let problem = draft.validate(now: AppModel.currentMillis()).message { fieldProblem(problem) }
-                Text(EnergyCheckIn.sourceLabel + " · local time").font(Typography.source).foregroundStyle(Palette.textSecondary)
                 noteField(Binding(get: { assistant.pendingCheckIn?.note ?? "" }, set: { assistant.pendingCheckIn?.note = $0 }), id: "assistant-checkin-note")
                 draftActions(save: draft.original == nil ? "Save check-in" : "Save correction", saveID: "assistant-checkin-save", disabled: false) { assistant.saveCheckIn(app: app) }
                 recentCheckIns
@@ -519,10 +528,41 @@ struct AssistantCardView: View {
             recentCheckIns
         }
     }
+    /// Every point with its anchor, one row each; nothing is selected until
+    /// the person picks. A correction keeps the scale it was recorded on.
+    private func checkInScale(_ draft: EnergyCheckInDraft) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(draft.scale.range), id: \.self) { value in
+                let selected = draft.rating == value
+                Button { assistant.pendingCheckIn?.rating = value } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: Metrics.sm) {
+                        Text("\(value)").font(Typography.label.weight(.semibold)).monospacedDigit().frame(minWidth: 20, alignment: .leading)
+                        Text(draft.scale.label(forRating: value) ?? "").font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(selected ? Palette.tint : Palette.textTertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Palette.textPrimary)
+                    .padding(.vertical, Metrics.xs)
+                    .frame(minHeight: Metrics.minimumTouchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.auroraPress)
+                .accessibilityLabel("\(value), \(draft.scale.label(forRating: value) ?? "")")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("assistant-checkin-rating-\(value)")
+                if value != draft.scale.range.upperBound { Divider() }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("assistant-checkin-rating")
+    }
     @ViewBuilder private var recentCheckIns: some View {
         if let recent = card.checkIn?.recent {
             VStack(alignment: .leading, spacing: Metrics.xs) {
-                SectionLabel(text: "Your check-ins · last 7 days")
+                SectionLabel(text: "Your Check-Ins · Last 7 Days")
                 if recent.isEmpty { Text("No check-ins in the last 7 days.").font(.footnote).foregroundStyle(Palette.textSecondary) }
                 ForEach(recent.prefix(5)) { CheckInRow(checkIn: $0, text: snapshotText) }
             }
@@ -532,9 +572,9 @@ struct AssistantCardView: View {
         if let info = card.checkIn, let saved = info.saved {
             let undone = card.state == .undone
             VStack(alignment: .leading, spacing: Metrics.xxs) {
-                valueRow("Energy check-in", saved.ratingText, labelFont: Typography.evidence, labelColor: undone ? Palette.textSecondary : Palette.textPrimary)
+                valueRow(saved.recordedScale == .kss ? "Sleepiness (KSS)" : "Energy", saved.ratingText, labelFont: Typography.evidence, labelColor: undone ? Palette.textSecondary : Palette.textPrimary)
                     .strikethrough(undone)
-                Text(EnergyCheckIn.sourceLabel + " · " + snapshotText.fullDateTime(saved.recordedAt)).font(Typography.source).foregroundStyle(Palette.textSecondary)
+                Text(snapshotText.fullDateTime(saved.recordedAt)).font(Typography.source).foregroundStyle(Palette.textSecondary)
                 if let note = saved.note { Text(note).font(.footnote).foregroundStyle(Palette.textSecondary) }
                 if let previous = info.previous {
                     Text("Before the correction: \(previous.ratingText)").font(.footnote).foregroundStyle(Palette.textSecondary)
@@ -546,7 +586,7 @@ struct AssistantCardView: View {
                 VStack(spacing: Metrics.xxs) {
                     Button(info.previous == nil ? "Undo check-in" : "Undo correction") { assistant.undoCheckIn(message, app: app) }
                         .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-checkin-undo")
-                    quietButton("Edit check-in") { assistant.editCheckIn(message, app: app) }
+                    quietButton("Edit Check-In") { assistant.editCheckIn(message, app: app) }
                         .disabled(assistant.processing).accessibilityIdentifier("assistant-checkin-edit")
                 }
                 .transition(Motion.stateTransition(reduceMotion: reduceMotion))
@@ -699,7 +739,7 @@ struct AssistantCardView: View {
         Binding(get: { Date(timeIntervalSince1970: (assistant.pendingSleep?[keyPath: key] ?? app.now) / 1000) }, set: { assistant.pendingSleep?[keyPath: key] = $0.timeIntervalSince1970 * 1000 })
     }
     @ViewBuilder private var trends: some View {
-        Picker("Recorded signal", selection: $metric) { ForEach(["Caffeine", "Sleep", "Reaction"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-metric")
+        Picker("Recorded Signal", selection: $metric) { ForEach(["Caffeine", "Sleep", "Reaction"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-metric")
         Picker("Range", selection: $days) { Text("Week").tag(7); Text("Month").tag(30) }.pickerStyle(.segmented).accessibilityIdentifier("assistant-trend-range")
         if let series = card.series.first(where: { $0.metric == metric && $0.days == days }) {
             DailyBarChart(title: metric == "Caffeine" && days == 7 ? "Recorded caffeine · this week" : "Recorded \(metric.lowercased()) · \(days) days", days: series.points.map {
@@ -715,7 +755,7 @@ struct AssistantCardView: View {
                     .font(Typography.evidence).focused($field, equals: .search)
                     .accessibilityLabel("Search history").accessibilityIdentifier("assistant-history-search")
             }
-            Picker("Date range", selection: $historyDays) {
+            Picker("Date Range", selection: $historyDays) {
                 Text("7d").accessibilityLabel("7 days").tag(7)
                 Text("30d").accessibilityLabel("30 days").tag(30)
                 Text("All").tag(0)

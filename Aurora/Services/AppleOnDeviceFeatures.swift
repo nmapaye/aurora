@@ -78,7 +78,7 @@ final class AppleOnDeviceFeatures {
                                                       options: GenerationOptions(temperature: 0, maximumResponseTokens: 120))
             try Task.checkCancellation()
             guard let rendered = bundle.render(response.content.sentence) else { throw FeatureFailure("The on-device explanation failed grounding validation.") }
-            return "On-device composition · " + rendered
+            return rendered
         }
         #endif
         throw FeatureFailure(Readiness.olderOS.message)

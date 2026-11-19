@@ -344,5 +344,15 @@ public enum SetupCopy {
         return "Nothing is shared until you turn a choice on. You can change these anytime in Apple Health settings."
     }
 
+    /// The explanation behind the (i) beside `healthNote`, only when the
+    /// note is the bare "Requested." status; nil means no (i).
+    public static func healthNoteInfo(_ choices: HealthChoices, healthAvailable: Bool, permission: HealthPermissionStatus, demoMode: Bool) -> String? {
+        let note = healthNote(choices, healthAvailable: healthAvailable, permission: permission, demoMode: demoMode)
+        return note == HealthChoice.readSleep.requestedNote ? HealthChoice.readSleep.requestedInfo : nil
+    }
+
+    /// The topic of that (i): VoiceOver reads "About Health Access".
+    public static let healthNoteInfoTopic = HealthChoice.readSleep.infoTopic
+
     public static let sampleNote = "Example records, clearly labeled. Clear them anytime in Settings."
 }

@@ -225,7 +225,7 @@ struct WelcomeTests {
         for key in ["displayName", "favoriteDrinkIDs", "setupStep"] { #expect(!encoded.contains(key)) }
         var state = AppState()
         state.prefs.displayName = "Sam"
-        state.prefs.favoriteDrinkIDs = ["matcha"]
+        state.prefs.favoriteDrinkIDs = ["energy"]
         state.onboarding.setupStep = SetupStep.calendar.rawValue
         let decoded = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(state))
         #expect(decoded == state)
@@ -337,7 +337,9 @@ struct WelcomeTests {
     }
 
     @Test func favoritesComeFirstWithoutDuplicates() {
-        #expect(CaffeinePreset.ordered(favorites: ["matcha", "espresso", "matcha", "unknown"]).map(\.id) == ["matcha", "espresso", "drip", "energy"])
+        #expect(CaffeinePreset.ordered(favorites: ["energy", "espresso", "energy", "unknown"]).map(\.id) == ["energy", "espresso", "drip"])
+        // A favorite saved before Matcha left the presets is ignored.
+        #expect(CaffeinePreset.ordered(favorites: ["matcha", "drip"]).map(\.id) == ["drip", "espresso", "energy"])
         #expect(CaffeinePreset.ordered(favorites: nil).map(\.id) == CaffeinePreset.all.map(\.id))
     }
 
@@ -351,7 +353,14 @@ struct WelcomeTests {
         let denied = SetupCopy.healthNote(off, healthAvailable: true, permission: .denied, demoMode: false)
         #expect(denied.contains("didn’t finish"))
         let empty = SetupCopy.healthNote(HealthChoices(readCaffeine: true), healthAvailable: true, permission: .idle, demoMode: false)
-        #expect(empty.contains("finding nothing can mean no records or no read access"))
+        // The status is visible; why an empty read proves nothing is behind (i).
+        #expect(empty == "Requested.")
+        #expect(SetupCopy.healthNoteInfo(HealthChoices(readCaffeine: true), healthAvailable: true, permission: .idle, demoMode: false)?
+            .contains("finding nothing can mean no records or no read access") == true)
+        #expect(SetupCopy.healthNoteInfoTopic == "Health Access")
+        // Other notes are whole sentences with no (i).
+        #expect(SetupCopy.healthNoteInfo(off, healthAvailable: true, permission: .denied, demoMode: false) == nil)
+        #expect(SetupCopy.healthNoteInfo(off, healthAvailable: true, permission: .idle, demoMode: false) == nil)
         #expect(SetupCopy.healthNote(off, healthAvailable: false, permission: .idle, demoMode: false).contains("isn’t available"))
         #expect(SetupCopy.healthNote(off, healthAvailable: true, permission: .idle, demoMode: true).contains("Sample Data"))
         for line in [denied, empty, SetupCopy.healthNote(off, healthAvailable: true, permission: .idle, demoMode: false)] {

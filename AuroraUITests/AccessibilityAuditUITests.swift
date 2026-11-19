@@ -77,9 +77,9 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         // Settings sheet.
         app.buttons["assistant-settings"].tap()
-        if app.navigationBars["Aurora settings"].waitForExistence(timeout: 5) {
-            try audit("Aurora settings")
-            app.navigationBars["Aurora settings"].buttons["Done"].tap()
+        if app.navigationBars["Aurora Settings"].waitForExistence(timeout: 5) {
+            try audit("Aurora Settings")
+            app.navigationBars["Aurora Settings"].buttons["Done"].tap()
         }
 
         // Records and each screen it opens.

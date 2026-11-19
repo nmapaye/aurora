@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "description": "Where each manufacturer caffeine record in AuroraCore/Sources/AuroraCore/Resources/caffeine-db.json came from. Values are copied from the maker's own website or label only; no aggregators, retailers or encyclopedias. Rule (CPO, Nov 10): store one published number for one exact product and serving, or store nothing; never pick between numbers, average or scale them. A brand without exactly one explicit mg value for the serving on a manufacturer page has no record and shows Not in Database. A record is used only at its recorded serving; any other size falls back to Not in Database and manual entry. Merge into the database with scripts/merge-manufacturer-caffeine.py (no network).",
+  "retrievedAt": "2026-11-10",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AuroraResearch/1.0 (curl); headless Google Chrome for script-rendered pages",
+  "robots": "robots.txt read for every host on 2026-11-10; every fetched path is allowed.",
+  "mlPerFlOz": 29.5735,
+  "records": [
+    {
+      "id": "mfr:celsius",
+      "brand": "Celsius",
+      "name": "Celsius Energy Drink",
+      "category": "energy",
+      "mg": 200,
+      "servingSize": "1 can (12 fl oz)",
+      "servingFlOz": 12,
+      "servingMl": 355,
+      "mlFrom": "12 fl oz x 29.5735 mL/fl oz, rounded",
+      "per100mL": 56.34,
+      "url": "https://www.celsius.com/essential-facts/",
+      "retrievedAt": "2026-11-10",
+      "quote": [
+        "CELSIUS & CELSIUS Vibe beverages contain 200 mg of caffeine per can.",
+        "We recommend no more than two 12 oz cans, or two servings, per day"
+      ],
+      "fetched": [
+        {
+          "file": "celsius-essential-facts.html",
+          "sha256": "d865585ad4fb9f4335dd88dbb7dac99d96f201f8c07a25c5fcedad4a2942685f"
+        }
+      ],
+      "method": "curl (static HTML)"
+    },
+    {
+      "id": "mfr:bang",
+      "brand": "Bang",
+      "name": "Bang Energy",
+      "category": "energy",
+      "mg": 300,
+      "servingSize": "1 can (16 fl oz)",
+      "servingFlOz": 16,
+      "servingMl": 473,
+      "mlFrom": "16 fl oz x 29.5735 mL/fl oz, rounded",
+      "per100mL": 63.42,
+      "url": "https://www.bangenergy.com/en-us/products/purple-haze/",
+      "retrievedAt": "2026-11-10",
+      "quote": [
+        "Each 16oz can of Purple Haze contains 300mg of caffeine to support energy and focus."
+      ],
+      "fetched": [
+        {
+          "file": "bang-purple-haze.txt",
+          "sha256": "cb1bcc22fe5c58196cd011b92fbfb88b3fcae1bf8c9cc7844f0678cfe316a40b"
+        }
+      ],
+      "method": "headless Chrome render (site returns 403 to curl via Cloudflare); robots.txt allows the path",
+      "notes": "Quote is on the Purple Haze page; bangenergy.com/en-us/ shows '300MG OF CAFFEINE' for the whole US lineup. The record is the 16 fl oz US can only."
+    },
+    {
+      "id": "mfr:prime",
+      "brand": "Prime",
+      "name": "Prime Energy",
+      "category": "energy",
+      "mg": 200,
+      "servingSize": "1 can (12 fl oz)",
+      "servingFlOz": 12,
+      "servingMl": 355,
+      "mlFrom": "12 fl oz x 29.5735 mL/fl oz, rounded",
+      "per100mL": 56.34,
+      "url": "https://drinkprime-plmmtsmqhvn.gorgias.help/en-US/does-prime-energy-contain-caffeine-565506",
+      "retrievedAt": "2026-11-10",
+      "quote": [
+        "PRIME Energy contains 200mg of caffeine, per 12 oz. can."
+      ],
+      "fetched": [
+        {
+          "file": "prime-faq-caffeine.html",
+          "sha256": "3fa4388a7ef031ffb67d70b109e6805014a4dca0a24cba505f0bced7332cf3b3"
+        },
+        {
+          "file": "prime-pages-faq.html",
+          "sha256": "ee7c08cd60ea0508f6e77dc338331c7b7db6bfe16dd34e959508e9b7a12162c7"
+        }
+      ],
+      "method": "curl (static HTML)",
+      "notes": "PRIME's help center, embedded in https://drinkprime.com/pages/faq (Gorgias loader on that page). The product page https://drinkprime.com/products/energy-original also says '200mg Caffeine' and 'New 16oz Size' without a per-size figure, so only the 12 oz can is recorded."
+    },
+    {
+      "id": "mfr:alani-nu",
+      "brand": "Alani Nu",
+      "name": "Alani Nu Energy Drink",
+      "category": "energy",
+      "mg": 200,
+      "servingSize": "1 can (12 fl oz)",
+      "servingFlOz": 12,
+      "servingMl": 355,
+      "mlFrom": "stated on the source",
+      "per100mL": 56.34,
+      "url": "https://www.alaninu.com/products/energy-drink-cherry-twist",
+      "retrievedAt": "2026-11-10",
+      "quote": [
+        "CONTAINS: 200mg of caffeine per 12 fl oz serving.",
+        "Serving Size: 12 fl oz (355mL) Serving Per Container: 1"
+      ],
+      "fetched": [
+        {
+          "file": "alani-cherry.html",
+          "sha256": "f6246389d94bc0b9ad143315f86c36590568e9a7e4a84a0454a13a043a21c0a3"
+        }
+      ],
+      "method": "curl (static HTML)"
+    },
+    {
+      "id": "mfr:c4-performance-energy",
+      "brand": "C4",
+      "name": "C4 Performance Energy",
+      "category": "energy",
+      "mg": 200,
+      "servingSize": "1 can (16 fl oz)",
+      "servingFlOz": 16,
+      "servingMl": 473,
+      "mlFrom": "stated on the source",
+      "per100mL": 42.28,
+      "url": "https://cellucor.com/products/c4-original-carbonated",
+      "retrievedAt": "2026-11-10",
+      "quote": [
+        "CAFFEINE: 200mg PER 16 fl oz (1 CAN)",
+        "Serving Size 1 Can (16 fl oz)",
+        "16 fl oz (473 mL)"
+      ],
+      "fetched": [
+        {
+          "file": "c4-nutrition.png",
+          "sha256": "53c5fc46fa724d8223b341ab7a28d00793bed240cd1a48776949a8b7e62497ca"
+        },
+        {
+          "file": "c4-original.html",
+          "sha256": "1711f636d4236cabe265515f1a3830a18141202effa84c3935bab4278845660a"
+        }
+      ],
+      "method": "label image on the product page (alt 'Nutrition label'), read by eye; product page text: 'Elevate energy and performance with 200mg of caffeine'",
+      "notes": "Label image: https://cdn.shopify.com/s/files/1/1492/2278/files/C4BEV_2674_Brand_CertifiedForSport_Phase1_PDPs_StrawberryWatermelonIce_January2025_Nutrition.png?v=1775076858 (Strawberry Watermelon Ice). C4 Ultimate, Smart and non-carbonated lines are not recorded."
+    }
+  ],
+  "notInDatabase": [
+    {
+      "brand": "Dr Pepper",
+      "drink": "Dr Pepper, 12 fl oz",
+      "url": "https://www.kdpproductfacts.com/product/a0e3h000003LJzZAAW/dr-pepper-12-fl-oz-us",
+      "retrievedAt": "2026-11-10",
+      "quote": "'Contains approx. 41mg caffeine' (a0e3h000003LJzZAAW) and 'Contains approx. 43mg caffeine' (https://www.kdpproductfacts.com/product/a0e3h000004cGLEAA2/dr-pepper-12-fl-oz-us); both 'Serving Size : 12 fl oz', otherwise identical, both in the site's sitemap",
+      "fetched": [
+        {
+          "file": "kdp-drp-1.txt",
+          "sha256": "14ccecb200c96994bfda96f379a1e970995e35064abbe8defb0e479ba362701b"
+        },
+        {
+          "file": "kdp-drp-2.txt",
+          "sha256": "943a221ee73db85095eb5db71a87494cb700d51622550c0ee624984a4f3e84be"
+        }
+      ],
+      "reason": "The maker publishes two numbers (41 mg and 43 mg) for the same product and serving. CPO ruling Nov 10: never pick between numbers. Not in Database."
+    },
+    {
+      "brand": "5-hour Energy",
+      "drink": "Regular Strength shot, 1.93 fl oz",
+      "url": "https://5hourenergy.com/products/berry-flavor-regular-strength-5-hour-energy-shots",
+      "retrievedAt": "2026-11-10",
+      "quote": "Product title 'Berry Flavor Regular Strength 5-hour ENERGY Shots', tags 'energy shots, fruity, regular strength', listed in https://5hourenergy.com/collections/regular-strength; the same page shows '230mg of Caffeine' and, in Supplement Facts, 'Caffeine (200mg)'. The collection page says 'Regular Strength 5-hour ENERGY® shots contain 200 mg of caffeine.'",
+      "fetched": [
+        {
+          "file": "5he-berry-recheck.html",
+          "sha256": "43fea10406d027a459d38d76a400900f63221123f66b60ae3f5071ecfec8b91b"
+        },
+        {
+          "file": "5he-berry2.json",
+          "sha256": "8a90513270450bbb1385710488ca1191e671fdfbc4158b1c37418168a92b62da"
+        },
+        {
+          "file": "5he-regular.html",
+          "sha256": "28e686ba84aa21ba6a5697369a8a64fc2c7cfbdd9eb59339de156bb671d5d07f"
+        }
+      ],
+      "reason": "Berry is sold as Regular Strength, and the maker's Regular Strength pages publish both 200 mg and 230 mg for it. CPO ruling Nov 10: never pick between numbers. Not in Database (Extra Strength, 230 mg, was never recorded)."
+    },
+    {
+      "brand": "Starbucks",
+      "drink": "Grande (16 fl oz) brewed coffee, Pike Place Roast",
+      "url": "https://www.starbucks.com/menu/product/480/hot/nutrition",
+      "retrievedAt": "2026-11-10",
+      "quote": "Grande 16 fl oz ... Caffeine 315 mg - 390 mg** ... ** Caffeine is an approximate value.",
+      "fetched": [
+        {
+          "file": "sbux-pike-nutrition.txt",
+          "sha256": "3e5a300f360c0b8fcb6cec7eef664b5e53bfc0cfac992de129d26e35e84570e6"
+        }
+      ],
+      "reason": "Starbucks publishes a range, not one value; picking a number from it would be inferring. Not in Database; the person types the amount."
+    },
+    {
+      "brand": "Ghost Energy",
+      "drink": "GHOST ENERGY ready-to-drink can",
+      "url": "https://www.ghostlifestyle.com/products/ghost-energy",
+      "retrievedAt": "2026-11-10",
+      "quote": "(page redirects to a site search that lists only GHOST ENERGY STICKS powders)",
+      "fetched": [
+        {
+          "file": "ghost-energy.txt",
+          "sha256": "2a0bfb9d2fc40af299800584af61fabf62722234b8fef86c160cff83ecc7da02"
+        },
+        {
+          "file": "ghost-help-energy.html",
+          "sha256": "e0c7d068555ee48989acf26ca8ae24540b66baf910307a1fca471de7d8cbdd2e"
+        }
+      ],
+      "reason": "No caffeine amount for the canned drink on ghostlifestyle.com, its help center (https://help.ghostlifestyle.com/en-US/articles/ghost-energy-112704, 47 articles checked) or Keurig Dr Pepper Product Facts (no GHOST records). Only retailers list it. Not in Database."
+    },
+    {
+      "brand": "Matcha",
+      "drink": "Matcha (any)",
+      "url": null,
+      "retrievedAt": "2026-11-10",
+      "quote": null,
+      "fetched": [],
+      "reason": "Not a single manufacturer's product; Nathan's decision: manual entry only. No record."
+    }
+  ]
+}
