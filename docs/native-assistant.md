@@ -12,15 +12,20 @@ sleep/reaction charts, review calendars, browse history, export CSVs, and manage
 reminders. Routine responses use native cards; prose is reserved for clarification
 and failures.
 Amounts, dates, sources, and calculations never come from generated prose.
-Explicit amounts and simple local times are parsed from the user's text. A
-caffeine log that validates as stated ("I had 80 mg tea", "Log it" on a drink
-follow-up) saves immediately, the dose and its queued Health action in one
-change, and its receipt carries Undo. A log without an amount, or one that
-doesn't validate, opens the editable entry card, which requires Save; so does
-a log whose write failed, with the same values. Sleep keeps its confirm card.
-Unknown usuals have no invented amount. Pending drafts are discarded across
-relaunches, not executed. Corrections such as “Actually 120 mg yesterday at
-8am” update an open draft; a saved log is changed through Undo or history.
+Explicit amounts and simple local times are parsed from the user's text. In
+the conversation every caffeine log opens the editable confirm card and is
+saved only by its Save ("I had 80 mg tea", "Log It" on a drink follow-up,
+"Log This Drink" on a follow-up question, the Log Drink and Review Drink
+shortcuts). Save writes the dose and its queued Health action in one change,
+and its receipt carries Undo. Only the Log tab saves at once with Undo: a
+Quick Add chip, or the manual entry sheet's Save. The entry card's drink chips
+only fill the draft. `SavePolicy` is the one save switch; it defaults to
+confirm and no setting changes it yet. A log whose write failed reopens the
+card with the same values. Sleep keeps its confirm card. Unknown usuals have
+no invented amount. Pending drafts are discarded across relaunches, not
+executed. Corrections such as “Actually 120 mg yesterday at 8am” update an
+open draft (or an open follow-up question's drink); a saved log is changed
+through Undo or history, never by a correction.
 
 Apple's on-device Foundation Models classify unfamiliar requests when
 available (iOS 26+ and enabled Apple Intelligence). On iOS 17–25 or unsupported

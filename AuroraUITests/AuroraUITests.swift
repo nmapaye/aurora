@@ -411,13 +411,11 @@ final class AuroraUITests: XCTestCase {
         add(capture)
     }
 
-    /// A typed log with an amount saves on arrival: a receipt with Undo, no
-    /// draft and no Save step.
     /// A typed drink goes through the on-device review (#79): nothing is
     /// saved until Save; Save posts "Caffeine saved" with exact-entry Undo.
-    /// Instant save for this route waits on the owner's autosave criteria
-    /// (docs/apple-on-device-features.md); Rule A's instant save covers
-    /// "Log it", the Log Drink shortcut, and failed-write retry.
+    /// Every conversation path confirms ("Log It", the Log Drink shortcut,
+    /// typed entries); only the Log tab's Quick Add and manual sheet save at
+    /// once. `SavePolicy` defaults to confirm until the owner decides.
     /// The simulator has no on-device model: the Debug echo stands in for its
     /// extraction.
     func testTypedDrinkReviewSavesWithUndo() {

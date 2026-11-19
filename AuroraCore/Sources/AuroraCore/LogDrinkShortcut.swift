@@ -1,9 +1,11 @@
 import Foundation
 
-/// The rules behind the "Log drink" App Intent (Shortcuts, Siri, Spotlight,
-/// the Action button). A log saves at once and can be undone: the intent's
-/// result offers Undo for exactly the entry it saved, and "Undo drink"
-/// removes the last entry a shortcut saved for a short while after.
+/// The rules behind the "Log Drink" App Intent (Shortcuts, Siri, Spotlight,
+/// the Action button). The intent saves nothing: it opens Aurora's confirm
+/// card prefilled with the drink (`reviewDraft`), and only that card's Save
+/// records it, with Undo for exactly that entry (`SavePolicy`: shortcuts
+/// always confirm). The repeat guard and "Undo drink" window below are not
+/// used by any shipped intent.
 ///
 /// Amounts come only from records Aurora already has: a Quick Add preset at
 /// its listed amount (`CaffeinePreset.all`), or the person's usual drink

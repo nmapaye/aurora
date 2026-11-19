@@ -9,7 +9,7 @@ enum ShortcutDrink: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Drink" }
     static var caseDisplayRepresentations: [ShortcutDrink: DisplayRepresentation] {
-        [.usual: "My usual", .espresso: "Espresso", .drip: "Drip", .energy: "Energy drink"]
+        [.usual: "My Usual", .espresso: "Espresso", .drip: "Drip", .energy: "Energy Drink"]
     }
 
     var choice: LogDrinkShortcut.Choice { LogDrinkShortcut.Choice(rawValue: rawValue) ?? .usual }

@@ -11,6 +11,11 @@ final class AssistantModel {
     var status = ""
     var failure: String?
     var pendingDraft: CustomDoseDraft?
+    /// The typed entry the open card was filled from (AI off), so the card
+    /// can name where its amount came from until the person edits it.
+    var typedEntry: TypedDrinkEntry.Entry?
+    /// The open "Estimated Active Caffeine" follow-up card.
+    var caffeineAtTimeID: UUID?
     var pendingMessageID: UUID?
     /// An open sleep review. Its times stay empty until the person adds them.
     var pendingSleep: ManualSleep.Entry?
@@ -89,6 +94,16 @@ final class AssistantModel {
     private(set) var localDrinkReview = LocalDrinkReview()
     // Test seams for deterministic race/failure checks, never persisted.
     @ObservationIgnored var extractLocalDrink: ((String) async throws -> LocalDrinkUnderstanding.Evidence)?
+    /// The one save switch (`SavePolicy`). Confirm until Nathan decides;
+    /// tests set it to cover both settings.
+    @ObservationIgnored var savePolicySetting: SavePolicy.Setting = SavePolicy.defaultSetting
+    /// Tests: forces the AI-off typed entry path regardless of the model.
+    @ObservationIgnored var intelligenceOffOverride: Bool?
+    /// Apple Intelligence is off (and no Mac development model or test
+    /// extractor stands in): typed drink entries use `TypedDrinkEntry`.
+    var intelligenceOff: Bool {
+        intelligenceOffOverride ?? (!modelAvailable && !conversation.preferences.useMacModel && extractLocalDrink == nil)
+    }
     @ObservationIgnored var composeLocalExplanation: ((GroundedLocalExplanation) async throws -> String)?
     var reviewingLocalDrink: Bool { localDrinkReview.proposal != nil }
     func waitForCurrentRequest() async { await task?.value }
@@ -165,7 +180,7 @@ final class AssistantModel {
                     if card.state == .loading {
                         conversation.messages[index].card?.state = .failed
                         conversation.messages[index].card?.summary = "This request didn't finish. Refresh for a current result."
-                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn, .cutoffScenario].contains(card.kind), card.state == .ready {
+                    } else if [.caffeineDraft, .sleepDraft, .calendar, .energyCheckIn, .cutoffScenario, .caffeineAtTime].contains(card.kind), card.state == .ready {
                         conversation.messages[index].card?.state = .expired
                     }
                 }
@@ -218,7 +233,7 @@ final class AssistantModel {
         conversation = cleared; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         localDrinkReview.cancel()
         closeCutoff()
-        pendingMessageID = nil; activeCards = []; savedDose = nil
+        pendingMessageID = nil; activeCards = []; savedDose = nil; caffeineAtTimeID = nil
         releaseWarmResources()
         if let app { appendCard(AssistantCards.make(.welcome, state: app.state, now: app.now, clock: app.clock, text: app.text)) }
         do { try store?.removeMigrationSource() }
@@ -231,7 +246,7 @@ final class AssistantModel {
         conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         localDrinkReview.cancel()
         closeCutoff()
-        pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil
+        pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil; caffeineAtTimeID = nil
         showSleepEntry = false; showCalendarSettings = false; showAssistantSettings = false; clearCardFocus()
         releaseWarmResources(); calendars.resetAfterErase()
         failure = nil
@@ -274,7 +289,13 @@ final class AssistantModel {
             return
         }
         let knownIntent = AssistantPlanner.explicitIntent(text)
-        let useDrinkUnderstanding = LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
+        // Follow-up questions are routed in code first, AI on or off.
+        let followUp = CaffeineQuestion.route(text)
+        let correction = CaffeineAtTimeCard.correctionPhrase(text)
+        let correctsFollowUp = correction != nil && pendingDraft == nil && localDrinkReview.request == nil
+            && openCaffeineAtTimeCard(caffeineAtTimeID) != nil
+        let useDrinkUnderstanding = !correctsFollowUp && (followUp == nil || followUp == .unsupported) && !intelligenceOff
+            && LocalDrinkUnderstanding.shouldUnderstand(text, knownIntent: knownIntent)
         append(useDrinkUnderstanding ? "Drink-entry request · text not retained" : text, user: true)
         // A generated review is immutable. Corrections must start a new full
         // request, never patch selected fields using the legacy manual parser.
@@ -284,6 +305,22 @@ final class AssistantModel {
                 append("Please state the complete single drink, caffeine amount and time again. Nothing was saved.")
                 return
             }
+        }
+        if correctsFollowUp, let correction, correctCaffeineAtTime(correction, app: app) { return }
+        switch followUp {
+        case .caffeineAt(let parsed)?:
+            openCaffeineAtTime(parsed, question: text, app: app)
+            return
+        case .showCapabilities?:
+            // Past amounts aren't answered yet: the standard capability list.
+            expireDraft()
+            appendCard(AssistantCards.make(.capabilities, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .help)
+            return
+        case .clarify(let message)?:
+            // An amount outside 1–1999 whole mg: ask again, nothing opens.
+            append(message)
+            return
+        case .unsupported?, nil: break
         }
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
@@ -300,6 +337,15 @@ final class AssistantModel {
                 updateCard(pendingMessageID) { $0.summary = "Ratings run from \(checkInScale.range.lowerBound) to \(checkInScale.range.upperBound). Nothing changed." }
             }
             return
+        }
+        // Apple Intelligence off: a simple typed drink opens a filled entry
+        // card; one it can't read gets a plain message and the manual card.
+        if intelligenceOff, knownIntent == nil || knownIntent == .logCaffeine {
+            app.tick()
+            if let typed = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: app.now, clock: app.clock) {
+                openTypedEntry(typed, app: app)
+                return
+            }
         }
         processing = true; status = "Understanding your request"; failure = nil
         let id = UUID(); requestID = id
@@ -369,6 +415,32 @@ final class AssistantModel {
         }
         append("Stopped. No proposed action was saved.")
     }
+    /// Opens the entry card for an AI-off typed drink. Never saves here.
+    func openTypedEntry(_ result: TypedDrinkEntry.Result, app: AppModel) {
+        expireDraft()
+        switch result {
+        case .entry(let entry):
+            pendingDraft = entry.draft
+            typedEntry = entry
+        case .unreadable(let message):
+            append(message)
+            pendingDraft = AssistantPlanner.caffeineDraft("Log caffeine", doses: app.state.doses, now: app.now, clock: app.clock)
+        }
+        pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
+        captureDraft(app: app)
+        // Instant only when the switch allows it for this exact entry; the
+        // same Save then posts the receipt with Undo for that entry.
+        if case .entry(let entry) = result, SavePolicy.typedEntrySavePolicy(entry, setting: savePolicySetting) == .instantWithUndo {
+            saveDose(app: app)
+        }
+    }
+
+    /// The entry card's source line (see `TypedDrinkEntry.sourceLine`).
+    var draftSourceLine: String {
+        guard let draft = pendingDraft else { return TypedDrinkEntry.manualSourceLine }
+        return TypedDrinkEntry.sourceLine(for: draft, entry: typedEntry)
+    }
+
     private func understandDrink(_ input: String, request id: UUID, app: AppModel) async {
         expireDraft()
         app.tick()
@@ -512,8 +584,9 @@ final class AssistantModel {
     func expireDraft() {
         localDrinkReview.cancel()
         closeDraftCard(.expired)
-        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil
+        pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil; pendingMessageID = nil; typedEntry = nil
         closeCutoff()
+        closeCaffeineAtTime()
     }
     /// How the open draft's times are written into its card. Set when the
     /// draft opens, so Discard and Expire, which have no app, can still write
@@ -751,7 +824,7 @@ final class AssistantModel {
         failure = nil
         closeDraftCard(.saved)
         localDrinkReview.didPersist()
-        savedDose = dose; pendingDraft = nil; pendingMessageID = nil
+        savedDose = dose; pendingDraft = nil; pendingMessageID = nil; typedEntry = nil
         // The card's Saved badge gives the success haptic.
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
     }
@@ -813,8 +886,9 @@ final class AssistantModel {
         save()
     }
 
-    /// "Log it": opens the entry card with yesterday's drink, timed now.
-    /// Nothing is saved until Save; the receipt then carries Undo.
+    /// "Log It": opens the entry card with yesterday's drink, timed now.
+    /// Nothing is saved until Save (receipt with Undo), unless the save
+    /// switch is instant and this is an exact copy (`SavePolicy`).
     func reviewRepeatDrink(_ message: ConversationMessage, app: AppModel) {
         // The current card, not the tapped copy: a second tap opens nothing more.
         guard let card = conversation.messages.first(where: { $0.id == message.id })?.card, card.state == .ready,
@@ -826,9 +900,15 @@ final class AssistantModel {
         var engagement = conversation.repeatDrinkEngagement ?? .init()
         engagement.recordAnswered(now: app.now, clock: app.clock)
         conversation.repeatDrinkEngagement = engagement
-        pendingDraft = RepeatDrinks.draft(prompt, now: app.now)
+        let draft = RepeatDrinks.draft(prompt, now: app.now)
+        pendingDraft = draft
         pendingMessageID = appendCard(AssistantCards.make(.caffeineDraft, state: app.state, now: app.now, clock: app.clock, text: app.text), intent: .logCaffeine)
         captureDraft(app: app)
+        // Through the one save switch: instant only as an exact copy of the
+        // recorded entry, timed now; otherwise the card waits for Save.
+        if SavePolicy.repeatDrinkSavePolicy(prompt, doses: app.state.doses, draft: draft, now: app.now, setting: savePolicySetting) == .instantWithUndo {
+            saveDose(app: app)
+        }
     }
 
     /// "Not today": not asked again for that drink. Records nothing, never

@@ -14,6 +14,8 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         /// A new conversation's first card: one line and three starting
         /// points. The full list stays one "What can you do?" away.
         case welcome
+        /// "How much caffeine at <time>": Estimated Active Caffeine.
+        case caffeineAtTime
     }
     public enum State: String, Codable, Sendable { case ready, loading, saved, undone, expired, failed, discarded }
     public struct Metric: Codable, Equatable, Identifiable, Sendable {
@@ -61,6 +63,9 @@ public struct AssistantCard: Codable, Equatable, Sendable {
     /// A next-day follow-up's drink. Optional so older saved conversations
     /// decode unchanged.
     public var repeatDrink: RepeatDrinks.Prompt?
+    /// A follow-up question's state and rows. Optional so older saved
+    /// conversations decode unchanged.
+    public var caffeineAtTime: CaffeineAtTimeCard?
     public struct CheckIn: Codable, Equatable, Sendable {
         /// Receipt: the check-in as saved.
         public var saved: EnergyCheckIn?
@@ -91,7 +96,7 @@ public struct AssistantCard: Codable, Equatable, Sendable {
         case .briefing: .briefing
         case .reminders: .reminders
         case .capabilities: .help
-        case .clarification, .receipt, .repeatDrink, .welcome: nil
+        case .clarification, .receipt, .repeatDrink, .welcome, .caffeineAtTime: nil
         }
     }
 }
@@ -128,6 +133,7 @@ public enum AssistantCards {
         case .receipt: "Saved"
         case .capabilities: "What Aurora can do"
         case .repeatDrink: "Yesterday’s drink"
+        case .caffeineAtTime: CaffeineAtTime.title
         case .welcome: "Ready when you are."
         }
         var card = AssistantCard(kind: kind, capturedAt: now, title: title)
@@ -226,7 +232,7 @@ public enum AssistantCards {
         case .receipt, .welcome: break
         case .capabilities: card.summary = "Tap one, or ask in your own words."
         // Built by the follow-up itself, from the prompt it carries.
-        case .repeatDrink: break
+        case .repeatDrink, .caffeineAtTime: break
         }
         return card
     }

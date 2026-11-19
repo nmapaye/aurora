@@ -79,7 +79,7 @@ Those rates were **fitted to vigilance (PVT) data, not to plasma**. A `kc` of 0.
 
 | Factor | Effect on half-life | Status | Source |
 |---|---|---|---|
-| Healthy adults | 2.7–9.9 h across individuals (n = 10); reviews give 3–7 h | Established | Blanchard & Sawers 1983; Temple 2017 |
+| Healthy adults | 2.7–9.9 h across individuals (n = 10 healthy men aged 18.8–30); reviews give 3–7 h | Established | Blanchard & Sawers 1983 (Eur J Clin Pharmacol 24:93–98, doi:10.1007/BF00613933, PubMed 6832208); Temple 2017 |
 | CYP1A2 activity | CYP1A2 does about 95 % of the metabolism; activity varies 5–6-fold; in one twin study, genetics explained 89 % of the variance in AUC | Established | Nehlig 2018; Grzegorzewski 2021 |
 | Smoking | Roughly doubles clearance, so about halves half-life | Established | Temple 2017; Grzegorzewski 2021 |
 | Oral contraceptives | About doubles half-life | Established | Temple 2017; Grzegorzewski 2021 |
@@ -351,7 +351,7 @@ Property tests:
 
 ## 9. Sources
 
-- Blanchard J, Sawers SJ. The absolute bioavailability of caffeine in man. Eur J Clin Pharmacol 1983;24:93–98. doi:10.1007/BF00613933
+- Blanchard J, Sawers SJA. The absolute bioavailability of caffeine in man. Eur J Clin Pharmacol 1983;24:93–98. doi:10.1007/BF00613933. PubMed 6832208. This is the source of the app's half-life (i) range ("In one study of 10 healthy young men, half-lives ranged from about 3 to 10 hours."; `CaffeineAtTime.halfLifeRangeCitation`).
 - Blanchard J, Sawers SJ. Comparative pharmacokinetics of caffeine in young and elderly men. J Pharmacokinet Biopharm 1983;11:109–126. doi:10.1007/BF01061844
 - Liguori A, Hughes JR, Grass JA. Absorption and subjective effects of caffeine from coffee, cola and capsules. Pharmacol Biochem Behav 1997;58:721–726. doi:10.1016/S0091-3057(97)00003-8
 - Ramakrishnan S, et al. Dose-dependent model of caffeine effects on human vigilance during total sleep deprivation. J Theor Biol 2014;358:11–24. doi:10.1016/j.jtbi.2014.05.017

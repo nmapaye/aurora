@@ -61,9 +61,16 @@ only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
   starts unset and its reminder turns on only after the person sets one
   (stored values from older builds are kept). The old "Personal caffeine
   reference" (`dailyLimitMg`) is gone; old files still decode.
-- Logging saves immediately with a clear, reliable Undo; every log can be
-  undone. Sleep logs may use a confirm card. Calendar changes still need
-  fresh explicit approval.
+- Every log can be undone exactly. A drink saves at once, with Undo, only
+  from the Log tab (a Quick Add chip, or the manual entry sheet's Save).
+  Everything in the conversation opens a confirm card and saves only on
+  Save: typed drinks, photo and model-inferred entries, a drink follow-up's
+  "Log It", "Log This Drink" on a follow-up question, and the Log Drink and
+  Review Drink shortcuts. Chat drink chips only fill the draft; "Actually …"
+  edits an open draft or question, never a saved entry. `SavePolicy` holds
+  the one save switch, default confirm, with no setting exposed until the
+  owner decides. Sleep logs may use a confirm card. Calendar changes still
+  need fresh explicit approval.
 - The person chooses the daily cap on notifications Aurora starts itself
   (default 1 until they change it; briefing first, then drink follow-ups);
   reminders the person set don't count. See `NotificationBudget` and

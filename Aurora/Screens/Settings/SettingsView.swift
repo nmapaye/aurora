@@ -56,7 +56,7 @@ struct SettingsView: View {
                 }
 
                 group("Estimates and References") {
-                    ExplainedRow(topic: "Caffeine Half-Life", info: "Used to estimate active caffeine.") {
+                    ExplainedRow(topic: "Caffeine Half-Life", info: CaffeineAtTime.settingsHalfLifeInfo(prefs.halfLife), infoID: "settings-half-life-info") {
                         stepper("Caffeine Half-Life", value: prefs.halfLife, in: 0.5...16, step: 0.5, text: hoursText) { v in
                             model.setPrefs { $0.halfLife = v }
                         }

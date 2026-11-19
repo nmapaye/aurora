@@ -134,7 +134,7 @@ public enum FollowUps {
             case "checkin": card.state == .saved ? [.energyProjection] : []
             default: []
             }
-        case .reminders, .exports, .caffeineDraft, .sleepDraft, .clarification, .capabilities, .repeatDrink, .welcome: []
+        case .reminders, .exports, .caffeineDraft, .sleepDraft, .clarification, .capabilities, .repeatDrink, .welcome, .caffeineAtTime: []
         }
         return intents.compactMap(Capabilities.capability)
     }

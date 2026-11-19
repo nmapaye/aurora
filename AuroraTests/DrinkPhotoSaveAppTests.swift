@@ -60,4 +60,64 @@ import Testing
         #expect(assistant.savePhotoDose(future, app: app) != nil)
         #expect(app.state.doses.isEmpty && assistant.conversation.messages.count == count)
     }
+
+    // Sheet level (CPO review of ef7fb1ce): drive the sheet's own review and
+    // Save steps (DrinkPhotoSheetFlow, which DrinkPhotoSheet calls from
+    // begin, its Save button and Cancel) instead of calling savePhotoDose.
+    func barcodeObservation(_ db: CaffeineDatabase) throws -> DrinkPhotoObservation {
+        let entry = try #require(db.entries.first { $0.gtin != nil && !$0.servings.isEmpty })
+        return DrinkPhotoObservation(barcodes: [try #require(entry.gtin)])
+    }
+
+    @Test func photoSheetReviewWritesNothingAndOnlySaveWritesOnce() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = app(root), assistant = assistant()
+        await assistant.start(app: app)
+        app.tick()
+        let db = try #require(CaffeineDatabase.bundled)
+        let messages = assistant.conversation.messages.count
+        var flow = DrinkPhotoSheetFlow()
+        // The read finishes: a confident barcode match fills the card.
+        flow.review(try barcodeObservation(db), db: db, now: app.now - 60_000)
+        flow.edit { $0.choose(.listed(0)) }
+        #expect(flow.isReviewing && !flow.saved)
+        let draft = try #require(flow.draft(db: db, now: app.now))
+        // A complete card is still only a card: no dose, no Health export, no receipt.
+        #expect(app.state.doses.isEmpty && assistant.conversation.messages.count == messages)
+        flow.edit { $0.type(mg: "80") }
+        flow.edit { $0.clearTypedAmount() }
+        #expect(app.state.doses.isEmpty)
+        // Save is the only write, and a second tap adds nothing.
+        #expect(flow.save(db: db, assistant: assistant, app: app) == .saved)
+        #expect(app.state.doses.count == 1)
+        let dose = try #require(app.state.doses.first)
+        #expect(dose.mg == Double(draft.mg) && dose.note?.hasPrefix("Photo · ") == true)
+        #expect(flow.save(db: db, assistant: assistant, app: app) == .alreadySaved)
+        #expect(app.state.doses.count == 1)
+        let receipt = try #require(assistant.conversation.messages.last { $0.card?.kind == .receipt })
+        #expect(receipt.card?.recordID == dose.id)
+        assistant.undoReceipt(receipt, app: app)
+        #expect(app.state.doses.isEmpty)
+    }
+
+    @Test func photoSheetCancelWritesNothing() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = app(root), assistant = assistant()
+        await assistant.start(app: app)
+        app.tick()
+        let db = try #require(CaffeineDatabase.bundled)
+        let messages = assistant.conversation.messages.count
+        var flow = DrinkPhotoSheetFlow()
+        flow.review(try barcodeObservation(db), db: db, now: app.now - 60_000)
+        flow.edit { $0.choose(.listed(0)) }
+        flow.close()
+        #expect(!flow.isReviewing && flow.draft(db: db, now: app.now) == nil)
+        // Save after Cancel has no card to save.
+        guard case .problem = flow.save(db: db, assistant: assistant, app: app) else { Issue.record("saved after Cancel"); return }
+        #expect(app.state.doses.isEmpty && assistant.conversation.messages.count == messages)
+        let reopened = try StateStore(directory: root).load()
+        #expect(reopened?.doses.isEmpty ?? true)
+    }
 }
