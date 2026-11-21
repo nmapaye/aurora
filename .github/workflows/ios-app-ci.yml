@@ -398,6 +398,27 @@ jobs:
         if: always()
         run: bash .github/scripts/keyboard-mode-log.sh "${{ steps.sim.outputs.udid }}" typed
 
+      # Upload the repeat steps' evidence now, not only at the end of the job.
+      # Run 44474990064 attempt 2 lost its iPad runner during Test ("The
+      # hosted runner lost communication with the server"); the end-of-job
+      # upload never ran, so the typed repeat's failure left no log, result
+      # bundle or job log. Upload logs below still uploads everything.
+      - name: Upload repeat logs
+        if: always()
+        # Evidence only: an upload hiccup must not skip Test or fail the job.
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xcodebuild-repeat-logs-${{ matrix.device }}
+          path: |
+            build/xcodebuild-repeat*.log
+            build/xcodebuild-typed-repeat*.log
+            build/keyboard-mode-longcard*
+            build/keyboard-mode-typed*
+            build/LongCardRepeat*.xcresult
+            build/TypedRequestRepeat*.xcresult
+          if-no-files-found: warn
+
       # Still runs after the repeat step fails, so a flake doesn't hide the
       # rest of the suite's results; not after a failed build.
       # verify_xcresult rejects skips, so suites that don't belong in this
