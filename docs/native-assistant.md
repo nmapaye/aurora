@@ -26,6 +26,11 @@ no invented amount. Pending drafts are discarded across relaunches, not
 executed. Corrections such as “Actually 120 mg yesterday at 8am” update an
 open draft (or an open follow-up question's drink); a saved log is changed
 through Undo or history, never by a correction.
+A question about a drink's caffeine ("How much caffeine does beer have?",
+"Is there caffeine in a latte?") is answered in code from the bundled caffeine
+database, AI on or off: the record's mg at one of its servings with its source,
+or a plain line that the database has no entry for that drink. It never opens a
+draft or guesses an amount.
 
 Apple's on-device Foundation Models classify unfamiliar requests when
 available (iOS 26+ and enabled Apple Intelligence). On iOS 17–25 or unsupported

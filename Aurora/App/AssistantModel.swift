@@ -322,6 +322,12 @@ final class AssistantModel {
             return
         case .unsupported?, nil: break
         }
+        // "How much caffeine does beer have?": a drink's caffeine, answered
+        // from the bundled database in code, AI on or off. Never a draft.
+        if followUp == nil, let answer = CaffeineContentQuestion.answer(text, db: CaffeineDatabase.bundled) {
+            append(answer.message)
+            return
+        }
         if let draft = pendingDraft, let corrected = AssistantPlanner.correctedDraft(draft, input: text, now: app.now, clock: app.clock),
            !text.lowercased().contains("i had"), !text.lowercased().contains("i drank") {
             pendingDraft = corrected

@@ -103,6 +103,19 @@ import Testing
         await expectNothingWritten()
     }
 
+    /// Owner's iPhone, Nov 21: this got the generic "What would you like to
+    /// do?" menu. It's answered in code now, AI on or off, with no card.
+    @Test func aDrinkCaffeineQuestionIsAnsweredNotTheMenu() async throws {
+        for aiOff in [true, false] {
+            assistant.intelligenceOffOverride = aiOff
+            assistant.send("How much caffeine does beer have", app: model)
+            let last = assistant.conversation.messages.last
+            #expect(last?.text == CaffeineContentQuestion.Answer.notInDatabase(drink: "beer").message)
+            #expect(last?.card == nil && assistant.pendingDraft == nil)
+        }
+        await expectNothingWritten()
+    }
+
     @Test func anUnusableAmountAsksAgainAndOpensNothing() async throws {
         assistant.intelligenceOffOverride = true
         assistant.send("how much caffeine at 11pm if I drank -126mg at 5pm", app: model)
