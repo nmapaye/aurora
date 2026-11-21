@@ -307,6 +307,16 @@ public struct HealthSync: Codable, Equatable, Sendable {
         self.importedCount = importedCount
         self.importStatus = importStatus
     }
+
+    /// No import is running when Aurora loads. An "importing" status saved
+    /// by an import that was cut off (the app suspended or killed mid-read)
+    /// would otherwise block every later refresh, so it settles to idle.
+    public func settledAfterLaunch() -> HealthSync {
+        guard importStatus == .importing else { return self }
+        var settled = self
+        settled.importStatus = .idle
+        return settled
+    }
 }
 
 /// Ids carry the record's origin; it is never stored as a separate field.
