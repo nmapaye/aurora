@@ -110,7 +110,7 @@ import Testing
             assistant.intelligenceOffOverride = aiOff
             assistant.send("How much caffeine does beer have", app: model)
             let last = assistant.conversation.messages.last
-            #expect(last?.text == CaffeineContentQuestion.Answer.notInDatabase(drink: "beer").message)
+            #expect(last?.text == CaffeineContentQuestion.Answer.noCaffeine(drink: "beer").message)
             #expect(last?.card == nil && assistant.pendingDraft == nil)
         }
         await expectNothingWritten()

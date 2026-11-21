@@ -4,21 +4,41 @@ import Testing
 
 /// "How much caffeine does beer have?" (owner's iPhone, Nov 21) got the
 /// generic "What would you like to do?" menu: no code path answered a
-/// question about a drink's caffeine. It is now answered from the bundled
-/// database only; unlisted drinks get a plain "no entry" line.
+/// question about a drink's caffeine. It is now answered in code: everyday
+/// drinks with no caffeine get "about 0 mg", the rest come from the bundled
+/// database, and drinks it can't place get a plain "no entry" line.
 @Suite struct CaffeineContentQuestionTests {
     typealias Q = CaffeineContentQuestion
     var db: CaffeineDatabase { CaffeineDatabase.bundled! }
 
-    @Test func beerGetsAPlainNoEntryLineNotTheMenu() throws {
+    @Test func beerIsAboutZeroMgNotTheMenu() throws {
         let answer = try #require(Q.answer("How much caffeine does beer have", db: db))
-        #expect(answer == .notInDatabase(drink: "beer"))
-        #expect(answer.message == "Aurora’s caffeine database has no entry for beer, so there’s no caffeine amount to show.")
+        #expect(answer == .noCaffeine(drink: "beer"))
+        #expect(answer.message == "Beer: about 0 mg of caffeine. It isn’t a caffeinated drink, so Aurora’s caffeine database doesn’t list it.")
+        #expect(Q.answer("Does beer have caffeine?", db: db) == .noCaffeine(drink: "beer"))
+        #expect(Q.answer("Is there caffeine in a beer", db: db) == .noCaffeine(drink: "beer"))
+        #expect(Q.answer("how much caffeine do beers have", db: db) == .noCaffeine(drink: "beer"))
     }
 
-    @Test func rootBeerRecordsDontAnswerForBeer() {
-        #expect(Q.answer("Does beer have caffeine?", db: db) == .notInDatabase(drink: "beer"))
-        #expect(Q.answer("Is there caffeine in beer", db: db) == .notInDatabase(drink: "beer"))
+    @Test func otherEverydayCaffeineFreeDrinksAreAboutZero() {
+        #expect(Q.answer("Does wine have caffeine?", db: db) == .noCaffeine(drink: "wine"))
+        #expect(Q.answer("how much caffeine is in a glass of milk", db: db) == .noCaffeine(drink: "milk"))
+        #expect(Q.answer("Is there caffeine in orange juice", db: db) == .noCaffeine(drink: "orange juice"))
+        #expect(Q.answer("does 7up have caffeine", db: db) == .noCaffeine(drink: "7up"))
+        #expect(Q.answer("Does Sprite have caffeine?", db: db) == .noCaffeine(drink: "sprite"))
+    }
+
+    @Test func onlyTheWholePhraseCountsAsCaffeineFree() {
+        // Drinks that contain a listed word but can have caffeine.
+        #expect(Q.answer("how much caffeine is in coffee stout", db: db) != .noCaffeine(drink: "coffee stout"))
+        #expect(Q.answer("does chocolate milk have caffeine", db: db) != .noCaffeine(drink: "chocolate milk"))
+        #expect(Q.answer("does root beer have caffeine", db: db) != .noCaffeine(drink: "root beer"))
+    }
+
+    @Test func aDrinkItCantPlaceStillGetsNoEntry() {
+        #expect(Q.answer("how much caffeine is in kvass", db: db) == .notInDatabase(drink: "kvass"))
+        #expect(Q.Answer.notInDatabase(drink: "kvass").message
+                == "Aurora’s caffeine database has no entry for kvass, so there’s no caffeine amount to show.")
     }
 
     @Test func genericDrinksUseTheirUSDARecordAtOneCup() throws {
@@ -55,6 +75,7 @@ import Testing
         let lines = [
             Q.Answer.found(drink: "latte", mg: 86, serving: "1 cup (8 fl oz)", source: "USDA · FDC 2710386").message,
             Q.Answer.several(drink: "red bull").message,
+            Q.Answer.noCaffeine(drink: "beer").message,
             Q.Answer.notInDatabase(drink: "beer").message,
         ]
         for line in lines { #expect(CopyRules.violations(in: line).isEmpty, "\(line)") }

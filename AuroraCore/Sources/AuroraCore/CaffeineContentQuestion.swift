@@ -14,6 +14,9 @@ public enum CaffeineContentQuestion {
     public enum Answer: Equatable, Sendable {
         /// The drink's caffeine at one of its record's servings.
         case found(drink: String, mg: Int, serving: String, source: String)
+        /// A drink that has no caffeine (beer, water, milk). Not a database
+        /// record: the database holds caffeinated drinks only.
+        case noCaffeine(drink: String)
         /// More than one record fits the words given.
         case several(drink: String)
         /// No record in the database for this drink.
@@ -23,6 +26,8 @@ public enum CaffeineContentQuestion {
             switch self {
             case .found(let drink, let mg, let serving, let source):
                 return "\(CaffeineContentQuestion.capitalized(drink)): \(mg) mg of caffeine per \(serving). Source: \(source)."
+            case .noCaffeine(let drink):
+                return "\(CaffeineContentQuestion.capitalized(drink)): about 0 mg of caffeine. It isn’t a caffeinated drink, so Aurora’s caffeine database doesn’t list it."
             case .several(let drink):
                 return "Several drinks in Aurora’s caffeine database match “\(drink)”. Name the exact product and size."
             case .notInDatabase(let drink):
@@ -41,6 +46,19 @@ public enum CaffeineContentQuestion {
     ]
     /// Words that make it a question about the person, a time or a dose.
     static let personalWords = #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#
+    /// Everyday drinks with no caffeine, matched on the whole phrase only, so
+    /// "coffee stout" or "chocolate milk" never land here. Root beer stays
+    /// out: some root beers (Barq's) have caffeine.
+    static let noCaffeineDrinks: Set<String> = [
+        "beer", "lager", "ale", "ipa", "stout", "cider", "hard cider",
+        "wine", "red wine", "white wine", "rosé", "rose", "champagne", "prosecco", "sake",
+        "spirits", "liquor", "vodka", "gin", "rum", "whiskey", "whisky", "tequila", "bourbon", "brandy",
+        "water", "sparkling water", "seltzer", "club soda", "tonic water", "coconut water",
+        "milk", "whole milk", "skim milk", "oat milk", "almond milk", "soy milk",
+        "juice", "orange juice", "apple juice", "grape juice", "cranberry juice", "lemonade",
+        "sprite", "7up", "7 up", "ginger ale", "fanta", "caffeine-free coke", "caffeine free coke",
+        "caffeine-free diet coke", "caffeine free diet coke", "caffeine-free pepsi", "caffeine free pepsi",
+    ]
     static let leadingFiller = #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#
 
     /// The answer, or nil when the text isn't a question about a drink's caffeine.
@@ -61,7 +79,7 @@ public enum CaffeineContentQuestion {
             if let filler = drink.range(of: leadingFiller, options: .regularExpression) { drink.removeSubrange(filler) }
             drink = drink.trimmingCharacters(in: .whitespaces)
             guard !drink.isEmpty, drink.count <= 40,
-                  !drink.contains(where: \.isNumber),
+                  !drink.contains(where: \.isNumber) || noCaffeineDrinks.contains(drink),
                   drink.range(of: personalWords, options: .regularExpression) == nil else { return nil }
             return drink
         }
@@ -69,6 +87,7 @@ public enum CaffeineContentQuestion {
     }
 
     static func lookup(_ drink: String, db: CaffeineDatabase) -> Answer {
+        if let plain = noCaffeineName(drink) { return .noCaffeine(drink: plain) }
         let presetRecord = TypedDrinkEntry.presetPhrases[drink].flatMap { TypedDrinkEntry.presetServings[$0]?.usdaEntryID }
         if let id = TypedDrinkEntry.genericPhrases[drink]?.id ?? presetRecord, let entry = db.entry(id: id),
            let answer = found(entry, drink: drink, db: db) {
@@ -85,6 +104,13 @@ public enum CaffeineContentQuestion {
         default:
             return .notInDatabase(drink: drink)
         }
+    }
+
+    /// The no-caffeine list's name for the phrase, singular ("beers" → "beer").
+    static func noCaffeineName(_ drink: String) -> String? {
+        if noCaffeineDrinks.contains(drink) { return drink }
+        if drink.hasSuffix("s"), noCaffeineDrinks.contains(String(drink.dropLast())) { return String(drink.dropLast()) }
+        return nil
     }
 
     /// The drink's words start the record's name, its brand, a parenthetical
