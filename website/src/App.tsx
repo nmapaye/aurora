@@ -28,8 +28,8 @@ const features = [
     body: "Log caffeine and sleep. Undo a saved entry from its receipt.",
   },
   {
-    title: "Clearly labelled",
-    body: "Records, estimates and reaction-test results, each labelled.",
+    title: "Clearly labeled",
+    body: "Records, estimates and reaction-test results, each labeled.",
   },
   {
     title: "Apple Health, optional",
@@ -103,8 +103,7 @@ export default function App() {
               your energy.
             </h1>
             <p className="hero-text">
-              Log caffeine and sleep. See what is measured, what is estimated
-              and what is missing. Your logs stay on your device.
+              Log caffeine and sleep. See what is recorded and what is estimated. Your logs stay on your device.
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href={waitlistMailto}>
