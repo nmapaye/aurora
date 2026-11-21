@@ -9,30 +9,43 @@ import {
 
 const githubUrl = "https://github.com/nmapaye/aurora";
 
+// Waitlist: a plain email link. No form backend, trackers or ads.
+const waitlistEmail = "nmapaye@outlook.com";
+const waitlistBody = [
+  "Please add me to the Aurora waitlist.",
+  "",
+  "Device (iPhone / iPad / both):",
+  "",
+  "Please don't include health information.",
+].join("\r\n");
+export const waitlistMailto = `mailto:${waitlistEmail}?subject=${encodeURIComponent(
+  "Aurora waitlist",
+)}&body=${encodeURIComponent(waitlistBody)}`;
+
 const features = [
   {
-    title: "Log with Save and Undo",
-    body: "Caffeine and manual sleep entries are drafts until you tap Save, and a saved entry can be undone from its receipt.",
+    title: "Save and Undo",
+    body: "Log caffeine and sleep. Undo a saved entry from its receipt.",
   },
   {
-    title: "See your records clearly",
-    body: "Records, estimates, and reaction-test results each have a clear place. Missing records stay visible.",
+    title: "Clearly labeled",
+    body: "Records, estimates and reaction-test results, each labeled.",
   },
   {
-    title: "Apple Health, your choice",
-    body: "Optionally read sleep and caffeine from Apple Health, and add caffeine you save in Aurora. Each is a separate choice. Imported records stay read-only.",
+    title: "Apple Health, optional",
+    body: "Each Health permission is a separate choice. Imported records stay read-only.",
   },
   {
-    title: "Calendar edits you approve",
-    body: "Review selected Apple calendars. Each change needs your fresh, explicit approval before it is made.",
+    title: "Calendar, with approval",
+    body: "Calendar changes happen only after you approve them.",
   },
   {
     title: "Reaction test",
-    body: "A short on-device reaction test gives a measured result alongside your records.",
+    body: "A short reaction test that records your reaction times.",
   },
   {
     title: "Exports and reminders",
-    body: "Export your records when you want them. Reminders are off until you opt in.",
+    body: "Export anytime. Reminders stay off until you turn them on.",
   },
 ];
 
@@ -90,16 +103,14 @@ export default function App() {
               your energy.
             </h1>
             <p className="hero-text">
-              Aurora is a native assistant for recording sleep and caffeine,
-              reviewing clearly labelled estimates and measured reaction tests,
-              and keeping selected commitments in view.
+              Log caffeine and sleep. See what is recorded and what is estimated. Your logs stay on your device.
             </p>
             <div className="hero-actions">
-              <a className="button button-primary" href="#preview">
-                Try the preview <Arrow />
+              <a className="button button-primary" href={waitlistMailto}>
+                Join the waitlist <Arrow />
               </a>
-              <a className="button button-secondary" href="#release">
-                Release status
+              <a className="button button-secondary" href="#preview">
+                Try the preview
               </a>
             </div>
           </div>
@@ -129,7 +140,7 @@ export default function App() {
           </figure>
           <div className="hero-meta">
             <span>Coming soon for iPhone &amp; iPad</span>
-            <span>Native app. Local intelligence.</span>
+            <span>Native app. On-device.</span>
           </div>
         </section>
 
@@ -155,10 +166,6 @@ export default function App() {
               <br />
               You stay in control.
             </h2>
-            <p>
-              Record sleep and caffeine. Review what is measured, what is
-              estimated, and what is missing.
-            </p>
           </div>
           <ul className="feature-grid">
             {features.map((item) => (
@@ -282,16 +289,21 @@ export default function App() {
                 <li>A free TestFlight beta before release</li>
               </ul>
             </article>
-            <article className="release-card">
-              <h3>Not open yet</h3>
-              <p>App Store and free TestFlight access are coming soon.</p>
+            <article className="release-card" id="waitlist">
+              <h3>Waitlist</h3>
+              <p>Get an email when the free beta or the App Store version is ready.</p>
+              <a className="button button-primary" href={waitlistMailto}>
+                Join the waitlist <Arrow />
+              </a>
+              <a className="text-link" href="privacy.html#waitlist">
+                How your email is used
+              </a>
             </article>
             <article className="release-card">
               <h3>Private by design</h3>
               <p>
-                Aurora classifies requests on device. No cloud inference, AI
-                keys, analytics SDK, or cross-device health and conversation
-                sync.
+                Your records stay on your device. No account, no analytics SDK,
+                no cloud AI.
               </p>
               <a className="text-link" href="privacy.html">
                 Read the privacy policy
@@ -306,6 +318,7 @@ export default function App() {
           A product by <strong>Nathaniel Mapaye</strong>
           <Arrow />
         </a>
+        <p className="footer-note">Informational only. Not medical advice.</p>
         <nav aria-label="Footer">
           <a href="privacy.html">Privacy Policy</a>
           <a href="support.html">Support</a>

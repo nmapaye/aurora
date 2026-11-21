@@ -161,3 +161,18 @@ test("active website content no longer carries obsolete score or repeated source
   assert.ok(!source.includes("illustrativeScore"));
   assert.ok(!source.includes("demoData"));
 });
+
+test("waitlist is a plain email link with no tracker", async () => {
+  const html = renderToStaticMarkup(createElement(App));
+  const links = [...html.matchAll(/href="(mailto:[^"]+)"/g)].map((m) => m[1]);
+  assert.ok(links.length >= 2, "hero and release waitlist buttons");
+  for (const link of links) {
+    assert.ok(link.startsWith("mailto:nmapaye@outlook.com?subject=Aurora%20waitlist"));
+  }
+  assert.ok(html.includes("Join the waitlist"));
+  assert.ok(html.includes('href="privacy.html#waitlist"'));
+  assert.ok(!/<form|<iframe|<script/i.test(html));
+  const privacy = await readFile(new URL("../public/privacy.html", import.meta.url), "utf8");
+  assert.ok(privacy.includes('id="waitlist"'));
+  assert.ok(privacy.includes("no trackers or ads"));
+});
