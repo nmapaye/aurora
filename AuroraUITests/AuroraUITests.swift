@@ -970,6 +970,7 @@ final class AuroraUITests: XCTestCase {
                 if frame.minX.isFinite, frame.minY.isFinite,
                    frame.width.isFinite, frame.height.isFinite, !frame.isEmpty {
                     check.hittable = title.isHittable
+                    check.hittableAt = Date().timeIntervalSince(started)
                     if check.hittable {
                         check.barMaxY = app.navigationBars.firstMatch.frame.maxY
                         check.composerMinY = app.textFields["assistant-composer"].frame.minY

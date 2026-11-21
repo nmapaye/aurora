@@ -11,8 +11,12 @@ import Foundation
 /// the only check in the old window got no snapshot after a 2.39 s
 /// hierarchy capture, so the test failed without ever seeing the app).
 /// - A check passes when the snapshot has a finite, non-empty frame and the
-///   title is hittable. It must finish within three seconds of the first
-///   snapshot.
+///   title is hittable. The hittability answer must come back within three
+///   seconds of the first snapshot. The navigation-bar and composer reads
+///   that follow it only judge placement, so their round-trip time is not
+///   charged to the app (run 43934444680, iPad iteration 35: the title was
+///   hittable and in place on the first check, but the check ended at
+///   5.14 s, past the 4.10 s deadline, and was reported as timedOut).
 /// - A hittable title outside the space between the navigation bar and the
 ///   composer fails at once, as the assertions after the old wait did.
 /// - No success within three seconds of the first snapshot fails.
@@ -33,6 +37,9 @@ struct LongCardWait {
         /// no snapshot.
         var snapshot: (at: TimeInterval, frame: CGRect)?
         var hittable: Bool = false
+        /// When `isHittable` returned; nil if it was never asked. The
+        /// deadline is judged here, not at `end`.
+        var hittableAt: TimeInterval?
         /// Bottom of the navigation bar and top of the composer, read only
         /// when the title is hittable.
         var barMaxY: CGFloat?
@@ -65,9 +72,10 @@ struct LongCardWait {
             log.append("\(at)s frame \(frame) end \(end)s")
             return expired(check.end)
         }
-        log.append("\(at)s frame \(frame) hittable \(check.hittable) end \(end)s")
+        let answered = check.hittableAt.map { String(format: " at %.2fs", $0) } ?? ""
+        log.append("\(at)s frame \(frame) hittable \(check.hittable)\(answered) end \(end)s")
         guard check.hittable else { return expired(check.end) }
-        if let deadline, check.end > deadline { return .timedOut }
+        if let deadline, (check.hittableAt ?? check.end) > deadline { return .timedOut }
         if let bar = check.barMaxY, frame.minY < bar - 1 { return .wrongPlace }
         if let composer = check.composerMinY, frame.maxY > composer { return .wrongPlace }
         return .shown
