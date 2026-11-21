@@ -28,6 +28,8 @@ struct DrinkPhotoSheet: View {
     @FocusState private var amountFocused: Bool
 
     private let db = CaffeineDatabase.bundled
+    /// A typed drink to choose without a photo ("I had a Red Bull").
+    var typed: LocalDrinkUnderstanding.DatabaseLookup? = nil
 
     var body: some View {
         NavigationStack {
@@ -43,7 +45,7 @@ struct DrinkPhotoSheet: View {
                 }
             }
             .background(Palette.modalBackground)
-            .navigationTitle("Log from Photo")
+            .navigationTitle(typed == nil ? "Log from Photo" : typed?.replacing == nil ? "Log Drink" : "Change Drink")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -80,6 +82,13 @@ struct DrinkPhotoSheet: View {
                 if let data = try? await item.loadTransferable(type: Data.self), let picked = UIImage(data: data) { begin(picked) }
                 else { failure = "That photo couldn't be opened. Try another one." }
                 pickerItem = nil
+            }
+        }
+        .onAppear {
+            if let typed, let db, phase == .pick {
+                app.tick()
+                flow.reviewTyped(typed, db: db)
+                phase = .review
             }
         }
         .onDisappear { analysis?.cancel(); image = nil; flow.close() }
