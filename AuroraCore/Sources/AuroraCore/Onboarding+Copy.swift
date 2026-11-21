@@ -143,8 +143,14 @@ public enum CutoffReminder {
 /// prescribes doses, bedtimes, wake times, sleep-cycle schedules or a
 /// universal caffeine limit. Tests run every user-facing string through this.
 public enum CopyRules {
+    /// Owner decision (Nov 20, 2026): Aurora gives direct, practical guidance
+    /// (when to have a drink, how much is still in you at bed, a suggested
+    /// bedtime, "have it by 2 PM"), labeled as an estimate where it is one.
+    /// Only two kinds of wording stay out: promising a caffeine amount is
+    /// safe, and medical diagnosis or treatment claims. The reaction test is
+    /// also never named after the clinical instrument it isn't.
     public static let forbiddenPattern =
-        #"\b(kickstart|top-up|suggested (bedtime|wake)|recommended (dose|bedtime|wake)|90-minute|sleep cycles?|safe (amount|dose|limit)|allowance|mg (left|remaining)|remaining (mg|caffeine)|you should (drink|sleep|stop)|limit adherence|last call|safe (level|intake)|pvts?|psychomotor vigilance)\b"#
+        #"\b(safe (amount|dose|limit|level|intake)|(can|will|may) diagnose|diagnoses (your|sleep)|treats? (insomnia|sleep disorders?|narcolepsy)|cures? (insomnia|fatigue)|pvts?|psychomotor vigilance)\b"#
 
     /// Disclaimers that negate the idea are allowed.
     public static let allowedSentences = ["It is not a recommended or safe amount."]
