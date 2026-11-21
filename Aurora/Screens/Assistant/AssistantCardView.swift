@@ -17,6 +17,8 @@ struct AssistantCardView: View {
     @State private var historyDays = 0
     @State private var historyLimit = 30
     @State private var editingDose: DoseSheet?
+    /// The caffeine entry whose Sleep Impact sheet is open.
+    @State private var impactDose: Dose?
     @State private var editingSleep: SleepSheet?
     @FocusState private var field: CardField?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -56,6 +58,12 @@ struct AssistantCardView: View {
         .onDisappear { assistant.cardFocus(message.id, focused: false) }
         .toolbar { keyboardDone }
         .sheet(item: $editingDose, content: doseEditor)
+        .sheet(item: $impactDose) { dose in
+            DrinkImpactSheet(dose: dose, input: DrinkImpact.Input(
+                kind: DrinkImpact.Kind.guess(from: dose.source), loggedMg: dose.mg, drankAt: dose.timestamp,
+                bedtime: DrinkImpact.defaultBedtime(after: dose.timestamp, sleeps: app.state.sleeps, now: app.now, clock: app.clock),
+                halfLifeHours: app.state.prefs.halfLife))
+        }
         .sheet(item: $editingSleep, content: sleepEditor)
     }
 
@@ -391,6 +399,11 @@ struct AssistantCardView: View {
                 .accessibilityElement(children: .combine)
             }
             metricRows
+            if card.state == .saved, card.recordKind == "caffeine", let id = card.recordID,
+               let dose = app.state.doses.first(where: { $0.id == id }) {
+                Button { app.tick(); impactDose = dose } label: { Label("Sleep Impact", systemImage: "moon.zzz") }
+                    .buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-sleep-impact")
+            }
             if card.state == .saved && card.recordID != nil && !card.title.lowercased().contains("updated") {
                 Button("Undo Entry") { assistant.undoReceipt(message, app: app) }.buttonStyle(.auroraSecondary).accessibilityIdentifier("assistant-undo")
                     .transition(Motion.stateTransition(reduceMotion: reduceMotion))
