@@ -67,9 +67,21 @@ struct EnergyEvidenceSections: View {
     private func detail(_ part: EnergyContribution) -> String {
         switch part.kind {
         case .baseline: return "Where every estimate starts."
-        case .timeOfDay: return "The same daily curve for everyone, by local time."
+        case .timeOfDay:
+            if let anchor = estimate.circadianAnchor {
+                switch anchor.source {
+                case .personalized:
+                    return "Anchored to your \(Circadian.Anchor.formatClockHour(anchor.troughHour)) sleep midpoint (\(anchor.recordedNights) nights)."
+                case .earlyRead:
+                    return "Early read anchored to your \(Circadian.Anchor.formatClockHour(anchor.troughHour)) sleep midpoint (\(anchor.recordedNights) nights)."
+                case .defaultFixed:
+                    return "Default 3:00 AM daily curve (needs \(Circadian.earlyReadNights) recorded nights to personalize)."
+                }
+            }
+            return "The same daily curve for everyone, by local time."
         case .caffeine:
-            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg active."
+            let ramp = estimate.usesAbsorptionRamp == true ? " Typical ~40 min onset ramp." : ""
+            return "\(numberText(jsRound(estimate.evidence.activeCaffeineMg))) mg active.\(ramp)"
         case .sleepDebt:
             return "Recorded sleep in the 24 hours before: \(formatSleepHours(estimate.sleepHoursLast24)). Your goal: \(numberText(estimate.targetSleepHours))h."
         case .inertia:

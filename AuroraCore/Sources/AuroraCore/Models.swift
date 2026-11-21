@@ -137,6 +137,10 @@ public struct Prefs: Equatable, Sendable {
     /// Next-day follow-ups on yesterday's drinks. Nil (off) until turned on,
     /// and in files from older builds.
     public var repeatDrinks: RepeatDrinkSettings?
+    /// Anchor circadian curve to recorded sleep midpoint (off by default).
+    public var personalCircadianPhase: Bool?
+    /// Apply ~35–42 min oral caffeine onset ramp (off by default).
+    public var gradualCaffeineOnset: Bool?
 
     public static let defaultHalfLife: Double = 5
     public static let defaultTargetSleep: Double = 8
@@ -153,6 +157,8 @@ public struct Prefs: Equatable, Sendable {
 
     /// True when the daily cutoff reminder can actually be scheduled.
     public var cutoffReminderOn: Bool { notifyCutoff && cutoffHour?.isFinite == true }
+    public var usesPersonalCircadianPhase: Bool { personalCircadianPhase ?? false }
+    public var usesGradualCaffeineOnset: Bool { gradualCaffeineOnset ?? false }
 
     public init(
         halfLife: Double,
@@ -163,7 +169,9 @@ public struct Prefs: Equatable, Sendable {
         displayName: String? = nil,
         favoriteDrinkIDs: [String]? = nil,
         wakeReminders: WakeReminderSettings? = nil,
-        repeatDrinks: RepeatDrinkSettings? = nil
+        repeatDrinks: RepeatDrinkSettings? = nil,
+        personalCircadianPhase: Bool? = nil,
+        gradualCaffeineOnset: Bool? = nil
     ) {
         self.halfLife = halfLife
         self.targetSleep = targetSleep
@@ -174,6 +182,8 @@ public struct Prefs: Equatable, Sendable {
         self.favoriteDrinkIDs = favoriteDrinkIDs
         self.wakeReminders = wakeReminders
         self.repeatDrinks = repeatDrinks
+        self.personalCircadianPhase = personalCircadianPhase
+        self.gradualCaffeineOnset = gradualCaffeineOnset
     }
 }
 
@@ -190,6 +200,7 @@ extension Prefs: Codable {
 
     enum CodingKeys: String, CodingKey {
         case halfLife, targetSleep, tz, notifyCutoff, displayName, favoriteDrinkIDs, wakeReminders, repeatDrinks
+        case personalCircadianPhase, gradualCaffeineOnset
         /// Legacy keys older builds require.
         case cutoffHour, dailyLimitMg
         /// The real values, which older builds ignore.
@@ -218,6 +229,8 @@ extension Prefs: Codable {
         favoriteDrinkIDs = try container.decodeIfPresent([String].self, forKey: .favoriteDrinkIDs)
         wakeReminders = try container.decodeIfPresent(WakeReminderSettings.self, forKey: .wakeReminders)
         repeatDrinks = try container.decodeIfPresent(RepeatDrinkSettings.self, forKey: .repeatDrinks)
+        personalCircadianPhase = try container.decodeIfPresent(Bool.self, forKey: .personalCircadianPhase)
+        gradualCaffeineOnset = try container.decodeIfPresent(Bool.self, forKey: .gradualCaffeineOnset)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -236,6 +249,8 @@ extension Prefs: Codable {
         try container.encodeIfPresent(favoriteDrinkIDs, forKey: .favoriteDrinkIDs)
         try container.encodeIfPresent(wakeReminders, forKey: .wakeReminders)
         try container.encodeIfPresent(repeatDrinks, forKey: .repeatDrinks)
+        try container.encodeIfPresent(personalCircadianPhase, forKey: .personalCircadianPhase)
+        try container.encodeIfPresent(gradualCaffeineOnset, forKey: .gradualCaffeineOnset)
     }
 }
 
