@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var reminderBusy = false
     @State private var deletedCount = 0
     @State private var legal: LegalDocument?
+    @State private var dismissedHalfLifeProposal: Double?
 
     static let cutoffInfo = "Your own time for the cutoff marker and optional reminder. On the hour."
 
@@ -61,11 +62,64 @@ struct SettingsView: View {
                             model.setPrefs { $0.halfLife = v }
                         }
                     }
+                    if case .proposed(let proposal) = HalfLifeCalibration.evaluate(state: state, now: model.now, clock: model.clock),
+                       dismissedHalfLifeProposal != proposal.proposedHalfLifeHours {
+                        VStack(alignment: .leading, spacing: Metrics.xs) {
+                            Text("Proposed Half-Life: \(hoursText(proposal.proposedHalfLifeHours))")
+                                .font(Typography.label)
+                                .foregroundStyle(Palette.textPrimary)
+                            Text(proposal.reason)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            HStack(spacing: Metrics.xs) {
+                                Button("Use \(hoursText(proposal.proposedHalfLifeHours))") {
+                                    model.setPrefs { $0.halfLife = proposal.proposedHalfLifeHours }
+                                }
+                                .buttonStyle(.auroraSecondary)
+                                .accessibilityIdentifier("settings-apply-half-life-proposal")
+                                Button("Keep \(hoursText(proposal.currentHalfLifeHours))") {
+                                    dismissedHalfLifeProposal = proposal.proposedHalfLifeHours
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(Palette.textSecondary)
+                                .frame(minHeight: Metrics.minimumTouchTarget)
+                                .accessibilityIdentifier("settings-dismiss-half-life-proposal")
+                            }
+                        }
+                        .padding(Metrics.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Palette.cardMuted, in: RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous))
+                    }
                     Divider()
                     ExplainedRow(topic: "Daily Sleep Target", info: "Your own sleep goal. Summary and Sleep compare against it, and the alertness estimate uses it.") {
                         stepper("Daily Sleep Target", value: prefs.targetSleep, in: 5...10, step: 0.5, text: hoursText) { v in
                             model.setPrefs { $0.targetSleep = v }
                         }
+                    }
+                    Divider()
+                    ExplainedRow(
+                        topic: "Personal Rhythm from Sleep",
+                        info: "Shifts your daily alertness curve toward your 14-day median sleep midpoint. Shows an early read at 5 nights and full rhythm at 7 nights, falling back to 3:00 AM otherwise.",
+                        infoID: "settings-personal-circadian-info"
+                    ) {
+                        Toggle("Personal Rhythm from Sleep", isOn: Binding(
+                            get: { prefs.usesPersonalCircadianPhase },
+                            set: { enabled in model.setPrefs { $0.personalCircadianPhase = enabled } }
+                        ))
+                        .accessibilityIdentifier("settings-personal-circadian")
+                    }
+                    Divider()
+                    ExplainedRow(
+                        topic: "Gradual Caffeine Onset",
+                        info: "Applies a typical ~35–40 minute oral absorption ramp to new drinks so modeled active caffeine rises smoothly before following your half-life decay after about 2 hours.",
+                        infoID: "settings-gradual-onset-info"
+                    ) {
+                        Toggle("Gradual Caffeine Onset", isOn: Binding(
+                            get: { prefs.usesGradualCaffeineOnset },
+                            set: { enabled in model.setPrefs { $0.gradualCaffeineOnset = enabled } }
+                        ))
+                        .accessibilityIdentifier("settings-gradual-onset")
                     }
                     Divider()
                     cutoffTime(prefs.cutoffHour)
