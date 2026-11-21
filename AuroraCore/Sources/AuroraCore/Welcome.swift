@@ -39,6 +39,24 @@ public enum Welcome {
         return String(joined.prefix(nameLimit))
     }
 
+    /// Greetings and small talk ("what's up?", "hey", "how's it going").
+    /// They get a short reply with one recorded fact, not the full menu.
+    public static func isSmallTalk(_ input: String) -> Bool {
+        let text = input.lowercased().replacingOccurrences(of: "’", with: "'")
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "!?.,")))
+        let pattern = #"^(?:hi|hey|hello|hiya|yo|sup|howdy|gm|good (?:morning|afternoon|evening)|what'?s up|wh?at'?s good|wassup|how'?s it going|how are you(?: doing)?|how'?re you)(?: aurora)?$"#
+        return text.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// The small-talk reply: greeting, one recorded fact with its source and
+    /// time (or the neutral line), and how to log.
+    public static func smallTalkReply(state: AppState, now: Millis, clock: LocalClock, text: DateText) -> String {
+        let daypart = Daypart(hour: clock.calendar.component(.hour, from: Date(timeIntervalSince1970: now / 1000)))
+        let hello = greeting(daypart: daypart, name: state.prefs.displayName)
+        let fact = evidence(state: state, now: now, clock: clock, text: text).map { "\($0.text) (\($0.source), \($0.date))." } ?? neutralLine
+        return "\(hello). \(fact) Tell me what you had, or snap a photo of your drink."
+    }
+
     /// Shown under the greeting when no record applies. Not evidence.
     public static let neutralLine = "Ready when you are."
 

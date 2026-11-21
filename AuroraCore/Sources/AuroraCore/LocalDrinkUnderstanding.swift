@@ -47,6 +47,108 @@ public enum LocalDrinkUnderstanding {
             Range(match.range(at: index), in: text).map { String(text[$0]) } ?? ""
         }
     }
+    /// Questions whose one-word answer completes the drink just named.
+    public static let timeQuestion = "When did you have this drink? Say now or a local time such as yesterday at 8am."
+    public static func asksForAmount(_ question: String) -> Bool { question.hasPrefix("What caffeine amount in mg") }
+
+    /// The pending request completed by a short answer to `timeQuestion` or an
+    /// amount question ("now", "yesterday at 8am", "95 mg", "95"), or nil when
+    /// the answer is anything else. Held in memory for one reply only; the
+    /// combined text goes through `prepare` like any typed request.
+    public static func answering(_ original: String, with answer: String) -> String? {
+        let request = normalized(original).trimmingCharacters(in: CharacterSet(charactersIn: ".!"))
+        let reply = normalized(answer).trimmingCharacters(in: CharacterSet(charactersIn: ".!"))
+        guard request.range(of: #"^(?:i had|i drank|log)\s+"#, options: .regularExpression) != nil else { return nil }
+        let time = #"^(now|(?:yesterday |today )?at (?:1[0-2]|[1-9])(?::[0-5][0-9])?\s*(?:am|pm))$"#
+        if reply.range(of: time, options: .regularExpression) != nil {
+            return request + " " + reply
+        }
+        if let parts = captures(#"^(\d+(?:\.\d+)?)\s*(mg|g)?$"#, reply) {
+            let amount = parts[0] + " " + (parts[1].isEmpty ? "mg" : parts[1])
+            guard let regex = try? NSRegularExpression(pattern: #"^(i had|i drank|log)\s+(?:(?:one|a|an)\s+)?"#) else { return nil }
+            let range = NSRange(request.startIndex..., in: request)
+            return regex.stringByReplacingMatches(in: request, range: range, withTemplate: "$1 " + amount + " ")
+        }
+        return nil
+    }
+
+    /// A typed drink to choose in the database chooser (the photo sheet's
+    /// review, without a photo).
+    public struct DatabaseLookup: Identifiable, Equatable, Sendable {
+        public let id = UUID()
+        public let phrase: String
+        public let timestamp: Millis
+        /// Set when this corrects a saved dose: Save updates that dose.
+        public let replacing: String?
+        public init(phrase: String, timestamp: Millis, replacing: String? = nil) {
+            self.phrase = phrase; self.timestamp = timestamp; self.replacing = replacing
+        }
+        public static func == (a: Self, b: Self) -> Bool { a.phrase == b.phrase && a.timestamp == b.timestamp && a.replacing == b.replacing }
+    }
+
+    /// The drink named in a correction of the last entry: "change the last
+    /// entry to matcha", "adjust my last drink to a latte", "that was a
+    /// matcha", "it was actually green tea". Nil for anything else.
+    public static func lastEntryCorrection(_ input: String, db: CaffeineDatabase?) -> String? {
+        let text = normalized(input).trimmingCharacters(in: CharacterSet(charactersIn: ".!"))
+        let patterns = [
+            #"^(?:please\s+)?(?:change|adjust|edit|update|fix|correct|switch|make)\s+(?:the\s+|my\s+|that\s+)?(?:last|latest|previous|recent|most recent)?\s*(?:entry|drink|one|log|caffeine|dose)\s+(?:to|into|as|so it'?s)\s+(?:an?\s+)?(.+)$"#,
+            #"^(?:that|it)\s+was\s+(?:actually\s+)?(?:an?\s+)?(.+?)(?:\s+not\s+.+)?$"#,
+        ]
+        for (index, pattern) in patterns.enumerated() {
+            guard let parts = captures(pattern, text), let drink = parts.first?.trimmingCharacters(in: .whitespaces), !drink.isEmpty,
+                  drink.split(separator: " ").count <= 5, !drink.contains("?") else { continue }
+            // "It was great" isn't a drink: the short form needs one Aurora knows.
+            if index == 1 {
+                let known = DrinkPhotoMatcher.unrecordedBrand(in: drink) != nil
+                    || drink.range(of: TypedDrinkEntry.drinkWords, options: .regularExpression) != nil
+                    || (db.map { !DrinkPhotoMatcher.search(drink, in: $0).isEmpty } ?? false)
+                guard known else { continue }
+            }
+            return drink
+        }
+        return nil
+    }
+
+    /// "Change the last entry", "edit my last drink", "fix that entry": a
+    /// correction that names no drink yet.
+    public static func isBareLastEntryEdit(_ input: String) -> Bool {
+        let text = normalized(input).trimmingCharacters(in: CharacterSet(charactersIn: ".!"))
+        return text.range(of: #"^(?:please\s+)?(?:change|adjust|edit|update|fix|correct)\s+(?:the\s+|my\s+|that\s+)?(?:last|latest|previous|recent|most recent)?\s*(?:entry|drink|one|log|caffeine|dose)$"#, options: .regularExpression) != nil
+    }
+
+    /// The dose a correction applies to: the newest one Aurora may edit
+    /// (never a Health import). Nil when there is none.
+    public static func correctionTarget(_ doses: [Dose]) -> Dose? {
+        doses.filter(CaffeineLog.isEditable).max { $0.timestamp < $1.timestamp }
+    }
+
+    public enum DatabaseRoute: Equatable, Sendable {
+        /// One record (or a Not in Database brand): the filled entry card.
+        case entry(TypedDrinkEntry.Entry)
+        /// Several records match: pick one with its sizes.
+        case choose(DatabaseLookup)
+    }
+
+    /// With Apple Intelligence on, a logged drink the verified path would
+    /// only answer with a question ("I had a Red Bull", "I drank green tea",
+    /// "log a celsius yesterday at 8am") goes to the bundled database: one
+    /// record fills the entry card, several open the chooser. Complete
+    /// verified requests keep their path. Nil when the text doesn't lead
+    /// with "I had", "I drank" or "log", or no drink is found.
+    public static func databaseRoute(_ input: String, doses: [Dose], db: CaffeineDatabase?, now: Millis, clock: LocalClock) -> DatabaseRoute? {
+        let text = normalized(input)
+        guard text.range(of: #"^(?:i\s+)?(?:just\s+)?(?:had|drank|log|logged)\s+"#, options: .regularExpression) != nil else { return nil }
+        if case .proposal = prepare(input, doses: doses, now: now, clock: clock) { return nil }
+        guard case .entry(let entry)? = TypedDrinkEntry.parse(input, db: db, now: now, clock: clock) else { return nil }
+        if entry.amountSource != .none { return .entry(entry) }
+        if DrinkPhotoMatcher.unrecordedBrand(in: entry.draft.source) != nil { return .entry(entry) }
+        if let db, !DrinkPhotoMatcher.search(entry.draft.source, in: db).isEmpty {
+            return .choose(DatabaseLookup(phrase: entry.draft.source, timestamp: entry.draft.timestamp))
+        }
+        return .entry(entry)
+    }
+
     public static func prepare(_ input: String, doses: [Dose], now: Millis, clock: LocalClock) -> Result {
         let text = normalized(input)
         // Multi never becomes a partial success, including counts and repeats.
@@ -58,12 +160,12 @@ public enum LocalDrinkUnderstanding {
         let drink = #"(my usual|espresso|drip(?: coffee)?|matcha|energy drink|coffee|caffeine|tea|cold brew)"#
         let amount = #"(?:(-?\d+(?:\.\d+)?\s*(?:mg|g))\s+)?"#
         let time = #"(?:\s+(now|(?:yesterday |today )?at (?:1[0-2]|[1-9])(?::[0-5][0-9])?\s*(?:am|pm)))?"#
-        let pattern = #"^(?:i had|i drank|log)\s+(?:one\s+)?"# + amount + drink + time + #"[.!]?$"#
+        let pattern = #"^(?:i had|i drank|log)\s+(?:(?:one|a|an)\s+)?"# + amount + drink + time + #"[.!]?$"#
         guard let parts = captures(pattern, text), parts.count == 3 else {
             return .clarify("Please name one drink, its caffeine amount in mg, and when you had it; or use manual Log caffeine.")
         }
         let amountSpan = parts[0], drinkSpan = parts[1], timeSpan = parts[2]
-        guard !timeSpan.isEmpty else { return .clarify("When did you have this drink? Say now or a local time such as yesterday at 8am.") }
+        guard !timeSpan.isEmpty else { return .clarify(timeQuestion) }
         let source: String
         let mg: Double
         let provenance: String
