@@ -134,6 +134,7 @@ test("the page defaults to no rating in both cards and an empty labeled input", 
     "#preview",
     "#release",
     "privacy.html",
+    "terms.html",
     "support.html",
   ]) {
     assert.ok(html.includes(`href="${href}"`));
@@ -160,4 +161,24 @@ test("active website content no longer carries obsolete score or repeated source
   );
   assert.ok(!source.includes("illustrativeScore"));
   assert.ok(!source.includes("demoData"));
+});
+
+test("public pages ship without placeholders and link the terms", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const dir = new URL("../public/", import.meta.url);
+  const pages = (await readdir(dir)).filter((f) => f.endsWith(".html"));
+  assert.ok(pages.includes("terms.html"));
+  for (const page of pages) {
+    const html = await readFile(new URL(page, dir), "utf8");
+    assert.ok(!html.includes("PLACEHOLDER"), page);
+  }
+  const terms = await readFile(new URL("terms.html", dir), "utf8");
+  assert.ok(terms.includes("Beta terms"));
+  assert.ok(terms.includes("may be wrong"));
+  assert.ok(terms.includes("not medical advice"));
+  assert.ok(terms.includes("US$4.99"));
+  for (const page of ["privacy.html", "support.html"]) {
+    const html = await readFile(new URL(page, dir), "utf8");
+    assert.ok(html.includes('href="terms.html"'), page);
+  }
 });
