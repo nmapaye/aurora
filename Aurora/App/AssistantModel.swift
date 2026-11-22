@@ -88,6 +88,11 @@ final class AssistantModel {
     private var task: Task<Void, Never>?
     private var started = false
     private var requestID: UUID?
+    /// The drink request a time or amount question is waiting on. Memory
+    /// only, one reply only; never saved or shown.
+    private var pendingDrinkQuestion: String?
+    /// A typed drink waiting in the database chooser sheet.
+    var databaseLookup: LocalDrinkUnderstanding.DatabaseLookup?
     private var storageReady = false
     private let appleModel = AppleIntentModel()
     private let onDeviceFeatures = AppleOnDeviceFeatures()
@@ -243,7 +248,7 @@ final class AssistantModel {
 
     func resetAfterErase() {
         task?.cancel(); task = nil; requestID = nil; processing = false; status = ""
-        conversation = ConversationState(); pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
+        conversation = ConversationState(); pendingDrinkQuestion = nil; pendingDraft = nil; pendingSleep = nil; pendingCheckIn = nil
         localDrinkReview.cancel()
         closeCutoff()
         pendingMessageID = nil; activeCards = []; savedDose = nil; historySheet = nil; caffeineAtTimeID = nil
@@ -282,8 +287,13 @@ final class AssistantModel {
     }
 
     func send(_ input: String, app: AppModel) {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !processing else { return }
+        // "Now" after "When did you have this drink?" finishes that drink.
+        if let original = pendingDrinkQuestion {
+            pendingDrinkQuestion = nil
+            if let combined = LocalDrinkUnderstanding.answering(original, with: text) { text = combined }
+        }
         guard text.count <= 2000 else {
             append("Please shorten this request to one task. Nothing was saved.")
             return
@@ -307,6 +317,26 @@ final class AssistantModel {
             }
         }
         if correctsFollowUp, let correction, correctCaffeineAtTime(correction, app: app) { return }
+        // "Change the last entry to matcha": the chooser, then Save corrects
+        // that dose in place (and Aurora's copy in Health).
+        let bareEdit = LocalDrinkUnderstanding.isBareLastEntryEdit(text)
+        if bareEdit || LocalDrinkUnderstanding.lastEntryCorrection(text, db: CaffeineDatabase.bundled) != nil, pendingDraft == nil {
+            let named = LocalDrinkUnderstanding.lastEntryCorrection(text, db: CaffeineDatabase.bundled)
+            app.tick()
+            guard let target = LocalDrinkUnderstanding.correctionTarget(app.state.doses) else {
+                append("There’s no caffeine entry of yours to change. Entries read from Apple Health are edited in Health.")
+                return
+            }
+            expireDraft()
+            append("Pick what it was. Saving updates your \(app.text.clockTime(target.timestamp)) entry instead of adding a new one.")
+            databaseLookup = .init(phrase: named ?? target.source ?? "", timestamp: target.timestamp, replacing: target.id)
+            return
+        }
+        if Welcome.isSmallTalk(text), pendingDraft == nil, localDrinkReview.request == nil {
+            app.tick()
+            append(Welcome.smallTalkReply(state: app.state, now: app.now, clock: app.clock, text: app.text))
+            return
+        }
         switch followUp {
         case .caffeineAt(let parsed)?:
             openCaffeineAtTime(parsed, question: text, app: app)
@@ -351,6 +381,22 @@ final class AssistantModel {
             if let typed = TypedDrinkEntry.parse(text, db: CaffeineDatabase.bundled, now: app.now, clock: app.clock) {
                 openTypedEntry(typed, app: app)
                 return
+            }
+        }
+        // Apple Intelligence on: any logged drink in the bundled database
+        // opens the filled entry card rather than a follow-up question.
+        if !intelligenceOff, knownIntent == nil || knownIntent == .logCaffeine {
+            app.tick()
+            switch LocalDrinkUnderstanding.databaseRoute(text, doses: app.state.doses, db: CaffeineDatabase.bundled, now: app.now, clock: app.clock) {
+            case .entry(let entry)?:
+                openTypedEntry(.entry(entry), app: app)
+                return
+            case .choose(let lookup)?:
+                expireDraft()
+                append("Pick the exact drink and size. Nothing is saved until you tap Save.")
+                databaseLookup = lookup
+                return
+            case nil: break
             }
         }
         processing = true; status = "Understanding your request"; failure = nil
@@ -451,7 +497,11 @@ final class AssistantModel {
         expireDraft()
         app.tick()
         switch LocalDrinkUnderstanding.prepare(input, doses: app.state.doses, now: app.now, clock: app.clock) {
-        case .clarify(let question): append(question)
+        case .clarify(let question):
+            if question == LocalDrinkUnderstanding.timeQuestion || LocalDrinkUnderstanding.asksForAmount(question) {
+                pendingDrinkQuestion = input
+            }
+            append(question)
         case .proposal(let proposal):
             localDrinkReview.begin(id)
             status = "Understanding one drink on device"
@@ -845,6 +895,20 @@ final class AssistantModel {
         failure = nil
         savedDose = dose
         receipt(recordID: dose.id, kind: "caffeine", app: app, title: "Caffeine saved")
+        return nil
+    }
+    /// Saves a drink picked to correct a saved dose. Returns the problem
+    /// instead when nothing changed.
+    func correctPhotoDose(id: String, with draft: CustomDoseDraft, app: AppModel) -> String? {
+        app.tick()
+        if let message = CaffeineLog.validate(draft, now: app.now).message { return message }
+        guard let dose = app.state.doses.first(where: { $0.id == id }), CaffeineLog.isEditable(dose) else {
+            return "That entry changed or can’t be edited here. Open history to review it."
+        }
+        app.correctDose(id: id, with: draft)
+        if let failure = app.mutationFailure { return failure }
+        failure = nil
+        receipt(recordID: id, kind: "caffeine", app: app, title: "Caffeine updated")
         return nil
     }
     func undoDose(app: AppModel) {

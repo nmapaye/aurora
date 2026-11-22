@@ -13,12 +13,14 @@ the person's confirmation, and use a comprehensive database for caffeine values.
    - Vision `VNDetectBarcodesRequest` (UPC/EAN → exact database lookup),
    - Vision `VNClassifyImageRequest` (drink kind words).
 
-   No language model reads the photo. An earlier iOS 27 Foundation Models
-   image-attachment path was removed (Nov 10, 2026): it was behind
-   `compiler(>=6.4)`, and CI builds with Xcode 26.6 / Swift 6.3, so it could
-   never be type-checked or tested before shipping. Re-adding it needs an SDK
-   that CI builds, with tests. Never Private Cloud Compute, never a
-   third-party or network model.
+   - On iOS 27 with Apple Intelligence ready, Apple's on-device Foundation
+     Model (`SystemLanguageModel.default`) looks at the image and returns
+     drink and brand words only (re-added Nov 19, 2026 at the owner's request,
+     after a matcha photo was read as coffee). It compiles only with the
+     iOS 27 SDK (`compiler(>=6.4)`); older toolchains, including CI's
+     Xcode 26.6, build Vision-only. Its words are search evidence, never a
+     size or amount. Never Private Cloud Compute, never a third-party or
+     network model.
 3. AuroraCore matches that evidence against the bundled database
    (`DrinkPhotoMatcher`): barcode first, then IDF-weighted token match with
    one-letter OCR tolerance and a brand bonus. Below the threshold it asks

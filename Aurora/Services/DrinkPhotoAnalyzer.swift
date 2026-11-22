@@ -2,21 +2,68 @@ import AuroraCore
 import Foundation
 import UIKit
 import Vision
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// Reads one drink photo with Apple's on-device frameworks only:
 /// - Vision text recognition (label words and container size),
 /// - Vision barcode detection (exact UPC/EAN database lookup),
-/// - Vision image classification (drink kind).
-/// No language model reads the photo: an image-attachment path for a future
-/// SDK was removed because CI's SDK could never type-check it (see
-/// docs/drink-photo-logging.md). No network request, no cloud or Private
+/// - Vision image classification (drink kind),
+/// - on iOS 27, Apple's on-device Foundation Model looking at the image
+///   (drink and brand words only; `SystemLanguageModel.default`).
+/// The model path compiles only with the iOS 27 SDK (Swift 6.4); older
+/// toolchains build Vision-only. No network request, no cloud or Private
 /// Cloud Compute model, no third-party model. The image stays in memory and is dropped when the sheet closes.
 /// Nothing here produces a caffeine amount: that comes from the bundled
 /// database after the person confirms.
 enum DrinkPhotoAnalyzer {
     static func analyze(_ image: UIImage) async -> DrinkPhotoObservation {
         guard let cgImage = upright(image) else { return .init() }
-        return await Task.detached(priority: .userInitiated) { vision(cgImage) }.value
+        async let read = Task.detached(priority: .userInitiated) { vision(cgImage) }.value
+        async let words = modelWords(cgImage)
+        var observation = await read
+        if let (drink, brand) = await words {
+            observation.modelDrink = drink
+            observation.modelBrand = brand
+        }
+        return observation
+    }
+
+    /// Drink and brand words from Apple's on-device model, or nil when the
+    /// model isn't ready, the SDK predates image input, or the read fails.
+    /// Words are search evidence only; numbers are never asked for or used.
+    static func modelWords(_ image: CGImage) async -> (String, String)? {
+        #if canImport(FoundationModels) && compiler(>=6.4)
+        if #available(iOS 27.0, *) {
+            guard case .ready = AppleOnDeviceFeatures.readiness() else { return nil }
+            do {
+                // No `model:` argument: on iOS 27 that also matches the generic
+                // `some LanguageModel` overloads. The default is
+                // `SystemLanguageModel.default`, Apple's on-device model.
+                let session = LanguageModelSession {
+                    """
+                    You look at one photo of a drink. Name the drink in the cup, glass, can or bottle by what it looks like \
+                    (color, foam, ice, container) and any brand printed on its own label. Ignore stickers, books, screens \
+                    and other text that is not on the drink. Leave brand empty if none is printed on the drink. \
+                    Never estimate caffeine, sizes or numbers.
+                    """
+                }
+                let response = try await session.respond(generating: PhotoDrinkWords.self,
+                                                         options: GenerationOptions(temperature: 0, maximumResponseTokens: 60)) {
+                    "What drink is in this photo, and what brand is printed on it?"
+                    Attachment(image)
+                }
+                try Task.checkCancellation()
+                let drink = String(response.content.drink.prefix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
+                let brand = String(response.content.brand.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
+                return drink.isEmpty && brand.isEmpty ? nil : (drink, brand)
+            } catch {
+                return nil
+            }
+        }
+        #endif
+        return nil
     }
 
     /// Redraws in .up orientation so Vision sees what the
@@ -50,3 +97,14 @@ enum DrinkPhotoAnalyzer {
         return DrinkPhotoObservation(recognizedText: lines, barcodes: codes, labels: labels)
     }
 }
+
+#if canImport(FoundationModels) && compiler(>=6.4)
+@available(iOS 27.0, *)
+@Generable
+private struct PhotoDrinkWords {
+    @Guide(description: "Drink type in a few lowercase words, such as matcha latte, cold brew coffee, energy drink, green tea, cola")
+    var drink: String
+    @Guide(description: "Brand name exactly as printed on the drink's own label, or empty string")
+    var brand: String
+}
+#endif

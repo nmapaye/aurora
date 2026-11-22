@@ -12,8 +12,8 @@ public struct DrinkPhotoObservation: Equatable, Sendable {
     public var barcodes: [String]
     /// Vision image-classification identifiers with confidence 0...1.
     public var labels: [String: Double]
-    /// Search words from an on-device model. Untrusted, and empty in the app
-    /// today: no model reads the photo (see docs/drink-photo-logging.md).
+    /// Search words from Apple's on-device model (iOS 27 image input).
+    /// Untrusted: search evidence only, never a size or amount.
     public var modelDrink: String
     public var modelBrand: String
 
