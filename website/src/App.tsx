@@ -321,6 +321,7 @@ export default function App() {
         <p className="footer-note">Informational only. Not medical advice.</p>
         <nav aria-label="Footer">
           <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms</a>
           <a href="support.html">Support</a>
           <a href={githubUrl} target="_blank" rel="noreferrer">
             GitHub
