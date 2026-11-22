@@ -51,6 +51,39 @@ import Testing
                 == .found(drink: "coffee", mg: 95, serving: "1 cup (8 fl oz)", source: "USDA · FDC 171890"))
     }
 
+    @Test func shortFormsAreAnsweredToo() {
+        #expect(Q.answer("beer caffeine", db: db) == .noCaffeine(drink: "beer"))
+        #expect(Q.answer("Latte caffeine?", db: db)
+                == .found(drink: "latte", mg: 86, serving: "1 cup (8 fl oz)", source: "USDA · FDC 2710386"))
+        #expect(Q.answer("caffeine for a latte", db: db)
+                == .found(drink: "latte", mg: 86, serving: "1 cup (8 fl oz)", source: "USDA · FDC 2710386"))
+        #expect(Q.answer("mg in a latte", db: db)
+                == .found(drink: "latte", mg: 86, serving: "1 cup (8 fl oz)", source: "USDA · FDC 2710386"))
+        #expect(Q.answer("how many mg in a latte", db: db)
+                == .found(drink: "latte", mg: 86, serving: "1 cup (8 fl oz)", source: "USDA · FDC 2710386"))
+        #expect(Q.answer("is sprite caffeine free", db: db) == .noCaffeine(drink: "sprite"))
+        #expect(Q.answer("is wine caffeinated", db: db) == .noCaffeine(drink: "wine"))
+    }
+
+    @Test func aShortFormItCantPlaceGoesToTheAssistant() {
+        // Terse shapes answer only for a drink Aurora can place.
+        for text in ["how much caffeine is too much", "caffeine curve", "show caffeine", "log caffeine"] {
+            #expect(Q.answer(text, db: db) == nil, "\(text)")
+        }
+    }
+
+    @Test func aLookupIsFastEnoughToAnswerOnEverySend() {
+        let questions = ["How much caffeine does beer have", "latte caffeine", "Is there caffeine in Red Bull?",
+                         "how much caffeine is too much", "does black tea have caffeine", "what can you do"]
+        _ = Q.answer(questions[0], db: db) // first use builds the compiled shapes and database
+        let clock = ContinuousClock()
+        let elapsed = clock.measure {
+            for index in 0..<600 { _ = Q.answer(questions[index % questions.count], db: db) }
+        }
+        // 600 lookups well under a second leaves each one far below a frame.
+        #expect(elapsed < .seconds(3), "\(elapsed)")
+    }
+
     @Test func aBrandWithSeveralRecordsAsksForTheExactProduct() {
         #expect(Q.answer("Is there caffeine in Red Bull?", db: db) == .several(drink: "red bull"))
     }

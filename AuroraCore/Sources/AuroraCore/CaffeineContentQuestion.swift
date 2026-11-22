@@ -36,16 +36,40 @@ public enum CaffeineContentQuestion {
         }
     }
 
-    /// Whole-question shapes; capture group 1 is the drink.
-    static let patterns = [
-        #"^how much caffeine (?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#,
-        #"^(?:does|do) (.+?) (?:have|has|contain|contains) (?:any )?caffeine$"#,
-        #"^is there (?:any )?caffeine in (.+)$"#,
-        #"^what(?:'s| is) the caffeine(?: content| amount)? (?:in|of) (.+)$"#,
-        #"^caffeine (?:in|content of) (.+)$"#,
+    /// A question shape; capture group 1 is the drink. A terse shape
+    /// ("beer caffeine", "caffeine for a latte") answers only when it names a
+    /// drink Aurora can place, so "how much caffeine is too much" still goes
+    /// to the assistant instead of getting a "no entry" line.
+    struct Shape {
+        let regex: NSRegularExpression
+        let terse: Bool
+        init(_ pattern: String, terse: Bool = false) {
+            regex = try! NSRegularExpression(pattern: pattern)
+            self.terse = terse
+        }
+    }
+
+    /// Compiled once: a lookup runs in code on every send, before any model.
+    static let shapes: [Shape] = [
+        Shape(#"^how much caffeine (?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#),
+        Shape(#"^how many mg (?:of caffeine )?(?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#),
+        Shape(#"^(?:does|do) (.+?) (?:have|has|contain|contains) (?:any )?caffeine$"#),
+        Shape(#"^is there (?:any )?caffeine in (.+)$"#),
+        Shape(#"^what(?:'s| is) the caffeine(?: content| amount)? (?:in|of) (.+)$"#),
+        Shape(#"^caffeine (?:in|content of) (.+)$"#),
+        Shape(#"^(?:is|are) (.+?) caffeinated$"#),
+        Shape(#"^(?:is|are) (.+?) caffeine[- ]free$"#),
+        Shape(#"^(.+?) caffeine(?: content| amount| level)?$"#, terse: true),
+        Shape(#"^caffeine (?:for |of )?(.+)$"#, terse: true),
+        Shape(#"^how much caffeine (.+)$"#, terse: true),
+        Shape(#"^(?:how many )?mg (?:of caffeine )?(?:in )?(.+)$"#, terse: true),
     ]
     /// Words that make it a question about the person, a time or a dose.
-    static let personalWords = #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#
+    static let personalWords = try! NSRegularExpression(
+        pattern: #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#)
+    static let leadingFiller = try! NSRegularExpression(
+        pattern: #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#)
+
     /// Everyday drinks with no caffeine, matched on the whole phrase only, so
     /// "coffee stout" or "chocolate milk" never land here. Root beer stays
     /// out: some root beers (Barq's) have caffeine.
@@ -63,25 +87,29 @@ public enum CaffeineContentQuestion {
 
     /// The answer, or nil when the text isn't a question about a drink's caffeine.
     public static func answer(_ input: String, db: CaffeineDatabase?) -> Answer? {
-        guard let db, let drink = drink(in: input) else { return nil }
-        return lookup(drink, db: db)
+        guard let db, let parsed = parse(input) else { return nil }
+        let answer = lookup(parsed.drink, db: db)
+        if parsed.terse, case .notInDatabase = answer { return nil }
+        return answer
     }
 
     /// The drink a content question names, lowercased, without articles.
-    public static func drink(in input: String) -> String? {
+    public static func drink(in input: String) -> String? { parse(input)?.drink }
+
+    static func parse(_ input: String) -> (drink: String, terse: Bool)? {
         var text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
         while let last = text.last, "?.!".contains(last) { text.removeLast() }
         text = text.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, text.count <= 120 else { return nil }
-        for pattern in patterns {
-            guard let captured = capture(pattern, text) else { continue }
+        for shape in shapes {
+            guard let captured = capture(shape.regex, text) else { continue }
             var drink = captured.trimmingCharacters(in: .whitespaces)
-            if let filler = drink.range(of: leadingFiller, options: .regularExpression) { drink.removeSubrange(filler) }
+            if let filler = firstRange(leadingFiller, drink) { drink.removeSubrange(filler) }
             drink = drink.trimmingCharacters(in: .whitespaces)
             guard !drink.isEmpty, drink.count <= 40,
                   !drink.contains(where: \.isNumber) || noCaffeineDrinks.contains(drink),
-                  drink.range(of: personalWords, options: .regularExpression) == nil else { return nil }
-            return drink
+                  firstRange(personalWords, drink) == nil else { return nil }
+            return (drink, shape.terse)
         }
         return nil
     }
@@ -138,11 +166,14 @@ public enum CaffeineContentQuestion {
         return .found(drink: drink, mg: serving.mg, serving: serving.label, source: source)
     }
 
-    static func capture(_ pattern: String, _ text: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+    static func capture(_ regex: NSRegularExpression, _ text: String) -> String? {
+        guard let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: text) else { return nil }
         return String(text[range])
+    }
+
+    static func firstRange(_ regex: NSRegularExpression, _ text: String) -> Range<String.Index>? {
+        regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)).flatMap { Range($0.range, in: text) }
     }
 
     static func capitalized(_ text: String) -> String {
