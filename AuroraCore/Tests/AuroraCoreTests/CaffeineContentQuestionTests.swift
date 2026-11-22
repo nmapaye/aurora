@@ -75,10 +75,12 @@ import Testing
     @Test func aLookupIsFastEnoughToAnswerOnEverySend() {
         let questions = ["How much caffeine does beer have", "latte caffeine", "Is there caffeine in Red Bull?",
                          "how much caffeine is too much", "does black tea have caffeine", "what can you do"]
-        _ = Q.answer(questions[0], db: db) // first use builds the compiled shapes and database
+        // The app's path: the bundled index is built once, on first use.
+        #expect(Q.answer(questions[0]) == .noCaffeine(drink: "beer"))
+        #expect(Q.answer("Is there caffeine in Red Bull?") == .several(drink: "red bull"))
         let clock = ContinuousClock()
         let elapsed = clock.measure {
-            for index in 0..<600 { _ = Q.answer(questions[index % questions.count], db: db) }
+            for index in 0..<600 { _ = Q.answer(questions[index % questions.count]) }
         }
         // 600 lookups well under a second leaves each one far below a frame.
         #expect(elapsed < .seconds(3), "\(elapsed)")

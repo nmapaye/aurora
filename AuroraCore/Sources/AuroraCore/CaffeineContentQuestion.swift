@@ -87,8 +87,22 @@ public enum CaffeineContentQuestion {
 
     /// The answer, or nil when the text isn't a question about a drink's caffeine.
     public static func answer(_ input: String, db: CaffeineDatabase?) -> Answer? {
-        guard let db, let parsed = parse(input) else { return nil }
-        let answer = lookup(parsed.drink, db: db)
+        guard let db else { return nil }
+        return answer(input, index: Index(db))
+    }
+
+    /// The same answer against the bundled database, whose index is built
+    /// once; the app calls this on every send.
+    public static func answer(_ input: String) -> Answer? {
+        guard let index = bundledIndex else { return nil }
+        return answer(input, index: index)
+    }
+
+    static let bundledIndex: Index? = CaffeineDatabase.bundled.map(Index.init)
+
+    static func answer(_ input: String, index: Index) -> Answer? {
+        guard let parsed = parse(input) else { return nil }
+        let answer = lookup(parsed.drink, index: index)
         if parsed.terse, case .notInDatabase = answer { return nil }
         return answer
     }
@@ -114,20 +128,69 @@ public enum CaffeineContentQuestion {
         return nil
     }
 
-    static func lookup(_ drink: String, db: CaffeineDatabase) -> Answer {
+    /// Per-record words and folded name parts, worked out once per database
+    /// so a lookup never re-tokenizes all 450 records.
+    struct Index: Sendable {
+        let db: CaffeineDatabase
+        let entryTokens: [Set<String>]
+        let nameParts: [[String]]
+        let idf: [String: Double]
+        let byID: [String: Int]
+
+        init(_ db: CaffeineDatabase) {
+            self.db = db
+            entryTokens = db.entries.map(DrinkPhotoMatcher.entryTokens)
+            nameParts = db.entries.map { entry in
+                [entry.name, entry.brand ?? ""]
+                    .flatMap { $0.components(separatedBy: CharacterSet(charactersIn: ",()")) }
+                    .map { CaffeineContentQuestion.fold($0).trimmingCharacters(in: .whitespaces) }
+            }
+            var counts: [String: Int] = [:]
+            for words in entryTokens { for word in words { counts[word, default: 0] += 1 } }
+            let n = Double(max(db.entries.count, 1))
+            idf = counts.mapValues { log(1 + n / Double($0)) }
+            byID = Dictionary(db.entries.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { first, _ in first })
+        }
+
+        /// `TypedDrinkEntry.confidentBrand`, on the precomputed words.
+        func confidentBrand(_ phrase: String) -> TypedDrinkEntry.BrandMatch {
+            let query = DrinkPhotoMatcher.tokens(phrase)
+            guard !query.isEmpty else { return .none }
+            let weight: (Set<String>) -> Double = { $0.reduce(0) { $0 + (idf[$1] ?? 1) } }
+            let queryWeight = weight(query)
+            let ranked = entryTokens.indices.compactMap { i -> (entry: CaffeineDatabase.Entry, score: Double)? in
+                guard query.isSubset(of: entryTokens[i]) else { return nil }
+                return (db.entries[i], queryWeight / max(weight(entryTokens[i]), .leastNonzeroMagnitude))
+            }.sorted { $0.score != $1.score ? $0.score > $1.score : $0.entry.id < $1.entry.id }
+            guard let first = ranked.first else { return .none }
+            guard first.score >= 0.5, first.score - (ranked.dropFirst().first?.score ?? 0) >= DrinkPhotoMatcher.confidentMargin else { return .several }
+            return .one(first.entry)
+        }
+
+        func names(_ entry: CaffeineDatabase.Entry, _ drink: String) -> Bool {
+            guard let i = byID[entry.id] else { return false }
+            return CaffeineContentQuestion.namesAny(nameParts[i], CaffeineContentQuestion.fold(drink))
+        }
+    }
+
+    static func lookup(_ drink: String, db: CaffeineDatabase) -> Answer { lookup(drink, index: Index(db)) }
+
+    static func lookup(_ drink: String, index: Index) -> Answer {
+        let db = index.db
         if let plain = noCaffeineName(drink) { return .noCaffeine(drink: plain) }
         let presetRecord = TypedDrinkEntry.presetPhrases[drink].flatMap { TypedDrinkEntry.presetServings[$0]?.usdaEntryID }
-        if let id = TypedDrinkEntry.genericPhrases[drink]?.id ?? presetRecord, let entry = db.entry(id: id),
-           let answer = found(entry, drink: drink, db: db) {
+        if let id = TypedDrinkEntry.genericPhrases[drink]?.id ?? presetRecord, let i = index.byID[id],
+           let answer = found(db.entries[i], drink: drink, db: db) {
             return answer
         }
         if let brand = DrinkPhotoMatcher.unrecordedBrand(in: drink) { return .notInDatabase(drink: brand) }
         // A record counts only when the words name it, not a different
         // drink that contains them ("beer" is not Barq's Root Beer).
-        switch TypedDrinkEntry.confidentBrand(drink, in: db) {
-        case .one(let entry) where names(entry, drink):
+        let phrase = fold(drink)
+        switch index.confidentBrand(drink) {
+        case .one(let entry) where index.names(entry, drink):
             return found(entry, drink: entry.displayName, db: db) ?? .notInDatabase(drink: drink)
-        case .several where db.entries.contains(where: { names($0, drink) }):
+        case .several where index.nameParts.contains(where: { namesAny($0, phrase) }):
             return .several(drink: drink)
         default:
             return .notInDatabase(drink: drink)
@@ -145,16 +208,20 @@ public enum CaffeineContentQuestion {
     /// or a comma-separated part: "red bull" names "Energy drink (Red Bull)"
     /// and "Energy drink, RED BULL"; "beer" doesn't name "Root Beer".
     static func names(_ entry: CaffeineDatabase.Entry, _ drink: String) -> Bool {
-        let fold: (String) -> String = {
-            $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-        }
-        let phrase = fold(drink)
         let parts = [entry.name, entry.brand ?? ""]
             .flatMap { $0.components(separatedBy: CharacterSet(charactersIn: ",()")) }
             .map { fold($0).trimmingCharacters(in: .whitespaces) }
-        return parts.contains { part in
+        return namesAny(parts, fold(drink))
+    }
+
+    static func namesAny(_ parts: [String], _ phrase: String) -> Bool {
+        parts.contains { part in
             part == phrase || part.hasPrefix(phrase + " ") || part.hasPrefix(phrase + "'")
         }
+    }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
     }
 
     static func found(_ entry: CaffeineDatabase.Entry, drink: String, db: CaffeineDatabase) -> Answer? {
