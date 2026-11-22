@@ -144,15 +144,25 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
     /// Any entry adds active caffeine at capture.
     public var hasActiveCaffeine: Bool { !caffeine.isEmpty || fadedCaffeine != nil }
 
-    static func capture(at t: Millis, doses: [Dose], sleeps: [SleepSession], halfLifeHours: Double) -> EnergyEvidence {
+    static func capture(
+        at t: Millis,
+        doses: [Dose],
+        sleeps: [SleepSession],
+        halfLifeHours: Double,
+        useAbsorptionRamp: Bool = false
+    ) -> EnergyEvidence {
         let windowStart = t - dayMs
-        let halfLifeMs = halfLifeHours * hourMs
         var caffeine: [CaffeineInput] = []
         var faded: FadedCaffeine?
         let ordered = doses.filter { $0.timestamp <= t }.sorted { ($0.timestamp, $0.id) < ($1.timestamp, $1.id) }
         for dose in ordered {
             // The same term `Caffeine.activeMg` adds for this entry.
-            let active = dose.mg * pow(0.5, (t - dose.timestamp) / halfLifeMs)
+            let active = Caffeine.singleDoseMg(
+                mg: dose.mg,
+                elapsedMs: t - dose.timestamp,
+                halfLifeHours: halfLifeHours,
+                useAbsorptionRamp: useAbsorptionRamp
+            )
             guard active > 0 else { continue }
             let isSample = RecordID.isSample(dose.id)
             if active >= itemizedMinimumMg {
@@ -191,7 +201,12 @@ public struct EnergyEvidence: Codable, Equatable, Sendable {
 
         return EnergyEvidence(
             windowStart: windowStart,
-            activeCaffeineMg: Caffeine.activeMg(at: t, doses: doses, halfLifeHours: halfLifeHours),
+            activeCaffeineMg: Caffeine.activeMg(
+                at: t,
+                doses: doses,
+                halfLifeHours: halfLifeHours,
+                useAbsorptionRamp: useAbsorptionRamp
+            ),
             caffeine: caffeine,
             fadedCaffeine: faded,
             sleep: sleep,
@@ -232,6 +247,8 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     public var includesSample: Bool
     public var limitations: [EnergyLimitation]
     public var evidence: EnergyEvidence
+    public var circadianAnchor: Circadian.Anchor?
+    public var usesAbsorptionRamp: Bool?
 
     public static func capture(
         at t: Millis,
@@ -241,7 +258,16 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
     ) -> EnergyEstimate {
         let estimate = Summary.estimateAlertness(at: t, doses: doses, sleeps: sleeps, inputs: inputs)
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
-        let evidence = EnergyEvidence.capture(at: t, doses: doses, sleeps: sleeps, halfLifeHours: inputs.halfLifeHours)
+        let evidence = EnergyEvidence.capture(
+            at: t,
+            doses: doses,
+            sleeps: sleeps,
+            halfLifeHours: inputs.halfLifeHours,
+            useAbsorptionRamp: inputs.useAbsorptionRamp
+        )
+        let anchor: Circadian.Anchor? = inputs.usePersonalCircadianPhase
+            ? Circadian.anchor(sleeps: sleeps, at: t, clock: inputs.clock)
+            : nil
 
         var missing: [EnergyMissingInput] = []
         if estimate.score == nil { missing.append(.recentSleep) }
@@ -253,8 +279,18 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
 
         var contributions: [EnergyContribution] = []
         if estimate.score != nil {
-            let circadian = Circadian.value(at: t, clock: inputs.clock)
-            let effect = Caffeine.activeEffect(at: t, doses: doses, halfLifeHours: inputs.halfLifeHours)
+            let circadian: Double
+            if let anchor, anchor.source != .defaultFixed {
+                circadian = Circadian.value(at: t, clock: inputs.clock, troughHour: anchor.troughHour)
+            } else {
+                circadian = Circadian.value(at: t, clock: inputs.clock)
+            }
+            let effect = Caffeine.activeEffect(
+                at: t,
+                doses: doses,
+                halfLifeHours: inputs.halfLifeHours,
+                useAbsorptionRamp: inputs.useAbsorptionRamp
+            )
             let debt = SleepDebt.value(at: t, sleeps: sleeps, targetHours: inputs.targetSleepHours)
             let inertia = SleepInertia.value(at: t, sleeps: sleeps)
             contributions = [
@@ -277,9 +313,11 @@ public struct EnergyEstimate: Codable, Equatable, Sendable {
             modeledScore: estimate.score,
             contributions: contributions,
             missingInputs: missing,
-            includesSample: evidence.includesSample,
+            includesSample: evidence.includesSample || (anchor?.includesSample ?? false),
             limitations: EnergyLimitation.allCases,
-            evidence: evidence
+            evidence: evidence,
+            circadianAnchor: anchor,
+            usesAbsorptionRamp: inputs.useAbsorptionRamp ? true : nil
         )
     }
 

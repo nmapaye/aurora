@@ -18,11 +18,21 @@ public struct EstimateInputs: Sendable {
     public var halfLifeHours: Double
     public var targetSleepHours: Double
     public var clock: LocalClock
+    public var usePersonalCircadianPhase: Bool
+    public var useAbsorptionRamp: Bool
 
-    public init(halfLifeHours: Double, targetSleepHours: Double, clock: LocalClock) {
+    public init(
+        halfLifeHours: Double,
+        targetSleepHours: Double,
+        clock: LocalClock,
+        usePersonalCircadianPhase: Bool = false,
+        useAbsorptionRamp: Bool = false
+    ) {
         self.halfLifeHours = halfLifeHours
         self.targetSleepHours = targetSleepHours
         self.clock = clock
+        self.usePersonalCircadianPhase = usePersonalCircadianPhase
+        self.useAbsorptionRamp = useAbsorptionRamp
     }
 
     /// A stored `prefs.tz` sets the zone for the time-of-day term, as it did
@@ -32,7 +42,9 @@ public struct EstimateInputs: Sendable {
         self.init(
             halfLifeHours: prefs.halfLife,
             targetSleepHours: prefs.targetSleep,
-            clock: zone.map(LocalClock.init(timeZone:)) ?? clock
+            clock: zone.map(LocalClock.init(timeZone:)) ?? clock,
+            usePersonalCircadianPhase: prefs.usesPersonalCircadianPhase,
+            useAbsorptionRamp: prefs.usesGradualCaffeineOnset
         )
     }
 }
@@ -56,17 +68,36 @@ public enum Summary {
         guard hasRecentMainSleep else { return .needsSleep }
         let sleepHours = SleepDebt.totalHoursLast24(at: t, sleeps: sleeps)
         let windowStart = t - dayMs
+        let anchor: Circadian.Anchor? = inputs.usePersonalCircadianPhase
+            ? Circadian.anchor(sleeps: sleeps, at: t, clock: inputs.clock)
+            : nil
+        let troughHour = (anchor?.source != .defaultFixed) ? anchor?.troughHour : nil
         let includesSample =
             sleeps.contains { $0.end > windowStart && $0.start <= t && RecordID.isSample($0.id) } ||
-            doses.contains { $0.timestamp > windowStart && $0.timestamp <= t && RecordID.isSample($0.id) }
-        let score = Alertness.score(
-            at: t,
-            doses: doses,
-            sleeps: sleeps,
-            halfLifeHours: inputs.halfLifeHours,
-            targetSleepHours: inputs.targetSleepHours,
-            clock: inputs.clock
-        )
+            doses.contains { $0.timestamp > windowStart && $0.timestamp <= t && RecordID.isSample($0.id) } ||
+            (anchor?.includesSample == true)
+        let score: Double
+        if troughHour == nil && !inputs.useAbsorptionRamp {
+            score = Alertness.score(
+                at: t,
+                doses: doses,
+                sleeps: sleeps,
+                halfLifeHours: inputs.halfLifeHours,
+                targetSleepHours: inputs.targetSleepHours,
+                clock: inputs.clock
+            )
+        } else {
+            score = Alertness.score(
+                at: t,
+                doses: doses,
+                sleeps: sleeps,
+                halfLifeHours: inputs.halfLifeHours,
+                targetSleepHours: inputs.targetSleepHours,
+                clock: inputs.clock,
+                circadianTroughHour: troughHour,
+                useAbsorptionRamp: inputs.useAbsorptionRamp
+            )
+        }
         return .estimated(score: jsRoundInt(score), sleepHours: sleepHours, includesSample: includesSample)
     }
 
