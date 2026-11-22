@@ -3,9 +3,8 @@ import Testing
 @testable import AuroraCore
 
 /// CopyRules over every string literal in the app target and AuroraCore's
-/// sources, not just the onboarding and welcome lines: no "remaining
-/// caffeine", "safe amount", "you should…" and the rest anywhere a person
-/// could read it. Excluded: the research models and their flagged Debug
+/// sources, not just the onboarding and welcome lines: no "safe amount",
+/// medical claim or clinical test name anywhere a person could read it. Excluded: the research models and their flagged Debug
 /// screen (off by default, never shown to normal users). CopyRules' own
 /// pattern is a raw literal, so Onboarding+Copy.swift is scanned like every
 /// other file; its one allowed sentence is scrubbed by CopyRules itself.
@@ -46,11 +45,11 @@ import Testing
 
     @Test func scannerFindsLiteralsAndSkipsCommentsAndPatterns() {
         let source = """
-        let a = "Caffeine remaining caffeine"
+        let a = "Your safe amount today"
         // "you should sleep" in a comment
         let b = #"\\b(safe amount)\\b"#
         """
-        #expect(Self.literals(in: source) == ["Caffeine remaining caffeine"])
+        #expect(Self.literals(in: source) == ["Your safe amount today"])
         #expect(!CopyRules.violations(in: Self.literals(in: source)[0]).isEmpty)
     }
 

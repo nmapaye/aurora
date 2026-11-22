@@ -236,13 +236,15 @@ private let now: Millis = 1_790_527_260_000 // 2026-09-27 16:41 UTC
         #expect(CaffeineLog.isEditable(Dose(id: "abc-1", timestamp: 0, mg: 1)))
     }
 
-    @Test func noPrescriptiveCopy() {
-        #expect(CopyRules.violations(in: "You have 120 mg remaining today.").isEmpty == false)
-        #expect(CopyRules.violations(in: "Suggested bedtime: 10 PM").isEmpty == false)
+    @Test func guidanceIsAllowedButSafetyAndMedicalClaimsAreNot() {
+        // Owner decision (Nov 20): practical guidance is fine.
+        for allowed in ["You have 120 mg remaining today.", "Suggested bedtime: 10 PM", "Last call for caffeine is 2 PM.",
+                        "Have it by 4:20 PM to be under 50 mg at bed.", "You should stop caffeine by 3 PM tonight."] {
+            #expect(CopyRules.violations(in: allowed).isEmpty, "\(allowed)")
+        }
         #expect(CopyRules.violations(in: "Personal caffeine reference. It is not a recommended or safe amount.").isEmpty)
-        // The reaction test is never named after the research instrument,
-        // and reminders never give the old directive.
-        for banned in ["Take a PVT", "A 60-second psychomotor vigilance test", "Last call for caffeine", "Your safe level today"] {
+        // Never a safety promise, a medical claim, or the clinical test's name.
+        for banned in ["Take a PVT", "A 60-second psychomotor vigilance test", "Your safe level today", "Aurora treats insomnia", "This may diagnose sleep apnea"] {
             #expect(!CopyRules.violations(in: banned).isEmpty, "\(banned)")
         }
         let texts = Walkthrough.steps.flatMap { [$0.title, $0.body] } +

@@ -20,10 +20,11 @@ approval. Historical cards are snapshots with Refresh. A day with no record is
 "No record", never 0. Sample Data is labeled and read-only. Health records are
 read-only, apart from Aurora's own caffeine samples.
 
-Personal suggestions (e.g. a caffeine cutoff from the person's own logs) are
-allowed when labeled as estimates, explained, opt-in, and never framed as medical
-advice. No hard limits, allowances, "remaining" amounts, health claims, or
-diagnosis/treatment language. Aurora may propose a setting value with its reason;
+Aurora gives direct, practical guidance (owner decision, Nov 20, 2026): when
+to have or stop a drink, how much caffeine is still in you at bed, a suggested
+bedtime, and how a drink will likely affect sleep. Estimates are labeled as
+estimates and explained. Two things stay out: promising that a caffeine amount
+is "safe", and medical diagnosis or treatment claims. Aurora may propose a setting value with its reason;
 the person confirms it with one tap, never silently applied. Insights may show
 before full thresholds as an "early read" labeled with the data used (e.g. "early
 read, 5 nights"); full-confidence thresholds are unchanged.
