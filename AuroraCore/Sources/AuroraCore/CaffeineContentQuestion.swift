@@ -40,7 +40,8 @@ public enum CaffeineContentQuestion {
     /// ("beer caffeine", "caffeine for a latte") answers only when it names a
     /// drink Aurora can place, so "how much caffeine is too much" still goes
     /// to the assistant instead of getting a "no entry" line.
-    struct Shape {
+    /// NSRegularExpression is immutable and safe to share across threads.
+    struct Shape: @unchecked Sendable {
         let regex: NSRegularExpression
         let terse: Bool
         init(_ pattern: String, terse: Bool = false) {
@@ -65,9 +66,9 @@ public enum CaffeineContentQuestion {
         Shape(#"^(?:how many )?mg (?:of caffeine )?(?:in )?(.+)$"#, terse: true),
     ]
     /// Words that make it a question about the person, a time or a dose.
-    static let personalWords = try! NSRegularExpression(
+    nonisolated(unsafe) static let personalWords = try! NSRegularExpression(
         pattern: #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#)
-    static let leadingFiller = try! NSRegularExpression(
+    nonisolated(unsafe) static let leadingFiller = try! NSRegularExpression(
         pattern: #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#)
 
     /// Everyday drinks with no caffeine, matched on the whole phrase only, so
@@ -83,7 +84,6 @@ public enum CaffeineContentQuestion {
         "sprite", "7up", "7 up", "ginger ale", "fanta", "caffeine-free coke", "caffeine free coke",
         "caffeine-free diet coke", "caffeine free diet coke", "caffeine-free pepsi", "caffeine free pepsi",
     ]
-    static let leadingFiller = #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#
 
     /// The answer, or nil when the text isn't a question about a drink's caffeine.
     public static func answer(_ input: String, db: CaffeineDatabase?) -> Answer? {
