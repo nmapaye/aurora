@@ -108,10 +108,14 @@ import Testing
     @Test func aDrinkCaffeineQuestionIsAnsweredNotTheMenu() async throws {
         for aiOff in [true, false] {
             assistant.intelligenceOffOverride = aiOff
-            assistant.send("How much caffeine does beer have", app: model)
-            let last = assistant.conversation.messages.last
-            #expect(last?.text == CaffeineContentQuestion.Answer.noCaffeine(drink: "beer").message)
-            #expect(last?.card == nil && assistant.pendingDraft == nil)
+            for question in ["How much caffeine does beer have", "beer caffeine"] {
+                assistant.send(question, app: model)
+                // Answered before send returns: no model call, no wait.
+                #expect(!assistant.processing)
+                let last = assistant.conversation.messages.last
+                #expect(last?.text == CaffeineContentQuestion.Answer.noCaffeine(drink: "beer").message)
+                #expect(last?.card == nil && assistant.pendingDraft == nil)
+            }
         }
         await expectNothingWritten()
     }

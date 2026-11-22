@@ -35,7 +35,10 @@ caffeine-free sodas) come from a fixed list in `CaffeineContentQuestion` and get
 milk" never do; the database holds caffeinated drinks only, so these aren't
 records and can't be logged from this answer. Anything else gets a plain line
 that the database has no entry for that drink. It never opens a draft or
-guesses an amount.
+guesses an amount. Short forms ("beer caffeine", "caffeine for a latte", "mg in
+a latte") are answered the same way when they name a drink Aurora can place;
+otherwise they go on to the assistant. The lookup runs synchronously in `send`,
+before any model, so the answer is on screen when the message is.
 
 Apple's on-device Foundation Models classify unfamiliar requests when
 available (iOS 26+ and enabled Apple Intelligence). On iOS 17–25 or unsupported

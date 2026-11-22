@@ -324,7 +324,7 @@ final class AssistantModel {
         }
         // "How much caffeine does beer have?": a drink's caffeine, answered
         // from the bundled database in code, AI on or off. Never a draft.
-        if followUp == nil, let answer = CaffeineContentQuestion.answer(text, db: CaffeineDatabase.bundled) {
+        if followUp == nil, let answer = CaffeineContentQuestion.answer(text) {
             append(answer.message)
             return
         }

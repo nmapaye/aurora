@@ -36,16 +36,41 @@ public enum CaffeineContentQuestion {
         }
     }
 
-    /// Whole-question shapes; capture group 1 is the drink.
-    static let patterns = [
-        #"^how much caffeine (?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#,
-        #"^(?:does|do) (.+?) (?:have|has|contain|contains) (?:any )?caffeine$"#,
-        #"^is there (?:any )?caffeine in (.+)$"#,
-        #"^what(?:'s| is) the caffeine(?: content| amount)? (?:in|of) (.+)$"#,
-        #"^caffeine (?:in|content of) (.+)$"#,
+    /// A question shape; capture group 1 is the drink. A terse shape
+    /// ("beer caffeine", "caffeine for a latte") answers only when it names a
+    /// drink Aurora can place, so "how much caffeine is too much" still goes
+    /// to the assistant instead of getting a "no entry" line.
+    /// NSRegularExpression is immutable and safe to share across threads.
+    struct Shape: @unchecked Sendable {
+        let regex: NSRegularExpression
+        let terse: Bool
+        init(_ pattern: String, terse: Bool = false) {
+            regex = try! NSRegularExpression(pattern: pattern)
+            self.terse = terse
+        }
+    }
+
+    /// Compiled once: a lookup runs in code on every send, before any model.
+    static let shapes: [Shape] = [
+        Shape(#"^how much caffeine (?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#),
+        Shape(#"^how many mg (?:of caffeine )?(?:is |are )?(?:there )?(?:in|does|do) (.+?)(?: have| has| contain| contains)?$"#),
+        Shape(#"^(?:does|do) (.+?) (?:have|has|contain|contains) (?:any )?caffeine$"#),
+        Shape(#"^is there (?:any )?caffeine in (.+)$"#),
+        Shape(#"^what(?:'s| is) the caffeine(?: content| amount)? (?:in|of) (.+)$"#),
+        Shape(#"^caffeine (?:in|content of) (.+)$"#),
+        Shape(#"^(?:is|are) (.+?) caffeinated$"#),
+        Shape(#"^(?:is|are) (.+?) caffeine[- ]free$"#),
+        Shape(#"^(.+?) caffeine(?: content| amount| level)?$"#, terse: true),
+        Shape(#"^caffeine (?:for |of )?(.+)$"#, terse: true),
+        Shape(#"^how much caffeine (.+)$"#, terse: true),
+        Shape(#"^(?:how many )?mg (?:of caffeine )?(?:in )?(.+)$"#, terse: true),
     ]
     /// Words that make it a question about the person, a time or a dose.
-    static let personalWords = #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#
+    nonisolated(unsafe) static let personalWords = try! NSRegularExpression(
+        pattern: #"\b(i|i'm|i've|me|my|you|your|left|today|tonight|now|body|system|blood|day|week|yesterday|tomorrow|bed ?time|should|safe|limit)\b"#)
+    nonisolated(unsafe) static let leadingFiller = try! NSRegularExpression(
+        pattern: #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#)
+
     /// Everyday drinks with no caffeine, matched on the whole phrase only, so
     /// "coffee stout" or "chocolate milk" never land here. Root beer stays
     /// out: some root beers (Barq's) have caffeine.
@@ -59,47 +84,113 @@ public enum CaffeineContentQuestion {
         "sprite", "7up", "7 up", "ginger ale", "fanta", "caffeine-free coke", "caffeine free coke",
         "caffeine-free diet coke", "caffeine free diet coke", "caffeine-free pepsi", "caffeine free pepsi",
     ]
-    static let leadingFiller = #"^(?:(?:a|one) (?:cup|can|glass|bottle|shot) of|(?:cup|can|glass|bottle|shot) of|a|an|the|one|some)\s+"#
 
     /// The answer, or nil when the text isn't a question about a drink's caffeine.
     public static func answer(_ input: String, db: CaffeineDatabase?) -> Answer? {
-        guard let db, let drink = drink(in: input) else { return nil }
-        return lookup(drink, db: db)
+        guard let db else { return nil }
+        return answer(input, index: Index(db))
+    }
+
+    /// The same answer against the bundled database, whose index is built
+    /// once; the app calls this on every send.
+    public static func answer(_ input: String) -> Answer? {
+        guard let index = bundledIndex else { return nil }
+        return answer(input, index: index)
+    }
+
+    static let bundledIndex: Index? = CaffeineDatabase.bundled.map(Index.init)
+
+    static func answer(_ input: String, index: Index) -> Answer? {
+        guard let parsed = parse(input) else { return nil }
+        let answer = lookup(parsed.drink, index: index)
+        if parsed.terse, case .notInDatabase = answer { return nil }
+        return answer
     }
 
     /// The drink a content question names, lowercased, without articles.
-    public static func drink(in input: String) -> String? {
+    public static func drink(in input: String) -> String? { parse(input)?.drink }
+
+    static func parse(_ input: String) -> (drink: String, terse: Bool)? {
         var text = input.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
         while let last = text.last, "?.!".contains(last) { text.removeLast() }
         text = text.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, text.count <= 120 else { return nil }
-        for pattern in patterns {
-            guard let captured = capture(pattern, text) else { continue }
+        for shape in shapes {
+            guard let captured = capture(shape.regex, text) else { continue }
             var drink = captured.trimmingCharacters(in: .whitespaces)
-            if let filler = drink.range(of: leadingFiller, options: .regularExpression) { drink.removeSubrange(filler) }
+            if let filler = firstRange(leadingFiller, drink) { drink.removeSubrange(filler) }
             drink = drink.trimmingCharacters(in: .whitespaces)
             guard !drink.isEmpty, drink.count <= 40,
                   !drink.contains(where: \.isNumber) || noCaffeineDrinks.contains(drink),
-                  drink.range(of: personalWords, options: .regularExpression) == nil else { return nil }
-            return drink
+                  firstRange(personalWords, drink) == nil else { return nil }
+            return (drink, shape.terse)
         }
         return nil
     }
 
-    static func lookup(_ drink: String, db: CaffeineDatabase) -> Answer {
+    /// Per-record words and folded name parts, worked out once per database
+    /// so a lookup never re-tokenizes all 450 records.
+    struct Index: Sendable {
+        let db: CaffeineDatabase
+        let entryTokens: [Set<String>]
+        let nameParts: [[String]]
+        let idf: [String: Double]
+        let byID: [String: Int]
+
+        init(_ db: CaffeineDatabase) {
+            self.db = db
+            entryTokens = db.entries.map(DrinkPhotoMatcher.entryTokens)
+            nameParts = db.entries.map { entry in
+                [entry.name, entry.brand ?? ""]
+                    .flatMap { $0.components(separatedBy: CharacterSet(charactersIn: ",()")) }
+                    .map { CaffeineContentQuestion.fold($0).trimmingCharacters(in: .whitespaces) }
+            }
+            var counts: [String: Int] = [:]
+            for words in entryTokens { for word in words { counts[word, default: 0] += 1 } }
+            let n = Double(max(db.entries.count, 1))
+            idf = counts.mapValues { log(1 + n / Double($0)) }
+            byID = Dictionary(db.entries.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { first, _ in first })
+        }
+
+        /// `TypedDrinkEntry.confidentBrand`, on the precomputed words.
+        func confidentBrand(_ phrase: String) -> TypedDrinkEntry.BrandMatch {
+            let query = DrinkPhotoMatcher.tokens(phrase)
+            guard !query.isEmpty else { return .none }
+            let weight: (Set<String>) -> Double = { $0.reduce(0) { $0 + (idf[$1] ?? 1) } }
+            let queryWeight = weight(query)
+            let ranked = entryTokens.indices.compactMap { i -> (entry: CaffeineDatabase.Entry, score: Double)? in
+                guard query.isSubset(of: entryTokens[i]) else { return nil }
+                return (db.entries[i], queryWeight / max(weight(entryTokens[i]), .leastNonzeroMagnitude))
+            }.sorted { $0.score != $1.score ? $0.score > $1.score : $0.entry.id < $1.entry.id }
+            guard let first = ranked.first else { return .none }
+            guard first.score >= 0.5, first.score - (ranked.dropFirst().first?.score ?? 0) >= DrinkPhotoMatcher.confidentMargin else { return .several }
+            return .one(first.entry)
+        }
+
+        func names(_ entry: CaffeineDatabase.Entry, _ drink: String) -> Bool {
+            guard let i = byID[entry.id] else { return false }
+            return CaffeineContentQuestion.namesAny(nameParts[i], CaffeineContentQuestion.fold(drink))
+        }
+    }
+
+    static func lookup(_ drink: String, db: CaffeineDatabase) -> Answer { lookup(drink, index: Index(db)) }
+
+    static func lookup(_ drink: String, index: Index) -> Answer {
+        let db = index.db
         if let plain = noCaffeineName(drink) { return .noCaffeine(drink: plain) }
         let presetRecord = TypedDrinkEntry.presetPhrases[drink].flatMap { TypedDrinkEntry.presetServings[$0]?.usdaEntryID }
-        if let id = TypedDrinkEntry.genericPhrases[drink]?.id ?? presetRecord, let entry = db.entry(id: id),
-           let answer = found(entry, drink: drink, db: db) {
+        if let id = TypedDrinkEntry.genericPhrases[drink]?.id ?? presetRecord, let i = index.byID[id],
+           let answer = found(db.entries[i], drink: drink, db: db) {
             return answer
         }
         if let brand = DrinkPhotoMatcher.unrecordedBrand(in: drink) { return .notInDatabase(drink: brand) }
         // A record counts only when the words name it, not a different
         // drink that contains them ("beer" is not Barq's Root Beer).
-        switch TypedDrinkEntry.confidentBrand(drink, in: db) {
-        case .one(let entry) where names(entry, drink):
+        let phrase = fold(drink)
+        switch index.confidentBrand(drink) {
+        case .one(let entry) where index.names(entry, drink):
             return found(entry, drink: entry.displayName, db: db) ?? .notInDatabase(drink: drink)
-        case .several where db.entries.contains(where: { names($0, drink) }):
+        case .several where index.nameParts.contains(where: { namesAny($0, phrase) }):
             return .several(drink: drink)
         default:
             return .notInDatabase(drink: drink)
@@ -117,16 +208,20 @@ public enum CaffeineContentQuestion {
     /// or a comma-separated part: "red bull" names "Energy drink (Red Bull)"
     /// and "Energy drink, RED BULL"; "beer" doesn't name "Root Beer".
     static func names(_ entry: CaffeineDatabase.Entry, _ drink: String) -> Bool {
-        let fold: (String) -> String = {
-            $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-        }
-        let phrase = fold(drink)
         let parts = [entry.name, entry.brand ?? ""]
             .flatMap { $0.components(separatedBy: CharacterSet(charactersIn: ",()")) }
             .map { fold($0).trimmingCharacters(in: .whitespaces) }
-        return parts.contains { part in
+        return namesAny(parts, fold(drink))
+    }
+
+    static func namesAny(_ parts: [String], _ phrase: String) -> Bool {
+        parts.contains { part in
             part == phrase || part.hasPrefix(phrase + " ") || part.hasPrefix(phrase + "'")
         }
+    }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
     }
 
     static func found(_ entry: CaffeineDatabase.Entry, drink: String, db: CaffeineDatabase) -> Answer? {
@@ -138,11 +233,14 @@ public enum CaffeineContentQuestion {
         return .found(drink: drink, mg: serving.mg, serving: serving.label, source: source)
     }
 
-    static func capture(_ pattern: String, _ text: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+    static func capture(_ regex: NSRegularExpression, _ text: String) -> String? {
+        guard let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: text) else { return nil }
         return String(text[range])
+    }
+
+    static func firstRange(_ regex: NSRegularExpression, _ text: String) -> Range<String.Index>? {
+        regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)).flatMap { Range($0.range, in: text) }
     }
 
     static func capitalized(_ text: String) -> String {
