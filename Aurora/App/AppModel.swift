@@ -126,6 +126,7 @@ final class AppModel {
             tick()
             if let saved = try store.load() {
                 state = saved
+                state.healthSync = saved.healthSync.settledAfterLaunch()
             } else if let legacy = legacy() {
                 switch legacy.read(now: now) {
                 case .imported(let imported):

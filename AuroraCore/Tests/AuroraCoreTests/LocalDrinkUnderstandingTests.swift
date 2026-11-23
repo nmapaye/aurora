@@ -98,3 +98,126 @@ import Testing
     }
 
 }
+
+/// Owner report (Nov 19): "I had a matcha" → "When did you have this drink?"
+/// → "Now" fell through to the generic menu.
+@Suite struct LocalDrinkFollowUpTests {
+    let now: Millis = 1_800_000_000_000
+    let clock = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)
+
+    @Test func timeAnswerCompletesThePendingDrink() {
+        guard case .clarify(let question) = LocalDrinkUnderstanding.prepare("I had espresso", doses: [], now: now, clock: clock) else { Issue.record("expected a question"); return }
+        #expect(question == LocalDrinkUnderstanding.timeQuestion)
+        let combined = LocalDrinkUnderstanding.answering("I had espresso", with: "Now")
+        #expect(combined == "i had espresso now")
+        guard case .proposal(let p) = LocalDrinkUnderstanding.prepare(combined!, doses: [], now: now, clock: clock) else { Issue.record("expected a proposal"); return }
+        #expect(p.draft.source == "Espresso" && p.draft.timestamp == now)
+        #expect(LocalDrinkUnderstanding.answering("I had espresso", with: "yesterday at 8am") == "i had espresso yesterday at 8am")
+    }
+
+    @Test func amountAnswerCompletesADrinkWithNoVerifiedAmount() {
+        guard case .clarify(let question) = LocalDrinkUnderstanding.prepare("I had tea now", doses: [], now: now, clock: clock) else { Issue.record("expected a question"); return }
+        #expect(LocalDrinkUnderstanding.asksForAmount(question))
+        let combined = LocalDrinkUnderstanding.answering("I had tea now", with: "40")
+        #expect(combined == "i had 40 mg tea now")
+        guard case .proposal(let p) = LocalDrinkUnderstanding.prepare(combined!, doses: [], now: now, clock: clock) else { Issue.record("expected a proposal"); return }
+        #expect(p.draft.mg == "40" && p.draft.source == "Tea")
+    }
+
+    @Test func articleBeforeTheDrinkIsAccepted() {
+        guard case .clarify(let question) = LocalDrinkUnderstanding.prepare("I had a coffee", doses: [], now: now, clock: clock) else { Issue.record("expected a question"); return }
+        #expect(question == LocalDrinkUnderstanding.timeQuestion)
+        #expect(LocalDrinkUnderstanding.answering("I had a matcha now", with: "70") == "i had 70 mg matcha now")
+    }
+
+    @Test func anythingElseStartsFresh() {
+        #expect(LocalDrinkUnderstanding.answering("I had espresso", with: "how is my energy?") == nil)
+        #expect(LocalDrinkUnderstanding.answering("I had espresso", with: "now and later") == nil)
+        #expect(LocalDrinkUnderstanding.answering("what is caffeine", with: "now") == nil)
+    }
+}
+
+/// Owner request (Nov 19): typed logging covers the whole bundled database,
+/// not just the nine quick-path drink words.
+@Suite struct LocalDrinkDatabaseRouteTests {
+    let now: Millis = 1_800_000_000_000
+    let clock = LocalClock(timeZone: TimeZone(identifier: "America/Los_Angeles")!)
+    var db: CaffeineDatabase? { CaffeineDatabase.bundled }
+    func route(_ text: String) -> LocalDrinkUnderstanding.DatabaseRoute? {
+        LocalDrinkUnderstanding.databaseRoute(text, doses: [], db: db, now: now, clock: clock)
+    }
+
+    @Test func oneRecordFillsTheEntryCard() throws {
+        guard case .entry(let celsius)? = route("i had a celsius now") else { Issue.record("expected entry"); return }
+        #expect(celsius.draft.mg == "200" && celsius.amountSource != .none)
+        guard case .entry(let typed)? = route("I had a red bull 80mg") else { Issue.record("expected entry"); return }
+        #expect(typed.draft.mg == "80" && typed.amountSource == .typedMg)
+        // Generic drinks with one USDA record fill straight away.
+        guard case .entry(let latte)? = route("I had a latte"), case .entry(let tea)? = route("i had black tea") else { Issue.record("expected entries"); return }
+        #expect(latte.draft.mg == "86" && tea.draft.mg == "47")
+    }
+
+    @Test func severalRecordsOpenTheChooserAtTheStatedTime() throws {
+        for text in ["I had a Red Bull", "I drank green tea", "log a monster yesterday at 8am"] {
+            guard case .choose(let lookup)? = route(text) else { Issue.record("expected chooser: \(text) → \(String(describing: route(text)))"); continue }
+            #expect(!DrinkPhotoMatcher.search(lookup.phrase, in: db!).isEmpty)
+        }
+        guard case .choose(let monster)? = route("log a monster yesterday at 8am") else { return }
+        #expect(monster.timestamp < now)
+        guard case .choose(let redBull)? = route("I had a Red Bull") else { return }
+        #expect(redBull.timestamp == now)
+    }
+
+    @Test func completeVerifiedRequestsKeepTheirPath() {
+        #expect(route("I had espresso now") == nil)
+        #expect(route("I had 95 mg coffee yesterday at 8am") == nil)
+    }
+
+    @Test func notADrinkOrNotALogStaysOut() {
+        #expect(route("I had lunch") == nil)
+        #expect(route("red bull") == nil)
+        #expect(route("what is in a red bull") == nil)
+        #expect(route("I didn't have a red bull") == nil)
+    }
+
+    @Test func notInDatabaseBrandsAskForTheAmount() {
+        guard case .entry(let matcha)? = route("I had a matcha now") else { Issue.record("expected entry"); return }
+        #expect(matcha.draft.mg.isEmpty && matcha.amountSource == .none)
+    }
+}
+
+/// Owner report (Nov 19): "Adjust the last entry to matcha" was refused.
+@Suite struct LastEntryCorrectionTests {
+    var db: CaffeineDatabase? { CaffeineDatabase.bundled }
+    func drink(_ text: String) -> String? { LocalDrinkUnderstanding.lastEntryCorrection(text, db: db) }
+
+    @Test func correctionPhrasesNameTheNewDrink() {
+        #expect(drink("Adjust the last entry to matcha") == "matcha")
+        #expect(drink("change my last drink to a latte") == "latte")
+        #expect(drink("Edit the last one to green tea.") == "green tea")
+        #expect(drink("that was a matcha") == "matcha")
+        #expect(drink("it was actually a red bull not a monster") == "red bull")
+    }
+
+    @Test func bareEditOpensTheLastEntry() {
+        for text in ["Change the last entry", "edit my last drink", "fix that entry.", "change last entry"] {
+            #expect(LocalDrinkUnderstanding.isBareLastEntryEdit(text), "\(text)")
+            #expect(drink(text) == nil)
+        }
+        #expect(!LocalDrinkUnderstanding.isBareLastEntryEdit("change the last entry to matcha"))
+        #expect(!LocalDrinkUnderstanding.isBareLastEntryEdit("show my last entry"))
+    }
+
+    @Test func otherMessagesAreNotCorrections() {
+        #expect(drink("it was great") == nil)
+        #expect(drink("I had a matcha now") == nil)
+        #expect(drink("what was my last entry?") == nil)
+    }
+
+    @Test func targetIsTheNewestEditableDose() {
+        let mine = Dose(id: "manual:1", timestamp: 2_000, mg: 14, source: "Tea", note: "")
+        let older = Dose(id: "manual:0", timestamp: 1_000, mg: 95, source: "Coffee", note: "")
+        #expect(LocalDrinkUnderstanding.correctionTarget([older, mine])?.id == "manual:1")
+        #expect(LocalDrinkUnderstanding.correctionTarget([]) == nil)
+    }
+}

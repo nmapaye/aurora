@@ -98,6 +98,51 @@ final class LongCardWaitTests: XCTestCase {
         XCTAssertEqual(run(checks).0, .timedOut)
     }
 
+    /// Run 43934444680, iPad iteration 35: the first check got its snapshot
+    /// at 1.10 s with the title hittable and in place (frame, bar bottom
+    /// y=65 and composer top y=1307 from the run's dump), but the bar and
+    /// composer reads after it ran the check to 5.14 s, past the 4.10 s
+    /// deadline. The log didn't record when isHittable returned; 1.30 s is
+    /// constructed. The placement reads aren't app time, so this is shown.
+    func testSlowPlacementReadsAfterAPromptHittableAnswerPass() {
+        let frame = CGRect(x: 234, y: 617.5, width: 259.5, height: 20.5)
+        let check = Check(start: 0.0, snapshot: (1.10, frame), hittable: true, hittableAt: 1.30,
+                          barMaxY: 65, composerMinY: 1307, end: 5.14)
+        let (verdict, wait) = run([check])
+        XCTAssertEqual(verdict, .shown, wait.describe(verdict))
+        XCTAssertTrue(wait.describe(verdict).contains("hittable true at 1.30s end 5.14s"))
+    }
+
+    /// Run 44450057420 on main (ec697957, iPad long-card repeat): the same
+    /// shape on main. "first snapshot at 0.95 s; checks: 0.00s frame (234.0,
+    /// 617.5, 259.5, 20.5) hittable true end 4.46s" was reported as timedOut
+    /// against the 3.95 s deadline. Bar and composer are the iPad values
+    /// above; 1.15 s for the hittability answer is constructed.
+    func testMainRun44450057420FirstCheckHittableIsShown() {
+        let frame = CGRect(x: 234, y: 617.5, width: 259.5, height: 20.5)
+        let check = Check(start: 0.0, snapshot: (0.95, frame), hittable: true, hittableAt: 1.15,
+                          barMaxY: 65, composerMinY: 1307, end: 4.46)
+        let (verdict, wait) = run([check])
+        XCTAssertEqual(verdict, .shown, wait.describe(verdict))
+    }
+
+    /// The hittability answer itself arriving after the deadline still
+    /// fails, however fast the placement reads are.
+    func testHittableAnswerPastTheDeadlineFails() {
+        let checks = [seen(0.5, at: 1.0, top, hittable: false, 1.1),
+                      Check(start: 3.8, snapshot: (3.9, top), hittable: true, hittableAt: 4.05,
+                            barMaxY: bar, composerMinY: composer, end: 4.06)]
+        XCTAssertEqual(run(checks).0, .timedOut)
+    }
+
+    /// Slow placement reads don't excuse a title in the wrong place.
+    func testSlowPlacementReadsStillCatchAWrongPlace() {
+        let hidden = CGRect(x: 38, y: 40, width: 259.3, height: 20.3)
+        let check = Check(start: 0.0, snapshot: (1.10, hidden), hittable: true, hittableAt: 1.30,
+                          barMaxY: bar, composerMinY: composer, end: 5.14)
+        XCTAssertEqual(run([check]).0, .wrongPlace)
+    }
+
     /// A title scrolled under the bar (the card showing its end) fails at
     /// once, under both rules.
     func testTitleUnderTheBarFails() {

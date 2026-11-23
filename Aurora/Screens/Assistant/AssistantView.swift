@@ -829,6 +829,7 @@ private struct ConversationSheets: ViewModifier {
             }
             .sheet(isPresented: $assistant.showAssistantSettings, onDismiss: onDismiss) { AssistantSettingsView(assistant: assistant) }
             .sheet(isPresented: $showHealthConnection) { HealthConnectionView() }
+            .sheet(item: $assistant.databaseLookup) { lookup in DrinkPhotoSheet(typed: lookup) }
             .sheet(isPresented: $assistant.showCalendarSettings) { CalendarConnectionsView(service: assistant.calendars) }
             .sheet(item: sheetDestination, onDismiss: onDismiss) { intent in
                 if intent == .settings { SettingsView() }

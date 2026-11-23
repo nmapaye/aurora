@@ -422,6 +422,13 @@ h3 {
 .release-card ul {
   padding-left: 18px;
 }
+.release-card .button {
+  margin: 16px 16px 8px 0;
+}
+.footer-note {
+  margin: 0;
+  color: #5f5f5a;
+}
 .release-card li + li {
   margin-top: 8px;
 }

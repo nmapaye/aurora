@@ -73,14 +73,28 @@ public struct AlertnessExplanation: Equatable, Sendable {
         }
 
         // Caffeine.
+        let onsetNote = estimate.usesAbsorptionRamp == true ? " Uses a typical ~40 min onset ramp." : ""
         let caffeineDetail = hasCaffeine
-            ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg modeled as active now, fading by your \(numberText(estimate.halfLifeHours))h half-life setting."
+            ? "\(numberText(jsRound(evidence.activeCaffeineMg))) mg modeled as active now, fading by your \(numberText(estimate.halfLifeHours))h half-life setting.\(onsetNote)"
             : "No caffeine recorded by this time."
         factors.append(Factor(kind: .caffeine, title: "Active caffeine", points: hasCaffeine ? part(.caffeine)?.pointsText : nil, detail: caffeineDetail))
 
         // Time of day.
+        let timeDetail: String
+        if let anchor = estimate.circadianAnchor {
+            switch anchor.source {
+            case .personalized:
+                timeDetail = "At \(text.clockTime(estimate.capturedAt)), anchored to your \(Circadian.Anchor.formatClockHour(anchor.troughHour)) sleep midpoint (\(anchor.recordedNights) nights)."
+            case .earlyRead:
+                timeDetail = "At \(text.clockTime(estimate.capturedAt)), early read anchored to your \(Circadian.Anchor.formatClockHour(anchor.troughHour)) sleep midpoint (\(anchor.recordedNights) nights)."
+            case .defaultFixed:
+                timeDetail = "At \(text.clockTime(estimate.capturedAt)), using the default 3:00 AM rhythm (needs \(Circadian.earlyReadNights) recorded nights to personalize)."
+            }
+        } else {
+            timeDetail = "At \(text.clockTime(estimate.capturedAt)), on the same daily curve for everyone, by local time."
+        }
         factors.append(Factor(kind: .timeOfDay, title: "Time of day", points: part(.timeOfDay)?.pointsText,
-                              detail: "At \(text.clockTime(estimate.capturedAt)), on the same daily curve for everyone, by local time."))
+                              detail: timeDetail))
 
         // The largest part by size, among inputs that have points.
         let sized: [(Factor.Kind, Double)] = [

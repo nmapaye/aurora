@@ -49,13 +49,14 @@ only `NSAllowsLocalNetworking` for the Ollama dev path; keep the two in sync.
 
 ## Rules that must hold
 
-- Describe what was recorded. Personal suggestions (e.g. a caffeine cutoff
-  from the person's own logs) are allowed only when labeled as estimates,
-  explained, opt-in, and never framed as medical advice. Never frame caffeine
-  against a hard limit, allowance or "remaining" amount, and never make
-  health claims or use diagnosis/treatment language. `CopyRules.violations(in:)`
-  lists the banned phrasing, and core tests run user-facing copy through it
-  (it still needs updating to match this rule).
+- Be useful and direct (owner decision, Nov 20, 2026). Guidance such as
+  "have it by 2 PM", "58 mg in you at bed", a suggested bedtime or a sleep
+  impact estimate is welcome; label estimates as estimates and keep every
+  number from app code. Only two things are out: calling a caffeine amount
+  "safe", and medical diagnosis/treatment claims (plus naming the reaction
+  test a PVT). `CopyRules.violations(in:)` holds exactly that list, and core
+  tests run user-facing copy through it. Don't add new copy bans without the
+  owner's say-so.
 - No setting is silently applied. Aurora may propose a value with its stated
   reason; the person confirms it with one tap. Until then the cutoff time
   starts unset and its reminder turns on only after the person sets one
