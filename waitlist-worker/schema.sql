@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS signups (
+  email TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   KSS_LABEL,
   KSS_OPTIONS,
@@ -9,7 +9,13 @@ import {
 
 const githubUrl = "https://github.com/nmapaye/aurora";
 
-// Waitlist: a plain email link. No form backend, trackers or ads.
+// Waitlist: an email form backed by a Cloudflare Worker (see waitlist-worker/),
+// with a Turnstile check against bots. Both values below are public by design;
+// the Turnstile secret lives only in the Worker. While either is empty, the site
+// falls back to a plain email link. No trackers or ads.
+export const waitlistEndpoint = "";
+export const turnstileSiteKey = "";
+export const waitlistFormEnabled = waitlistEndpoint !== "" && turnstileSiteKey !== "";
 const waitlistEmail = "nmapaye@outlook.com";
 const waitlistBody = [
   "Please add me to the Aurora waitlist.",
@@ -106,7 +112,7 @@ export default function App() {
               Log caffeine and sleep. See what is recorded and what is estimated. Your logs stay on your device.
             </p>
             <div className="hero-actions">
-              <a className="button button-primary" href={waitlistMailto}>
+              <a className="button button-primary" href={waitlistFormEnabled ? "#waitlist" : waitlistMailto}>
                 Join the waitlist <Arrow />
               </a>
               <a className="button button-secondary" href="#preview">
@@ -292,9 +298,13 @@ export default function App() {
             <article className="release-card" id="waitlist">
               <h3>Waitlist</h3>
               <p>Get an email when the free beta or the App Store version is ready.</p>
-              <a className="button button-primary" href={waitlistMailto}>
-                Join the waitlist <Arrow />
-              </a>
+              {waitlistFormEnabled ? (
+                <WaitlistForm />
+              ) : (
+                <a className="button button-primary" href={waitlistMailto}>
+                  Join the waitlist <Arrow />
+                </a>
+              )}
               <a className="text-link" href="privacy.html#waitlist">
                 How your email is used
               </a>
@@ -438,5 +448,152 @@ function Arrow({ direction = "right" }: { direction?: "right" | "down" }) {
     >
       <path d="M4 12h15M12 5l7 7-7 7" />
     </svg>
+  );
+}
+
+type TurnstileApi = {
+  render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+  reset: (id?: string) => void;
+  remove: (id?: string) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
+
+const turnstileScript = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+
+function loadTurnstile(): Promise<TurnstileApi> {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${turnstileScript}"]`);
+    const script = existing ?? document.createElement("script");
+    const done = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("turnstile")));
+    script.addEventListener("load", done, { once: true });
+    script.addEventListener("error", () => reject(new Error("turnstile")), { once: true });
+    if (!existing) {
+      script.src = turnstileScript;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+}
+
+type WaitlistState = "idle" | "sending" | "done" | "error";
+
+function WaitlistForm() {
+  const inputId = useId();
+  const widgetRef = useRef<HTMLDivElement>(null);
+  const widgetId = useRef<string | undefined>(undefined);
+  const [token, setToken] = useState("");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<WaitlistState>("idle");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTurnstile()
+      .then((api) => {
+        if (cancelled || !widgetRef.current) return;
+        widgetId.current = api.render(widgetRef.current, {
+          sitekey: turnstileSiteKey,
+          action: "waitlist",
+          callback: (t: string) => setToken(t),
+          "expired-callback": () => setToken(""),
+          "error-callback": () => setToken(""),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState("error");
+          setMessage("The spam check didn't load. You can email me to join instead.");
+        }
+      });
+    return () => {
+      cancelled = true;
+      if (widgetId.current) window.turnstile?.remove(widgetId.current);
+    };
+  }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token) {
+      setState("error");
+      setMessage("Please finish the quick check above the button first.");
+      return;
+    }
+    setState("sending");
+    setMessage("");
+    try {
+      const res = await fetch(waitlistEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), token }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && data.ok) {
+        setState("done");
+        setMessage("You're on the list. I'll email you when the beta opens.");
+        return;
+      }
+      setState("error");
+      setMessage(
+        data.error === "invalid_email"
+          ? "That email address doesn't look right."
+          : "That didn't go through. Try again, or email me to join instead.",
+      );
+    } catch {
+      setState("error");
+      setMessage("That didn't go through. Try again, or email me to join instead.");
+    } finally {
+      setToken("");
+      if (widgetId.current) window.turnstile?.reset(widgetId.current);
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <p className="waitlist-status waitlist-status-ok" role="status">
+        {message}
+      </p>
+    );
+  }
+
+  return (
+    <form className="waitlist-form" onSubmit={submit} noValidate={false}>
+      <label className="waitlist-label" htmlFor={inputId}>
+        Email address
+      </label>
+      <input
+        id={inputId}
+        className="waitlist-input"
+        type="email"
+        name="email"
+        autoComplete="email"
+        inputMode="email"
+        maxLength={254}
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+      />
+      <div className="waitlist-check" ref={widgetRef} />
+      <button className="button button-primary" type="submit" disabled={state === "sending"}>
+        {state === "sending" ? "Joining…" : "Join the waitlist"} <Arrow />
+      </button>
+      <p className="waitlist-status" role="status" aria-live="polite">
+        {message}
+        {state === "error" ? (
+          <>
+            {" "}
+            <a className="text-link" href={waitlistMailto}>
+              Email me instead
+            </a>
+          </>
+        ) : null}
+      </p>
+    </form>
   );
 }

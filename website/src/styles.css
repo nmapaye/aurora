@@ -638,3 +638,39 @@ h3 {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.waitlist-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.waitlist-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.waitlist-input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.waitlist-check {
+  min-height: 65px;
+}
+
+.waitlist-status {
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.waitlist-status-ok {
+  font-weight: 600;
+}
