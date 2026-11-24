@@ -1,0 +1,12 @@
+name = "aurora-waitlist"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aurora-waitlist"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Secret, set with `wrangler secret put TURNSTILE_SECRET` or in the dashboard:
+# TURNSTILE_SECRET = Turnstile widget secret key for aurora.nmapaye.com
